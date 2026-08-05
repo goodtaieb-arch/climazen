@@ -246,7 +246,7 @@ export function InterventionFormPage() {
       signatureOperateurImage: signatureOperateurImage || undefined,
       signatureDetenteurImage: signatureDetenteurImage || undefined,
       createdByUserId: existing?.createdByUserId || user?.id,
-      createdByName: existing?.createdByName || user?.fullName || user?.username,
+      createdByName: existing?.createdByName || user?.fullName || user?.email || user?.username,
       hasCerfaPdf: existing?.hasCerfaPdf,
       cerfaPdfFileName: existing?.cerfaPdfFileName,
       cerfaPdfSavedAt: existing?.cerfaPdfSavedAt,
@@ -309,7 +309,7 @@ export function InterventionFormPage() {
     // Stock + historique CERFA d’abord (peut échouer si quantité insuffisante)
     const savedId = saveInterventionWithStock(
       { ...fullDraft, id: previewId },
-      { createdByName: user?.fullName || user?.username },
+      { createdByName: user?.fullName || user?.email || user?.username },
     )
 
     const blob = await buildCerfaPdf({

@@ -14,6 +14,7 @@ import { InterventionsPage } from './pages/InterventionsPage'
 import { InterventionFormPage } from './pages/InterventionFormPage'
 import { OperateurPage } from './pages/OperateurPage'
 import { EquipePage } from './pages/EquipePage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route
               path="/app"
               element={

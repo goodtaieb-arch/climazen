@@ -1,4 +1,4 @@
-/** Comptes + sociétés ClimaZEN — la boîte garde la main, les CERFA remontent sur le compte officiel. */
+/** Comptes + sociétés ClimaZEN — connexion par e-mail, récupération MDP. */
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -11,23 +11,34 @@ export type Organization = {
 
 export type UserAccount = {
   id: string
+  /** Identifiant de connexion = e-mail */
+  email: string
+  /** @deprecated alias de email (anciens comptes) */
   username: string
   passwordHash: string
   fullName: string
   createdAt: string
-  /** Société / boîte */
   organizationId: string
   role: UserRole
   active: boolean
-  /** Signature perso opérateur (préremplie sur ses CERFA) */
+  /** Hash du code de récupération (mot de passe oublié) */
+  recoveryCodeHash?: string
   signataireNom?: string
   signataireQualite?: string
   signatureImage?: string
 }
 
+export type RegisterResult = {
+  user: UserAccount
+  /** Code à noter une seule fois — sert à régénérer le MDP */
+  recoveryCode: string
+}
+
 const USERS_KEY = 'climazen_users_v1'
 const ORGS_KEY = 'climazen_orgs_v1'
 const SESSION_KEY = 'climazen_session_v1'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function loadUsers(): UserAccount[] {
   try {
@@ -65,21 +76,52 @@ export async function hashPassword(password: string): Promise<string> {
     .join('')
 }
 
+export function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
+
+/** @deprecated */
 export function normalizeUsername(username: string) {
-  return username.trim().toLowerCase()
+  return normalizeEmail(username)
+}
+
+export function isValidEmail(email: string) {
+  return EMAIL_RE.test(normalizeEmail(email))
 }
 
 export function dataKeyForOrg(organizationId: string) {
   return `climazen_orgdata_${organizationId}`
 }
 
-/** @deprecated — données désormais par société */
 export function dataKeyForUser(userId: string) {
   return `climazen_data_${userId}`
 }
 
+/** Code récupération lisible : CZ-AB12-CD34 */
+export function generateRecoveryCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const pick = (n: number) =>
+    Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
+  return `CZ-${pick(4)}-${pick(4)}`
+}
+
+export function normalizeRecoveryCode(code: string) {
+  return code.trim().toUpperCase().replace(/\s+/g, '')
+}
+
+function loginKey(u: UserAccount) {
+  return normalizeEmail(u.email || u.username || '')
+}
+
 function migrateLegacyUser(u: UserAccount): UserAccount {
-  if (u.organizationId && u.role) return { ...u, active: u.active !== false }
+  const withEmail: UserAccount = {
+    ...u,
+    email: normalizeEmail(u.email || u.username || ''),
+    username: normalizeEmail(u.email || u.username || ''),
+    active: u.active !== false,
+  }
+  if (withEmail.organizationId && withEmail.role) return withEmail
+
   const orgId = crypto.randomUUID()
   const org: Organization = {
     id: orgId,
@@ -92,7 +134,6 @@ function migrateLegacyUser(u: UserAccount): UserAccount {
     orgs.push(org)
     saveOrgs(orgs)
   }
-  // migrer anciennes données user → org
   try {
     const legacy = localStorage.getItem(dataKeyForUser(u.id))
     if (legacy && !localStorage.getItem(dataKeyForOrg(orgId))) {
@@ -102,7 +143,7 @@ function migrateLegacyUser(u: UserAccount): UserAccount {
     // ignore
   }
   return {
-    ...u,
+    ...withEmail,
     organizationId: orgId,
     role: 'owner',
     active: true,
@@ -113,35 +154,42 @@ export function ensureUsersMigrated(): UserAccount[] {
   const users = loadUsers()
   let changed = false
   const next = users.map((u) => {
-    if (u.organizationId && u.role) return { ...u, active: u.active !== false }
-    changed = true
-    return migrateLegacyUser(u)
+    const before = JSON.stringify(u)
+    const m = migrateLegacyUser(u)
+    if (JSON.stringify(m) !== before) changed = true
+    return m
   })
   if (changed) saveUsers(next)
   return next
 }
 
+function findByEmail(users: UserAccount[], email: string) {
+  const e = normalizeEmail(email)
+  return users.find((u) => loginKey(u) === e)
+}
+
 /** Création du compte officiel société (owner). */
 export async function registerCompany(opts: {
   companyName: string
-  username: string
+  email: string
   password: string
   fullName: string
-}): Promise<UserAccount> {
-  const username = normalizeUsername(opts.username)
+}): Promise<RegisterResult> {
+  const email = normalizeEmail(opts.email)
   if (!opts.companyName.trim()) throw new Error('Indiquez le nom de la société.')
-  if (username.length < 3) throw new Error('Nom d’utilisateur : au moins 3 caractères.')
+  if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide (ex. contact@societe.fr).')
   if (opts.password.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
   if (!opts.fullName.trim()) throw new Error('Indiquez votre nom.')
 
   const users = ensureUsersMigrated()
-  if (users.some((u) => u.username === username)) {
-    throw new Error('Ce nom d’utilisateur existe déjà.')
+  if (findByEmail(users, email)) {
+    throw new Error('Cet e-mail est déjà utilisé.')
   }
 
   const orgId = crypto.randomUUID()
   const userId = crypto.randomUUID()
   const now = new Date().toISOString()
+  const recoveryCode = generateRecoveryCode()
 
   const org: Organization = {
     id: orgId,
@@ -155,70 +203,75 @@ export async function registerCompany(opts: {
 
   const account: UserAccount = {
     id: userId,
-    username,
+    email,
+    username: email,
     passwordHash: await hashPassword(opts.password),
     fullName: opts.fullName.trim(),
     createdAt: now,
     organizationId: orgId,
     role: 'owner',
     active: true,
+    recoveryCodeHash: await hashPassword(normalizeRecoveryCode(recoveryCode)),
     signataireNom: opts.fullName.trim(),
     signataireQualite: 'Responsable / gérant',
   }
   users.push(account)
   saveUsers(users)
   setSession(account.id)
-  return account
+  return { user: account, recoveryCode }
 }
 
-/** @deprecated alias — crée une société */
 export async function registerAccount(opts: {
   username: string
   password: string
   fullName: string
   companyName?: string
 }): Promise<UserAccount> {
-  return registerCompany({
+  const { user } = await registerCompany({
     companyName: opts.companyName || opts.fullName,
-    username: opts.username,
+    email: opts.username,
     password: opts.password,
     fullName: opts.fullName,
   })
+  return user
 }
 
-/** L’owner crée un opérateur rattaché à la boîte. */
+/** L’owner crée un opérateur (connexion = e-mail). */
 export async function createOperatorAccount(opts: {
   owner: UserAccount
-  username: string
+  email: string
   password: string
   fullName: string
-}): Promise<UserAccount> {
+}): Promise<RegisterResult> {
   if (opts.owner.role !== 'owner') throw new Error('Seul le compte officiel peut ajouter des opérateurs.')
-  const username = normalizeUsername(opts.username)
-  if (username.length < 3) throw new Error('Nom d’utilisateur : au moins 3 caractères.')
+  const email = normalizeEmail(opts.email)
+  if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide pour l’opérateur.')
   if (opts.password.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
   if (!opts.fullName.trim()) throw new Error('Indiquez le nom de l’opérateur.')
 
   const users = ensureUsersMigrated()
-  if (users.some((u) => u.username === username)) {
-    throw new Error('Ce nom d’utilisateur existe déjà.')
+  if (findByEmail(users, email)) {
+    throw new Error('Cet e-mail est déjà utilisé.')
   }
 
+  const recoveryCode = generateRecoveryCode()
   const account: UserAccount = {
     id: crypto.randomUUID(),
-    username,
+    email,
+    username: email,
     passwordHash: await hashPassword(opts.password),
     fullName: opts.fullName.trim(),
     createdAt: new Date().toISOString(),
     organizationId: opts.owner.organizationId,
     role: 'operateur',
     active: true,
+    recoveryCodeHash: await hashPassword(normalizeRecoveryCode(recoveryCode)),
     signataireNom: opts.fullName.trim(),
     signataireQualite: 'Opérateur attesté',
   }
   users.push(account)
   saveUsers(users)
-  return account
+  return { user: account, recoveryCode }
 }
 
 export function listOrgUsers(organizationId: string): UserAccount[] {
@@ -255,15 +308,71 @@ export function updateUserProfile(
   return users[idx]
 }
 
-export async function loginAccount(username: string, password: string): Promise<UserAccount> {
+export async function loginAccount(email: string, password: string): Promise<UserAccount> {
   const users = ensureUsersMigrated()
-  const user = users.find((u) => u.username === normalizeUsername(username))
-  if (!user) throw new Error('Identifiant ou mot de passe incorrect.')
+  const user = findByEmail(users, email)
+  if (!user) throw new Error('E-mail ou mot de passe incorrect.')
   if (user.active === false) throw new Error('Ce compte opérateur est désactivé. Contactez la société.')
   const hash = await hashPassword(password)
-  if (hash !== user.passwordHash) throw new Error('Identifiant ou mot de passe incorrect.')
+  if (hash !== user.passwordHash) throw new Error('E-mail ou mot de passe incorrect.')
   setSession(user.id)
   return user
+}
+
+/** Mot de passe oublié : e-mail + code de récupération → nouveau MDP. */
+export async function resetPasswordWithRecovery(opts: {
+  email: string
+  recoveryCode: string
+  newPassword: string
+}): Promise<UserAccount> {
+  if (opts.newPassword.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
+  const users = ensureUsersMigrated()
+  const user = findByEmail(users, opts.email)
+  if (!user) throw new Error('Aucun compte avec cet e-mail.')
+  if (user.active === false) throw new Error('Compte désactivé. Contactez la société.')
+  if (!user.recoveryCodeHash) {
+    throw new Error(
+      'Pas de code de récupération sur ce compte. Demandez au compte société de réinitialiser le mot de passe (menu Équipe).',
+    )
+  }
+  const codeHash = await hashPassword(normalizeRecoveryCode(opts.recoveryCode))
+  if (codeHash !== user.recoveryCodeHash) {
+    throw new Error('Code de récupération incorrect.')
+  }
+  user.passwordHash = await hashPassword(opts.newPassword)
+  saveUsers(users)
+  return user
+}
+
+/** Le compte société régénère le MDP d’un opérateur (+ nouveau code récup.). */
+export async function resetOperatorPassword(opts: {
+  owner: UserAccount
+  userId: string
+  newPassword: string
+}): Promise<{ user: UserAccount; recoveryCode: string }> {
+  if (opts.owner.role !== 'owner') throw new Error('Seul le compte officiel peut réinitialiser un mot de passe.')
+  if (opts.newPassword.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
+  const users = ensureUsersMigrated()
+  const target = users.find((u) => u.id === opts.userId)
+  if (!target || target.organizationId !== opts.owner.organizationId) {
+    throw new Error('Opérateur introuvable.')
+  }
+  const recoveryCode = generateRecoveryCode()
+  target.passwordHash = await hashPassword(opts.newPassword)
+  target.recoveryCodeHash = await hashPassword(normalizeRecoveryCode(recoveryCode))
+  saveUsers(users)
+  return { user: target, recoveryCode }
+}
+
+/** Régénère un nouveau code de récupération (utilisateur connecté). */
+export async function regenerateOwnRecoveryCode(userId: string): Promise<string> {
+  const users = ensureUsersMigrated()
+  const idx = users.findIndex((u) => u.id === userId)
+  if (idx < 0) throw new Error('Utilisateur introuvable.')
+  const recoveryCode = generateRecoveryCode()
+  users[idx].recoveryCodeHash = await hashPassword(normalizeRecoveryCode(recoveryCode))
+  saveUsers(users)
+  return recoveryCode
 }
 
 export function setSession(userId: string) {
@@ -301,4 +410,10 @@ export function updateOrganizationName(organizationId: string, name: string, byO
   org.name = name.trim()
   saveOrgs(orgs)
   return org
+}
+
+/** Mot de passe temporaire lisible pour l’opérateur */
+export function generateTempPassword(): string {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
 }

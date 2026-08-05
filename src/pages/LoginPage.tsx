@@ -9,7 +9,7 @@ export function LoginPage() {
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from || '/app'
 
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -21,7 +21,7 @@ export function LoginPage() {
     setError('')
     setBusy(true)
     try {
-      await login(username, password)
+      await login(email, password)
       navigate(from, { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connexion impossible')
@@ -42,17 +42,19 @@ export function LoginPage() {
         >
           <h1 className="font-display text-2xl font-bold">Connexion</h1>
           <p className="mt-1 text-sm text-white/60">
-            Compte société ou opérateur — les CERFA remontent sur le compte de la boîte.
+            Identifiant = <strong>e-mail</strong> (société ou opérateur).
           </p>
 
           <label className="mt-6 block text-sm">
-            <span className="mb-1 block text-white/70">Nom d’utilisateur</span>
+            <span className="mb-1 block text-white/70">E-mail</span>
             <input
-              autoComplete="username"
+              type="email"
+              autoComplete="email"
               required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="h-11 w-full rounded-xl border border-white/15 bg-ink/40 px-3 text-white outline-none focus:border-accent"
+              placeholder="ex. gerant@societe.fr"
             />
           </label>
           <label className="mt-4 block text-sm">
@@ -77,10 +79,16 @@ export function LoginPage() {
             {busy ? 'Connexion…' : 'Se connecter'}
           </button>
 
-          <p className="mt-5 text-center text-sm text-white/60">
+          <p className="mt-4 text-center text-sm">
+            <Link to="/forgot-password" className="font-semibold text-accent hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </p>
+
+          <p className="mt-4 text-center text-sm text-white/60">
             Pas encore de compte ?{' '}
             <Link to="/register" className="font-semibold text-accent hover:underline">
-              Créer un compte
+              Créer un compte société
             </Link>
           </p>
         </form>

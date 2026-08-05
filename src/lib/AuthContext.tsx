@@ -13,7 +13,10 @@ import {
   getOrganization,
   listOrgUsers,
   loginAccount,
+  regenerateOwnRecoveryCode,
   registerCompany,
+  resetOperatorPassword,
+  resetPasswordWithRecovery,
   setUserActive,
   updateUserProfile,
   type Organization,
@@ -24,21 +27,31 @@ type AuthCtx = {
   user: UserAccount | null
   organization: Organization | null
   isOwner: boolean
-  login: (username: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
   registerCompany: (opts: {
     companyName: string
-    username: string
+    email: string
     password: string
     fullName: string
-  }) => Promise<void>
+  }) => Promise<string>
   logout: () => void
   refreshUser: () => void
   createOperator: (opts: {
-    username: string
+    email: string
     password: string
     fullName: string
-  }) => Promise<UserAccount>
+  }) => Promise<{ user: UserAccount; recoveryCode: string }>
   setOperatorActive: (userId: string, active: boolean) => void
+  resetOperatorPassword: (
+    userId: string,
+    newPassword: string,
+  ) => Promise<{ user: UserAccount; recoveryCode: string }>
+  resetPasswordWithRecovery: (opts: {
+    email: string
+    recoveryCode: string
+    newPassword: string
+  }) => Promise<void>
+  regenerateRecoveryCode: () => Promise<string>
   saveMySignature: (patch: {
     signataireNom?: string
     signataireQualite?: string
@@ -64,8 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOrgTick((t) => t + 1)
   }, [])
 
-  const login = useCallback(async (username: string, password: string) => {
-    const u = await loginAccount(username, password)
+  const login = useCallback(async (email: string, password: string) => {
+    const u = await loginAccount(email, password)
     setUser(u)
     setOrgTick((t) => t + 1)
   }, [])
@@ -73,13 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerCompanyFn = useCallback(
     async (opts: {
       companyName: string
-      username: string
+      email: string
       password: string
       fullName: string
     }) => {
-      const u = await registerCompany(opts)
+      const { user: u, recoveryCode } = await registerCompany(opts)
       setUser(u)
       setOrgTick((t) => t + 1)
+      return recoveryCode
     },
     [],
   )
@@ -90,11 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const createOperator = useCallback(
-    async (opts: { username: string; password: string; fullName: string }) => {
+    async (opts: { email: string; password: string; fullName: string }) => {
       if (!user) throw new Error('Non connecté')
-      const op = await createOperatorAccount({ owner: user, ...opts })
+      const result = await createOperatorAccount({ owner: user, ...opts })
       setOrgTick((t) => t + 1)
-      return op
+      return result
     },
     [user],
   )
@@ -107,6 +121,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [user],
   )
+
+  const resetOperatorPasswordFn = useCallback(
+    async (userId: string, newPassword: string) => {
+      if (!user) throw new Error('Non connecté')
+      const result = await resetOperatorPassword({ owner: user, userId, newPassword })
+      setOrgTick((t) => t + 1)
+      return result
+    },
+    [user],
+  )
+
+  const resetPasswordWithRecoveryFn = useCallback(
+    async (opts: { email: string; recoveryCode: string; newPassword: string }) => {
+      await resetPasswordWithRecovery(opts)
+    },
+    [],
+  )
+
+  const regenerateRecoveryCodeFn = useCallback(async () => {
+    if (!user) throw new Error('Non connecté')
+    const code = await regenerateOwnRecoveryCode(user.id)
+    setUser(getCurrentUser())
+    return code
+  }, [user])
 
   const saveMySignature = useCallback(
     (patch: {
@@ -137,6 +175,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       createOperator,
       setOperatorActive,
+      resetOperatorPassword: resetOperatorPasswordFn,
+      resetPasswordWithRecovery: resetPasswordWithRecoveryFn,
+      regenerateRecoveryCode: regenerateRecoveryCodeFn,
       saveMySignature,
       listTeam,
     }),
@@ -149,6 +190,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       createOperator,
       setOperatorActive,
+      resetOperatorPasswordFn,
+      resetPasswordWithRecoveryFn,
+      regenerateRecoveryCodeFn,
       saveMySignature,
       listTeam,
     ],

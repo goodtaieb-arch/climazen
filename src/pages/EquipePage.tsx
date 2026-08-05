@@ -1,17 +1,31 @@
 import { type FormEvent, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { UserPlus, UserX, UserCheck } from 'lucide-react'
+import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
+import { generateTempPassword } from '../lib/auth'
 
 export function EquipePage() {
-  const { user, organization, isOwner, createOperator, setOperatorActive, listTeam } = useAuth()
+  const {
+    user,
+    organization,
+    isOwner,
+    createOperator,
+    setOperatorActive,
+    resetOperatorPassword,
+    listTeam,
+  } = useAuth()
   const [fullName, setFullName] = useState('')
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [busy, setBusy] = useState(false)
   const [tick, setTick] = useState(0)
+  const [createdCodes, setCreatedCodes] = useState<{
+    email: string
+    password: string
+    recoveryCode: string
+  } | null>(null)
 
   if (!isOwner) return <Navigate to="/app" replace />
 
@@ -22,12 +36,14 @@ export function EquipePage() {
     e.preventDefault()
     setError('')
     setOk('')
+    setCreatedCodes(null)
     setBusy(true)
     try {
-      const op = await createOperator({ fullName, username, password })
-      setOk(`Opérateur « ${op.username} » créé — il se connecte avec cet identifiant.`)
+      const { user: op, recoveryCode } = await createOperator({ fullName, email, password })
+      setCreatedCodes({ email: op.email, password, recoveryCode })
+      setOk(`Opérateur créé — connexion avec l’e-mail ${op.email}.`)
       setFullName('')
-      setUsername('')
+      setEmail('')
       setPassword('')
       setTick((t) => t + 1)
     } catch (err) {
@@ -37,15 +53,60 @@ export function EquipePage() {
     }
   }
 
+  const onResetPassword = async (memberId: string, memberEmail: string) => {
+    const temp = generateTempPassword()
+    if (
+      !confirm(
+        `Réinitialiser le mot de passe de ${memberEmail} ?\nUn nouveau mot de passe temporaire sera affiché.`,
+      )
+    ) {
+      return
+    }
+    try {
+      const { recoveryCode } = await resetOperatorPassword(memberId, temp)
+      setCreatedCodes({ email: memberEmail, password: temp, recoveryCode })
+      setOk(`Mot de passe régénéré pour ${memberEmail}.`)
+      setTick((t) => t + 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur')
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">Équipe / Opérateurs</h1>
         <p className="mt-1 text-muted">
-          Société <strong>{organization?.name}</strong> — les CERFA remplis par les opérateurs
-          arrivent sur ce compte officiel.
+          Société <strong>{organization?.name}</strong> — connexion par e-mail. Vous pouvez
+          réinitialiser le MDP d’un opérateur s’il l’a oublié.
         </p>
       </div>
+
+      {createdCodes && (
+        <div className="rounded-2xl border border-accent/40 bg-accent-soft/50 p-5 text-sm text-slate">
+          <div className="font-display text-base font-semibold">À transmettre à l’opérateur</div>
+          <ul className="mt-2 space-y-1">
+            <li>
+              E-mail : <strong>{createdCodes.email}</strong>
+            </li>
+            <li>
+              Mot de passe temporaire :{' '}
+              <strong className="font-mono">{createdCodes.password}</strong>
+            </li>
+            <li>
+              Code récupération :{' '}
+              <strong className="font-mono">{createdCodes.recoveryCode}</strong>
+            </li>
+          </ul>
+          <button
+            type="button"
+            className="mt-3 text-xs font-semibold text-accent hover:underline"
+            onClick={() => setCreatedCodes(null)}
+          >
+            Masquer
+          </button>
+        </div>
+      )}
 
       <form
         onSubmit={onCreate}
@@ -65,19 +126,20 @@ export function EquipePage() {
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block text-muted">Identifiant *</span>
+          <span className="mb-1 block text-muted">E-mail (identifiant) *</span>
           <input
+            type="email"
             required
-            minLength={3}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="operateur@societe.fr"
             className="h-11 w-full rounded-xl border border-line px-3"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-muted">Mot de passe temporaire *</span>
           <input
-            type="password"
+            type="text"
             required
             minLength={6}
             value={password}
@@ -86,7 +148,7 @@ export function EquipePage() {
           />
         </label>
         {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
-        {ok && <p className="text-sm text-accent sm:col-span-2">{ok}</p>}
+        {ok && !createdCodes && <p className="text-sm text-accent sm:col-span-2">{ok}</p>}
         <button
           type="submit"
           disabled={busy}
@@ -106,7 +168,7 @@ export function EquipePage() {
               <div>
                 <div className="font-medium">
                   {m.fullName}{' '}
-                  <span className="text-xs font-normal text-muted">@{m.username}</span>
+                  <span className="text-xs font-normal text-muted">{m.email || m.username}</span>
                 </div>
                 <div className="text-xs text-muted">
                   {m.role === 'owner' ? 'Compte officiel société' : 'Opérateur'}
@@ -114,29 +176,38 @@ export function EquipePage() {
                 </div>
               </div>
               {m.role === 'operateur' && m.id !== user?.id && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOperatorActive(m.id, m.active === false)
-                    setTick((t) => t + 1)
-                  }}
-                  className={[
-                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',
-                    m.active === false
-                      ? 'bg-accent-soft text-slate'
-                      : 'border border-line text-muted hover:bg-mist',
-                  ].join(' ')}
-                >
-                  {m.active === false ? (
-                    <>
-                      <UserCheck className="h-3.5 w-3.5" /> Réactiver
-                    </>
-                  ) : (
-                    <>
-                      <UserX className="h-3.5 w-3.5" /> Désactiver
-                    </>
-                  )}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void onResetPassword(m.id, m.email || m.username)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-muted hover:bg-mist"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" /> Reset MDP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOperatorActive(m.id, m.active === false)
+                      setTick((t) => t + 1)
+                    }}
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',
+                      m.active === false
+                        ? 'bg-accent-soft text-slate'
+                        : 'border border-line text-muted hover:bg-mist',
+                    ].join(' ')}
+                  >
+                    {m.active === false ? (
+                      <>
+                        <UserCheck className="h-3.5 w-3.5" /> Réactiver
+                      </>
+                    ) : (
+                      <>
+                        <UserX className="h-3.5 w-3.5" /> Désactiver
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </li>
           ))}

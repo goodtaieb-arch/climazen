@@ -81,8 +81,9 @@ export function AppLayout() {
         <div className="hidden border-t border-white/10 px-4 py-4 lg:block">
           <div className="truncate text-sm font-medium">{orgLabel}</div>
           <div className="truncate text-xs text-white/45">
-            {user?.fullName || user?.username} · {roleLabel}
+            {user?.fullName || user?.email} · {roleLabel}
           </div>
+          <div className="truncate text-[11px] text-white/35">{user?.email || user?.username}</div>
           <button
             type="button"
             onClick={doLogout}
@@ -97,7 +98,7 @@ export function AppLayout() {
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-ink">{orgLabel}</div>
             <div className="truncate text-xs text-muted">
-              {user?.fullName || user?.username} · {roleLabel} · @{user?.username}
+              {user?.fullName || user?.email} · {roleLabel} · {user?.email || user?.username}
             </div>
           </div>
           <button
