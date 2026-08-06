@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import type { Chantier } from '../lib/types'
 import { Field, Header } from './ClientsPage'
+import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 
@@ -104,29 +105,24 @@ export function ChantiersPage() {
             onChange={(v) => setForm({ ...form, fluideType: v })}
             required
           />
-          <Field
+          <DecimalField
             label="Charge nominale (kg)"
-            type="number"
-            step="0.01"
             value={form.chargeNominaleKg}
-            onChange={(v) => setForm({ ...form, chargeNominaleKg: Number(v) })}
+            onChange={(n) => setForm({ ...form, chargeNominaleKg: n })}
+            placeholder="ex. 2,2"
           />
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">teq CO₂ (auto)</span>
-            <input
-              type="number"
-              step="0.001"
-              value={form.teqCO2 ?? ''}
-              onChange={(e) => setForm({ ...form, teqCO2: Number(e.target.value) })}
-              className="h-11 w-full rounded-xl border border-line bg-mist/40 px-3"
-            />
-            <span className="mt-1 block text-xs text-muted">
-              kg × GWP ÷ 1000
-              {fluideMeta
-                ? ` (${form.chargeNominaleKg || 0} × ${formatGwp(fluideMeta)})`
-                : ''}
-            </span>
-          </label>
+          <DecimalField
+            label="teq CO₂ (auto)"
+            value={form.teqCO2 ?? 0}
+            onChange={(n) => setForm({ ...form, teqCO2: n })}
+            placeholder="auto"
+          />
+          <p className="-mt-1 text-xs text-muted sm:col-span-2">
+            kg × GWP ÷ 1000
+            {fluideMeta
+              ? ` (${form.chargeNominaleKg || 0} × ${formatGwp(fluideMeta)})`
+              : ''}
+          </p>
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             <input
               type="checkbox"

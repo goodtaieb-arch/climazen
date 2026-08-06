@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import type { ContenantType, StockItem } from '../lib/types'
-import { Field, Header } from './ClientsPage'
+import { Header } from './ClientsPage'
+import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { findFluide, formatGwp } from '../lib/fluides'
@@ -109,19 +110,17 @@ export function StockPage() {
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             />
           </LabelHint>
-          <Field
+          <DecimalField
             label={editId ? 'Quantité restante (kg)' : 'Quantité à l’entrée (kg)'}
-            type="number"
-            step="0.01"
             value={form.quantiteKg}
-            onChange={(v) => {
-              const n = Number(v)
+            onChange={(n) => {
               setForm({
                 ...form,
                 quantiteKg: n,
                 quantiteInitialeKg: editId ? form.quantiteInitialeKg : n,
               })
             }}
+            placeholder="ex. 10,5"
           />
           <LabelHint label="Réf. BSFF" tip={TIP_BSFF}>
             <input

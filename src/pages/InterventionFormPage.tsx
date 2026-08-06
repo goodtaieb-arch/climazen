@@ -19,6 +19,7 @@ import { Field } from './ClientsPage'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SignaturePad } from '../components/SignaturePad'
 import { FluideSelect } from '../components/FluideSelect'
+import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide } from '../lib/fluides'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
@@ -465,36 +466,29 @@ export function InterventionFormPage() {
               onChange={setFluideType}
               required
             />
-            <Field
+            <DecimalField
               label="Charge / quantité kg [7]"
-              type="number"
-              step="0.01"
               value={quantiteTotaleKg}
-              onChange={(v) => setQuantiteTotaleKg(Number(v))}
+              onChange={setQuantiteTotaleKg}
+              placeholder="ex. 2,2"
             />
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted">teq CO₂ [3] (auto)</span>
-              <input
-                type="number"
-                step="0.001"
-                value={teqCO2 || ''}
-                onChange={(e) => setTeqCO2(Number(e.target.value))}
-                className="h-11 w-full rounded-xl border border-line bg-mist/40 px-3"
-                title="Calculé : kg × GWP / 1000 — modifiable si besoin"
-              />
-              <span className="mt-1 block text-xs text-muted">
-                Formule : charge (kg) × GWP ÷ 1000
-                {findFluide(fluideType)
-                  ? ` → ${quantiteTotaleKg || 0} × ${findFluide(fluideType)!.gwp} / 1000`
-                  : ''}
-              </span>
-            </label>
-            <Field
+            <DecimalField
+              label="teq CO₂ [3] (auto)"
+              value={teqCO2}
+              onChange={setTeqCO2}
+              placeholder="auto"
+            />
+            <p className="-mt-1 text-xs text-muted sm:col-span-2">
+              Formule : charge (kg) × GWP ÷ 1000
+              {findFluide(fluideType)
+                ? ` → ${quantiteTotaleKg || 0} × ${findFluide(fluideType)!.gwp} / 1000`
+                : ''}
+            </p>
+            <DecimalField
               label="Dont HFO kg [7]"
-              type="number"
-              step="0.01"
               value={quantiteHfoKg}
-              onChange={(v) => setQuantiteHfoKg(Number(v))}
+              onChange={setQuantiteHfoKg}
+              placeholder="ex. 0,5"
             />
           </div>
           <label className="mt-3 flex items-center gap-2 text-sm">
@@ -687,16 +681,16 @@ export function InterventionFormPage() {
                   )}
                 </select>
               </label>
-              <Field
+              <DecimalField
                 label={
                   manipSens === 'sortie'
                     ? `Quantité sortie (kg) * — max ${stockItem.quantiteKg}`
                     : 'Quantité ajoutée (kg) *'
                 }
-                type="number"
-                step="0.01"
                 value={manipQty}
-                onChange={(v) => setManipQty(Number(v))}
+                onChange={setManipQty}
+                placeholder="ex. 2,2"
+                emptyZero
               />
             </div>
           )}
