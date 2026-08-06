@@ -43,7 +43,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-foam text-ink lg:grid lg:grid-cols-[260px_1fr]">
-      <aside className="border-b border-line bg-ink text-white lg:border-b-0 lg:border-r lg:min-h-screen lg:flex lg:flex-col">
+      <aside className="border-b border-line bg-ink text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3 px-4 py-4">
           <div>
             <BrandLogo onDark size="sm" />
@@ -58,7 +58,7 @@ export function AppLayout() {
             Déconnexion
           </button>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:overflow-visible">
+        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:overflow-y-auto">
           {links.map(({ to, end, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -94,7 +94,7 @@ export function AppLayout() {
         </div>
       </aside>
       <main className="min-w-0">
-        <div className="flex items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 sm:px-6 lg:px-8">
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-ink">{orgLabel}</div>
             <div className="truncate text-xs text-muted">
