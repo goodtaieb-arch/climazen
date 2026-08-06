@@ -147,8 +147,6 @@ export function InterventionFormPage() {
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
   /** Dénomination fluide de la fiche CERFA (pas l’ancien gaz du chantier) */
   const denominationFluide = (fluideType || '').trim()
-  const chantierFluideDiffere =
-    !!(chantier?.fluideType && fluideType && !sameFluideCode(chantier.fluideType, fluideType))
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
@@ -581,12 +579,6 @@ export function InterventionFormPage() {
               }}
               required
             />
-            {chantierFluideDiffere && (
-              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-950 sm:col-span-2">
-                Le chantier était en {chantier?.fluideType} — il est mis à jour vers {fluideType} pour
-                rester cohérent avec la fiche / les bouteilles.
-              </p>
-            )}
             <DecimalField
               label="Charge / quantité kg [7]"
               value={quantiteTotaleKg}
@@ -755,25 +747,10 @@ export function InterventionFormPage() {
         </Section>
 
         <Section title="[11] Manipulation fluide (depuis stock)">
-          <p className="mb-3 rounded-xl bg-mist px-3 py-2 text-sm text-muted">
-            {bottleRequired
-              ? 'Charge / récupération / démantèlement : au moins une bouteille obligatoire (plusieurs possibles).'
-              : 'Bouteille facultative — ajoutez-en une ou plusieurs seulement s’il y a un mouvement de fluide.'}{' '}
-            <strong className="text-ink">
-              Règle pour tous les gaz : la bouteille doit être exactement le même fluide que la
-              dénomination
-              {denominationFluide ? ` (${denominationFluide})` : ''}.
-            </strong>
-          </p>
-
           <div className="space-y-3">
             {manips.map((m, idx) => {
               const item = data.stock.find((s) => s.id === m.stockItemId)
-              const mismatch =
-                item && denominationFluide
-                  ? !sameFluideCode(item.fluide, denominationFluide)
-                  : false
-              // Ne proposer que les bouteilles pas déjà prises sur une autre ligne
+              // Ne proposer que les bouteilles du bon gaz, pas déjà prises sur une autre ligne
               const dejaPrises = new Set(
                 manips
                   .filter((x) => x.key !== m.key && x.stockItemId)
@@ -802,47 +779,18 @@ export function InterventionFormPage() {
                     <select
                       value={m.stockItemId}
                       onChange={(e) => updateManip(m.key, { stockItemId: e.target.value })}
-                      className={[
-                        'h-11 w-full rounded-xl border bg-white px-3',
-                        mismatch ? 'border-danger' : 'border-line',
-                      ].join(' ')}
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
                     >
                       <option value="">— Choisir —</option>
                       {optionsDispo.map((s) => (
                         <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
-                          {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — dispo{' '}
+                          {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — reste{' '}
                           {s.quantiteKg} kg
-                          {s.quantiteInitialeKg != null ? ` / entrée ${s.quantiteInitialeKg} kg` : ''}
+                          {s.quantiteInitialeKg != null ? ` / ${s.quantiteInitialeKg} kg` : ''}
                         </option>
                       ))}
                     </select>
                   </LabelHint>
-                  {denominationFluide && stockMatchingFluide.length === 0 && (
-                    <p className="text-xs text-danger">
-                      Aucune bouteille {denominationFluide} en stock — ajoutez-en une dans Stock
-                      fluides.
-                    </p>
-                  )}
-                  {denominationFluide &&
-                    stockMatchingFluide.length > 0 &&
-                    optionsDispo.filter((s) => s.id !== m.stockItemId).length === 0 &&
-                    !m.stockItemId && (
-                      <p className="text-xs text-muted">
-                        Plus aucune autre bouteille {denominationFluide} disponible (déjà
-                        sélectionnées ci-dessus).
-                      </p>
-                    )}
-                  {!denominationFluide && (
-                    <p className="text-xs text-danger">
-                      Choisissez d’abord la dénomination du fluide (cadre équipement) — aucune
-                      bouteille d’un autre gaz ne sera acceptée.
-                    </p>
-                  )}
-                  {mismatch && item && (
-                    <p className="text-xs text-danger">
-                      Incohérent : bouteille {item.fluide} ≠ dénomination {denominationFluide}.
-                    </p>
-                  )}
                   {item && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm">
@@ -899,7 +847,6 @@ export function InterventionFormPage() {
           >
             <Plus className="h-4 w-4" />
             Ajouter une bouteille
-            {denominationFluide ? ` ${denominationFluide}` : ''}
           </button>
 
           {manips.length === 0 && bottleRequired && (
