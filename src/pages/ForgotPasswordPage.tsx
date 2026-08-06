@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
+import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
 
 export function ForgotPasswordPage() {
@@ -83,28 +84,24 @@ export function ForgotPasswordPage() {
                   className="h-11 w-full rounded-xl border border-white/15 bg-ink/40 px-3 font-mono uppercase text-white outline-none focus:border-accent"
                 />
               </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-white/70">Nouveau mot de passe *</span>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-white/15 bg-ink/40 px-3 text-white outline-none focus:border-accent"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-white/70">Confirmer *</span>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password2}
-                  onChange={(e) => setPassword2(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-white/15 bg-ink/40 px-3 text-white outline-none focus:border-accent"
-                />
-              </label>
+              <PasswordField
+                dark
+                label="Nouveau mot de passe *"
+                autoComplete="new-password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <PasswordField
+                dark
+                label="Confirmer *"
+                autoComplete="new-password"
+                required
+                minLength={6}
+                value={password2}
+                onChange={(e) => setPassword2(e.target.value)}
+              />
 
               {error && (
                 <p className="rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-200">{error}</p>

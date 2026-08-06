@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword } from '../lib/auth'
+import { PasswordField } from '../components/PasswordField'
 
 export function EquipePage() {
   const {
@@ -136,17 +137,14 @@ export function EquipePage() {
             className="h-11 w-full rounded-xl border border-line px-3"
           />
         </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-muted">Mot de passe temporaire *</span>
-          <input
-            type="text"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-11 w-full rounded-xl border border-line px-3"
-          />
-        </label>
+        <PasswordField
+          label="Mot de passe temporaire *"
+          required
+          minLength={6}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+        />
         {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
         {ok && !createdCodes && <p className="text-sm text-accent sm:col-span-2">{ok}</p>}
         <button

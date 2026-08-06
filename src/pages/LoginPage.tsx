@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
+import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
 
 export function LoginPage() {
@@ -57,17 +58,15 @@ export function LoginPage() {
               placeholder="ex. gerant@societe.fr"
             />
           </label>
-          <label className="mt-4 block text-sm">
-            <span className="mb-1 block text-white/70">Mot de passe</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-11 w-full rounded-xl border border-white/15 bg-ink/40 px-3 text-white outline-none focus:border-accent"
-            />
-          </label>
+          <PasswordField
+            dark
+            className="mt-4"
+            label="Mot de passe"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
           {error && <p className="mt-4 rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-200">{error}</p>}
 
