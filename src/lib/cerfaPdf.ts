@@ -22,7 +22,12 @@ const NATURE_TO_CHECKBOX: Partial<Record<NatureIntervention, string>> = {
   autre: 'Case_Autre',
 }
 
-function setText(form: ReturnType<PDFDocument['getForm']>, name: string, value: string | number | undefined | null) {
+function setText(
+  form: ReturnType<PDFDocument['getForm']>,
+  name: string,
+  value: string | number | undefined | null,
+  opts?: { fontSize?: number },
+) {
   if (value === undefined || value === null || value === '') return
   try {
     const field = form.getTextField(name)
@@ -30,6 +35,13 @@ function setText(form: ReturnType<PDFDocument['getForm']>, name: string, value: 
       if (String(value).includes('\n')) field.enableMultiline()
     } catch {
       // ignore
+    }
+    if (opts?.fontSize != null) {
+      try {
+        field.setFontSize(opts.fontSize)
+      } catch {
+        // ignore
+      }
     }
     field.setText(String(value))
   } catch {
@@ -137,13 +149,15 @@ export async function buildCerfaPdf(opts: {
     form,
     'Detecteur_ID',
     draft.detecteurIdentification || draft.operateur.detecteurIdentification || '',
+    { fontSize: 8 },
   )
   const ctrl = parseDateParts(
     draft.detecteurControleDate || draft.operateur.detecteurControleDate || '',
   )
-  setText(form, 'Controle_Jour', ctrl.jour)
-  setText(form, 'Controle_Mois', ctrl.mois)
-  setText(form, 'Controle_Annee', ctrl.annee)
+  // Valeur dans le champ + redessin centré plus bas (cases trop basses → texte AcroForm coupé)
+  setText(form, 'Controle_Jour', ctrl.jour, { fontSize: 6 })
+  setText(form, 'Controle_Mois', ctrl.mois, { fontSize: 6 })
+  setText(form, 'Controle_Annee', ctrl.annee, { fontSize: 6 })
 
   // [6] Détection permanente
   try {
@@ -276,8 +290,8 @@ export async function buildCerfaPdf(opts: {
   setText(form, 'Sign_Detenteur_Date', dateFr)
 
   // Mettre à jour les apparences — SANS flatten (sinon le CERFA officiel disparaît)
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   try {
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     form.updateFieldAppearances(font)
   } catch {
     // ignore
@@ -290,10 +304,7 @@ export async function buildCerfaPdf(opts: {
     // ignore
   }
 
-  // Signature manuscrite DANS la case « Date et signature », à droite de la date
   const page = pdfDoc.getPages()[0]
-  const opImg = draft.signatureOperateurImage || draft.operateur.signatureImage
-  const detImg = draft.signatureDetenteurImage
 
   const fieldRect = (name: string) => {
     try {
@@ -303,6 +314,33 @@ export async function buildCerfaPdf(opts: {
       return null
     }
   }
+
+  // Cases JJ / MM / AAAA du détecteur : redessiner le texte centré (évite la coupe à moitié)
+  const paintTinyField = (name: string, value: string) => {
+    if (!value) return
+    const rect = fieldRect(name)
+    if (!rect || rect.width < 2 || rect.height < 2) return
+    const size = Math.min(8, Math.max(5.5, rect.height * 0.7))
+    page.drawRectangle({
+      x: rect.x + 0.35,
+      y: rect.y + 0.35,
+      width: rect.width - 0.7,
+      height: rect.height - 0.7,
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    })
+    const tw = font.widthOfTextAtSize(value, size)
+    const x = rect.x + Math.max(0.4, (rect.width - tw) / 2)
+    const y = rect.y + (rect.height - size) / 2 + size * 0.15
+    page.drawText(value, { x, y, size, font, color: rgb(0, 0, 0) })
+  }
+  paintTinyField('Controle_Jour', ctrl.jour)
+  paintTinyField('Controle_Mois', ctrl.mois)
+  paintTinyField('Controle_Annee', ctrl.annee)
+
+  // Signature manuscrite DANS la case « Date et signature », à droite de la date
+  const opImg = draft.signatureOperateurImage || draft.operateur.signatureImage
+  const detImg = draft.signatureDetenteurImage
 
   const drawSigInDateBox = async (dataUrl: string | undefined, fieldName: string) => {
     if (!dataUrl?.startsWith('data:image')) return
