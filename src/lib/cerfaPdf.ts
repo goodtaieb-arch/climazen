@@ -233,15 +233,20 @@ export async function buildCerfaPdf(opts: {
     }
   }
 
-  // [11] Manipulation — A vierge / B régénéré / C récup / total A+B+C
+  // [11] Manipulation
+  // Case « Quantité chargée totale (A+B+C) » = détail par bouteille (ex. 2.3+0.4)
+  // Cases A/B/C = totaux par type (vierge / régénéré / récup)
   let qa = 0
   let qb = 0
   let qc = 0
   let qd = 0
+  const partsKg: string[] = []
   const contenants: string[] = []
   let bsff = ''
   for (const m of draft.manipulations) {
     const q = roundKg(Number(m.quantiteKg) || 0)
+    if (!(q > 0)) continue
+    partsKg.push(formatKg(q))
     if (m.type === 'vierge') qa = roundKg(qa + q)
     else if (m.type === 'regenere') qb = roundKg(qb + q)
     else if (m.type === 'recuperation') qc = roundKg(qc + q)
@@ -250,8 +255,8 @@ export async function buildCerfaPdf(opts: {
     if (m.bsffReference) bsff = m.bsffReference
   }
   const total = roundKg(qa + qb + qc + qd)
-  // Total (A+B+C) = somme des bouteilles ; A/B/C = détail par type de contenant
-  if (total) setText(form, '11_Quantite', formatKg(total))
+  if (partsKg.length) setText(form, '11_Quantite', partsKg.join('+'))
+  else if (total) setText(form, '11_Quantite', formatKg(total))
   if (qa) setText(form, '11_QA', formatKg(qa))
   if (qb) setText(form, '11_QB', formatKg(qb))
   if (qc) {
