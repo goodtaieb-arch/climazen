@@ -29,24 +29,30 @@ export type ContenantType = 'vierge' | 'regenere' | 'recuperation' | 'transfert'
 
 /** Mouvement de fluide → n° de bouteille obligatoire (F-Gas / Cerfa). */
 export function natureImpliqueMouvementFluide(natures: NatureIntervention[]): boolean {
-  return natures.some((n) =>
-    n === 'recuperation' ||
-    n === 'charge' ||
-    n === 'demantelement' ||
-    n === 'mise_en_service' ||
-    n === 'autre',
+  // Mise en service / assemblage : souvent unité neuve préchargée → bouteille NON obligatoire.
+  // Obligatoire seulement si récupération, charge, démantèlement ou autre manip explicite.
+  return natures.some(
+    (n) =>
+      n === 'recuperation' ||
+      n === 'charge' ||
+      n === 'demantelement' ||
+      n === 'autre',
   )
 }
 
 /** true si un conteneur doit être identifié sur la fiche. */
 export function needsBottleNumber(opts: {
   natures: NatureIntervention[]
+  /** Quantité totale manipulée sur une ou plusieurs bouteilles */
   manipQty?: number
   stockItemId?: string
+  /** Nombre de lignes bouteille renseignées */
+  manipCount?: number
 }): boolean {
   if (natureImpliqueMouvementFluide(opts.natures)) return true
   if ((opts.manipQty ?? 0) > 0) return true
   if (opts.stockItemId) return true
+  if ((opts.manipCount ?? 0) > 0) return true
   return false
 }
 

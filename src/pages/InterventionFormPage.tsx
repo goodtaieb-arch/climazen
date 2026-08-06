@@ -1,6 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Eye, FileCheck2, Save } from 'lucide-react'
+import { ArrowLeft, Eye, FileCheck2, Plus, Save, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -28,6 +28,22 @@ const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
 function today() {
   return new Date().toISOString().slice(0, 10)
+}
+
+type ManipDraft = {
+  key: string
+  stockItemId: string
+  quantiteKg: number
+  sens: StockMouvementSens
+}
+
+function newManipLine(sens: StockMouvementSens = 'sortie'): ManipDraft {
+  return {
+    key: crypto.randomUUID(),
+    stockItemId: '',
+    quantiteKg: 0,
+    sens,
+  }
 }
 
 export function InterventionFormPage() {
@@ -83,12 +99,20 @@ export function InterventionFormPage() {
   const [detecteurControleDate, setDetecteurControleDate] = useState(
     existing?.detecteurControleDate || data.operateur.detecteurControleDate || '',
   )
-  const [stockItemId, setStockItemId] = useState(existing?.manipulations[0]?.stockItemId || '')
-  const [manipQty, setManipQty] = useState(existing?.manipulations[0]?.quantiteKg ?? 0)
-  const [manipSens, setManipSens] = useState<StockMouvementSens>(
-    existing?.manipulations[0]?.sens ||
-      (existing?.manipulations[0]?.type === 'recuperation' ? 'entree' : 'sortie'),
-  )
+  const [manips, setManips] = useState<ManipDraft[]>(() => {
+    const fromExisting = (existing?.manipulations || []).filter((m) => m.stockItemId)
+    if (fromExisting.length > 0) {
+      return fromExisting.map((m) => ({
+        key: crypto.randomUUID(),
+        stockItemId: m.stockItemId || '',
+        quantiteKg: m.quantiteKg || 0,
+        sens:
+          m.sens ||
+          (m.type === 'recuperation' ? 'entree' : ('sortie' as StockMouvementSens)),
+      }))
+    }
+    return []
+  })
   const [codeUn, setCodeUn] = useState(existing?.codeUn || '')
   const [denominationAdr, setDenominationAdr] = useState(existing?.denominationAdr || '')
   const [installationDestination, setInstallationDestination] = useState(
@@ -120,8 +144,9 @@ export function InterventionFormPage() {
 
   const chantier = data.chantiers.find((c) => c.id === chantierId)
   const client = data.clients.find((c) => c.id === chantier?.clientId)
-  const stockItem = data.stock.find((s) => s.id === stockItemId)
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
+  const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
+  const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
 
   // Charger le CERFA déjà enregistré dans l’app
   useEffect(() => {
@@ -151,18 +176,16 @@ export function InterventionFormPage() {
     if (chantier.teqCO2) setTeqCO2(chantier.teqCO2)
   }, [chantierId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Préremplir UN / ADR depuis la 1ʳᵉ bouteille choisie
   useEffect(() => {
-    if (!stockItem) return
-    const def = sensMouvementPourContenant(stockItem.contenantType)
-    if (!existing?.manipulations[0]?.sens) setManipSens(def)
-    if (def === 'sortie' && !existing) {
-      setManipQty((q) => Math.min(stockItem.quantiteKg, q || 0.5))
-    }
-    if (stockItem.codeUn && !existing) setCodeUn(stockItem.codeUn)
-    if (stockItem.denominationAdr && !existing) {
-      setDenominationAdr(stockItem.denominationAdr)
-    }
-  }, [stockItemId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (existing) return
+    const first = manips.find((m) => m.stockItemId)
+    if (!first) return
+    const item = data.stock.find((s) => s.id === first.stockItemId)
+    if (!item) return
+    if (item.codeUn) setCodeUn(item.codeUn)
+    if (item.denominationAdr) setDenominationAdr(item.denominationAdr)
+  }, [firstStockId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Préremplir nom détenteur depuis le client du chantier
   useEffect(() => {
@@ -201,9 +224,26 @@ export function InterventionFormPage() {
 
   const bottleRequired = needsBottleNumber({
     natures,
-    manipQty,
-    stockItemId: stockItemId || undefined,
+    manipQty: manipQtyTotal,
+    stockItemId: firstStockId || undefined,
+    manipCount: manips.filter((m) => m.stockItemId).length,
   })
+
+  const updateManip = (key: string, patch: Partial<ManipDraft>) => {
+    setManips((prev) =>
+      prev.map((m) => {
+        if (m.key !== key) return m
+        const next = { ...m, ...patch }
+        if (patch.stockItemId) {
+          const item = data.stock.find((s) => s.id === patch.stockItemId)
+          if (item) {
+            next.sens = sensMouvementPourContenant(item.contenantType)
+          }
+        }
+        return next
+      }),
+    )
+  }
 
   const ctrlPeriodique = useMemo(
     () =>
@@ -238,19 +278,20 @@ export function InterventionFormPage() {
   }
 
   const buildDraft = (): Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } => {
-    const manipulations =
-      stockItem && manipQty > 0
-        ? [
-            {
-              type: stockItem.contenantType as ContenantType,
-              stockItemId: stockItem.id,
-              quantiteKg: manipQty,
-              numeroContenant: stockItem.numeroContenant,
-              bsffReference: stockItem.bsffReference,
-              sens: manipSens,
-            },
-          ]
-        : existing?.manipulations || []
+    const manipulations = manips
+      .map((m) => {
+        const item = data.stock.find((s) => s.id === m.stockItemId)
+        if (!item || !(m.quantiteKg > 0)) return null
+        return {
+          type: item.contenantType as ContenantType,
+          stockItemId: item.id,
+          quantiteKg: m.quantiteKg,
+          numeroContenant: item.numeroContenant,
+          bsffReference: item.bsffReference,
+          sens: m.sens,
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
 
     return {
       id: existing?.id,
@@ -321,26 +362,36 @@ export function InterventionFormPage() {
 
     const requireBottle = needsBottleNumber({
       natures,
-      manipQty,
-      stockItemId: stockItemId || undefined,
+      manipQty: manipQtyTotal,
+      stockItemId: firstStockId || undefined,
+      manipCount: manips.filter((m) => m.stockItemId).length,
     })
     if (requireBottle) {
-      if (!stockItem) {
+      const filled = manips.filter((m) => m.stockItemId && m.quantiteKg > 0)
+      if (filled.length === 0) {
         throw new Error(
-          'Mouvement de fluide : choisissez une bouteille du stock (n° de contenant obligatoire — F-Gas / Cerfa).',
+          'Mouvement de fluide (récupération / charge / démantèlement) : ajoutez au moins une bouteille avec quantité.',
         )
       }
-      if (!stockItem.numeroContenant?.trim()) {
+    }
+
+    for (const m of manips) {
+      if (!m.stockItemId && !(m.quantiteKg > 0)) continue
+      const item = data.stock.find((s) => s.id === m.stockItemId)
+      if (!item) {
+        throw new Error('Choisissez une bouteille du stock pour chaque ligne remplie.')
+      }
+      if (!item.numeroContenant?.trim()) {
         throw new Error(
-          `La bouteille sélectionnée n’a pas de n° d’identification. Complétez-le dans Stock fluides.`,
+          `La bouteille ${item.numeroContenant || 'sélectionnée'} n’a pas de n° d’identification. Complétez-le dans Stock fluides.`,
         )
       }
-      if (!(manipQty > 0)) {
-        throw new Error('Indiquez la quantité de fluide manipulée (kg) pour cette bouteille.')
+      if (!(m.quantiteKg > 0)) {
+        throw new Error(`Indiquez la quantité (kg) pour la bouteille ${item.numeroContenant}.`)
       }
-      if (manipSens === 'sortie' && manipQty > stockItem.quantiteKg + 1e-9) {
+      if (m.sens === 'sortie' && m.quantiteKg > item.quantiteKg + 1e-9) {
         throw new Error(
-          `Stock insuffisant sur ${stockItem.numeroContenant} : reste ${stockItem.quantiteKg} kg.`,
+          `Stock insuffisant sur ${item.numeroContenant} : reste ${item.quantiteKg} kg.`,
         )
       }
     }
@@ -358,7 +409,6 @@ export function InterventionFormPage() {
       cerfaPdfSavedAt: new Date().toISOString(),
     }
 
-    // Stock + historique CERFA d’abord (peut échouer si quantité insuffisante)
     const savedId = saveInterventionWithStock(
       { ...fullDraft, id: previewId },
       { createdByName: user?.fullName || user?.email || user?.username },
@@ -375,16 +425,11 @@ export function InterventionFormPage() {
     const url = URL.createObjectURL(blob)
     setPdfUrl(url)
     setHasPdf(true)
-    const reste =
-      stockItem && manipQty > 0
-        ? manipSens === 'sortie'
-          ? Math.round((stockItem.quantiteKg - manipQty) * 1000) / 1000
-          : Math.round((stockItem.quantiteKg + manipQty) * 1000) / 1000
-        : null
+    const nBottles = (draft.manipulations || []).length
     setSavedMsg(
-      reste != null && stockItem
-        ? `Enregistré — ${manipSens === 'sortie' ? 'sortie' : 'entrée'} ${manipQty} kg sur ${stockItem.numeroContenant} (reste ${reste} kg) · CERFA ${fileName.replace(/\.pdf$/i, '')}`
-        : 'Enregistré dans ClimaZEN — le CERFA est ci-dessous.',
+      nBottles > 0
+        ? `Enregistré — ${nBottles} bouteille${nBottles > 1 ? 's' : ''} · ${manipQtyTotal} kg · CERFA ${fileName.replace(/\.pdf$/i, '')}`
+        : 'Enregistré dans ClimaZEN — le CERFA est ci-dessous (pas de mouvement de bouteille).',
     )
     return savedId
   }
@@ -643,92 +688,110 @@ export function InterventionFormPage() {
         </Section>
 
         <Section title="[11] Manipulation fluide (depuis stock)">
-          <LabelHint
-            label={bottleRequired ? 'Contenant / bouteille *' : 'Contenant / bouteille'}
-            tip={TIP_BOUTEILLE}
-          >
-            <select
-              required={bottleRequired}
-              value={stockItemId}
-              onChange={(e) => setStockItemId(e.target.value)}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="">
-                {bottleRequired
-                  ? '— Choisir une bouteille (obligatoire) —'
-                  : '— Aucun (pas de mouvement de fluide) —'}
-              </option>
-              {data.stock.map((s) => (
-                <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
-                  {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — reste{' '}
-                  {s.quantiteKg} kg
-                  {s.quantiteInitialeKg != null ? ` / ${s.quantiteInitialeKg} kg` : ''}
-                </option>
-              ))}
-            </select>
-          </LabelHint>
+          <p className="mb-3 rounded-xl bg-mist px-3 py-2 text-sm text-muted">
+            {natures.includes('mise_en_service') && !bottleRequired
+              ? 'Mise en service : unité neuve déjà chargée → bouteille facultative. Si le circuit est plus grand, ajoutez une ou plusieurs bouteilles pour compléter.'
+              : bottleRequired
+                ? 'Récupération / charge / démantèlement : indiquez au moins une bouteille (plusieurs possibles).'
+                : 'Sans mouvement de fluide : laissez vide. Sinon ajoutez une ou plusieurs bouteilles.'}
+          </p>
 
-          {stockItem && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm">
-                <span className="mb-1 block text-muted">Type de mouvement *</span>
-                <select
-                  value={manipSens}
-                  onChange={(e) => setManipSens(e.target.value as StockMouvementSens)}
-                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+          <div className="space-y-3">
+            {manips.map((m, idx) => {
+              const item = data.stock.find((s) => s.id === m.stockItemId)
+              return (
+                <div
+                  key={m.key}
+                  className="rounded-xl border border-line bg-white p-3 space-y-3"
                 >
-                  {stockItem.contenantType === 'recuperation' ? (
-                    <>
-                      <option value="entree">Ajouter (récupération → + kg)</option>
-                      <option value="sortie">Retirer (vidage / transfert → − kg)</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="sortie">Utiliser / charge (sortie → − kg)</option>
-                      <option value="entree">Réintégrer (entrée → + kg)</option>
-                    </>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-muted">Bouteille {idx + 1}</span>
+                    <button
+                      type="button"
+                      className="rounded-lg p-1.5 text-danger hover:bg-red-50"
+                      title="Retirer cette bouteille"
+                      onClick={() => setManips((prev) => prev.filter((x) => x.key !== m.key))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <LabelHint label="Contenant / bouteille" tip={TIP_BOUTEILLE}>
+                    <select
+                      value={m.stockItemId}
+                      onChange={(e) => updateManip(m.key, { stockItemId: e.target.value })}
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                    >
+                      <option value="">— Choisir —</option>
+                      {data.stock.map((s) => (
+                        <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
+                          {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — reste{' '}
+                          {s.quantiteKg} kg
+                          {s.quantiteInitialeKg != null ? ` / ${s.quantiteInitialeKg} kg` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </LabelHint>
+                  {item && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm">
+                        <span className="mb-1 block text-muted">Type de mouvement *</span>
+                        <select
+                          value={m.sens}
+                          onChange={(e) =>
+                            updateManip(m.key, { sens: e.target.value as StockMouvementSens })
+                          }
+                          className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                        >
+                          {item.contenantType === 'recuperation' ? (
+                            <>
+                              <option value="entree">Ajouter (récupération → + kg)</option>
+                              <option value="sortie">Retirer (vidage / transfert → − kg)</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="sortie">Utiliser / charge (sortie → − kg)</option>
+                              <option value="entree">Réintégrer (entrée → + kg)</option>
+                            </>
+                          )}
+                        </select>
+                      </label>
+                      <DecimalField
+                        label={
+                          m.sens === 'sortie'
+                            ? `Quantité sortie (kg) * — max ${item.quantiteKg}`
+                            : 'Quantité ajoutée (kg) *'
+                        }
+                        value={m.quantiteKg}
+                        onChange={(n) => updateManip(m.key, { quantiteKg: n })}
+                        placeholder="ex. 2,2"
+                        emptyZero
+                      />
+                    </div>
                   )}
-                </select>
-              </label>
-              <DecimalField
-                label={
-                  manipSens === 'sortie'
-                    ? `Quantité sortie (kg) * — max ${stockItem.quantiteKg}`
-                    : 'Quantité ajoutée (kg) *'
-                }
-                value={manipQty}
-                onChange={setManipQty}
-                placeholder="ex. 2,2"
-                emptyZero
-              />
-            </div>
-          )}
+                  {item && !item.numeroContenant?.trim() && (
+                    <p className="text-xs text-danger">
+                      Cette ligne de stock n’a pas de n° de bouteille — corrigez-la dans Stock
+                      fluides.
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
-          {stockItem && (
-            <p className="mt-2 rounded-xl bg-mist px-3 py-2 text-xs text-muted">
-              Bouteille <strong className="text-ink">{stockItem.numeroContenant}</strong> · reste{' '}
-              <strong className="text-ink">{stockItem.quantiteKg} kg</strong>
-              {stockItem.quantiteInitialeKg != null
-                ? ` (entrée stock ${stockItem.quantiteInitialeKg} kg)`
-                : ''}
-              . Chaque mouvement est historisé avec le n° CERFA.
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={() => setManips((prev) => [...prev, newManipLine()])}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-slate hover:bg-mist"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter une bouteille
+          </button>
 
-          {!stockItem && bottleRequired && (
+          {manips.length === 0 && bottleRequired && (
             <p className="mt-2 rounded-xl bg-accent-soft/70 px-3 py-2 text-xs text-slate">
-              Récupération, charge ou transfert : choisissez la bouteille — le reste et le CERFA
-              seront liés automatiquement.
-            </p>
-          )}
-          {!bottleRequired && !stockItem && (
-            <p className="mt-2 text-xs text-muted">
-              Entretien / contrôle sans mouvement de fluide : laissez vide.
-            </p>
-          )}
-          {stockItem && !stockItem.numeroContenant?.trim() && (
-            <p className="mt-2 text-xs text-danger">
-              Cette ligne de stock n’a pas de n° de bouteille — corrigez-la dans Stock fluides.
+              Cliquez « Ajouter une bouteille » — le reste et le CERFA seront liés
+              automatiquement.
             </p>
           )}
         </Section>
