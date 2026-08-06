@@ -21,7 +21,7 @@ import { SignaturePad } from '../components/SignaturePad'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
-import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide } from '../lib/fluides'
+import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideCode } from '../lib/fluides'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -147,6 +147,13 @@ export function InterventionFormPage() {
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
+  const stockMatchingFluide = useMemo(
+    () =>
+      data.stock.filter((s) =>
+        fluideType ? sameFluideCode(s.fluide, fluideType) : true,
+      ),
+    [data.stock, fluideType],
+  )
 
   // Charger le CERFA déjà enregistré dans l’app
   useEffect(() => {
@@ -186,6 +193,19 @@ export function InterventionFormPage() {
     if (item.codeUn) setCodeUn(item.codeUn)
     if (item.denominationAdr) setDenominationAdr(item.denominationAdr)
   }, [firstStockId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si le fluide de l’équipement change, retirer les bouteilles d’un autre gaz
+  useEffect(() => {
+    if (!fluideType) return
+    setManips((prev) => {
+      const next = prev.filter((m) => {
+        if (!m.stockItemId) return true
+        const item = data.stock.find((s) => s.id === m.stockItemId)
+        return item ? sameFluideCode(item.fluide, fluideType) : false
+      })
+      return next.length === prev.length ? prev : next
+    })
+  }, [fluideType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Préremplir nom détenteur depuis le client du chantier
   useEffect(() => {
@@ -380,6 +400,16 @@ export function InterventionFormPage() {
       const item = data.stock.find((s) => s.id === m.stockItemId)
       if (!item) {
         throw new Error('Choisissez une bouteille du stock pour chaque ligne remplie.')
+      }
+      if (fluideType && !sameFluideCode(item.fluide, fluideType)) {
+        throw new Error(
+          `Bouteille ${item.numeroContenant} = ${item.fluide}, mais l’équipement / CERFA est en ${fluideType}. Choisissez une bouteille du même gaz.`,
+        )
+      }
+      if (chantier?.fluideType && !sameFluideCode(item.fluide, chantier.fluideType)) {
+        throw new Error(
+          `Bouteille ${item.numeroContenant} = ${item.fluide}, mais le chantier est en ${chantier.fluideType}.`,
+        )
       }
       if (!item.numeroContenant?.trim()) {
         throw new Error(
@@ -692,11 +722,16 @@ export function InterventionFormPage() {
             {bottleRequired
               ? 'Charge / récupération / démantèlement : au moins une bouteille obligatoire (plusieurs possibles).'
               : 'Bouteille facultative — ajoutez-en une ou plusieurs seulement s’il y a un mouvement de fluide.'}
+            {fluideType
+              ? ` Uniquement les bouteilles ${fluideType} (même gaz que l’équipement).`
+              : ''}
           </p>
 
           <div className="space-y-3">
             {manips.map((m, idx) => {
               const item = data.stock.find((s) => s.id === m.stockItemId)
+              const mismatch =
+                item && fluideType ? !sameFluideCode(item.fluide, fluideType) : false
               return (
                 <div
                   key={m.key}
@@ -717,10 +752,13 @@ export function InterventionFormPage() {
                     <select
                       value={m.stockItemId}
                       onChange={(e) => updateManip(m.key, { stockItemId: e.target.value })}
-                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                      className={[
+                        'h-11 w-full rounded-xl border bg-white px-3',
+                        mismatch ? 'border-danger' : 'border-line',
+                      ].join(' ')}
                     >
                       <option value="">— Choisir —</option>
-                      {data.stock.map((s) => (
+                      {stockMatchingFluide.map((s) => (
                         <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
                           {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — reste{' '}
                           {s.quantiteKg} kg
@@ -729,6 +767,16 @@ export function InterventionFormPage() {
                       ))}
                     </select>
                   </LabelHint>
+                  {fluideType && stockMatchingFluide.length === 0 && (
+                    <p className="text-xs text-danger">
+                      Aucune bouteille {fluideType} en stock — ajoutez-en une dans Stock fluides.
+                    </p>
+                  )}
+                  {mismatch && item && (
+                    <p className="text-xs text-danger">
+                      Incohérent : bouteille {item.fluide} ≠ équipement {fluideType}.
+                    </p>
+                  )}
                   {item && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm">

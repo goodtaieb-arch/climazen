@@ -234,6 +234,12 @@ export function normalizeFluideCode(code: string) {
   return code.trim().toUpperCase().replace(/\s+/g, '').replace(/^R(?=\d)/, 'R-')
 }
 
+/** true si deux codes désignent le même fluide (R-32 / R32 / r-32). */
+export function sameFluideCode(a: string, b: string): boolean {
+  if (!a?.trim() || !b?.trim()) return false
+  return normalizeFluideCode(a) === normalizeFluideCode(b)
+}
+
 export function findFluide(code: string): FluideRef | undefined {
   if (!code.trim()) return undefined
   const n = normalizeFluideCode(code)
