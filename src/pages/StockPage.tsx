@@ -177,31 +177,58 @@ export function StockPage() {
           const f = findFluide(s.fluide)
           const hist = mouvementsForBottle(data, s.id)
           const openHist = expandedId === s.id
+          const typeLabel =
+            TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType
           return (
             <div key={s.id} className="overflow-hidden rounded-2xl border border-line bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
                 <button
                   type="button"
                   className="flex min-w-0 flex-1 items-start gap-2 text-left"
                   onClick={() => setExpandedId(openHist ? null : s.id)}
                 >
                   {openHist ? (
-                    <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted" />
+                    <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-muted" />
                   ) : (
-                    <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted" />
+                    <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted" />
                   )}
-                  <div className="min-w-0">
-                    <div className="font-display font-semibold">
-                      {s.numeroContenant}{' '}
-                      <span className="text-sm font-normal text-muted">· {s.fluide}</span>
+                  <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
+                    <div className="rounded-xl border border-line bg-mist/50 px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        Type de gaz
+                      </div>
+                      <div className="mt-0.5 font-display text-base font-semibold text-ink">
+                        {s.fluide}
+                      </div>
+                      {f && (
+                        <div className="mt-0.5 text-xs text-muted">GWP {formatGwp(f)}</div>
+                      )}
                     </div>
-                    <div className="text-sm text-muted">
-                      {TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType}
-                      {' · '}
-                      <strong className="text-ink">reste {s.quantiteKg} kg</strong>
-                      {s.quantiteInitialeKg != null ? ` / entrée ${s.quantiteInitialeKg} kg` : ''}
-                      {f ? ` · GWP ${formatGwp(f)}` : ''}
-                      {hist.length > 0 ? ` · ${hist.length} mouvement${hist.length > 1 ? 's' : ''}` : ''}
+                    <div className="rounded-xl border border-line bg-mist/50 px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        Nom de bouteille
+                      </div>
+                      <div className="mt-0.5 break-all font-display text-base font-semibold text-ink">
+                        {s.numeroContenant || '—'}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted">{typeLabel}</div>
+                    </div>
+                    <div className="rounded-xl border border-accent/30 bg-accent-soft/50 px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        Quantité
+                      </div>
+                      <div className="mt-0.5 font-display text-lg font-bold text-ink">
+                        {s.quantiteKg}{' '}
+                        <span className="text-sm font-semibold text-muted">kg</span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted">
+                        {s.quantiteInitialeKg != null
+                          ? `entrée ${s.quantiteInitialeKg} kg`
+                          : 'reste actuel'}
+                        {hist.length > 0
+                          ? ` · ${hist.length} mouvement${hist.length > 1 ? 's' : ''}`
+                          : ''}
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -210,6 +237,7 @@ export function StockPage() {
                     type="button"
                     onClick={() => startEdit(s)}
                     className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                    title="Modifier"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -219,6 +247,7 @@ export function StockPage() {
                       if (confirm('Supprimer cette bouteille et son historique ?')) deleteStock(s.id)
                     }}
                     className="rounded-lg p-2 text-danger hover:bg-red-50"
+                    title="Supprimer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
