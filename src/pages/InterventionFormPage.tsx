@@ -435,6 +435,12 @@ export function InterventionFormPage() {
       if (!(m.quantiteKg > 0)) {
         throw new Error(`Indiquez la quantité (kg) pour la bouteille ${item.numeroContenant}.`)
       }
+      const sameBottleLines = manips.filter((x) => x.stockItemId === m.stockItemId)
+      if (sameBottleLines.length > 1) {
+        throw new Error(
+          `La bouteille ${item.numeroContenant} est déjà utilisée sur une autre ligne — choisissez une bouteille encore disponible.`,
+        )
+      }
       if (m.sens === 'sortie' && m.quantiteKg > item.quantiteKg + 1e-9) {
         throw new Error(
           `Stock insuffisant sur ${item.numeroContenant} : reste ${item.quantiteKg} kg.`,
@@ -767,6 +773,15 @@ export function InterventionFormPage() {
                 item && denominationFluide
                   ? !sameFluideCode(item.fluide, denominationFluide)
                   : false
+              // Ne proposer que les bouteilles pas déjà prises sur une autre ligne
+              const dejaPrises = new Set(
+                manips
+                  .filter((x) => x.key !== m.key && x.stockItemId)
+                  .map((x) => x.stockItemId),
+              )
+              const optionsDispo = stockMatchingFluide.filter(
+                (s) => s.id === m.stockItemId || !dejaPrises.has(s.id),
+              )
               return (
                 <div
                   key={m.key}
@@ -793,11 +808,11 @@ export function InterventionFormPage() {
                       ].join(' ')}
                     >
                       <option value="">— Choisir —</option>
-                      {stockMatchingFluide.map((s) => (
+                      {optionsDispo.map((s) => (
                         <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
-                          {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — reste{' '}
+                          {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — dispo{' '}
                           {s.quantiteKg} kg
-                          {s.quantiteInitialeKg != null ? ` / ${s.quantiteInitialeKg} kg` : ''}
+                          {s.quantiteInitialeKg != null ? ` / entrée ${s.quantiteInitialeKg} kg` : ''}
                         </option>
                       ))}
                     </select>
@@ -808,6 +823,15 @@ export function InterventionFormPage() {
                       fluides.
                     </p>
                   )}
+                  {denominationFluide &&
+                    stockMatchingFluide.length > 0 &&
+                    optionsDispo.filter((s) => s.id !== m.stockItemId).length === 0 &&
+                    !m.stockItemId && (
+                      <p className="text-xs text-muted">
+                        Plus aucune autre bouteille {denominationFluide} disponible (déjà
+                        sélectionnées ci-dessus).
+                      </p>
+                    )}
                   {!denominationFluide && (
                     <p className="text-xs text-danger">
                       Choisissez d’abord la dénomination du fluide (cadre équipement) — aucune
