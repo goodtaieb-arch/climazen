@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, FileCheck2, Plus, Trash2 } from 'lucide-react'
+import { Eye, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
 import { loadCerfaPdf } from '../lib/pdfStore'
@@ -69,6 +69,13 @@ export function InterventionsPage() {
                   )}
                 </Link>
                 <div className="flex gap-1">
+                  <Link
+                    to={`/app/interventions/${i.id}`}
+                    title="Ouvrir / régénérer le CERFA"
+                    className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Link>
                   <button
                     type="button"
                     title="Voir le CERFA"

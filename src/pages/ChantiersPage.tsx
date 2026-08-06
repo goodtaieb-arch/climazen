@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { FileCheck2, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import type { Chantier } from '../lib/types'
 import { Field, Header } from './ClientsPage'
@@ -145,10 +146,22 @@ export function ChantiersPage() {
       <div className="grid gap-3">
         {data.chantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
+          const linked = [...data.interventions]
+            .filter((i) => i.chantierId === c.id)
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+          const cerfaTo = linked
+            ? `/app/interventions/${linked.id}`
+            : `/app/interventions/new?chantier=${encodeURIComponent(c.id)}`
+          const cerfaLabel = linked
+            ? linked.hasCerfaPdf
+              ? 'Régénérer CERFA'
+              : 'Continuer CERFA'
+            : 'Ajouter CERFA'
+
           return (
             <div key={c.id} className="rounded-2xl border border-line bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="font-display text-lg font-semibold">{c.nom}</div>
                   <div className="text-sm text-muted">
                     {client?.raisonSociale} · {c.ville} · {c.fluideType} · {c.chargeNominaleKg} kg
@@ -158,9 +171,32 @@ export function ChantiersPage() {
                     {c.equipementMarque} {c.equipementModele} · SN {c.equipementNumeroSerie || '—'}
                     {c.detectionPermanente ? ' · Détection permanente' : ''}
                   </div>
+                  {linked && (
+                    <p className="mt-1.5 text-xs text-muted">
+                      Intervention du {linked.dateIntervention}
+                      {linked.hasCerfaPdf ? ' · CERFA déjà enregistré' : ' · fiche en cours'}
+                    </p>
+                  )}
                 </div>
-                <div className="flex gap-1">
-                  <button type="button" onClick={() => startEdit(c)} className="rounded-lg p-2 text-accent hover:bg-accent-soft">
+                <div className="flex flex-wrap items-center gap-1">
+                  <Link
+                    to={cerfaTo}
+                    title={
+                      linked
+                        ? 'Ouvrir la même fiche et régénérer le CERFA en fin de travaux'
+                        : 'Créer une fiche CERFA pour ce chantier'
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
+                  >
+                    <FileCheck2 className="h-3.5 w-3.5" />
+                    {cerfaLabel}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(c)}
+                    className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                    title="Modifier le chantier"
+                  >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
@@ -169,6 +205,7 @@ export function ChantiersPage() {
                       if (confirm('Supprimer ce chantier ?')) deleteChantier(c.id)
                     }}
                     className="rounded-lg p-2 text-danger hover:bg-red-50"
+                    title="Supprimer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Eye, FileCheck2, Save } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -32,6 +32,7 @@ function today() {
 
 export function InterventionFormPage() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
   const { data, saveInterventionWithStock } = useStore()
@@ -42,13 +43,21 @@ export function InterventionFormPage() {
     [data.interventions, id, isNew],
   )
 
+  const chantierFromQuery = searchParams.get('chantier') || ''
+  const chantierQueryOk = data.chantiers.some((c) => c.id === chantierFromQuery)
+
   const defaultSignNom =
     user?.signataireNom || user?.fullName || data.operateur.signataireNom || data.operateur.raisonSociale || ''
   const defaultSignQualite =
     user?.signataireQualite || data.operateur.signataireQualite || 'Opérateur attesté'
   const defaultSignImage = user?.signatureImage || data.operateur.signatureImage || ''
 
-  const [chantierId, setChantierId] = useState(existing?.chantierId || data.chantiers[0]?.id || '')
+  const [chantierId, setChantierId] = useState(
+    existing?.chantierId ||
+      (chantierQueryOk ? chantierFromQuery : '') ||
+      data.chantiers[0]?.id ||
+      '',
+  )
   const [natures, setNatures] = useState<NatureIntervention[]>(
     existing?.natures || ['entretien_reparation'],
   )
@@ -825,8 +834,16 @@ export function InterventionFormPage() {
           className="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
-          {busy ? 'Enregistrement…' : 'Enregistrer dans ClimaZEN'}
+          {busy
+            ? 'Génération…'
+            : hasPdf
+              ? 'Régénérer le CERFA'
+              : 'Enregistrer & générer le CERFA'}
         </button>
+        <p className="text-xs text-muted">
+          En fin de travaux : vérifiez les signatures, puis appuyez ici pour (re)générer le PDF
+          officiel dans ClimaZEN.
+        </p>
       </form>
 
       {pdfUrl && (
