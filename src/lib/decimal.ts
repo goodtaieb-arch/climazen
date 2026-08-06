@@ -32,5 +32,25 @@ export function parseDecimalFr(raw: string): number | null {
 
 export function formatDecimalFr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return ''
-  return String(n).replace('.', ',')
+  return formatKg(n).replace('.', ',')
+}
+
+/** Arrondi kg stable (évite 2.2999999999999997). */
+export function roundKg(n: number, decimals = 3): number {
+  if (!Number.isFinite(n)) return 0
+  const f = 10 ** decimals
+  return Math.round((n + Number.EPSILON) * f) / f
+}
+
+/** Texte kg pour CERFA / affichage — pas de queue flottante. */
+export function formatKg(n: number | null | undefined, decimals = 3): string {
+  if (n == null || !Number.isFinite(n)) return ''
+  const r = roundKg(n, decimals)
+  if (Math.abs(r) < 1e-12) return '0'
+  return parseFloat(r.toFixed(decimals)).toString()
+}
+
+/** Lettre bouteille CERFA : 0→A, 1→B, 2→C… */
+export function bottleLetter(index: number): string {
+  return String.fromCharCode(65 + (Math.max(0, index) % 26))
 }

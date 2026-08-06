@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, PDFName, PDFBool, rgb } from 'pdf-lib'
 import type { CerfaDraft, Client, Chantier, NatureIntervention } from './types'
 import { controlesPeriodiquesInfo } from './fluides'
+import { formatKg, roundKg } from './decimal'
 
 /**
  * Remplit le CERFA officiel 15497*04 (forme inchangée) puis aplatit les champs
@@ -130,8 +131,14 @@ export async function buildCerfaPdf(opts: {
       .join('\n'),
   )
   setText(form, 'Equipement_Fluide', draft.fluideType || chantier.fluideType)
-  setText(form, 'Equipement_Charge', String(draft.quantiteTotaleKg || chantier.chargeNominaleKg || ''))
-  setText(form, 'Equipement_teqCO2', draft.teqCO2 ?? chantier.teqCO2)
+  {
+    const charge = Number(draft.quantiteTotaleKg || chantier.chargeNominaleKg || 0)
+    if (charge) setText(form, 'Equipement_Charge', formatKg(charge))
+  }
+  {
+    const teq = Number(draft.teqCO2 ?? chantier.teqCO2 ?? 0)
+    if (teq) setText(form, 'Equipement_teqCO2', formatKg(teq, 3))
+  }
 
   // [4] Nature
   const autreLabels: string[] = []
@@ -226,32 +233,34 @@ export async function buildCerfaPdf(opts: {
     }
   }
 
-  // [11] Manipulation
+  // [11] Manipulation — A vierge / B régénéré / C récup / total A+B+C
   let qa = 0
   let qb = 0
   let qc = 0
   let qd = 0
-  let contenant = ''
+  const contenants: string[] = []
   let bsff = ''
   for (const m of draft.manipulations) {
-    if (m.type === 'vierge') qa += m.quantiteKg || 0
-    else if (m.type === 'regenere') qb += m.quantiteKg || 0
-    else if (m.type === 'recuperation') qc += m.quantiteKg || 0
-    else if (m.type === 'transfert') qd += m.quantiteKg || 0
-    if (m.numeroContenant) contenant = m.numeroContenant
+    const q = roundKg(Number(m.quantiteKg) || 0)
+    if (m.type === 'vierge') qa = roundKg(qa + q)
+    else if (m.type === 'regenere') qb = roundKg(qb + q)
+    else if (m.type === 'recuperation') qc = roundKg(qc + q)
+    else if (m.type === 'transfert') qd = roundKg(qd + q)
+    if (m.numeroContenant?.trim()) contenants.push(m.numeroContenant.trim())
     if (m.bsffReference) bsff = m.bsffReference
   }
-  const total = qa + qb + qc + qd
-  if (qa) setText(form, '11_QA', qa)
-  if (qb) setText(form, '11_QB', qb)
+  const total = roundKg(qa + qb + qc + qd)
+  // Total (A+B+C) = somme des bouteilles ; A/B/C = détail par type de contenant
+  if (total) setText(form, '11_Quantite', formatKg(total))
+  if (qa) setText(form, '11_QA', formatKg(qa))
+  if (qb) setText(form, '11_QB', formatKg(qb))
   if (qc) {
-    setText(form, '11_QC', qc)
-    setText(form, '11_QDE', qc)
+    setText(form, '11_QC', formatKg(qc))
+    setText(form, '11_QDE', formatKg(qc))
   }
-  if (qd) setText(form, '11_QD', qd)
-  if (total) setText(form, '11_Quantite', total)
+  if (qd) setText(form, '11_QD', formatKg(qd))
   setText(form, '11_Denom', draft.fluideType || chantier.fluideType)
-  if (contenant) setText(form, '11_Contenant_ID', contenant)
+  if (contenants.length) setText(form, '11_Contenant_ID', contenants.join(' / '))
   if (bsff) setText(form, '11_BSFF', bsff)
 
   // [12] UN

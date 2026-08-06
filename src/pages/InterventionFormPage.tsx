@@ -22,6 +22,7 @@ import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideCode } from '../lib/fluides'
+import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -307,7 +308,7 @@ export function InterventionFormPage() {
         return {
           type: item.contenantType as ContenantType,
           stockItemId: item.id,
-          quantiteKg: m.quantiteKg,
+          quantiteKg: roundKg(m.quantiteKg),
           numeroContenant: item.numeroContenant,
           bsffReference: item.bsffReference,
           sens: m.sens,
@@ -765,7 +766,9 @@ export function InterventionFormPage() {
                   className="rounded-xl border border-line bg-white p-3 space-y-3"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-muted">Bouteille {idx + 1}</span>
+                    <span className="text-xs font-semibold text-muted">
+                      Bouteille {bottleLetter(idx)}
+                    </span>
                     <button
                       type="button"
                       className="rounded-lg p-1.5 text-danger hover:bg-red-50"
