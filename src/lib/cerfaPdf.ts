@@ -314,20 +314,29 @@ export async function buildCerfaPdf(opts: {
       const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
       const png = await pdfDoc.embedPng(raw)
 
-      // Partie droite de la case Date et signature (laisser la date à gauche)
-      const pad = 3
-      const dateSlot = Math.min(58, rect.width * 0.32)
-      const sigW = rect.width - dateSlot - pad * 2
-      const sigH = Math.max(rect.height + 14, 32)
-      const sigX = rect.x + dateSlot + pad
-      const sigY = rect.y - 2
+      // Partie droite de la case Date et signature — rester DANS la case (ne pas chevaucher Qualité)
+      const pad = 2
+      const dateSlot = Math.min(52, rect.width * 0.28)
+      const maxW = Math.max(24, rect.width - dateSlot - pad * 2)
+      const maxH = Math.max(16, rect.height - pad * 2)
 
-      // Fond blanc sur la zone signature (droite de la case)
+      const aspect = png.width / Math.max(1, png.height)
+      let sigW = maxW
+      let sigH = sigW / aspect
+      if (sigH > maxH) {
+        sigH = maxH
+        sigW = sigH * aspect
+      }
+
+      // Ancré en bas à droite de la case (coord. PDF : y = bas)
+      const sigX = rect.x + dateSlot + pad + (maxW - sigW) / 2
+      const sigY = rect.y + pad
+
       page.drawRectangle({
-        x: sigX - 1,
-        y: sigY - 1,
-        width: sigW + 2,
-        height: sigH + 2,
+        x: sigX - 0.5,
+        y: sigY - 0.5,
+        width: sigW + 1,
+        height: sigH + 1,
         color: rgb(1, 1, 1),
         borderWidth: 0,
       })
