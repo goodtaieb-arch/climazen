@@ -274,6 +274,7 @@ export function cerfaSeuilFamille(code: string): 'HFC' | 'HFO' | 'HCFC' | 'autre
     const u = code.toUpperCase()
     if (/1234|HFO|454|455|448|449|452/.test(u)) return 'HFO'
     if (/HCFC|^R-?22|^R-?408|^R-?409/.test(u)) return 'HCFC'
+    if (/^R-?(744|717|290|600|1270)/.test(u)) return 'autre'
     return 'HFC'
   }
   if (f.famille === 'HFO') return 'HFO'
@@ -281,3 +282,84 @@ export function cerfaSeuilFamille(code: string): 'HFC' | 'HFO' | 'HCFC' | 'autre
   if (f.famille === 'HFC') return 'HFC'
   return 'autre'
 }
+
+/**
+ * Cadres [7]/[8]/[9] — contrôle périodique.
+ * Sous les seuils (HCFC < 2 kg, HFC < 5 t eq. CO₂, HFO < 1 kg) : pas d’obligation → aucune case.
+ */
+export type ControlesPeriodiquesInfo = {
+  famille: 'HFC' | 'HFO' | 'HCFC' | 'autre'
+  /** 0 = sous seuil (non obligatoire), 1/2/3 = colonne du tableau CERFA */
+  colonne: 0 | 1 | 2 | 3
+  obligatoire: boolean
+  /** Périodicité réglementaire suggérée, ou null si non obligatoire */
+  periodeSuggeree: string | null
+  message: string
+}
+
+export function controlesPeriodiquesInfo(opts: {
+  fluideCode: string
+  chargeKg: number
+  teqCO2: number
+  detectionPermanente: boolean
+}): ControlesPeriodiquesInfo {
+  const famille = cerfaSeuilFamille(opts.fluideCode)
+  const kg = Number(opts.chargeKg) || 0
+  const teq = Number(opts.teqCO2) || 0
+
+  let colonne: 0 | 1 | 2 | 3 = 0
+
+  if (famille === 'HCFC') {
+    if (kg >= 300) colonne = 3
+    else if (kg >= 30) colonne = 2
+    else if (kg >= 2) colonne = 1
+  } else if (famille === 'HFO') {
+    if (kg >= 100) colonne = 3
+    else if (kg >= 10) colonne = 2
+    else if (kg >= 1) colonne = 1
+  } else if (famille === 'HFC') {
+    // Seuils en tonnes eq. CO₂ (pas en kg)
+    if (teq >= 500) colonne = 3
+    else if (teq >= 50) colonne = 2
+    else if (teq >= 5) colonne = 1
+  }
+
+  if (famille === 'autre' || colonne === 0) {
+    const seuilTxt =
+      famille === 'HCFC'
+        ? 'HCFC < 2 kg'
+        : famille === 'HFO'
+          ? 'HFO < 1 kg'
+          : famille === 'HFC'
+            ? 'HFC / PFC < 5 t eq. CO₂'
+            : 'fluide hors tableau HCFC/HFC/HFO'
+    return {
+      famille,
+      colonne: 0,
+      obligatoire: false,
+      periodeSuggeree: null,
+      message: `Sous le seuil (${seuilTxt}) : contrôle périodique non obligatoire — aucune case [8]/[9] à cocher.`,
+    }
+  }
+
+  // [8] sans détection : 12 / 6 / 3 mois — [9] avec : 24 / 12 / 6 mois
+  const sans = ['12 mois', '6 mois', '3 mois'] as const
+  const avec = ['24 mois', '12 mois', '6 mois'] as const
+  const periodeSuggeree = opts.detectionPermanente ? avec[colonne - 1] : sans[colonne - 1]
+
+  const detail =
+    famille === 'HFC'
+      ? `${teq} t eq. CO₂ (seuil ≥ 5 t)`
+      : famille === 'HFO'
+        ? `${kg} kg HFO (seuil ≥ 1 kg)`
+        : `${kg} kg HCFC (seuil ≥ 2 kg)`
+
+  return {
+    famille,
+    colonne,
+    obligatoire: true,
+    periodeSuggeree,
+    message: `Contrôle périodique obligatoire (${detail}) → case [7] colonne ${colonne} + périodicité ${periodeSuggeree} (${opts.detectionPermanente ? 'avec' : 'sans'} détection permanente [6]).`,
+  }
+}
+

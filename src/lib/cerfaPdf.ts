@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, PDFName, PDFBool, rgb } from 'pdf-lib'
 import type { CerfaDraft, Client, Chantier, NatureIntervention } from './types'
-import { cerfaSeuilFamille } from './fluides'
+import { controlesPeriodiquesInfo } from './fluides'
 
 /**
  * Remplit le CERFA officiel 15497*04 (forme inchangée) puis aplatit les champs
@@ -152,22 +152,33 @@ export async function buildCerfaPdf(opts: {
     // ignore
   }
 
-  // [8]/[9] périodicité
-  const per = (draft.periodiciteControle || '12 mois').toLowerCase()
-  if (!draft.detectionPermanente) {
-    check(form, 'Case_Sans_12m', per.includes('12') || per.includes('annuel'))
-    check(form, 'Case_Sans_6m', per.includes('6') && !per.includes('12'))
-    check(form, 'Case_Sans_3m', per.includes('3') && !per.includes('30'))
-  } else {
-    check(form, 'Case_Avec_24m', per.includes('24'))
-    check(form, 'Case_Avec_12m', per.includes('12') || per.includes('annuel'))
-    check(form, 'Case_Avec_6m', per.includes('6') && !per.includes('12') && !per.includes('24'))
-  }
-
-  // Seuils fluide (cases HFC / HFO / HCFC selon catalogue GWP)
+  // [8]/[9] périodicité — uniquement si au-dessus des seuils [7]
   const charge = Number(draft.quantiteTotaleKg || chantier.chargeNominaleKg || 0)
   const fluideCode = draft.fluideType || chantier.fluideType || ''
-  const seuil = cerfaSeuilFamille(fluideCode)
+  const teq = Number(draft.teqCO2 ?? chantier.teqCO2 ?? 0)
+  const ctrlPer = controlesPeriodiquesInfo({
+    fluideCode,
+    chargeKg: charge,
+    teqCO2: teq,
+    detectionPermanente: !!draft.detectionPermanente,
+  })
+
+  if (ctrlPer.obligatoire) {
+    const per = (draft.periodiciteControle || ctrlPer.periodeSuggeree || '').toLowerCase()
+    if (!draft.detectionPermanente) {
+      check(form, 'Case_Sans_12m', per.includes('12') || per.includes('annuel'))
+      check(form, 'Case_Sans_6m', /\b6\b/.test(per) && !per.includes('12'))
+      check(form, 'Case_Sans_3m', /\b3\b/.test(per) && !per.includes('30'))
+    } else {
+      check(form, 'Case_Avec_24m', per.includes('24'))
+      check(form, 'Case_Avec_12m', per.includes('12') || per.includes('annuel'))
+      check(form, 'Case_Avec_6m', /\b6\b/.test(per) && !per.includes('12') && !per.includes('24'))
+    }
+  }
+  // Sous seuil : aucune case [8]/[9] cochée (conforme Cerfa)
+
+  // Seuils fluide [7] — HFC en t eq. CO₂ ; HFO/HCFC en kg
+  const seuil = ctrlPer.famille
   if (seuil === 'HFO') {
     check(form, 'Case_HFO_1', charge >= 1 && charge < 10)
     check(form, 'Case_HFO_10', charge >= 10 && charge < 100)
@@ -177,10 +188,9 @@ export async function buildCerfaPdf(opts: {
     check(form, 'Case_HCFC_30', charge >= 30 && charge < 300)
     check(form, 'Case_HCFC_300', charge >= 300)
   } else if (seuil === 'HFC') {
-    // HFC : cases à partir de 5 kg — si charge < 5, rien de coché (conforme)
-    check(form, 'Case_HFC_5', charge >= 5 && charge < 50)
-    check(form, 'Case_HFC_50', charge >= 50 && charge < 500)
-    check(form, 'Case_HFC_500', charge >= 500)
+    check(form, 'Case_HFC_5', teq >= 5 && teq < 50)
+    check(form, 'Case_HFC_50', teq >= 50 && teq < 500)
+    check(form, 'Case_HFC_500', teq >= 500)
   }
 
   // [10] Fuites

@@ -20,7 +20,7 @@ import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SignaturePad } from '../components/SignaturePad'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
-import { calcTeqCO2FromFluide, findFluide } from '../lib/fluides'
+import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide } from '../lib/fluides'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -60,7 +60,7 @@ export function InterventionFormPage() {
   const [quantiteHfoKg, setQuantiteHfoKg] = useState(existing?.quantiteHfoKg ?? 0)
   const [teqCO2, setTeqCO2] = useState(existing?.teqCO2 ?? 0)
   const [periodiciteControle, setPeriodiciteControle] = useState(
-    existing?.periodiciteControle || '12 mois',
+    existing?.periodiciteControle || '',
   )
   const [fuiteConstatee, setFuiteConstatee] = useState(existing?.fuiteConstatee || false)
   const [fuiteDescription, setFuiteDescription] = useState(existing?.fuiteDescription || '')
@@ -195,6 +195,34 @@ export function InterventionFormPage() {
     stockItemId: stockItemId || undefined,
   })
 
+  const ctrlPeriodique = useMemo(
+    () =>
+      controlesPeriodiquesInfo({
+        fluideCode: fluideType,
+        chargeKg: quantiteTotaleKg,
+        teqCO2,
+        detectionPermanente,
+      }),
+    [fluideType, quantiteTotaleKg, teqCO2, detectionPermanente],
+  )
+
+  // Ajuste la périodicité suggérée quand le seuil / [6] change
+  useEffect(() => {
+    if (!ctrlPeriodique.obligatoire) {
+      if (periodiciteControle) setPeriodiciteControle('')
+      return
+    }
+    if (ctrlPeriodique.periodeSuggeree && periodiciteControle !== ctrlPeriodique.periodeSuggeree) {
+      // Ne force que si vide ou ancienne valeur hors options actuelles
+      const opts = detectionPermanente
+        ? ['24 mois', '12 mois', '6 mois']
+        : ['12 mois', '6 mois', '3 mois']
+      if (!periodiciteControle || !opts.includes(periodiciteControle)) {
+        setPeriodiciteControle(ctrlPeriodique.periodeSuggeree)
+      }
+    }
+  }, [ctrlPeriodique.obligatoire, ctrlPeriodique.periodeSuggeree, detectionPermanente]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleNature = (n: NatureIntervention) => {
     setNatures((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
   }
@@ -228,7 +256,9 @@ export function InterventionFormPage() {
       quantiteTotaleKg,
       quantiteHfoKg: quantiteHfoKg || undefined,
       teqCO2: teqCO2 || undefined,
-      periodiciteControle,
+      periodiciteControle: ctrlPeriodique.obligatoire
+        ? periodiciteControle || ctrlPeriodique.periodeSuggeree || undefined
+        : undefined,
       fuiteConstatee,
       fuiteDescription,
       fuiteReparee,
@@ -265,6 +295,18 @@ export function InterventionFormPage() {
     if (needsDetecteur && detecteurExpire) {
       const ok = confirm('Contrôle détecteur > 1 an. Continuer ?')
       if (!ok) throw new Error('Enregistrement annulé.')
+    }
+
+    if (ctrlPeriodique.obligatoire) {
+      const per = periodiciteControle || ctrlPeriodique.periodeSuggeree
+      if (!per) {
+        throw new Error(
+          'Contrôle périodique obligatoire pour cette charge / ce fluide — choisissez la périodicité [8]/[9].',
+        )
+      }
+      if (!periodiciteControle && ctrlPeriodique.periodeSuggeree) {
+        setPeriodiciteControle(ctrlPeriodique.periodeSuggeree)
+      }
     }
 
     const requireBottle = needsBottleNumber({
@@ -527,19 +569,48 @@ export function InterventionFormPage() {
         )}
 
         <Section title={detectionPermanente ? '[9] Avec détection permanente' : '[8] Sans détection permanente'}>
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">Périodicité de contrôle</span>
-            <select
-              value={periodiciteControle}
-              onChange={(e) => setPeriodiciteControle(e.target.value)}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="12 mois">12 mois</option>
-              <option value="6 mois">6 mois</option>
-              <option value="3 mois">3 mois</option>
-              <option value="24 mois">24 mois</option>
-            </select>
-          </label>
+          <p
+            className={[
+              'mb-3 rounded-xl px-3 py-2 text-sm',
+              ctrlPeriodique.obligatoire ? 'bg-amber-50 text-amber-950' : 'bg-mist text-muted',
+            ].join(' ')}
+          >
+            {ctrlPeriodique.message}
+          </p>
+
+          {ctrlPeriodique.obligatoire ? (
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Périodicité de contrôle *</span>
+              <select
+                required
+                value={periodiciteControle || ctrlPeriodique.periodeSuggeree || ''}
+                onChange={(e) => setPeriodiciteControle(e.target.value)}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                {detectionPermanente ? (
+                  <>
+                    <option value="24 mois">24 mois</option>
+                    <option value="12 mois">12 mois</option>
+                    <option value="6 mois">6 mois</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="12 mois">12 mois</option>
+                    <option value="6 mois">6 mois</option>
+                    <option value="3 mois">3 mois</option>
+                  </>
+                )}
+              </select>
+              <span className="mt-1 block text-xs text-muted">
+                Suggestion réglementaire (colonne {ctrlPeriodique.colonne}) :{' '}
+                {ctrlPeriodique.periodeSuggeree}
+              </span>
+            </label>
+          ) : (
+            <p className="text-sm text-muted">
+              Aucune case de périodicité à cocher sur le CERFA pour cette charge / ce fluide.
+            </p>
+          )}
         </Section>
 
         <Section title="[10] Fuites">
