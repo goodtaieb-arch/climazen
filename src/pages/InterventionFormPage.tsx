@@ -145,15 +145,14 @@ export function InterventionFormPage() {
   const chantier = data.chantiers.find((c) => c.id === chantierId)
   const client = data.clients.find((c) => c.id === chantier?.clientId)
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
+  /** Dénomination fluide CERFA [3]/[7]/[11] — référence unique pour les bouteilles */
+  const denominationFluide = (fluideType || chantier?.fluideType || '').trim()
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
-  const stockMatchingFluide = useMemo(
-    () =>
-      data.stock.filter((s) =>
-        fluideType ? sameFluideCode(s.fluide, fluideType) : true,
-      ),
-    [data.stock, fluideType],
-  )
+  const stockMatchingFluide = useMemo(() => {
+    if (!denominationFluide) return []
+    return data.stock.filter((s) => sameFluideCode(s.fluide, denominationFluide))
+  }, [data.stock, denominationFluide])
 
   // Charger le CERFA déjà enregistré dans l’app
   useEffect(() => {
@@ -194,18 +193,21 @@ export function InterventionFormPage() {
     if (item.denominationAdr) setDenominationAdr(item.denominationAdr)
   }, [firstStockId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Si le fluide de l’équipement change, retirer les bouteilles d’un autre gaz
+  // Si la dénomination fluide change, retirer toute bouteille d’un autre gaz (tous types)
   useEffect(() => {
-    if (!fluideType) return
+    if (!denominationFluide) {
+      setManips((prev) => (prev.some((m) => m.stockItemId) ? prev.map((m) => ({ ...m, stockItemId: '', quantiteKg: 0 })) : prev))
+      return
+    }
     setManips((prev) => {
       const next = prev.filter((m) => {
         if (!m.stockItemId) return true
         const item = data.stock.find((s) => s.id === m.stockItemId)
-        return item ? sameFluideCode(item.fluide, fluideType) : false
+        return item ? sameFluideCode(item.fluide, denominationFluide) : false
       })
       return next.length === prev.length ? prev : next
     })
-  }, [fluideType]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [denominationFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Préremplir nom détenteur depuis le client du chantier
   useEffect(() => {
@@ -397,18 +399,18 @@ export function InterventionFormPage() {
 
     for (const m of manips) {
       if (!m.stockItemId && !(m.quantiteKg > 0)) continue
+      if (!denominationFluide) {
+        throw new Error(
+          'Indiquez d’abord la dénomination du fluide (équipement) avant d’associer une bouteille.',
+        )
+      }
       const item = data.stock.find((s) => s.id === m.stockItemId)
       if (!item) {
         throw new Error('Choisissez une bouteille du stock pour chaque ligne remplie.')
       }
-      if (fluideType && !sameFluideCode(item.fluide, fluideType)) {
+      if (!sameFluideCode(item.fluide, denominationFluide)) {
         throw new Error(
-          `Bouteille ${item.numeroContenant} = ${item.fluide}, mais l’équipement / CERFA est en ${fluideType}. Choisissez une bouteille du même gaz.`,
-        )
-      }
-      if (chantier?.fluideType && !sameFluideCode(item.fluide, chantier.fluideType)) {
-        throw new Error(
-          `Bouteille ${item.numeroContenant} = ${item.fluide}, mais le chantier est en ${chantier.fluideType}.`,
+          `Interdit : bouteille ${item.numeroContenant} (${item.fluide}) ≠ dénomination fluide ${denominationFluide}. Même gaz obligatoire pour tous les types.`,
         )
       }
       if (!item.numeroContenant?.trim()) {
@@ -721,17 +723,21 @@ export function InterventionFormPage() {
           <p className="mb-3 rounded-xl bg-mist px-3 py-2 text-sm text-muted">
             {bottleRequired
               ? 'Charge / récupération / démantèlement : au moins une bouteille obligatoire (plusieurs possibles).'
-              : 'Bouteille facultative — ajoutez-en une ou plusieurs seulement s’il y a un mouvement de fluide.'}
-            {fluideType
-              ? ` Uniquement les bouteilles ${fluideType} (même gaz que l’équipement).`
-              : ''}
+              : 'Bouteille facultative — ajoutez-en une ou plusieurs seulement s’il y a un mouvement de fluide.'}{' '}
+            <strong className="text-ink">
+              Règle pour tous les gaz : la bouteille doit être exactement le même fluide que la
+              dénomination
+              {denominationFluide ? ` (${denominationFluide})` : ''}.
+            </strong>
           </p>
 
           <div className="space-y-3">
             {manips.map((m, idx) => {
               const item = data.stock.find((s) => s.id === m.stockItemId)
               const mismatch =
-                item && fluideType ? !sameFluideCode(item.fluide, fluideType) : false
+                item && denominationFluide
+                  ? !sameFluideCode(item.fluide, denominationFluide)
+                  : false
               return (
                 <div
                   key={m.key}
@@ -767,14 +773,21 @@ export function InterventionFormPage() {
                       ))}
                     </select>
                   </LabelHint>
-                  {fluideType && stockMatchingFluide.length === 0 && (
+                  {denominationFluide && stockMatchingFluide.length === 0 && (
                     <p className="text-xs text-danger">
-                      Aucune bouteille {fluideType} en stock — ajoutez-en une dans Stock fluides.
+                      Aucune bouteille {denominationFluide} en stock — ajoutez-en une dans Stock
+                      fluides.
+                    </p>
+                  )}
+                  {!denominationFluide && (
+                    <p className="text-xs text-danger">
+                      Choisissez d’abord la dénomination du fluide (cadre équipement) — aucune
+                      bouteille d’un autre gaz ne sera acceptée.
                     </p>
                   )}
                   {mismatch && item && (
                     <p className="text-xs text-danger">
-                      Incohérent : bouteille {item.fluide} ≠ équipement {fluideType}.
+                      Incohérent : bouteille {item.fluide} ≠ dénomination {denominationFluide}.
                     </p>
                   )}
                   {item && (
@@ -827,11 +840,13 @@ export function InterventionFormPage() {
 
           <button
             type="button"
+            disabled={!denominationFluide}
             onClick={() => setManips((prev) => [...prev, newManipLine()])}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-slate hover:bg-mist"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-slate hover:bg-mist disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             Ajouter une bouteille
+            {denominationFluide ? ` ${denominationFluide}` : ''}
           </button>
 
           {manips.length === 0 && bottleRequired && (

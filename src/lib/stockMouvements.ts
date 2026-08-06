@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import type { AppData, CerfaDraft, ContenantType, StockItem, StockMouvement, StockMouvementSens } from './types'
 import { cerfaLabelFor, sensMouvementPourContenant } from './types'
+import { sameFluideCode } from './fluides'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -50,10 +51,16 @@ export function applyStockFromIntervention(
   const date = intervention.dateIntervention || now.slice(0, 10)
 
   // 2) Appliquer les nouveaux mouvements
+  const denomination = (intervention.fluideType || '').trim()
   for (const m of manip) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
     if (idx < 0) throw new Error('Bouteille introuvable dans le stock.')
     const item = stock[idx]
+    if (denomination && !sameFluideCode(item.fluide, denomination)) {
+      throw new Error(
+        `Bouteille ${item.numeroContenant} (${item.fluide}) ≠ dénomination fluide ${denomination}. Même gaz obligatoire.`,
+      )
+    }
     const sens = resolveSens(m.type || item.contenantType, m.sens)
     const qty = roundKg(m.quantiteKg)
     const avant = item.quantiteKg
