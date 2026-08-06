@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -10,6 +10,10 @@ import { LabelHint } from '../components/LabelHint'
 import { findFluide, formatGwp } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { mouvementsForBottle } from '../lib/stockMouvements'
+
+function roundKg(n: number) {
+  return Math.round(n * 1000) / 1000
+}
 
 const blank = (): Omit<StockItem, 'id' | 'updatedAt'> => ({
   fluide: 'R-32',
@@ -36,6 +40,25 @@ export function StockPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const groups = useMemo(() => {
+    const map = new Map<string, StockItem[]>()
+    for (const s of data.stock) {
+      const key = s.fluide || '—'
+      const list = map.get(key) || []
+      list.push(s)
+      map.set(key, list)
+    }
+    return [...map.entries()]
+      .map(([fluide, bottles]) => ({
+        fluide,
+        bottles: [...bottles].sort((a, b) =>
+          (a.numeroContenant || '').localeCompare(b.numeroContenant || '', 'fr'),
+        ),
+        totalKg: roundKg(bottles.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
+      }))
+      .sort((a, b) => a.fluide.localeCompare(b.fluide, 'fr'))
+  }, [data.stock])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -172,131 +195,157 @@ export function StockPage() {
         </form>
       )}
 
-      <div className="space-y-3">
-        {data.stock.map((s) => {
-          const f = findFluide(s.fluide)
-          const hist = mouvementsForBottle(data, s.id)
-          const openHist = expandedId === s.id
-          const typeLabel =
-            TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType
+      <div className="space-y-5">
+        {groups.map((group) => {
+          const f = findFluide(group.fluide)
           return (
-            <div key={s.id} className="overflow-hidden rounded-2xl border border-line bg-white">
-              <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
-                  onClick={() => setExpandedId(openHist ? null : s.id)}
-                >
-                  {openHist ? (
-                    <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-muted" />
-                  ) : (
-                    <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted" />
-                  )}
-                  <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
-                    <div className="rounded-xl border border-line bg-mist/50 px-3 py-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                        Type de gaz
-                      </div>
-                      <div className="mt-0.5 font-display text-base font-semibold text-ink">
-                        {s.fluide}
-                      </div>
-                      {f && (
-                        <div className="mt-0.5 text-xs text-muted">GWP {formatGwp(f)}</div>
-                      )}
-                    </div>
-                    <div className="rounded-xl border border-line bg-mist/50 px-3 py-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                        Nom de bouteille
-                      </div>
-                      <div className="mt-0.5 break-all font-display text-base font-semibold text-ink">
-                        {s.numeroContenant || '—'}
-                      </div>
-                      <div className="mt-0.5 text-xs text-muted">{typeLabel}</div>
-                    </div>
-                    <div className="rounded-xl border border-accent/30 bg-accent-soft/50 px-3 py-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                        Quantité
-                      </div>
-                      <div className="mt-0.5 font-display text-lg font-bold text-ink">
-                        {s.quantiteKg}{' '}
-                        <span className="text-sm font-semibold text-muted">kg</span>
-                      </div>
-                      <div className="mt-0.5 text-xs text-muted">
-                        {s.quantiteInitialeKg != null
-                          ? `entrée ${s.quantiteInitialeKg} kg`
-                          : 'reste actuel'}
-                        {hist.length > 0
-                          ? ` · ${hist.length} mouvement${hist.length > 1 ? 's' : ''}`
-                          : ''}
-                      </div>
-                    </div>
+            <section key={group.fluide} className="space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-accent/25 bg-accent-soft/40 px-4 py-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    Type de gaz
                   </div>
-                </button>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => startEdit(s)}
-                    className="rounded-lg p-2 text-accent hover:bg-accent-soft"
-                    title="Modifier"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('Supprimer cette bouteille et son historique ?')) deleteStock(s.id)
-                    }}
-                    className="rounded-lg p-2 text-danger hover:bg-red-50"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="font-display text-xl font-bold text-ink">{group.fluide}</div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    {group.bottles.length} bouteille
+                    {group.bottles.length > 1 ? 's' : ''}
+                    {f ? ` · GWP ${formatGwp(f)}` : ''}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    Quantité totale
+                  </div>
+                  <div className="font-display text-2xl font-bold text-ink">
+                    {group.totalKg}{' '}
+                    <span className="text-base font-semibold text-muted">kg</span>
+                  </div>
                 </div>
               </div>
 
-              {openHist && (
-                <div className="border-t border-line bg-mist/40 px-4 py-3">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    Historique des mouvements
-                  </div>
-                  {hist.length === 0 ? (
-                    <p className="text-sm text-muted">Aucun mouvement CERFA pour l’instant.</p>
-                  ) : (
-                    <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white text-sm">
-                      {hist.map((m) => (
-                        <li
-                          key={m.id}
-                          className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+              <div className="space-y-2">
+                {group.bottles.map((s) => {
+                  const hist = mouvementsForBottle(data, s.id)
+                  const openHist = expandedId === s.id
+                  const typeLabel =
+                    TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType
+                  return (
+                    <div
+                      key={s.id}
+                      className="overflow-hidden rounded-2xl border border-line bg-white"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                          onClick={() => setExpandedId(openHist ? null : s.id)}
                         >
-                          <div>
-                            <span
-                              className={
-                                m.sens === 'sortie'
-                                  ? 'font-semibold text-danger'
-                                  : 'font-semibold text-accent'
-                              }
-                            >
-                              {m.sens === 'sortie' ? '−' : '+'}
-                              {m.quantiteKg} kg
-                            </span>
-                            <span className="text-muted">
-                              {' '}
-                              · {m.quantiteAvantKg} → {m.quantiteApresKg} kg · {m.date}
-                            </span>
+                          {openHist ? (
+                            <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-muted" />
+                          ) : (
+                            <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted" />
+                          )}
+                          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+                            <div className="rounded-xl border border-line bg-mist/50 px-3 py-2">
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                                Nom de bouteille
+                              </div>
+                              <div className="mt-0.5 break-all font-display text-base font-semibold text-ink">
+                                {s.numeroContenant || '—'}
+                              </div>
+                              <div className="mt-0.5 text-xs text-muted">{typeLabel}</div>
+                            </div>
+                            <div className="rounded-xl border border-accent/30 bg-accent-soft/50 px-3 py-2">
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                                Quantité
+                              </div>
+                              <div className="mt-0.5 font-display text-lg font-bold text-ink">
+                                {s.quantiteKg}{' '}
+                                <span className="text-sm font-semibold text-muted">kg</span>
+                              </div>
+                              <div className="mt-0.5 text-xs text-muted">
+                                {s.quantiteInitialeKg != null
+                                  ? `entrée ${s.quantiteInitialeKg} kg`
+                                  : 'reste actuel'}
+                                {hist.length > 0
+                                  ? ` · ${hist.length} mouvement${hist.length > 1 ? 's' : ''}`
+                                  : ''}
+                              </div>
+                            </div>
                           </div>
-                          <Link
-                            to={`/app/interventions/${m.interventionId}`}
-                            className="font-medium text-accent hover:underline"
+                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(s)}
+                            className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                            title="Modifier"
                           >
-                            {m.cerfaLabel}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm('Supprimer cette bouteille et son historique ?'))
+                                deleteStock(s.id)
+                            }}
+                            className="rounded-lg p-2 text-danger hover:bg-red-50"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {openHist && (
+                        <div className="border-t border-line bg-mist/40 px-4 py-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                            Historique des mouvements
+                          </div>
+                          {hist.length === 0 ? (
+                            <p className="text-sm text-muted">
+                              Aucun mouvement CERFA pour l’instant.
+                            </p>
+                          ) : (
+                            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white text-sm">
+                              {hist.map((m) => (
+                                <li
+                                  key={m.id}
+                                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+                                >
+                                  <div>
+                                    <span
+                                      className={
+                                        m.sens === 'sortie'
+                                          ? 'font-semibold text-danger'
+                                          : 'font-semibold text-accent'
+                                      }
+                                    >
+                                      {m.sens === 'sortie' ? '−' : '+'}
+                                      {m.quantiteKg} kg
+                                    </span>
+                                    <span className="text-muted">
+                                      {' '}
+                                      · {m.quantiteAvantKg} → {m.quantiteApresKg} kg · {m.date}
+                                    </span>
+                                  </div>
+                                  <Link
+                                    to={`/app/interventions/${m.interventionId}`}
+                                    className="font-medium text-accent hover:underline"
+                                  >
+                                    {m.cerfaLabel}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
           )
         })}
         {data.stock.length === 0 && (
