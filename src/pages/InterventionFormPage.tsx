@@ -370,7 +370,7 @@ export function InterventionFormPage() {
       const filled = manips.filter((m) => m.stockItemId && m.quantiteKg > 0)
       if (filled.length === 0) {
         throw new Error(
-          'Mouvement de fluide (récupération / charge / démantèlement) : ajoutez au moins une bouteille avec quantité.',
+          'Charge / récupération / démantèlement : ajoutez au moins une bouteille avec quantité.',
         )
       }
     }
@@ -689,11 +689,9 @@ export function InterventionFormPage() {
 
         <Section title="[11] Manipulation fluide (depuis stock)">
           <p className="mb-3 rounded-xl bg-mist px-3 py-2 text-sm text-muted">
-            {natures.includes('mise_en_service') && !bottleRequired
-              ? 'Mise en service : unité neuve déjà chargée → bouteille facultative. Si le circuit est plus grand, ajoutez une ou plusieurs bouteilles pour compléter.'
-              : bottleRequired
-                ? 'Récupération / charge / démantèlement : indiquez au moins une bouteille (plusieurs possibles).'
-                : 'Sans mouvement de fluide : laissez vide. Sinon ajoutez une ou plusieurs bouteilles.'}
+            {bottleRequired
+              ? 'Charge / récupération / démantèlement : au moins une bouteille obligatoire (plusieurs possibles).'
+              : 'Bouteille facultative — ajoutez-en une ou plusieurs seulement s’il y a un mouvement de fluide.'}
           </p>
 
           <div className="space-y-3">

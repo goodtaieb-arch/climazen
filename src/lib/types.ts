@@ -29,14 +29,10 @@ export type ContenantType = 'vierge' | 'regenere' | 'recuperation' | 'transfert'
 
 /** Mouvement de fluide → n° de bouteille obligatoire (F-Gas / Cerfa). */
 export function natureImpliqueMouvementFluide(natures: NatureIntervention[]): boolean {
-  // Mise en service / assemblage : souvent unité neuve préchargée → bouteille NON obligatoire.
-  // Obligatoire seulement si récupération, charge, démantèlement ou autre manip explicite.
+  // Obligatoire : charge, récupération, démantèlement.
+  // Les autres natures (mise en service, entretien, contrôles, autre…) : bouteille au choix.
   return natures.some(
-    (n) =>
-      n === 'recuperation' ||
-      n === 'charge' ||
-      n === 'demantelement' ||
-      n === 'autre',
+    (n) => n === 'recuperation' || n === 'charge' || n === 'demantelement',
   )
 }
 
