@@ -219,17 +219,17 @@ export async function buildCerfaPdf(opts: {
   check(form, 'Case_Fuite_Non', !draft.fuiteConstatee)
   if (draft.fuiteConstatee) {
     setText(form, 'Fuite_Loca_1', draft.fuiteDescription || '')
-    check(form, 'Case_Rep_Fuite1_realisee', !!draft.fuiteReparee)
-    check(form, 'Case_Rep_Fuite1_AFaire', draft.fuiteReparee === false)
+    if (draft.fuiteReparee === true) check(form, 'Case_Rep_Fuite1_realisee', true)
+    if (draft.fuiteReparee === false) check(form, 'Case_Rep_Fuite1_AFaire', true)
     if (draft.fuiteLocalisation2) {
       setText(form, 'Fuite_Loca_2', draft.fuiteLocalisation2)
-      check(form, 'Case_Rep_Fuite2_realisee', !!draft.fuite2Reparee)
-      check(form, 'Case_Rep_Fuite2_AFaire', draft.fuite2Reparee === false)
+      if (draft.fuite2Reparee === true) check(form, 'Case_Rep_Fuite2_realisee', true)
+      if (draft.fuite2Reparee === false) check(form, 'Case_Rep_Fuite2_AFaire', true)
     }
     if (draft.fuiteLocalisation3) {
       setText(form, 'Fuite_Loca_3', draft.fuiteLocalisation3)
-      check(form, 'Case_Rep_Fuite3_realisee', !!draft.fuite3Reparee)
-      check(form, 'Case_Rep_Fuite3_AFaire', draft.fuite3Reparee === false)
+      if (draft.fuite3Reparee === true) check(form, 'Case_Rep_Fuite3_realisee', true)
+      if (draft.fuite3Reparee === false) check(form, 'Case_Rep_Fuite3_AFaire', true)
     }
   }
 

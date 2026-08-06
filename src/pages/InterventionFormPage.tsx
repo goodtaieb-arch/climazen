@@ -92,9 +92,17 @@ export function InterventionFormPage() {
   )
   const [fuiteConstatee, setFuiteConstatee] = useState(existing?.fuiteConstatee || false)
   const [fuiteDescription, setFuiteDescription] = useState(existing?.fuiteDescription || '')
-  const [fuiteReparee, setFuiteReparee] = useState(existing?.fuiteReparee || false)
+  const [fuiteReparee, setFuiteReparee] = useState<boolean | null>(
+    existing?.fuiteReparee === undefined ? null : !!existing.fuiteReparee,
+  )
   const [fuiteLocalisation2, setFuiteLocalisation2] = useState(existing?.fuiteLocalisation2 || '')
+  const [fuite2Reparee, setFuite2Reparee] = useState<boolean | null>(
+    existing?.fuite2Reparee === undefined ? null : !!existing.fuite2Reparee,
+  )
   const [fuiteLocalisation3, setFuiteLocalisation3] = useState(existing?.fuiteLocalisation3 || '')
+  const [fuite3Reparee, setFuite3Reparee] = useState<boolean | null>(
+    existing?.fuite3Reparee === undefined ? null : !!existing.fuite3Reparee,
+  )
   const [detecteurIdentification, setDetecteurIdentification] = useState(
     existing?.detecteurIdentification || data.operateur.detecteurIdentification || '',
   )
@@ -341,9 +349,13 @@ export function InterventionFormPage() {
         : undefined,
       fuiteConstatee,
       fuiteDescription,
-      fuiteReparee,
+      fuiteReparee: fuiteReparee === null ? undefined : fuiteReparee,
       fuiteLocalisation2: fuiteLocalisation2 || undefined,
+      fuite2Reparee:
+        fuiteLocalisation2 && fuite2Reparee !== null ? fuite2Reparee : undefined,
       fuiteLocalisation3: fuiteLocalisation3 || undefined,
+      fuite3Reparee:
+        fuiteLocalisation3 && fuite3Reparee !== null ? fuite3Reparee : undefined,
       manipulations,
       codeUn,
       denominationAdr,
@@ -737,18 +749,61 @@ export function InterventionFormPage() {
             Fuite(s) constatée(s)
           </label>
           {fuiteConstatee && (
-            <div className="mt-3 space-y-3">
-              <Field label="Localisation 1" value={fuiteDescription} onChange={setFuiteDescription} />
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={fuiteReparee}
-                  onChange={(e) => setFuiteReparee(e.target.checked)}
-                />
-                Réparation 1 réalisée
-              </label>
-              <Field label="Localisation 2" value={fuiteLocalisation2} onChange={setFuiteLocalisation2} />
-              <Field label="Localisation 3" value={fuiteLocalisation3} onChange={setFuiteLocalisation3} />
+            <div className="mt-3 space-y-4">
+              {(
+                [
+                  {
+                    n: 1,
+                    loc: fuiteDescription,
+                    setLoc: setFuiteDescription,
+                    rep: fuiteReparee,
+                    setRep: setFuiteReparee,
+                  },
+                  {
+                    n: 2,
+                    loc: fuiteLocalisation2,
+                    setLoc: setFuiteLocalisation2,
+                    rep: fuite2Reparee,
+                    setRep: setFuite2Reparee,
+                  },
+                  {
+                    n: 3,
+                    loc: fuiteLocalisation3,
+                    setLoc: setFuiteLocalisation3,
+                    rep: fuite3Reparee,
+                    setRep: setFuite3Reparee,
+                  },
+                ] as const
+              ).map((row) => (
+                <div key={row.n} className="rounded-xl border border-line bg-mist/30 p-3 space-y-2">
+                  <Field
+                    label={`Localisation ${row.n}`}
+                    value={row.loc}
+                    onChange={row.setLoc}
+                  />
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    <span className="text-muted">Réparation {row.n} :</span>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`fuite-rep-${row.n}`}
+                        checked={row.rep === true}
+                        onChange={() => row.setRep(true)}
+                      />
+                      Réalisée
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`fuite-rep-${row.n}`}
+                        checked={row.rep === false}
+                        onChange={() => row.setRep(false)}
+                      />
+                      À faire
+                    </label>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Section>
