@@ -51,7 +51,7 @@ export function InterventionFormPage() {
   const [searchParams] = useSearchParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
-  const { data, saveInterventionWithStock } = useStore()
+  const { data, saveInterventionWithStock, upsertChantier } = useStore()
   const { user } = useAuth()
 
   const existing = useMemo(
@@ -145,8 +145,10 @@ export function InterventionFormPage() {
   const chantier = data.chantiers.find((c) => c.id === chantierId)
   const client = data.clients.find((c) => c.id === chantier?.clientId)
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
-  /** Dénomination fluide CERFA [3]/[7]/[11] — référence unique pour les bouteilles */
-  const denominationFluide = (fluideType || chantier?.fluideType || '').trim()
+  /** Dénomination fluide de la fiche CERFA (pas l’ancien gaz du chantier) */
+  const denominationFluide = (fluideType || '').trim()
+  const chantierFluideDiffere =
+    !!(chantier?.fluideType && fluideType && !sameFluideCode(chantier.fluideType, fluideType))
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
@@ -359,6 +361,18 @@ export function InterventionFormPage() {
 
   const persistInApp = async () => {
     if (!client || !chantier) throw new Error('Choisissez un chantier lié à un client.')
+    if (!fluideType.trim()) {
+      throw new Error('Indiquez la dénomination du fluide (cadre [7]).')
+    }
+
+    // Toujours aligner le chantier sur le fluide de la fiche avant contrôle bouteilles
+    if (!sameFluideCode(chantier.fluideType, fluideType)) {
+      const teq =
+        calcTeqCO2FromFluide(quantiteTotaleKg || chantier.chargeNominaleKg, fluideType) ??
+        chantier.teqCO2
+      upsertChantier({ ...chantier, fluideType, teqCO2: teq })
+    }
+
     if (needsDetecteur && !detecteurIdentification) {
       throw new Error('Cadre [5] : identification (réf.) du détecteur manquante.')
     }
@@ -549,9 +563,24 @@ export function InterventionFormPage() {
             <FluideSelect
               label="Fluide [7]"
               value={fluideType}
-              onChange={setFluideType}
+              onChange={(v) => {
+                setFluideType(v)
+                // Aligner le chantier sur la dénomination choisie (évite R-410A chantier vs R-32 fiche)
+                if (chantier && v) {
+                  const teq =
+                    calcTeqCO2FromFluide(quantiteTotaleKg || chantier.chargeNominaleKg, v) ??
+                    chantier.teqCO2
+                  upsertChantier({ ...chantier, fluideType: v, teqCO2: teq })
+                }
+              }}
               required
             />
+            {chantierFluideDiffere && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-950 sm:col-span-2">
+                Le chantier était en {chantier?.fluideType} — il est mis à jour vers {fluideType} pour
+                rester cohérent avec la fiche / les bouteilles.
+              </p>
+            )}
             <DecimalField
               label="Charge / quantité kg [7]"
               value={quantiteTotaleKg}
