@@ -841,9 +841,8 @@ export function InterventionFormPage() {
 
           <button
             type="button"
-            disabled={!denominationFluide}
             onClick={() => setManips((prev) => [...prev, newManipLine()])}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-slate hover:bg-mist disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-slate hover:bg-mist"
           >
             <Plus className="h-4 w-4" />
             Ajouter une bouteille
