@@ -163,3 +163,77 @@ export function mouvementsForBottle(data: AppData, stockItemId: string): StockMo
     .filter((m) => m.stockItemId === stockItemId)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
 }
+
+/**
+ * Enregistre le bon de retour de consigne d’une bouteille neuve vide.
+ * Conserve la preuve pour crédit fournisseur + contrôle attestation de capacité.
+ */
+export function enregistrerRetourConsigne(
+  data: AppData,
+  opts: {
+    stockItemId: string
+    bonRetourConsigne: string
+    bonRetourDate: string
+    bonRetourFournisseur?: string
+    bonRetourNotes?: string
+    createdByName?: string
+  },
+): AppData {
+  const ref = opts.bonRetourConsigne.trim()
+  if (!ref) throw new Error('N° du bon de retour de consigne obligatoire.')
+  const idx = data.stock.findIndex((s) => s.id === opts.stockItemId)
+  if (idx < 0) throw new Error('Bouteille introuvable.')
+  const item = data.stock[idx]
+  if (item.contenantType !== 'vierge') {
+    throw new Error('Le bon de retour de consigne concerne les bouteilles neuves (vierges).')
+  }
+  if ((Number(item.quantiteKg) || 0) > 1e-9) {
+    throw new Error('La bouteille n’est pas vide — terminez d’abord le fluide avant le retour.')
+  }
+  if (item.bonRetourConsigne?.trim()) {
+    throw new Error(`Retour déjà enregistré : ${item.bonRetourConsigne}.`)
+  }
+
+  const now = new Date().toISOString()
+  const date = opts.bonRetourDate || now.slice(0, 10)
+  const nextItem: StockItem = {
+    ...item,
+    quantiteKg: 0,
+    bonRetourConsigne: ref,
+    bonRetourDate: date,
+    bonRetourFournisseur: opts.bonRetourFournisseur?.trim() || undefined,
+    bonRetourNotes: opts.bonRetourNotes?.trim() || undefined,
+    retourneAt: now,
+    updatedAt: now,
+  }
+
+  const mouvement: StockMouvement = {
+    id: uuid(),
+    stockItemId: item.id,
+    numeroContenant: item.numeroContenant,
+    fluide: item.fluide,
+    sens: 'sortie',
+    quantiteKg: 0,
+    quantiteAvantKg: 0,
+    quantiteApresKg: 0,
+    date,
+    cerfaLabel: `BON-RETOUR-${ref}`,
+    createdByName: opts.createdByName,
+    kind: 'retour_consigne',
+    bonRetourReference: ref,
+    note: [
+      'Retour consigne / emballage réutilisable vide',
+      opts.bonRetourFournisseur?.trim() ? `Fournisseur : ${opts.bonRetourFournisseur.trim()}` : '',
+      opts.bonRetourNotes?.trim() || '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  }
+
+  const stock = data.stock.map((s, i) => (i === idx ? nextItem : s))
+  return {
+    ...data,
+    stock,
+    stockMouvements: [...(data.stockMouvements || []), mouvement],
+  }
+}

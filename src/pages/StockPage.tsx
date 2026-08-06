@@ -1,18 +1,28 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileCheck2, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
-import type { ContenantType, StockItem } from '../lib/types'
+import { useAuth } from '../lib/AuthContext'
+import {
+  isBouteilleRetournee,
+  needsRetourConsigne,
+  type ContenantType,
+  type StockItem,
+} from '../lib/types'
 import { Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { findFluide, formatGwp } from '../lib/fluides'
-import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
+import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { mouvementsForBottle } from '../lib/stockMouvements'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 const blank = (): Omit<StockItem, 'id' | 'updatedAt'> => ({
@@ -35,15 +45,32 @@ const TYPES: { value: ContenantType; label: string }[] = [
 ]
 
 export function StockPage() {
-  const { data, upsertStock, deleteStock } = useStore()
+  const { data, upsertStock, deleteStock, enregistrerRetourConsigneBouteille } = useStore()
+  const { user } = useAuth()
   const [form, setForm] = useState(blank())
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [retourId, setRetourId] = useState<string | null>(null)
+  const [retourForm, setRetourForm] = useState({
+    bonRetourConsigne: '',
+    bonRetourDate: today(),
+    bonRetourFournisseur: '',
+    bonRetourNotes: '',
+  })
+
+  const actifStock = useMemo(
+    () => data.stock.filter((s) => !isBouteilleRetournee(s)),
+    [data.stock],
+  )
+  const retournees = useMemo(
+    () => data.stock.filter((s) => isBouteilleRetournee(s)),
+    [data.stock],
+  )
 
   const groups = useMemo(() => {
     const map = new Map<string, StockItem[]>()
-    for (const s of data.stock) {
+    for (const s of actifStock) {
       const key = s.fluide || '—'
       const list = map.get(key) || []
       list.push(s)
@@ -58,7 +85,7 @@ export function StockPage() {
         totalKg: roundKg(bottles.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
       }))
       .sort((a, b) => a.fluide.localeCompare(b.fluide, 'fr'))
-  }, [data.stock])
+  }, [actifStock])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -87,11 +114,39 @@ export function StockPage() {
     setOpen(true)
   }
 
+  const openRetour = (s: StockItem) => {
+    setRetourId(s.id)
+    setRetourForm({
+      bonRetourConsigne: '',
+      bonRetourDate: today(),
+      bonRetourFournisseur: '',
+      bonRetourNotes: '',
+    })
+  }
+
+  const submitRetour = (e: FormEvent) => {
+    e.preventDefault()
+    if (!retourId) return
+    try {
+      enregistrerRetourConsigneBouteille({
+        stockItemId: retourId,
+        ...retourForm,
+        createdByName: user?.fullName || user?.email || user?.username,
+      })
+      setRetourId(null)
+      setExpandedId(retourId)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erreur retour consigne')
+    }
+  }
+
+  const retourBottle = retourId ? data.stock.find((s) => s.id === retourId) : null
+
   return (
     <div className="space-y-6">
       <Header
         title="Stock fluides"
-        subtitle="Bouteilles + historique des mouvements liés aux CERFA (ajouts / sorties)."
+        subtitle="Bouteilles, mouvements CERFA, et bons de retour de consigne (bouteilles neuves vides)."
         onAdd={() => {
           setEditId(null)
           setForm(blank())
@@ -134,7 +189,7 @@ export function StockPage() {
             />
           </LabelHint>
           <DecimalField
-            label={editId ? 'Quantité restante (kg)' : 'Quantité à l’entrée (kg)'}
+            label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
             value={form.quantiteKg}
             onChange={(n) => {
               setForm({
@@ -174,7 +229,7 @@ export function StockPage() {
             />
           </LabelHint>
           <p className="text-xs text-muted sm:col-span-2">
-            Neuve ou récup : chaque ajout / sortie sur CERFA met à jour le reste et l’historique
+            Neuve ou récup : chaque ajout / sortie sur CERFA met à jour le reste et l'historique
             (ex. 10 kg → sortie 2 kg → reste 8 kg, lié au n° CERFA).
           </p>
           <div className="flex gap-2 sm:col-span-2">
@@ -187,6 +242,79 @@ export function StockPage() {
             <button
               type="button"
               onClick={() => setOpen(false)}
+              className="rounded-full border border-line px-5 py-2.5 text-sm"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      )}
+
+      {retourBottle && (
+        <form
+          onSubmit={submitRetour}
+          className="grid gap-3 rounded-2xl border border-accent/40 bg-white p-5 sm:grid-cols-2"
+        >
+          <div className="sm:col-span-2">
+            <div className="font-display text-lg font-semibold">
+              Bon de retour de consigne — {retourBottle.numeroContenant}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              Bouteille neuve vide ({retourBottle.fluide}) : preuve pour crédit fournisseur et
+              contrôle d'attestation de capacité.
+            </p>
+          </div>
+          <LabelHint label="N° bon de retour / restitution *" tip={TIP_RETOUR_CONSIGNE}>
+            <input
+              required
+              value={retourForm.bonRetourConsigne}
+              onChange={(e) =>
+                setRetourForm({ ...retourForm, bonRetourConsigne: e.target.value })
+              }
+              placeholder="ex. BR-2026-0042"
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </LabelHint>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Date de retour *</span>
+            <input
+              required
+              type="date"
+              value={retourForm.bonRetourDate}
+              onChange={(e) => setRetourForm({ ...retourForm, bonRetourDate: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Fournisseur</span>
+            <input
+              value={retourForm.bonRetourFournisseur}
+              onChange={(e) =>
+                setRetourForm({ ...retourForm, bonRetourFournisseur: e.target.value })
+              }
+              placeholder="ex. Distributeur fluides"
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Notes</span>
+            <input
+              value={retourForm.bonRetourNotes}
+              onChange={(e) => setRetourForm({ ...retourForm, bonRetourNotes: e.target.value })}
+              placeholder="Optionnel"
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button
+              type="submit"
+              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+            >
+              Enregistrer le retour
+            </button>
+            <button
+              type="button"
+              onClick={() => setRetourId(null)}
               className="rounded-full border border-line px-5 py-2.5 text-sm"
             >
               Annuler
@@ -229,6 +357,7 @@ export function StockPage() {
                   const openHist = expandedId === s.id
                   const typeLabel =
                     TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType
+                  const awaitRetour = needsRetourConsigne(s)
                   return (
                     <div
                       key={s.id}
@@ -264,9 +393,11 @@ export function StockPage() {
                                 <span className="text-sm font-semibold text-muted">kg</span>
                               </div>
                               <div className="mt-0.5 text-xs text-muted">
-                                {s.quantiteInitialeKg != null
-                                  ? `entrée ${s.quantiteInitialeKg} kg`
-                                  : 'reste actuel'}
+                                {awaitRetour
+                                  ? 'Vide — retour consigne à enregistrer'
+                                  : s.quantiteInitialeKg != null
+                                    ? `entrée ${s.quantiteInitialeKg} kg`
+                                    : 'reste actuel'}
                                 {hist.length > 0
                                   ? ` · ${hist.length} mouvement${hist.length > 1 ? 's' : ''}`
                                   : ''}
@@ -274,7 +405,18 @@ export function StockPage() {
                             </div>
                           </div>
                         </button>
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
+                          {awaitRetour && (
+                            <button
+                              type="button"
+                              onClick={() => openRetour(s)}
+                              className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
+                              title="Bon de retour de consigne"
+                            >
+                              <FileCheck2 className="h-3.5 w-3.5" />
+                              Bon de retour
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => startEdit(s)}
@@ -303,9 +445,7 @@ export function StockPage() {
                             Historique des mouvements
                           </div>
                           {hist.length === 0 ? (
-                            <p className="text-sm text-muted">
-                              Aucun mouvement CERFA pour l’instant.
-                            </p>
+                            <p className="text-sm text-muted">Aucun mouvement pour l'instant.</p>
                           ) : (
                             <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white text-sm">
                               {hist.map((m) => (
@@ -314,27 +454,44 @@ export function StockPage() {
                                   className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
                                 >
                                   <div>
-                                    <span
-                                      className={
-                                        m.sens === 'sortie'
-                                          ? 'font-semibold text-danger'
-                                          : 'font-semibold text-accent'
-                                      }
-                                    >
-                                      {m.sens === 'sortie' ? '−' : '+'}
-                                      {m.quantiteKg} kg
-                                    </span>
+                                    {m.kind === 'retour_consigne' ? (
+                                      <span className="font-semibold text-accent">
+                                        Retour consigne
+                                        {m.bonRetourReference
+                                          ? ` · ${m.bonRetourReference}`
+                                          : ''}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={
+                                          m.sens === 'sortie'
+                                            ? 'font-semibold text-danger'
+                                            : 'font-semibold text-accent'
+                                        }
+                                      >
+                                        {m.sens === 'sortie' ? '−' : '+'}
+                                        {m.quantiteKg} kg
+                                      </span>
+                                    )}
                                     <span className="text-muted">
                                       {' '}
-                                      · {m.quantiteAvantKg} → {m.quantiteApresKg} kg · {m.date}
+                                      · {m.date}
+                                      {m.note ? ` · ${m.note}` : ''}
+                                      {m.kind !== 'retour_consigne'
+                                        ? ` · ${m.quantiteAvantKg} → ${m.quantiteApresKg} kg`
+                                        : ''}
                                     </span>
                                   </div>
-                                  <Link
-                                    to={`/app/interventions/${m.interventionId}`}
-                                    className="font-medium text-accent hover:underline"
-                                  >
-                                    {m.cerfaLabel}
-                                  </Link>
+                                  {m.interventionId ? (
+                                    <Link
+                                      to={`/app/interventions/${m.interventionId}`}
+                                      className="font-medium text-accent hover:underline"
+                                    >
+                                      {m.cerfaLabel}
+                                    </Link>
+                                  ) : (
+                                    <span className="font-medium text-muted">{m.cerfaLabel}</span>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -348,6 +505,71 @@ export function StockPage() {
             </section>
           )
         })}
+
+        {retournees.length > 0 && (
+          <section className="space-y-2">
+            <div className="rounded-2xl border border-line bg-mist/50 px-4 py-3">
+              <div className="font-display text-lg font-semibold text-ink">
+                Retours de consigne (archives)
+              </div>
+              <p className="mt-0.5 text-xs text-muted">
+                Bouteilles neuves vides retournées — conservées pour contrôle / crédit fournisseur.
+              </p>
+            </div>
+            {retournees.map((s) => {
+              const hist = mouvementsForBottle(data, s.id)
+              const openHist = expandedId === s.id
+              return (
+                <div
+                  key={s.id}
+                  className="overflow-hidden rounded-2xl border border-line bg-white"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => setExpandedId(openHist ? null : s.id)}
+                    >
+                      <div className="font-display font-semibold">
+                        {s.numeroContenant} · {s.fluide}
+                      </div>
+                      <div className="mt-1 text-sm text-muted">
+                        Bon {s.bonRetourConsigne}
+                        {s.bonRetourDate ? ` · ${s.bonRetourDate}` : ''}
+                        {s.bonRetourFournisseur ? ` · ${s.bonRetourFournisseur}` : ''}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Supprimer cette archive et son historique ?'))
+                          deleteStock(s.id)
+                      }}
+                      className="rounded-lg p-2 text-danger hover:bg-red-50"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {openHist && hist.length > 0 && (
+                    <div className="border-t border-line bg-mist/40 px-4 py-3 text-sm">
+                      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
+                        {hist.map((m) => (
+                          <li key={m.id} className="px-3 py-2.5 text-muted">
+                            {m.kind === 'retour_consigne'
+                              ? `Retour consigne ${m.bonRetourReference || ''} · ${m.date}`
+                              : `${m.sens === 'sortie' ? '−' : '+'}${m.quantiteKg} kg · ${m.cerfaLabel} · ${m.date}`}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </section>
+        )}
+
         {data.stock.length === 0 && (
           <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-muted">
             Stock vide — ajoutez vos bouteilles (neuves ou récup).

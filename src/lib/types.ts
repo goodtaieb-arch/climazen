@@ -123,11 +123,23 @@ export interface StockItem {
   codeUn?: string
   denominationAdr?: string
   notes?: string
+  /**
+   * Bon de retour de consigne (bouteille neuve vide / emballage réutilisable).
+   * Preuve pour crédit fournisseur + audit attestation de capacité.
+   */
+  bonRetourConsigne?: string
+  bonRetourDate?: string
+  bonRetourFournisseur?: string
+  bonRetourNotes?: string
+  /** Date d’enregistrement du retour (ISO) */
+  retourneAt?: string
   updatedAt: string
 }
 
 /** Mouvement stock lié à un CERFA (ex. sortie 2 kg d’une bouteille de 10 kg). */
 export type StockMouvementSens = 'sortie' | 'entree'
+
+export type StockMouvementKind = 'cerfa' | 'retour_consigne'
 
 export interface StockMouvement {
   id: string
@@ -140,12 +152,15 @@ export interface StockMouvement {
   quantiteAvantKg: number
   quantiteApresKg: number
   date: string
-  /** Fiche / CERFA liée */
-  interventionId: string
-  /** Libellé traçabilité ex. CERFA-15497-04-2026-08-06 */
+  /** Fiche / CERFA liée (absent pour retour de consigne) */
+  interventionId?: string
+  /** Libellé traçabilité ex. CERFA-… ou BON-RETOUR-… */
   cerfaLabel: string
   createdByName?: string
   note?: string
+  kind?: StockMouvementKind
+  /** N° bon de retour de consigne */
+  bonRetourReference?: string
 }
 
 export interface CerfaDraft {
@@ -267,4 +282,18 @@ export function isDetecteurControleExpire(dateIso?: string, refDate = new Date()
   const limit = new Date(d)
   limit.setFullYear(limit.getFullYear() + 1)
   return refDate > limit
+}
+
+/** Bouteille neuve vide, consignée, pas encore retournée au fournisseur. */
+export function needsRetourConsigne(s: StockItem): boolean {
+  return (
+    s.contenantType === 'vierge' &&
+    (Number(s.quantiteKg) || 0) <= 1e-9 &&
+    !s.bonRetourConsigne?.trim()
+  )
+}
+
+/** Déjà retournée (bon de consigne enregistré). */
+export function isBouteilleRetournee(s: StockItem): boolean {
+  return !!s.bonRetourConsigne?.trim()
 }

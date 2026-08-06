@@ -77,3 +77,23 @@ export const TIP_BOUTEILLE = (
   </>
 )
 
+export const TIP_RETOUR_CONSIGNE = (
+  <>
+    <strong className="font-semibold text-accent">Bon de retour de consigne</strong>
+    <span className="mt-1 block text-white/85">
+      Pour une bouteille <strong className="text-white">neuve / consignable</strong> rendue vide au
+      fournisseur (emballage réutilisable).
+    </span>
+    <ul className="mt-2 list-disc space-y-1.5 pl-4 text-white/80">
+      <li>
+        <strong className="text-white">Comptabilité :</strong> preuve pour crédit / remboursement de
+        la consigne.
+      </li>
+      <li>
+        <strong className="text-white">Audit :</strong> justifier le mouvement en cas de contrôle
+        d’attestation de capacité (Qualiclimat, Bureau Veritas, CEMAFROID…).
+      </li>
+    </ul>
+  </>
+)
+

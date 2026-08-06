@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
   NATURE_LABELS,
+  isBouteilleRetournee,
   isDetecteurControleExpire,
   needsBottleNumber,
   sensMouvementPourContenant,
@@ -152,7 +153,12 @@ export function InterventionFormPage() {
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
     if (!denominationFluide) return []
-    return data.stock.filter((s) => sameFluideCode(s.fluide, denominationFluide))
+    return data.stock.filter(
+      (s) =>
+        sameFluideCode(s.fluide, denominationFluide) &&
+        !isBouteilleRetournee(s) &&
+        ((Number(s.quantiteKg) || 0) > 0 || s.contenantType === 'recuperation'),
+    )
   }, [data.stock, denominationFluide])
 
   // Charger le CERFA déjà enregistré dans l’app
