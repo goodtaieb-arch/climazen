@@ -1,6 +1,5 @@
 import { v4 as uuid } from 'uuid'
 import type { AppData, Operateur } from './types'
-import { dataKeyForOrg } from './auth'
 
 export const defaultOperateur = (): Operateur => ({
   id: uuid(),
@@ -23,6 +22,11 @@ export function emptyData(): AppData {
   }
 }
 
+function dataKeyForOrg(organizationId: string) {
+  return `climazen_orgdata_${organizationId}`
+}
+
+/** Cache local (backup / import). La source de vérité est Supabase. */
 export function loadData(organizationId?: string | null): AppData {
   try {
     if (!organizationId) return emptyData()
@@ -60,7 +64,7 @@ export function saveData(data: AppData, organizationId?: string | null) {
     }
     localStorage.setItem(key, JSON.stringify(light))
   } catch (err) {
-    console.error('ClimaZEN: impossible d’enregistrer les données', err)
+    console.error('ClimaZEN: impossible d’enregistrer les données locales', err)
   }
 }
 

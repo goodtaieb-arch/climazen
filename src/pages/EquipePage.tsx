@@ -1,8 +1,8 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
-import { generateTempPassword } from '../lib/auth'
+import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
 
 export function EquipePage() {
@@ -17,21 +17,28 @@ export function EquipePage() {
   } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [password, setPassword] = useState(() => generateTempPassword())
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [busy, setBusy] = useState(false)
-  const [tick, setTick] = useState(0)
+  const [members, setMembers] = useState<UserAccount[]>([])
   const [createdCodes, setCreatedCodes] = useState<{
     email: string
     password: string
-    recoveryCode: string
   } | null>(null)
 
-  if (!isOwner) return <Navigate to="/app" replace />
+  const refresh = async () => {
+    const team = await listTeam()
+    setMembers(team)
+  }
 
-  void tick
-  const members = listTeam()
+  useEffect(() => {
+    if (!isOwner) return
+    void refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.organizationId, isOwner])
+
+  if (!isOwner) return <Navigate to="/app" replace />
 
   const onCreate = async (e: FormEvent) => {
     e.preventDefault()
@@ -40,13 +47,13 @@ export function EquipePage() {
     setCreatedCodes(null)
     setBusy(true)
     try {
-      const { user: op, recoveryCode } = await createOperator({ fullName, email, password })
-      setCreatedCodes({ email: op.email, password, recoveryCode })
+      const { user: op } = await createOperator({ fullName, email, password })
+      setCreatedCodes({ email: op.email, password })
       setOk(`Opérateur créé — connexion avec l’e-mail ${op.email}.`)
       setFullName('')
       setEmail('')
-      setPassword('')
-      setTick((t) => t + 1)
+      setPassword(generateTempPassword())
+      await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     } finally {
@@ -55,19 +62,17 @@ export function EquipePage() {
   }
 
   const onResetPassword = async (memberId: string, memberEmail: string) => {
-    const temp = generateTempPassword()
     if (
       !confirm(
-        `Réinitialiser le mot de passe de ${memberEmail} ?\nUn nouveau mot de passe temporaire sera affiché.`,
+        `Envoyer un e-mail de réinitialisation à ${memberEmail} ?`,
       )
     ) {
       return
     }
     try {
-      const { recoveryCode } = await resetOperatorPassword(memberId, temp)
-      setCreatedCodes({ email: memberEmail, password: temp, recoveryCode })
-      setOk(`Mot de passe régénéré pour ${memberEmail}.`)
-      setTick((t) => t + 1)
+      const { email: sentTo } = await resetOperatorPassword(memberId)
+      setCreatedCodes(null)
+      setOk(`Lien de réinitialisation envoyé à ${sentTo}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     }
@@ -78,8 +83,7 @@ export function EquipePage() {
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">Équipe / Opérateurs</h1>
         <p className="mt-1 text-muted">
-          Société <strong>{organization?.name}</strong> — connexion par e-mail. Vous pouvez
-          réinitialiser le MDP d’un opérateur s’il l’a oublié.
+          Société <strong>{organization?.name}</strong> — connexion par e-mail (cloud Supabase).
         </p>
       </div>
 
@@ -94,11 +98,10 @@ export function EquipePage() {
               Mot de passe temporaire :{' '}
               <strong className="font-mono">{createdCodes.password}</strong>
             </li>
-            <li>
-              Code récupération :{' '}
-              <strong className="font-mono">{createdCodes.recoveryCode}</strong>
-            </li>
           </ul>
+          <p className="mt-2 text-xs text-muted">
+            S’il a oublié son MDP, utilisez « Reset MDP » pour lui envoyer un lien par e-mail.
+          </p>
           <button
             type="button"
             className="mt-3 text-xs font-semibold text-accent hover:underline"
@@ -185,8 +188,7 @@ export function EquipePage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setOperatorActive(m.id, m.active === false)
-                      setTick((t) => t + 1)
+                      void setOperatorActive(m.id, m.active === false).then(() => refresh())
                     }}
                     className={[
                       'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',

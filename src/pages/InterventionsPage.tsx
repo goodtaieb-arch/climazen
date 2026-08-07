@@ -2,16 +2,18 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
 import { loadCerfaPdf } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 
 export function InterventionsPage() {
   const { data, deleteIntervention } = useStore()
+  const { user } = useAuth()
   const [viewer, setViewer] = useState<{ url: string; title: string } | null>(null)
 
   const openCerfa = async (id: string, label: string) => {
-    const pdf = await loadCerfaPdf(id)
+    const pdf = await loadCerfaPdf(id, user?.organizationId)
     if (!pdf) {
       alert('CERFA pas encore généré — ouvrez la fiche et cliquez « Enregistrer dans ClimaZEN ».')
       return

@@ -38,13 +38,14 @@ export function OperateurPage() {
 
   const onSubmitSignature = (e: FormEvent) => {
     e.preventDefault()
-    saveMySignature({
+    void saveMySignature({
       signataireNom: signNom,
       signataireQualite: signQualite,
       signatureImage: signImage || undefined,
+    }).then(() => {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
     })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }
 
   return (

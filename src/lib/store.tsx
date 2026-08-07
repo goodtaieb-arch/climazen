@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -17,12 +18,18 @@ import type {
   StockItem,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
+import {
+  loadOrgDataRemote,
+  saveOrgDataRemote,
+} from './auth'
 import { deleteCerfaPdf } from './pdfStore'
 import { useAuth } from './AuthContext'
 import { applyStockFromIntervention, enregistrerRetourConsigne, revertStockForIntervention } from './stockMouvements'
 
 type Store = {
   data: AppData
+  loading: boolean
+  syncError: string | null
   setOperateur: (o: Operateur) => void
   upsertClient: (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => string
   deleteClient: (id: string) => void
@@ -41,13 +48,14 @@ type Store = {
   upsertIntervention: (
     i: Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
-  /** Enregistre la fiche + met à jour le stock (historique lié au CERFA) */
   saveInterventionWithStock: (
     i: Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
     opts?: { createdByName?: string },
   ) => string
   deleteIntervention: (id: string) => void
   resetDemo: () => void
+  /** Remplace les données cloud par un payload (import local). */
+  replaceData: (next: AppData) => Promise<void>
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -57,19 +65,80 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const orgId = user?.organizationId || null
 
   const [data, setData] = useState<AppData>(() => emptyData())
+  const [loading, setLoading] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+  const skipNextSave = useRef(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (!orgId) {
-      setData(emptyData())
-      return
+    let cancelled = false
+    ;(async () => {
+      if (!orgId) {
+        setData(emptyData())
+        setHydrated(false)
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      setSyncError(null)
+      try {
+        const remote = await loadOrgDataRemote(orgId)
+        if (cancelled) return
+        skipNextSave.current = true
+        setData(remote)
+        saveData(remote, orgId)
+        setHydrated(true)
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) {
+          const local = loadData(orgId)
+          skipNextSave.current = true
+          setData(local)
+          setHydrated(true)
+          setSyncError(err instanceof Error ? err.message : 'Sync impossible')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-    setData(loadData(orgId))
   }, [orgId])
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId || !hydrated) return
+    if (skipNextSave.current) {
+      skipNextSave.current = false
+      return
+    }
     saveData(data, orgId)
-  }, [data, orgId])
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      void saveOrgDataRemote(orgId, data)
+        .then(() => setSyncError(null))
+        .catch((err) => {
+          console.error(err)
+          setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
+        })
+    }, 400)
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [data, orgId, hydrated])
+
+  const replaceData = useCallback(
+    async (next: AppData) => {
+      if (!orgId) return
+      skipNextSave.current = true
+      setData(next)
+      saveData(next, orgId)
+      await saveOrgDataRemote(orgId, next)
+      setSyncError(null)
+    },
+    [orgId],
+  )
 
   const setOperateur = useCallback((o: Operateur) => {
     setData((d) => ({ ...d, operateur: o }))
@@ -250,26 +319,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const deleteIntervention = useCallback((id: string) => {
-    setData((d) => {
-      const reverted = revertStockForIntervention(d, id)
-      return {
-        ...reverted,
-        interventions: reverted.interventions.filter((x) => x.id !== id),
-      }
-    })
-    void deleteCerfaPdf(id)
-  }, [])
+  const deleteIntervention = useCallback(
+    (id: string) => {
+      setData((d) => {
+        const reverted = revertStockForIntervention(d, id)
+        return {
+          ...reverted,
+          interventions: reverted.interventions.filter((x) => x.id !== id),
+        }
+      })
+      void deleteCerfaPdf(id, orgId)
+    },
+    [orgId],
+  )
 
   const resetDemo = useCallback(() => {
     if (!orgId) return
-    localStorage.removeItem(`climazen_orgdata_${orgId}`)
-    setData(seedDemoData())
+    const demo = seedDemoData()
+    skipNextSave.current = true
+    setData(demo)
+    saveData(demo, orgId)
+    void saveOrgDataRemote(orgId, demo)
   }, [orgId])
 
   const value = useMemo(
     () => ({
       data,
+      loading,
+      syncError,
       setOperateur,
       upsertClient,
       deleteClient,
@@ -282,9 +359,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveInterventionWithStock,
       deleteIntervention,
       resetDemo,
+      replaceData,
     }),
     [
       data,
+      loading,
+      syncError,
       setOperateur,
       upsertClient,
       deleteClient,
@@ -297,6 +377,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveInterventionWithStock,
       deleteIntervention,
       resetDemo,
+      replaceData,
     ],
   )
 

@@ -174,7 +174,7 @@ export function InterventionFormPage() {
     let revoked: string | null = null
     const interventionId = existing?.id
     if (!interventionId) return
-    void loadCerfaPdf(interventionId).then((pdf) => {
+    void loadCerfaPdf(interventionId, user?.organizationId).then((pdf) => {
       if (!pdf) {
         setHasPdf(false)
         return
@@ -187,7 +187,7 @@ export function InterventionFormPage() {
     return () => {
       if (revoked) URL.revokeObjectURL(revoked)
     }
-  }, [existing?.id, existing?.cerfaPdfSavedAt])
+  }, [existing?.id, existing?.cerfaPdfSavedAt, user?.organizationId])
 
   useEffect(() => {
     if (!chantier || existing) return
@@ -488,7 +488,7 @@ export function InterventionFormPage() {
       client,
       chantier,
     })
-    await saveCerfaPdf(savedId, blob, fileName)
+    await saveCerfaPdf(savedId, blob, fileName, user?.organizationId)
 
     if (pdfUrl) URL.revokeObjectURL(pdfUrl)
     const url = URL.createObjectURL(blob)

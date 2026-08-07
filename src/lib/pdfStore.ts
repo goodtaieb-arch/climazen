@@ -1,8 +1,11 @@
-/** Stockage des PDF CERFA dans IndexedDB — reste dans l’app, pas dans Téléchargements. */
+/** CERFA PDF : Supabase Storage + fallback IndexedDB. */
+
+import { getSupabase, isSupabaseConfigured } from './supabase'
 
 const DB_NAME = 'climazen_cerfa'
 const STORE = 'pdfs'
 const DB_VERSION = 1
+const BUCKET = 'cerfa'
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -18,7 +21,11 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-export async function saveCerfaPdf(interventionId: string, blob: Blob, fileName: string): Promise<void> {
+function storagePath(organizationId: string, interventionId: string) {
+  return `${organizationId}/${interventionId}.pdf`
+}
+
+async function saveLocal(interventionId: string, blob: Blob, fileName: string): Promise<void> {
   const db = await openDb()
   const buf = await blob.arrayBuffer()
   await new Promise<void>((resolve, reject) => {
@@ -36,7 +43,7 @@ export async function saveCerfaPdf(interventionId: string, blob: Blob, fileName:
   db.close()
 }
 
-export async function loadCerfaPdf(
+async function loadLocal(
   interventionId: string,
 ): Promise<{ blob: Blob; fileName: string; savedAt: string } | null> {
   const db = await openDb()
@@ -61,7 +68,7 @@ export async function loadCerfaPdf(
   }
 }
 
-export async function deleteCerfaPdf(interventionId: string): Promise<void> {
+async function deleteLocal(interventionId: string): Promise<void> {
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
@@ -72,7 +79,68 @@ export async function deleteCerfaPdf(interventionId: string): Promise<void> {
   db.close()
 }
 
-export async function hasCerfaPdf(interventionId: string): Promise<boolean> {
-  const pdf = await loadCerfaPdf(interventionId)
+export async function saveCerfaPdf(
+  interventionId: string,
+  blob: Blob,
+  fileName: string,
+  organizationId?: string | null,
+): Promise<void> {
+  await saveLocal(interventionId, blob, fileName)
+  if (!organizationId || !isSupabaseConfigured()) return
+  try {
+    const sb = getSupabase()
+    const path = storagePath(organizationId, interventionId)
+    const { error } = await sb.storage.from(BUCKET).upload(path, blob, {
+      contentType: 'application/pdf',
+      upsert: true,
+    })
+    if (error) console.error('ClimaZEN: upload CERFA', error.message)
+  } catch (err) {
+    console.error('ClimaZEN: upload CERFA', err)
+  }
+}
+
+export async function loadCerfaPdf(
+  interventionId: string,
+  organizationId?: string | null,
+): Promise<{ blob: Blob; fileName: string; savedAt: string } | null> {
+  if (organizationId && isSupabaseConfigured()) {
+    try {
+      const sb = getSupabase()
+      const path = storagePath(organizationId, interventionId)
+      const { data, error } = await sb.storage.from(BUCKET).download(path)
+      if (!error && data) {
+        return {
+          blob: data,
+          fileName: `${interventionId}.pdf`,
+          savedAt: new Date().toISOString(),
+        }
+      }
+    } catch {
+      // fallback local
+    }
+  }
+  return loadLocal(interventionId)
+}
+
+export async function deleteCerfaPdf(
+  interventionId: string,
+  organizationId?: string | null,
+): Promise<void> {
+  await deleteLocal(interventionId)
+  if (!organizationId || !isSupabaseConfigured()) return
+  try {
+    const sb = getSupabase()
+    await sb.storage.from(BUCKET).remove([storagePath(organizationId, interventionId)])
+  } catch {
+    // ignore
+  }
+}
+
+export async function hasCerfaPdf(
+  interventionId: string,
+  organizationId?: string | null,
+): Promise<boolean> {
+  const pdf = await loadCerfaPdf(interventionId, organizationId)
   return !!pdf
 }

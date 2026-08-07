@@ -10,6 +10,7 @@ import {
   Users,
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
+import { ImportLocalBanner } from './ImportLocalBanner'
 import { useAuth } from '../lib/AuthContext'
 
 const baseLinks = [
@@ -34,8 +35,7 @@ export function AppLayout() {
     : baseLinks
 
   const doLogout = () => {
-    logout()
-    navigate('/login')
+    void logout().then(() => navigate('/login'))
   }
 
   const roleLabel = isOwner ? 'Compte officiel' : 'Opérateur'
@@ -111,6 +111,7 @@ export function AppLayout() {
           </button>
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
+          <ImportLocalBanner />
           <Outlet />
         </div>
       </main>

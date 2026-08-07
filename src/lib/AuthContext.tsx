@@ -2,30 +2,34 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
 import {
-  clearSession,
   createOperatorAccount,
-  getCurrentUser,
+  fetchProfile,
   getOrganization,
   listOrgUsers,
   loginAccount,
-  regenerateOwnRecoveryCode,
+  logoutAccount,
   registerCompany,
-  resetOperatorPassword,
-  resetPasswordWithRecovery,
+  requestPasswordReset,
+  sendOperatorPasswordReset,
   setUserActive,
+  updatePassword,
   updateUserProfile,
   type Organization,
   type UserAccount,
 } from './auth'
+import { getSupabase, isSupabaseConfigured } from './supabase'
 
 type AuthCtx = {
   user: UserAccount | null
   organization: Organization | null
+  loading: boolean
+  configured: boolean
   isOwner: boolean
   login: (email: string, password: string) => Promise<void>
   registerCompany: (opts: {
@@ -33,54 +37,98 @@ type AuthCtx = {
     email: string
     password: string
     fullName: string
-  }) => Promise<string>
-  logout: () => void
-  refreshUser: () => void
+  }) => Promise<{ needsEmailConfirmation: boolean }>
+  logout: () => Promise<void>
+  refreshUser: () => Promise<void>
   createOperator: (opts: {
     email: string
     password: string
     fullName: string
-  }) => Promise<{ user: UserAccount; recoveryCode: string }>
-  setOperatorActive: (userId: string, active: boolean) => void
-  resetOperatorPassword: (
-    userId: string,
-    newPassword: string,
-  ) => Promise<{ user: UserAccount; recoveryCode: string }>
-  resetPasswordWithRecovery: (opts: {
-    email: string
-    recoveryCode: string
-    newPassword: string
-  }) => Promise<void>
-  regenerateRecoveryCode: () => Promise<string>
+  }) => Promise<{ user: UserAccount }>
+  setOperatorActive: (userId: string, active: boolean) => Promise<void>
+  resetOperatorPassword: (userId: string) => Promise<{ email: string }>
+  requestPasswordReset: (email: string) => Promise<void>
+  updatePassword: (newPassword: string) => Promise<void>
   saveMySignature: (patch: {
     signataireNom?: string
     signataireQualite?: string
     signatureImage?: string
-  }) => void
-  listTeam: () => UserAccount[]
+  }) => Promise<void>
+  listTeam: () => Promise<UserAccount[]>
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserAccount | null>(() => getCurrentUser())
-  const [orgTick, setOrgTick] = useState(0)
+  const configured = isSupabaseConfigured()
+  const [user, setUser] = useState<UserAccount | null>(null)
+  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [teamTick, setTeamTick] = useState(0)
 
-  const organization = useMemo(() => {
-    void orgTick
-    if (!user?.organizationId) return null
-    return getOrganization(user.organizationId)
-  }, [user?.organizationId, orgTick])
-
-  const refreshUser = useCallback(() => {
-    setUser(getCurrentUser())
-    setOrgTick((t) => t + 1)
+  const refreshUser = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      setUser(null)
+      setOrganization(null)
+      return
+    }
+    const sb = getSupabase()
+    const { data: sessionData } = await sb.auth.getSession()
+    const uid = sessionData.session?.user?.id
+    if (!uid) {
+      setUser(null)
+      setOrganization(null)
+      return
+    }
+    const u = await fetchProfile(uid)
+    setUser(u)
+    if (u?.organizationId) {
+      const org = await getOrganization(u.organizationId)
+      setOrganization(org)
+    } else {
+      setOrganization(null)
+    }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let unsubscribe: (() => void) | undefined
+
+    ;(async () => {
+      try {
+        if (!isSupabaseConfigured()) {
+          if (!cancelled) setLoading(false)
+          return
+        }
+        await refreshUser()
+        if (cancelled) return
+        const sb = getSupabase()
+        const { data: sub } = sb.auth.onAuthStateChange(() => {
+          void refreshUser()
+        })
+        unsubscribe = () => sub.subscription.unsubscribe()
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) {
+          setUser(null)
+          setOrganization(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
+  }, [refreshUser])
 
   const login = useCallback(async (email: string, password: string) => {
     const u = await loginAccount(email, password)
     setUser(u)
-    setOrgTick((t) => t + 1)
+    const org = await getOrganization(u.organizationId)
+    setOrganization(org)
   }, [])
 
   const registerCompanyFn = useCallback(
@@ -90,109 +138,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string
       fullName: string
     }) => {
-      const { user: u, recoveryCode } = await registerCompany(opts)
-      setUser(u)
-      setOrgTick((t) => t + 1)
-      return recoveryCode
+      const { user: u, needsEmailConfirmation } = await registerCompany(opts)
+      if (!needsEmailConfirmation) {
+        setUser(u)
+        if (u.organizationId) {
+          const org = await getOrganization(u.organizationId)
+          setOrganization(org)
+        }
+      }
+      return { needsEmailConfirmation }
     },
     [],
   )
 
-  const logout = useCallback(() => {
-    clearSession()
+  const logout = useCallback(async () => {
+    await logoutAccount()
     setUser(null)
+    setOrganization(null)
   }, [])
 
   const createOperator = useCallback(
     async (opts: { email: string; password: string; fullName: string }) => {
       if (!user) throw new Error('Non connecté')
       const result = await createOperatorAccount({ owner: user, ...opts })
-      setOrgTick((t) => t + 1)
+      setTeamTick((t) => t + 1)
       return result
     },
     [user],
   )
 
-  const setOperatorActive = useCallback(
-    (userId: string, active: boolean) => {
+  const setOperatorActiveFn = useCallback(
+    async (userId: string, active: boolean) => {
       if (!user) throw new Error('Non connecté')
-      setUserActive(userId, active, user)
-      setOrgTick((t) => t + 1)
+      await setUserActive(userId, active, user)
+      setTeamTick((t) => t + 1)
     },
     [user],
   )
 
   const resetOperatorPasswordFn = useCallback(
-    async (userId: string, newPassword: string) => {
+    async (userId: string) => {
       if (!user) throw new Error('Non connecté')
-      const result = await resetOperatorPassword({ owner: user, userId, newPassword })
-      setOrgTick((t) => t + 1)
+      const result = await sendOperatorPasswordReset({ owner: user, userId })
+      setTeamTick((t) => t + 1)
       return result
     },
     [user],
   )
 
-  const resetPasswordWithRecoveryFn = useCallback(
-    async (opts: { email: string; recoveryCode: string; newPassword: string }) => {
-      await resetPasswordWithRecovery(opts)
-    },
-    [],
-  )
+  const requestPasswordResetFn = useCallback(async (email: string) => {
+    await requestPasswordReset(email)
+  }, [])
 
-  const regenerateRecoveryCodeFn = useCallback(async () => {
-    if (!user) throw new Error('Non connecté')
-    const code = await regenerateOwnRecoveryCode(user.id)
-    setUser(getCurrentUser())
-    return code
-  }, [user])
+  const updatePasswordFn = useCallback(async (newPassword: string) => {
+    await updatePassword(newPassword)
+  }, [])
 
   const saveMySignature = useCallback(
-    (patch: {
+    async (patch: {
       signataireNom?: string
       signataireQualite?: string
       signatureImage?: string
     }) => {
       if (!user) throw new Error('Non connecté')
-      const updated = updateUserProfile(user.id, patch)
+      const updated = await updateUserProfile(user.id, patch)
       setUser(updated)
     },
     [user],
   )
 
-  const listTeam = useCallback(() => {
+  const listTeam = useCallback(async () => {
     if (!user) return []
+    void teamTick
     return listOrgUsers(user.organizationId)
-  }, [user, orgTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, teamTick])
 
   const value = useMemo(
     () => ({
       user,
       organization,
+      loading,
+      configured,
       isOwner: user?.role === 'owner',
       login,
       registerCompany: registerCompanyFn,
       logout,
       refreshUser,
       createOperator,
-      setOperatorActive,
+      setOperatorActive: setOperatorActiveFn,
       resetOperatorPassword: resetOperatorPasswordFn,
-      resetPasswordWithRecovery: resetPasswordWithRecoveryFn,
-      regenerateRecoveryCode: regenerateRecoveryCodeFn,
+      requestPasswordReset: requestPasswordResetFn,
+      updatePassword: updatePasswordFn,
       saveMySignature,
       listTeam,
     }),
     [
       user,
       organization,
+      loading,
+      configured,
       login,
       registerCompanyFn,
       logout,
       refreshUser,
       createOperator,
-      setOperatorActive,
+      setOperatorActiveFn,
       resetOperatorPasswordFn,
-      resetPasswordWithRecoveryFn,
-      regenerateRecoveryCodeFn,
+      requestPasswordResetFn,
+      updatePasswordFn,
       saveMySignature,
       listTeam,
     ],

@@ -1,4 +1,8 @@
-/** Comptes + sociétés ClimaZEN — connexion par e-mail, récupération MDP. */
+/** Comptes + sociétés ClimaZEN — via Supabase Auth + profiles. */
+
+import type { AppData } from './types'
+import { emptyData } from './storage'
+import { getSupabase } from './supabase'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -13,16 +17,13 @@ export type UserAccount = {
   id: string
   /** Identifiant de connexion = e-mail */
   email: string
-  /** @deprecated alias de email (anciens comptes) */
+  /** alias de email */
   username: string
-  passwordHash: string
   fullName: string
   createdAt: string
   organizationId: string
   role: UserRole
   active: boolean
-  /** Hash du code de récupération (mot de passe oublié) */
-  recoveryCodeHash?: string
   signataireNom?: string
   signataireQualite?: string
   signatureImage?: string
@@ -30,51 +31,11 @@ export type UserAccount = {
 
 export type RegisterResult = {
   user: UserAccount
-  /** Code à noter une seule fois — sert à régénérer le MDP */
-  recoveryCode: string
+  /** true si l’e-mail de confirmation est requis */
+  needsEmailConfirmation: boolean
 }
-
-const USERS_KEY = 'climazen_users_v1'
-const ORGS_KEY = 'climazen_orgs_v1'
-const SESSION_KEY = 'climazen_session_v1'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-export function loadUsers(): UserAccount[] {
-  try {
-    const raw = localStorage.getItem(USERS_KEY)
-    if (!raw) return []
-    return JSON.parse(raw) as UserAccount[]
-  } catch {
-    return []
-  }
-}
-
-function saveUsers(users: UserAccount[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-export function loadOrgs(): Organization[] {
-  try {
-    const raw = localStorage.getItem(ORGS_KEY)
-    if (!raw) return []
-    return JSON.parse(raw) as Organization[]
-  } catch {
-    return []
-  }
-}
-
-function saveOrgs(orgs: Organization[]) {
-  localStorage.setItem(ORGS_KEY, JSON.stringify(orgs))
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const data = new TextEncoder().encode(password)
-  const buf = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-}
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
@@ -97,75 +58,78 @@ export function dataKeyForUser(userId: string) {
   return `climazen_data_${userId}`
 }
 
-/** Code récupération lisible : CZ-AB12-CD34 */
-export function generateRecoveryCode(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const pick = (n: number) =>
-    Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
-  return `CZ-${pick(4)}-${pick(4)}`
-}
-
-export function normalizeRecoveryCode(code: string) {
-  return code.trim().toUpperCase().replace(/\s+/g, '')
-}
-
-function loginKey(u: UserAccount) {
-  return normalizeEmail(u.email || u.username || '')
-}
-
-function migrateLegacyUser(u: UserAccount): UserAccount {
-  const withEmail: UserAccount = {
-    ...u,
-    email: normalizeEmail(u.email || u.username || ''),
-    username: normalizeEmail(u.email || u.username || ''),
-    active: u.active !== false,
-  }
-  if (withEmail.organizationId && withEmail.role) return withEmail
-
-  const orgId = crypto.randomUUID()
-  const org: Organization = {
-    id: orgId,
-    name: u.fullName || u.username,
-    createdAt: u.createdAt || new Date().toISOString(),
-    ownerUserId: u.id,
-  }
-  const orgs = loadOrgs()
-  if (!orgs.some((o) => o.id === orgId)) {
-    orgs.push(org)
-    saveOrgs(orgs)
-  }
-  try {
-    const legacy = localStorage.getItem(dataKeyForUser(u.id))
-    if (legacy && !localStorage.getItem(dataKeyForOrg(orgId))) {
-      localStorage.setItem(dataKeyForOrg(orgId), legacy)
-    }
-  } catch {
-    // ignore
-  }
+function mapProfile(row: {
+  id: string
+  email: string
+  full_name: string
+  organization_id: string
+  role: string
+  active: boolean
+  signataire_nom?: string | null
+  signataire_qualite?: string | null
+  signature_image?: string | null
+  created_at: string
+}): UserAccount {
   return {
-    ...withEmail,
-    organizationId: orgId,
-    role: 'owner',
-    active: true,
+    id: row.id,
+    email: row.email,
+    username: row.email,
+    fullName: row.full_name,
+    createdAt: row.created_at,
+    organizationId: row.organization_id,
+    role: row.role as UserRole,
+    active: row.active !== false,
+    signataireNom: row.signataire_nom || undefined,
+    signataireQualite: row.signataire_qualite || undefined,
+    signatureImage: row.signature_image || undefined,
   }
 }
 
-export function ensureUsersMigrated(): UserAccount[] {
-  const users = loadUsers()
-  let changed = false
-  const next = users.map((u) => {
-    const before = JSON.stringify(u)
-    const m = migrateLegacyUser(u)
-    if (JSON.stringify(m) !== before) changed = true
-    return m
-  })
-  if (changed) saveUsers(next)
-  return next
+function mapOrg(row: {
+  id: string
+  name: string
+  created_at: string
+  owner_user_id: string | null
+}): Organization {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    ownerUserId: row.owner_user_id || '',
+  }
 }
 
-function findByEmail(users: UserAccount[], email: string) {
-  const e = normalizeEmail(email)
-  return users.find((u) => loginKey(u) === e)
+function authErrorMessage(err: { message?: string } | null | undefined, fallback: string) {
+  const msg = err?.message || ''
+  if (/invalid login credentials/i.test(msg)) return 'E-mail ou mot de passe incorrect.'
+  if (/email not confirmed/i.test(msg)) {
+    return 'Confirmez votre e-mail (lien reçu), puis reconnectez-vous.'
+  }
+  if (/user already registered/i.test(msg)) return 'Cet e-mail est déjà utilisé.'
+  if (/rate limit/i.test(msg)) return 'Trop de tentatives. Réessayez dans quelques minutes.'
+  return msg || fallback
+}
+
+export async function fetchProfile(userId: string): Promise<UserAccount | null> {
+  const sb = getSupabase()
+  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  const user = mapProfile(data)
+  if (user.active === false) return null
+  return user
+}
+
+export async function getOrganization(organizationId: string): Promise<Organization | null> {
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('organizations')
+    .select('*')
+    .eq('id', organizationId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  return mapOrg(data)
 }
 
 /** Création du compte officiel société (owner). */
@@ -181,239 +145,350 @@ export async function registerCompany(opts: {
   if (opts.password.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
   if (!opts.fullName.trim()) throw new Error('Indiquez votre nom.')
 
-  const users = ensureUsersMigrated()
-  if (findByEmail(users, email)) {
-    throw new Error('Cet e-mail est déjà utilisé.')
-  }
-
-  const orgId = crypto.randomUUID()
-  const userId = crypto.randomUUID()
-  const now = new Date().toISOString()
-  const recoveryCode = generateRecoveryCode()
-
-  const org: Organization = {
-    id: orgId,
-    name: opts.companyName.trim(),
-    createdAt: now,
-    ownerUserId: userId,
-  }
-  const orgs = loadOrgs()
-  orgs.push(org)
-  saveOrgs(orgs)
-
-  const account: UserAccount = {
-    id: userId,
+  const sb = getSupabase()
+  const { data, error } = await sb.auth.signUp({
     email,
-    username: email,
-    passwordHash: await hashPassword(opts.password),
-    fullName: opts.fullName.trim(),
-    createdAt: now,
-    organizationId: orgId,
-    role: 'owner',
-    active: true,
-    recoveryCodeHash: await hashPassword(normalizeRecoveryCode(recoveryCode)),
-    signataireNom: opts.fullName.trim(),
-    signataireQualite: 'Responsable / gérant',
-  }
-  users.push(account)
-  saveUsers(users)
-  setSession(account.id)
-  return { user: account, recoveryCode }
-}
-
-export async function registerAccount(opts: {
-  username: string
-  password: string
-  fullName: string
-  companyName?: string
-}): Promise<UserAccount> {
-  const { user } = await registerCompany({
-    companyName: opts.companyName || opts.fullName,
-    email: opts.username,
     password: opts.password,
-    fullName: opts.fullName,
+    options: {
+      data: {
+        company_name: opts.companyName.trim(),
+        full_name: opts.fullName.trim(),
+        role: 'owner',
+      },
+    },
   })
-  return user
+  if (error) throw new Error(authErrorMessage(error, 'Inscription impossible'))
+  if (!data.user) throw new Error('Inscription impossible')
+
+  // Session absente = confirmation e-mail requise
+  if (!data.session) {
+    return {
+      user: {
+        id: data.user.id,
+        email,
+        username: email,
+        fullName: opts.fullName.trim(),
+        createdAt: new Date().toISOString(),
+        organizationId: '',
+        role: 'owner',
+        active: true,
+      },
+      needsEmailConfirmation: true,
+    }
+  }
+
+  // Attendre le trigger profile
+  let user: UserAccount | null = null
+  for (let i = 0; i < 10; i++) {
+    user = await fetchProfile(data.user.id)
+    if (user) break
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  if (!user) throw new Error('Compte créé mais profil introuvable. Réessayez de vous connecter.')
+  return { user, needsEmailConfirmation: false }
 }
 
-/** L’owner crée un opérateur (connexion = e-mail). */
+/** L’owner crée un opérateur (invite + signUp, puis restauration de session). */
 export async function createOperatorAccount(opts: {
   owner: UserAccount
   email: string
   password: string
   fullName: string
-}): Promise<RegisterResult> {
+}): Promise<{ user: UserAccount }> {
   if (opts.owner.role !== 'owner') throw new Error('Seul le compte officiel peut ajouter des opérateurs.')
   const email = normalizeEmail(opts.email)
   if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide pour l’opérateur.')
   if (opts.password.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
   if (!opts.fullName.trim()) throw new Error('Indiquez le nom de l’opérateur.')
 
-  const users = ensureUsersMigrated()
-  if (findByEmail(users, email)) {
-    throw new Error('Cet e-mail est déjà utilisé.')
-  }
+  const sb = getSupabase()
+  const { data: sessionData } = await sb.auth.getSession()
+  const ownerSession = sessionData.session
+  if (!ownerSession) throw new Error('Session expirée. Reconnectez-vous.')
 
-  const recoveryCode = generateRecoveryCode()
-  const account: UserAccount = {
-    id: crypto.randomUUID(),
+  const { data: invite, error: inviteErr } = await sb
+    .from('operator_invites')
+    .insert({
+      organization_id: opts.owner.organizationId,
+      email,
+      full_name: opts.fullName.trim(),
+      created_by: opts.owner.id,
+    })
+    .select('*')
+    .single()
+  if (inviteErr) throw new Error(inviteErr.message)
+
+  const { data: signData, error: signErr } = await sb.auth.signUp({
     email,
-    username: email,
-    passwordHash: await hashPassword(opts.password),
-    fullName: opts.fullName.trim(),
-    createdAt: new Date().toISOString(),
-    organizationId: opts.owner.organizationId,
-    role: 'operateur',
-    active: true,
-    recoveryCodeHash: await hashPassword(normalizeRecoveryCode(recoveryCode)),
-    signataireNom: opts.fullName.trim(),
-    signataireQualite: 'Opérateur attesté',
+    password: opts.password,
+    options: {
+      data: {
+        role: 'operateur',
+        invite_id: invite.id,
+        full_name: opts.fullName.trim(),
+      },
+    },
+  })
+
+  // Restaurer la session owner dans tous les cas
+  await sb.auth.setSession({
+    access_token: ownerSession.access_token,
+    refresh_token: ownerSession.refresh_token,
+  })
+
+  if (signErr) throw new Error(authErrorMessage(signErr, 'Création opérateur impossible'))
+  if (!signData.user) throw new Error('Création opérateur impossible')
+
+  let user: UserAccount | null = null
+  for (let i = 0; i < 10; i++) {
+    const { data } = await sb.from('profiles').select('*').eq('id', signData.user.id).maybeSingle()
+    if (data) {
+      user = mapProfile(data)
+      break
+    }
+    await new Promise((r) => setTimeout(r, 200))
   }
-  users.push(account)
-  saveUsers(users)
-  return { user: account, recoveryCode }
+  if (!user) {
+    // Profil peut arriver après confirmation e-mail
+    user = {
+      id: signData.user.id,
+      email,
+      username: email,
+      fullName: opts.fullName.trim(),
+      createdAt: new Date().toISOString(),
+      organizationId: opts.owner.organizationId,
+      role: 'operateur',
+      active: true,
+    }
+  }
+  return { user }
 }
 
-export function listOrgUsers(organizationId: string): UserAccount[] {
-  return ensureUsersMigrated()
-    .filter((u) => u.organizationId === organizationId)
+export async function listOrgUsers(organizationId: string): Promise<UserAccount[]> {
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('role', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data || [])
+    .map(mapProfile)
     .sort((a, b) => {
       if (a.role === b.role) return a.fullName.localeCompare(b.fullName)
       return a.role === 'owner' ? -1 : 1
     })
 }
 
-export function setUserActive(userId: string, active: boolean, byOwner: UserAccount) {
+export async function setUserActive(userId: string, active: boolean, byOwner: UserAccount) {
   if (byOwner.role !== 'owner') throw new Error('Action réservée au compte officiel.')
-  const users = ensureUsersMigrated()
-  const target = users.find((u) => u.id === userId)
-  if (!target || target.organizationId !== byOwner.organizationId) {
-    throw new Error('Opérateur introuvable.')
-  }
-  if (target.role === 'owner') throw new Error('Impossible de désactiver le compte officiel.')
-  target.active = active
-  saveUsers(users)
-  return target
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('profiles')
+    .update({ active })
+    .eq('id', userId)
+    .eq('organization_id', byOwner.organizationId)
+    .eq('role', 'operateur')
+    .select('*')
+    .single()
+  if (error) throw new Error(error.message || 'Opérateur introuvable.')
+  return mapProfile(data)
 }
 
-export function updateUserProfile(
+export async function updateUserProfile(
   userId: string,
   patch: Partial<Pick<UserAccount, 'fullName' | 'signataireNom' | 'signataireQualite' | 'signatureImage'>>,
-): UserAccount {
-  const users = ensureUsersMigrated()
-  const idx = users.findIndex((u) => u.id === userId)
-  if (idx < 0) throw new Error('Utilisateur introuvable.')
-  users[idx] = { ...users[idx], ...patch }
-  saveUsers(users)
-  return users[idx]
+): Promise<UserAccount> {
+  const sb = getSupabase()
+  const row: Record<string, string | undefined> = {}
+  if (patch.fullName !== undefined) row.full_name = patch.fullName
+  if (patch.signataireNom !== undefined) row.signataire_nom = patch.signataireNom
+  if (patch.signataireQualite !== undefined) row.signataire_qualite = patch.signataireQualite
+  if (patch.signatureImage !== undefined) row.signature_image = patch.signatureImage
+
+  const { data, error } = await sb.from('profiles').update(row).eq('id', userId).select('*').single()
+  if (error) throw new Error(error.message || 'Utilisateur introuvable.')
+  return mapProfile(data)
 }
 
 export async function loginAccount(email: string, password: string): Promise<UserAccount> {
-  const users = ensureUsersMigrated()
-  const user = findByEmail(users, email)
-  if (!user) throw new Error('E-mail ou mot de passe incorrect.')
-  if (user.active === false) throw new Error('Ce compte opérateur est désactivé. Contactez la société.')
-  const hash = await hashPassword(password)
-  if (hash !== user.passwordHash) throw new Error('E-mail ou mot de passe incorrect.')
-  setSession(user.id)
+  const sb = getSupabase()
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: normalizeEmail(email),
+    password,
+  })
+  if (error) throw new Error(authErrorMessage(error, 'E-mail ou mot de passe incorrect.'))
+  if (!data.user) throw new Error('E-mail ou mot de passe incorrect.')
+
+  const user = await fetchProfile(data.user.id)
+  if (!user) throw new Error('Ce compte opérateur est désactivé. Contactez la société.')
   return user
 }
 
-/** Mot de passe oublié : e-mail + code de récupération → nouveau MDP. */
-export async function resetPasswordWithRecovery(opts: {
-  email: string
-  recoveryCode: string
-  newPassword: string
-}): Promise<UserAccount> {
-  if (opts.newPassword.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
-  const users = ensureUsersMigrated()
-  const user = findByEmail(users, opts.email)
-  if (!user) throw new Error('Aucun compte avec cet e-mail.')
-  if (user.active === false) throw new Error('Compte désactivé. Contactez la société.')
-  if (!user.recoveryCodeHash) {
-    throw new Error(
-      'Pas de code de récupération sur ce compte. Demandez au compte société de réinitialiser le mot de passe (menu Équipe).',
-    )
-  }
-  const codeHash = await hashPassword(normalizeRecoveryCode(opts.recoveryCode))
-  if (codeHash !== user.recoveryCodeHash) {
-    throw new Error('Code de récupération incorrect.')
-  }
-  user.passwordHash = await hashPassword(opts.newPassword)
-  saveUsers(users)
-  return user
+export async function logoutAccount() {
+  const sb = getSupabase()
+  await sb.auth.signOut()
 }
 
-/** Le compte société régénère le MDP d’un opérateur (+ nouveau code récup.). */
-export async function resetOperatorPassword(opts: {
+/** Envoie un e-mail de réinitialisation (Supabase). */
+export async function requestPasswordReset(email: string) {
+  if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide.')
+  const sb = getSupabase()
+  const redirectTo = `${window.location.origin}/reset-password`
+  const { error } = await sb.auth.resetPasswordForEmail(normalizeEmail(email), { redirectTo })
+  if (error) throw new Error(authErrorMessage(error, 'Envoi impossible'))
+}
+
+/** Après clic sur le lien e-mail : définir le nouveau mot de passe. */
+export async function updatePassword(newPassword: string) {
+  if (newPassword.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
+  const sb = getSupabase()
+  const { error } = await sb.auth.updateUser({ password: newPassword })
+  if (error) throw new Error(authErrorMessage(error, 'Mise à jour impossible'))
+}
+
+/** Owner : envoie un lien de reset à l’opérateur. */
+export async function sendOperatorPasswordReset(opts: {
   owner: UserAccount
   userId: string
-  newPassword: string
-}): Promise<{ user: UserAccount; recoveryCode: string }> {
+}): Promise<{ email: string }> {
   if (opts.owner.role !== 'owner') throw new Error('Seul le compte officiel peut réinitialiser un mot de passe.')
-  if (opts.newPassword.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
-  const users = ensureUsersMigrated()
-  const target = users.find((u) => u.id === opts.userId)
-  if (!target || target.organizationId !== opts.owner.organizationId) {
-    throw new Error('Opérateur introuvable.')
-  }
-  const recoveryCode = generateRecoveryCode()
-  target.passwordHash = await hashPassword(opts.newPassword)
-  target.recoveryCodeHash = await hashPassword(normalizeRecoveryCode(recoveryCode))
-  saveUsers(users)
-  return { user: target, recoveryCode }
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('id', opts.userId)
+    .eq('organization_id', opts.owner.organizationId)
+    .maybeSingle()
+  if (error || !data) throw new Error('Opérateur introuvable.')
+  await requestPasswordReset(data.email)
+  return { email: data.email }
 }
 
-/** Régénère un nouveau code de récupération (utilisateur connecté). */
-export async function regenerateOwnRecoveryCode(userId: string): Promise<string> {
-  const users = ensureUsersMigrated()
-  const idx = users.findIndex((u) => u.id === userId)
-  if (idx < 0) throw new Error('Utilisateur introuvable.')
-  const recoveryCode = generateRecoveryCode()
-  users[idx].recoveryCodeHash = await hashPassword(normalizeRecoveryCode(recoveryCode))
-  saveUsers(users)
-  return recoveryCode
-}
-
-export function setSession(userId: string) {
-  localStorage.setItem(SESSION_KEY, userId)
-}
-
-export function clearSession() {
-  localStorage.removeItem(SESSION_KEY)
-}
-
-export function getSessionUserId(): string | null {
-  return localStorage.getItem(SESSION_KEY)
-}
-
-export function getCurrentUser(): UserAccount | null {
-  ensureUsersMigrated()
-  const id = getSessionUserId()
-  if (!id) return null
-  const user = loadUsers().find((u) => u.id === id) || null
-  if (user && user.active === false) return null
-  return user
-}
-
-export function getOrganization(organizationId: string): Organization | null {
-  return loadOrgs().find((o) => o.id === organizationId) || null
-}
-
-export function updateOrganizationName(organizationId: string, name: string, byOwner: UserAccount) {
+export async function updateOrganizationName(organizationId: string, name: string, byOwner: UserAccount) {
   if (byOwner.role !== 'owner' || byOwner.organizationId !== organizationId) {
     throw new Error('Action réservée au compte officiel.')
   }
-  const orgs = loadOrgs()
-  const org = orgs.find((o) => o.id === organizationId)
-  if (!org) throw new Error('Société introuvable.')
-  org.name = name.trim()
-  saveOrgs(orgs)
-  return org
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('organizations')
+    .update({ name: name.trim() })
+    .eq('id', organizationId)
+    .select('*')
+    .single()
+  if (error) throw new Error(error.message || 'Société introuvable.')
+  return mapOrg(data)
 }
 
-/** Mot de passe temporaire lisible pour l’opérateur */
 export function generateTempPassword(): string {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789'
   return Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
+}
+
+/** Charge AppData depuis Supabase (fallback vide). */
+export async function loadOrgDataRemote(organizationId: string): Promise<AppData> {
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('org_data')
+    .select('payload')
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return normalizeAppData(data?.payload)
+}
+
+export async function saveOrgDataRemote(organizationId: string, data: AppData): Promise<void> {
+  const sb = getSupabase()
+  const light = stripHeavy(data)
+  const { error } = await sb.from('org_data').upsert({
+    organization_id: organizationId,
+    payload: light,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) throw new Error(error.message)
+}
+
+function stripHeavy(data: AppData): AppData {
+  return {
+    ...data,
+    interventions: data.interventions.map((rest) => {
+      const { cerfaPdfBase64: _drop, ...clean } = rest as typeof rest & { cerfaPdfBase64?: string }
+      return clean
+    }),
+  }
+}
+
+export function normalizeAppData(raw: unknown): AppData {
+  const base = emptyData()
+  if (!raw || typeof raw !== 'object') return base
+  const parsed = raw as Partial<AppData>
+  // Empty cloud payload {}
+  if (!parsed.operateur && !parsed.clients && !parsed.chantiers) return base
+  const stock = (parsed.stock || []).map((s) => ({
+    ...s,
+    quantiteInitialeKg: s.quantiteInitialeKg ?? s.quantiteKg,
+  }))
+  return {
+    ...base,
+    ...parsed,
+    operateur: parsed.operateur || base.operateur,
+    stock,
+    stockMouvements: parsed.stockMouvements || [],
+    interventions: parsed.interventions || [],
+    clients: parsed.clients || [],
+    chantiers: parsed.chantiers || [],
+  }
+}
+
+/** Données locales encore présentes sur cet appareil (avant migration cloud). */
+export function findLocalOrgDataCandidates(): { key: string; organizationId: string; data: AppData }[] {
+  const out: { key: string; organizationId: string; data: AppData }[] = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key?.startsWith('climazen_orgdata_')) continue
+      const organizationId = key.replace('climazen_orgdata_', '')
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const data = normalizeAppData(JSON.parse(raw))
+      const hasContent =
+        data.clients.length > 0 ||
+        data.chantiers.length > 0 ||
+        data.stock.length > 0 ||
+        data.interventions.length > 0 ||
+        Boolean(data.operateur?.raisonSociale)
+      if (hasContent) out.push({ key, organizationId, data })
+    }
+  } catch {
+    // ignore
+  }
+  return out
+}
+
+export function isAppDataEmpty(data: AppData): boolean {
+  return (
+    data.clients.length === 0 &&
+    data.chantiers.length === 0 &&
+    data.stock.length === 0 &&
+    data.interventions.length === 0 &&
+    !data.operateur?.raisonSociale
+  )
+}
+
+const IMPORT_FLAG = 'climazen_import_done_v1'
+
+export function wasLocalImportDone(organizationId: string) {
+  try {
+    return localStorage.getItem(`${IMPORT_FLAG}_${organizationId}`) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markLocalImportDone(organizationId: string) {
+  try {
+    localStorage.setItem(`${IMPORT_FLAG}_${organizationId}`, '1')
+  } catch {
+    // ignore
+  }
 }

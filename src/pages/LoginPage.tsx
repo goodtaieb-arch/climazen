@@ -5,7 +5,7 @@ import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
 
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, login, loading, configured } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from || '/app'
@@ -14,6 +14,14 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-ink text-sm text-white/60">
+        Chargement…
+      </div>
+    )
+  }
 
   if (user) return <Navigate to="/app" replace />
 
@@ -43,8 +51,14 @@ export function LoginPage() {
         >
           <h1 className="font-display text-2xl font-bold">Connexion</h1>
           <p className="mt-1 text-sm text-white/60">
-            Identifiant = <strong>e-mail</strong> (société ou opérateur).
+            Identifiant = <strong>e-mail</strong> (société ou opérateur) — sync cloud.
           </p>
+
+          {!configured && (
+            <p className="mt-4 rounded-xl bg-amber-500/15 px-3 py-2 text-sm text-amber-100">
+              Configurez Supabase (.env.local) avant de vous connecter.
+            </p>
+          )}
 
           <label className="mt-6 block text-sm">
             <span className="mb-1 block text-white/70">E-mail</span>
@@ -72,7 +86,7 @@ export function LoginPage() {
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !configured}
             className="mt-6 w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60"
           >
             {busy ? 'Connexion…' : 'Se connecter'}

@@ -5,7 +5,7 @@ import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
 
 export function RegisterPage() {
-  const { user, registerCompany } = useAuth()
+  const { user, loading, registerCompany, configured } = useAuth()
   const navigate = useNavigate()
 
   const [companyName, setCompanyName] = useState('')
@@ -15,9 +15,9 @@ export function RegisterPage() {
   const [password2, setPassword2] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
+  const [needsConfirm, setNeedsConfirm] = useState(false)
 
-  if (user && !recoveryCode) return <Navigate to="/app" replace />
+  if (!loading && user && !needsConfirm) return <Navigate to="/app" replace />
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -28,8 +28,17 @@ export function RegisterPage() {
     }
     setBusy(true)
     try {
-      const code = await registerCompany({ companyName, email, password, fullName })
-      setRecoveryCode(code)
+      const { needsEmailConfirmation } = await registerCompany({
+        companyName,
+        email,
+        password,
+        fullName,
+      })
+      if (needsEmailConfirmation) {
+        setNeedsConfirm(true)
+      } else {
+        navigate('/app', { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Inscription impossible')
     } finally {
@@ -37,37 +46,22 @@ export function RegisterPage() {
     }
   }
 
-  if (recoveryCode) {
+  if (needsConfirm) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10 text-white">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate p-6 sm:p-8">
           <BrandLogo onDark size="sm" />
-          <h1 className="mt-6 font-display text-2xl font-bold">Notez votre code de récupération</h1>
+          <h1 className="mt-6 font-display text-2xl font-bold">Vérifiez votre e-mail</h1>
           <p className="mt-2 text-sm text-white/65">
-            Si vous oubliez votre mot de passe, utilisez votre <strong>e-mail</strong> + ce code pour
-            en créer un nouveau. Il ne sera plus affiché.
+            Un lien de confirmation a été envoyé à <strong>{email}</strong>. Ouvrez-le, puis
+            connectez-vous.
           </p>
-          <div className="mt-6 rounded-xl border border-accent/40 bg-ink/50 px-4 py-4 text-center">
-            <div className="text-xs uppercase tracking-wide text-white/45">Code de récupération</div>
-            <div className="mt-2 font-mono text-2xl font-bold tracking-wider text-accent">
-              {recoveryCode}
-            </div>
-          </div>
           <button
             type="button"
-            onClick={() => {
-              void navigator.clipboard?.writeText(recoveryCode)
-            }}
-            className="mt-4 w-full rounded-full border border-white/20 py-2.5 text-sm font-semibold hover:bg-white/10"
+            onClick={() => navigate('/login', { replace: true })}
+            className="mt-6 w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover"
           >
-            Copier le code
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/app', { replace: true })}
-            className="mt-3 w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover"
-          >
-            J’ai noté mon code — continuer
+            Aller à la connexion
           </button>
         </div>
       </div>
@@ -86,9 +80,14 @@ export function RegisterPage() {
         >
           <h1 className="font-display text-2xl font-bold">Compte officiel société</h1>
           <p className="mt-1 text-sm text-white/60">
-            Connexion par <strong>e-mail</strong> — en cas d’oubli, vous pourrez régénérer le mot de
-            passe.
+            Connexion par <strong>e-mail</strong> — synchronisé ordi et téléphone via Supabase.
           </p>
+
+          {!configured && (
+            <p className="mt-4 rounded-xl bg-amber-500/15 px-3 py-2 text-sm text-amber-100">
+              Configurez Supabase (.env.local) avant de créer un compte.
+            </p>
+          )}
 
           <label className="mt-6 block text-sm">
             <span className="mb-1 block text-white/70">Nom de la société *</span>
@@ -146,7 +145,7 @@ export function RegisterPage() {
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !configured}
             className="mt-6 w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60"
           >
             {busy ? 'Création…' : 'Créer le compte société'}
