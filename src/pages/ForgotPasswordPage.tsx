@@ -44,14 +44,18 @@ export function ForgotPasswordPage() {
           {ok ? (
             <div className="mt-6 space-y-4">
               <p className="rounded-xl bg-accent/15 px-3 py-3 text-sm text-accent">
-                Si un compte existe pour cet e-mail, un lien de réinitialisation a été envoyé.
+                Un e-mail a été envoyé (si le compte existe). Ouvrez-le et cliquez le lien — c’est
+                seulement sur la page suivante que vous choisissez le nouveau mot de passe.
+              </p>
+              <p className="text-xs text-white/45">
+                Vérifiez aussi les spams. Le lien doit ouvrir climazen-roan.vercel.app/reset-password
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/login')}
                 className="w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover"
               >
-                Se connecter
+                Retour connexion
               </button>
             </div>
           ) : (

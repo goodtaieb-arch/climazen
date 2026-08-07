@@ -12,21 +12,61 @@ export function ResetPasswordPage() {
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [error, setError] = useState('')
-  const [ready, setReady] = useState(false)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [busy, setBusy] = useState(false)
   const [ok, setOk] = useState(false)
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return
+    if (!isSupabaseConfigured()) {
+      setStatus('missing')
+      return
+    }
     const sb = getSupabase()
-    // Session recovery créée via detectSessionInUrl / hash
-    void sb.auth.getSession().then(({ data }) => {
-      setReady(!!data.session)
-    })
+    let cancelled = false
+
+    const activate = async () => {
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
+        const errDesc = url.searchParams.get('error_description') || url.searchParams.get('error')
+        if (errDesc) {
+          if (!cancelled) {
+            setError(decodeURIComponent(errDesc.replace(/\+/g, ' ')))
+            setStatus('missing')
+          }
+          return
+        }
+
+        if (code) {
+          const { error: exErr } = await sb.auth.exchangeCodeForSession(code)
+          if (exErr) throw exErr
+          // Nettoyer l’URL
+          window.history.replaceState({}, document.title, '/reset-password')
+        }
+
+        const { data } = await sb.auth.getSession()
+        if (!cancelled) setStatus(data.session ? 'ready' : 'missing')
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Lien invalide ou expiré')
+          setStatus('missing')
+        }
+      }
+    }
+
+    void activate()
+
     const { data: sub } = sb.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') setReady(true)
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        setStatus('ready')
+        setError('')
+      }
     })
-    return () => sub.subscription.unsubscribe()
+
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
   const onSubmit = async (e: FormEvent) => {
@@ -40,6 +80,12 @@ export function ResetPasswordPage() {
     try {
       await updatePassword(password)
       setOk(true)
+      // Force re-login avec le nouveau MDP
+      try {
+        await getSupabase().auth.signOut()
+      } catch {
+        // ignore
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mise à jour impossible')
     } finally {
@@ -59,25 +105,35 @@ export function ResetPasswordPage() {
           {ok ? (
             <div className="mt-6 space-y-4">
               <p className="rounded-xl bg-accent/15 px-3 py-3 text-sm text-accent">
-                Mot de passe mis à jour.
+                Mot de passe mis à jour. Connectez-vous avec le nouveau mot de passe.
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/app', { replace: true })}
+                onClick={() => navigate('/login', { replace: true })}
                 className="w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover"
               >
-                Continuer
+                Se connecter
               </button>
             </div>
-          ) : !ready ? (
-            <p className="mt-4 text-sm text-white/65">
-              Ouvrez le lien reçu par e-mail pour définir un nouveau mot de passe.{' '}
-              <Link to="/forgot-password" className="font-semibold text-accent hover:underline">
+          ) : status === 'loading' ? (
+            <p className="mt-4 text-sm text-white/65">Vérification du lien…</p>
+          ) : status === 'missing' ? (
+            <div className="mt-4 space-y-3 text-sm text-white/65">
+              <p>
+                Lien invalide, expiré, ou pas encore ouvert depuis l’e-mail. Demandez un nouveau lien,
+                puis <strong>cliquez le lien dans l’e-mail</strong> (ne changez pas le MDP seulement
+                depuis la page « mot de passe oublié »).
+              </p>
+              {error && (
+                <p className="rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-200">{error}</p>
+              )}
+              <Link to="/forgot-password" className="inline-block font-semibold text-accent hover:underline">
                 Renvoyer un lien
               </Link>
-            </p>
+            </div>
           ) : (
             <form onSubmit={onSubmit} className="mt-6 space-y-4">
+              <p className="text-sm text-white/60">Choisissez votre nouveau mot de passe (6 car. min.).</p>
               <PasswordField
                 dark
                 label="Nouveau mot de passe *"
@@ -104,7 +160,7 @@ export function ResetPasswordPage() {
                 disabled={busy}
                 className="w-full rounded-full bg-accent py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
-                {busy ? 'Enregistrement…' : 'Enregistrer'}
+                {busy ? 'Enregistrement…' : 'Enregistrer le nouveau mot de passe'}
               </button>
             </form>
           )}

@@ -2,11 +2,12 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { SignaturePad } from '../components/SignaturePad'
+import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
 
 export function OperateurPage() {
   const { data, setOperateur, resetDemo } = useStore()
-  const { user, organization, isOwner, saveMySignature } = useAuth()
+  const { user, organization, isOwner, saveMySignature, updatePassword } = useAuth()
 
   const [form, setForm] = useState(data.operateur)
   const [signNom, setSignNom] = useState(user?.signataireNom || user?.fullName || '')
@@ -15,6 +16,11 @@ export function OperateurPage() {
   )
   const [signImage, setSignImage] = useState(user?.signatureImage || '')
   const [saved, setSaved] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [newPassword2, setNewPassword2] = useState('')
+  const [pwdError, setPwdError] = useState('')
+  const [pwdOk, setPwdOk] = useState('')
+  const [pwdBusy, setPwdBusy] = useState(false)
 
   useEffect(() => {
     setForm(data.operateur)
@@ -46,6 +52,31 @@ export function OperateurPage() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     })
+  }
+
+  const onChangePassword = async (e: FormEvent) => {
+    e.preventDefault()
+    setPwdError('')
+    setPwdOk('')
+    if (newPassword.length < 6) {
+      setPwdError('Mot de passe : au moins 6 caractères.')
+      return
+    }
+    if (newPassword !== newPassword2) {
+      setPwdError('Les mots de passe ne correspondent pas.')
+      return
+    }
+    setPwdBusy(true)
+    try {
+      await updatePassword(newPassword)
+      setPwdOk('Mot de passe mis à jour. Reconnectez-vous sur le téléphone avec ce nouveau MDP.')
+      setNewPassword('')
+      setNewPassword2('')
+    } catch (err) {
+      setPwdError(err instanceof Error ? err.message : 'Impossible de changer le mot de passe')
+    } finally {
+      setPwdBusy(false)
+    }
   }
 
   return (
@@ -165,6 +196,43 @@ export function OperateurPage() {
           </button>
           {saved && <span className="text-sm text-accent">Signature enregistrée</span>}
         </div>
+      </form>
+
+      <form
+        onSubmit={(e) => void onChangePassword(e)}
+        className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
+      >
+        <div className="sm:col-span-2">
+          <h2 className="font-display mb-1 text-base font-semibold">Changer mon mot de passe</h2>
+          <p className="mb-3 text-sm text-muted">
+            Utile pour synchroniser ordi et téléphone — sans attendre l’e-mail de reset.
+          </p>
+        </div>
+        <PasswordField
+          label="Nouveau mot de passe *"
+          autoComplete="new-password"
+          required
+          minLength={6}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+        />
+        <PasswordField
+          label="Confirmer *"
+          autoComplete="new-password"
+          required
+          minLength={6}
+          value={newPassword2}
+          onChange={(e) => setNewPassword2(e.target.value)}
+        />
+        {pwdError && <p className="text-sm text-danger sm:col-span-2">{pwdError}</p>}
+        {pwdOk && <p className="text-sm text-accent sm:col-span-2">{pwdOk}</p>}
+        <button
+          type="submit"
+          disabled={pwdBusy}
+          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60 sm:col-span-2"
+        >
+          {pwdBusy ? 'Enregistrement…' : 'Enregistrer le mot de passe'}
+        </button>
       </form>
 
       {isOwner && (
