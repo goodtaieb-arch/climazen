@@ -326,9 +326,12 @@ export async function updateUserProfile(
 
 export async function loginAccount(email: string, password: string): Promise<UserAccount> {
   const sb = getSupabase()
+  // Trim : l’auto-remplissage téléphone ajoute parfois des espaces
+  const cleanEmail = normalizeEmail(email)
+  const cleanPassword = password.trim()
   const { data, error } = await sb.auth.signInWithPassword({
-    email: normalizeEmail(email),
-    password,
+    email: cleanEmail,
+    password: cleanPassword,
   })
   if (error) throw new Error(authErrorMessage(error, 'E-mail ou mot de passe incorrect.'))
   if (!data.user) throw new Error('E-mail ou mot de passe incorrect.')
