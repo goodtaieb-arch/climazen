@@ -102,7 +102,7 @@ function mapOrg(row: {
 function authErrorMessage(err: { message?: string; code?: string } | null | undefined, fallback: string) {
   const msg = err?.message || ''
   if (/invalid login credentials/i.test(msg)) {
-    return 'E-mail ou mot de passe incorrect. Les anciens comptes locaux ne marchent plus : créez un compte sur « Créer un compte société », ou utilisez Mot de passe oublié si le compte cloud existe.'
+    return 'E-mail ou mot de passe incorrect. Sur téléphone : tape le MDP à la main (pas l’auto-remplissage). Si tu es connecté sur l’ordi → Mon entreprise → Changer mon mot de passe, puis utilise ce MDP ici.'
   }
   if (/email not confirmed/i.test(msg)) {
     return 'Confirmez votre e-mail (lien reçu), puis reconnectez-vous.'
