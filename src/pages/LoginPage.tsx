@@ -4,6 +4,15 @@ import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
 
+const CLOUD_HOST = (() => {
+  try {
+    const u = import.meta.env.VITE_SUPABASE_URL as string | undefined
+    return u ? new URL(u).hostname.replace('.supabase.co', '') : ''
+  } catch {
+    return ''
+  }
+})()
+
 export function LoginPage() {
   const { user, login, loading, configured } = useAuth()
   const navigate = useNavigate()
@@ -47,12 +56,16 @@ export function LoginPage() {
         </div>
         <form
           onSubmit={onSubmit}
+          autoComplete="off"
           className="rounded-2xl border border-white/10 bg-slate p-6 shadow-xl sm:p-8"
         >
           <h1 className="font-display text-2xl font-bold">Connexion</h1>
           <p className="mt-1 text-sm text-white/60">
-            Compte <strong>cloud Supabase</strong> uniquement (pas l’ancien compte local du navigateur).
+            Compte <strong>cloud</strong> — tape le MDP à la main (évite l’auto-remplissage).
           </p>
+          {configured && CLOUD_HOST ? (
+            <p className="mt-2 text-[11px] text-white/35">Cloud : {CLOUD_HOST}</p>
+          ) : null}
 
           {!configured && (
             <p className="mt-4 rounded-xl bg-amber-500/15 px-3 py-2 text-sm text-amber-100">
@@ -64,7 +77,7 @@ export function LoginPage() {
             <span className="mb-1 block text-white/70">E-mail</span>
             <input
               type="email"
-              autoComplete="email"
+              autoComplete="username"
               inputMode="email"
               autoCapitalize="none"
               autoCorrect="off"
@@ -80,7 +93,7 @@ export function LoginPage() {
             dark
             className="mt-4"
             label="Mot de passe"
-            autoComplete="current-password"
+            autoComplete="new-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
