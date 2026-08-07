@@ -51,7 +51,7 @@ export function LoginPage() {
         >
           <h1 className="font-display text-2xl font-bold">Connexion</h1>
           <p className="mt-1 text-sm text-white/60">
-            Identifiant = <strong>e-mail</strong> (société ou opérateur) — sync cloud.
+            Compte <strong>cloud Supabase</strong> uniquement (pas l’ancien compte local du navigateur).
           </p>
 
           {!configured && (
@@ -65,6 +65,10 @@ export function LoginPage() {
             <input
               type="email"
               autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

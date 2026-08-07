@@ -99,14 +99,19 @@ function mapOrg(row: {
   }
 }
 
-function authErrorMessage(err: { message?: string } | null | undefined, fallback: string) {
+function authErrorMessage(err: { message?: string; code?: string } | null | undefined, fallback: string) {
   const msg = err?.message || ''
-  if (/invalid login credentials/i.test(msg)) return 'E-mail ou mot de passe incorrect.'
+  if (/invalid login credentials/i.test(msg)) {
+    return 'E-mail ou mot de passe incorrect. Les anciens comptes locaux ne marchent plus : créez un compte sur « Créer un compte société », ou utilisez Mot de passe oublié si le compte cloud existe.'
+  }
   if (/email not confirmed/i.test(msg)) {
     return 'Confirmez votre e-mail (lien reçu), puis reconnectez-vous.'
   }
   if (/user already registered/i.test(msg)) return 'Cet e-mail est déjà utilisé.'
   if (/rate limit/i.test(msg)) return 'Trop de tentatives. Réessayez dans quelques minutes.'
+  if (/email signups are disabled|email_provider_disabled/i.test(msg)) {
+    return 'Inscriptions e-mail désactivées dans Supabase (Auth → Providers → Email).'
+  }
   return msg || fallback
 }
 
