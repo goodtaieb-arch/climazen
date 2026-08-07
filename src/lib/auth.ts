@@ -112,8 +112,16 @@ function authErrorMessage(err: { message?: string } | null | undefined, fallback
 
 export async function fetchProfile(userId: string): Promise<UserAccount | null> {
   const sb = getSupabase()
-  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle()
+  let { data, error } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle()
   if (error) throw new Error(error.message)
+
+  // Filet si le trigger d’inscription n’a pas créé le profil
+  if (!data) {
+    const { data: boot, error: bootErr } = await sb.rpc('ensure_my_profile')
+    if (bootErr) throw new Error(bootErr.message)
+    data = boot
+  }
+
   if (!data) return null
   const user = mapProfile(data)
   if (user.active === false) return null
