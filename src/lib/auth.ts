@@ -99,8 +99,11 @@ function mapOrg(row: {
   }
 }
 
-function authErrorMessage(err: { message?: string; code?: string } | null | undefined, fallback: string) {
+function authErrorMessage(err: { message?: string; code?: string; name?: string } | null | undefined, fallback: string) {
   const msg = err?.message || ''
+  if (/load failed|failed to fetch|networkerror|network request failed|fetch/i.test(msg)) {
+    return 'Connexion réseau impossible vers Supabase. Sur iPhone : désactive les bloqueurs de contenu / « Protéger du suivi », ou essaie Chrome. Évite parfois la navigation privée.'
+  }
   if (/invalid login credentials/i.test(msg)) {
     return 'E-mail ou mot de passe incorrect. Sur téléphone : tape le MDP à la main (pas l’auto-remplissage). Si tu es connecté sur l’ordi → Mon entreprise → Changer mon mot de passe, puis utilise ce MDP ici.'
   }
@@ -329,16 +332,23 @@ export async function loginAccount(email: string, password: string): Promise<Use
   // Trim : l’auto-remplissage téléphone ajoute parfois des espaces
   const cleanEmail = normalizeEmail(email)
   const cleanPassword = password.trim()
-  const { data, error } = await sb.auth.signInWithPassword({
-    email: cleanEmail,
-    password: cleanPassword,
-  })
-  if (error) throw new Error(authErrorMessage(error, 'E-mail ou mot de passe incorrect.'))
-  if (!data.user) throw new Error('E-mail ou mot de passe incorrect.')
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: cleanEmail,
+      password: cleanPassword,
+    })
+    if (error) throw new Error(authErrorMessage(error, 'E-mail ou mot de passe incorrect.'))
+    if (!data.user) throw new Error('E-mail ou mot de passe incorrect.')
 
-  const user = await fetchProfile(data.user.id)
-  if (!user) throw new Error('Ce compte opérateur est désactivé. Contactez la société.')
-  return user
+    const user = await fetchProfile(data.user.id)
+    if (!user) throw new Error('Ce compte opérateur est désactivé. Contactez la société.')
+    return user
+  } catch (err) {
+    if (err instanceof Error && /incorrect|désactivé|réseau|Supabase|caractères|e-mail/i.test(err.message)) {
+      throw err
+    }
+    throw new Error(authErrorMessage(err as { message?: string }, 'Connexion impossible'))
+  }
 }
 
 export async function logoutAccount() {

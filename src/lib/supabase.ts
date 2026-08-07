@@ -7,6 +7,36 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && anonKey && !url.includes('YOUR_PROJECT') && anonKey !== 'YOUR_ANON_PUBLIC_KEY')
 }
 
+/** Storage tolérant Safari (navigation privée / bloqueurs). */
+function safeStorage(): Storage {
+  try {
+    const key = '__cz_test__'
+    window.localStorage.setItem(key, '1')
+    window.localStorage.removeItem(key)
+    return window.localStorage
+  } catch {
+    try {
+      return window.sessionStorage
+    } catch {
+      const mem = new Map<string, string>()
+      return {
+        get length() {
+          return mem.size
+        },
+        clear: () => mem.clear(),
+        getItem: (k) => mem.get(k) ?? null,
+        key: (i) => [...mem.keys()][i] ?? null,
+        removeItem: (k) => {
+          mem.delete(k)
+        },
+        setItem: (k, v) => {
+          mem.set(k, v)
+        },
+      }
+    }
+  }
+}
+
 let client: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient {
@@ -22,6 +52,12 @@ export function getSupabase(): SupabaseClient {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
+        storage: safeStorage(),
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'climazen-web',
+        },
       },
     })
   }
