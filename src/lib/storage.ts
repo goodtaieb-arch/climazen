@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import type { AppData, Operateur } from './types'
+import { migrateAppData } from './migrate'
 
 export const defaultOperateur = (): Operateur => ({
   id: uuid(),
@@ -39,13 +40,16 @@ export function loadData(organizationId?: string | null): AppData {
       ...s,
       quantiteInitialeKg: s.quantiteInitialeKg ?? s.quantiteKg,
     }))
-    return {
+    return migrateAppData({
       ...base,
       ...parsed,
       stock,
       stockMouvements: parsed.stockMouvements || [],
       interventions: parsed.interventions || [],
-    }
+      chantiers: parsed.chantiers || [],
+      clients: parsed.clients || [],
+      operateur: parsed.operateur || base.operateur,
+    })
   } catch {
     return emptyData()
   }
@@ -103,10 +107,12 @@ export function seedDemoData(): AppData {
       {
         id: chantierId,
         clientId,
-        nom: 'Chambre froide — Rayon frais',
+        nom: 'Supermarché Dupont — Lyon',
         adresse: '45 avenue de la République',
         codePostal: '69003',
         ville: 'Lyon',
+        statut: 'actif',
+        createdAt: now,
         equipementType: 'Groupe froid monobloc',
         equipementMarque: 'Carrier',
         equipementModele: '30RB-160',
@@ -114,8 +120,19 @@ export function seedDemoData(): AppData {
         fluideType: 'R-32',
         chargeNominaleKg: 4.2,
         detectionPermanente: false,
-        statut: 'actif',
-        createdAt: now,
+        equipements: [
+          {
+            id: uuid(),
+            nom: 'Chambre froide — Rayon frais',
+            type: 'Groupe froid monobloc',
+            marque: 'Carrier',
+            modele: '30RB-160',
+            numeroSerie: 'SN-88421',
+            fluideType: 'R-32',
+            chargeNominaleKg: 4.2,
+            detectionPermanente: false,
+          },
+        ],
       },
     ],
     stock: [

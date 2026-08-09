@@ -170,7 +170,8 @@ export interface Site {
   adresse: string
   codePostal: string
   ville: string
-  equipements: Equipement[]
+  /** Multi-équipements (évolution) — optionnel */
+  equipements?: Equipement[]
   statut: 'actif' | 'termine' | 'archive'
   notes?: string
   createdAt: string
@@ -179,6 +180,15 @@ export interface Site {
   signatureDetenteurQualite?: string
   signatureDetenteurImage?: string
   signatureDetenteurAt?: string
+  /** Équipement principal (format actuel UI Sites) */
+  equipementType: string
+  equipementMarque: string
+  equipementModele: string
+  equipementNumeroSerie: string
+  fluideType: string
+  chargeNominaleKg: number
+  teqCO2?: number
+  detectionPermanente: boolean
 }
 
 /** @deprecated alias — utiliser Site */
@@ -255,7 +265,7 @@ export interface CerfaDraft {
   /** ID du site (ex-chantier) */
   chantierId: string
   /** Équipement du site concerné par ce CERFA (1 CERFA = 1 équipement) */
-  equipementId: string
+  equipementId?: string
   dateIntervention: string
 
   /** [1] Opérateur — copie au moment de l'intervention */

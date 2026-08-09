@@ -1,0 +1,117 @@
+import { v4 as uuid } from 'uuid'
+import type { AppData, CerfaDraft, Equipement, Site } from './types'
+
+/** Ancien format plat (1 chantier = 1 équipement). */
+type LegacyChantier = {
+  id: string
+  clientId: string
+  nom: string
+  adresse?: string
+  codePostal?: string
+  ville?: string
+  equipementType?: string
+  equipementMarque?: string
+  equipementModele?: string
+  equipementNumeroSerie?: string
+  fluideType?: string
+  chargeNominaleKg?: number
+  teqCO2?: number
+  detectionPermanente?: boolean
+  statut?: Site['statut']
+  notes?: string
+  createdAt?: string
+  equipements?: Equipement[]
+  signatureDetenteurNom?: string
+  signatureDetenteurQualite?: string
+  signatureDetenteurImage?: string
+  signatureDetenteurAt?: string
+}
+
+export function legacyEquipementFromFlat(c: LegacyChantier, id?: string): Equipement {
+  return {
+    id: id || uuid(),
+    nom: (c.equipementType || c.nom || 'Équipement').trim() || 'Équipement',
+    type: c.equipementType || '',
+    marque: c.equipementMarque || '',
+    modele: c.equipementModele || '',
+    numeroSerie: c.equipementNumeroSerie || '',
+    fluideType: c.fluideType || '',
+    chargeNominaleKg: Number(c.chargeNominaleKg) || 0,
+    teqCO2: c.teqCO2,
+    detectionPermanente: !!c.detectionPermanente,
+  }
+}
+
+export function migrateSite(raw: LegacyChantier): Site {
+  const equipements =
+    Array.isArray(raw.equipements) && raw.equipements.length > 0
+      ? raw.equipements.map((e) => ({
+          id: e.id || uuid(),
+          nom: e.nom || e.type || 'Équipement',
+          type: e.type || '',
+          marque: e.marque || '',
+          modele: e.modele || '',
+          numeroSerie: e.numeroSerie || '',
+          fluideType: e.fluideType || '',
+          chargeNominaleKg: Number(e.chargeNominaleKg) || 0,
+          teqCO2: e.teqCO2,
+          detectionPermanente: !!e.detectionPermanente,
+          notes: e.notes,
+        }))
+      : [legacyEquipementFromFlat(raw)]
+
+  const primary = equipements[0]
+
+  return {
+    id: raw.id,
+    clientId: raw.clientId,
+    nom: raw.nom || 'Site',
+    adresse: raw.adresse || '',
+    codePostal: raw.codePostal || '',
+    ville: raw.ville || '',
+    equipements,
+    statut: raw.statut || 'actif',
+    notes: raw.notes,
+    createdAt: raw.createdAt || new Date().toISOString(),
+    signatureDetenteurNom: raw.signatureDetenteurNom,
+    signatureDetenteurQualite: raw.signatureDetenteurQualite,
+    signatureDetenteurImage: raw.signatureDetenteurImage,
+    signatureDetenteurAt: raw.signatureDetenteurAt,
+    equipementType: raw.equipementType || primary?.type || '',
+    equipementMarque: raw.equipementMarque || primary?.marque || '',
+    equipementModele: raw.equipementModele || primary?.modele || '',
+    equipementNumeroSerie: raw.equipementNumeroSerie || primary?.numeroSerie || '',
+    fluideType: raw.fluideType || primary?.fluideType || '',
+    chargeNominaleKg: Number(raw.chargeNominaleKg ?? primary?.chargeNominaleKg) || 0,
+    teqCO2: raw.teqCO2 ?? primary?.teqCO2,
+    detectionPermanente: raw.detectionPermanente ?? primary?.detectionPermanente ?? false,
+  }
+}
+
+export function findEquipement(site: Site | undefined, equipementId?: string): Equipement | undefined {
+  if (!site?.equipements?.length) return undefined
+  if (equipementId) {
+    const found = site.equipements.find((e) => e.id === equipementId)
+    if (found) return found
+  }
+  return site.equipements?.[0]
+}
+
+export function migrateIntervention(raw: CerfaDraft & { equipementId?: string }, sites: Site[]): CerfaDraft {
+  const site = sites.find((s) => s.id === raw.chantierId)
+  const equipementId = raw.equipementId || site?.equipements?.[0]?.id || ''
+  return {
+    ...raw,
+    equipementId,
+  }
+}
+
+export function migrateAppData(data: AppData): AppData {
+  const sites = (data.chantiers || []).map((c) => migrateSite(c as unknown as LegacyChantier))
+  const interventions = (data.interventions || []).map((i) => migrateIntervention(i, sites))
+  return {
+    ...data,
+    chantiers: sites,
+    interventions,
+  }
+}
