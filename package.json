@@ -19,6 +19,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
+    "tesseract.js": "^5.1.1",
     "uuid": "^14.0.1"
   },
   "devDependencies": {

@@ -7,8 +7,10 @@ import { siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
+import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
+import type { PlaqueFields } from '../lib/plaqueOcr'
 
 const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   clientId,
@@ -105,6 +107,28 @@ export function ChantiersPage() {
   }
 
   const fluideMeta = findFluide(form.fluideType)
+
+  const applyPlaque = (fields: PlaqueFields) => {
+    setForm((f) => {
+      const next = { ...f }
+      if (fields.equipementType) next.equipementType = fields.equipementType
+      if (fields.equipementMarque) next.equipementMarque = fields.equipementMarque
+      if (fields.equipementModele) next.equipementModele = fields.equipementModele
+      if (fields.equipementNumeroSerie) next.equipementNumeroSerie = fields.equipementNumeroSerie
+      if (f.avecFluideFrigorigene !== false) {
+        if (fields.fluideType) next.fluideType = fields.fluideType
+        if (fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0) {
+          next.chargeNominaleKg = fields.chargeNominaleKg
+          const teq = calcTeqCO2FromFluide(
+            fields.chargeNominaleKg,
+            fields.fluideType || next.fluideType,
+          )
+          if (teq != null) next.teqCO2 = teq
+        }
+      }
+      return next
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -246,6 +270,12 @@ export function ChantiersPage() {
             onChange={(v) => setForm({ ...form, codePostal: v })}
           />
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
+
+          <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
+            <p className="mb-2 text-sm font-semibold text-ink">Équipement</p>
+            <PlaquePhotoButton onParsed={applyPlaque} />
+          </div>
+
           <Field
             label={avecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
             value={form.equipementType}
