@@ -2,7 +2,8 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileCheck2, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
-import type { Chantier } from '../lib/types'
+import type { Chantier, TypeTravaux } from '../lib/types'
+import { TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
@@ -15,6 +16,8 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   adresse: '',
   codePostal: '',
   ville: '',
+  typeTravaux: 'installation',
+  detailTravaux: '',
   equipementType: '',
   equipementMarque: '',
   equipementModele: '',
@@ -37,8 +40,18 @@ export function ChantiersPage() {
   const filteredChantiers = useMemo(() => {
     return data.chantiers.filter((c) => {
       const client = data.clients.find((cl) => cl.id === c.clientId)
+      const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : ''
       return matchesQuery(
-        [c.nom, c.ville, c.fluideType, c.equipementMarque, c.equipementModele, client?.raisonSociale]
+        [
+          c.nom,
+          c.ville,
+          c.fluideType,
+          c.equipementMarque,
+          c.equipementModele,
+          client?.raisonSociale,
+          typeLabel,
+          c.detailTravaux,
+        ]
           .filter(Boolean)
           .join(' '),
         q,
@@ -62,6 +75,7 @@ export function ChantiersPage() {
       ...form,
       chargeNominaleKg: charge,
       teqCO2: teq,
+      detailTravaux: form.detailTravaux?.trim() || '',
       id: editId ?? undefined,
     })
     setOpen(false)
@@ -70,7 +84,12 @@ export function ChantiersPage() {
 
   const startEdit = (c: Chantier) => {
     setEditId(c.id)
-    setForm({ ...c })
+    setForm({
+      ...blank(c.clientId),
+      ...c,
+      typeTravaux: c.typeTravaux || 'installation',
+      detailTravaux: c.detailTravaux || '',
+    })
     setOpen(true)
   }
 
@@ -79,8 +98,8 @@ export function ChantiersPage() {
   return (
     <div className="space-y-6">
       <Header
-        title="Chantiers / équipements"
-        subtitle="Cadre [3] — type, fluide, charge et détection permanente."
+        title="Travaux / équipements"
+        subtitle="Cadre [3] — type de travaux, fluide, charge et détection permanente."
         onAdd={() => {
           setEditId(null)
           setForm(blank(data.clients[0]?.id || ''))
@@ -91,12 +110,15 @@ export function ChantiersPage() {
       <SearchField
         value={q}
         onChange={setQ}
-        placeholder="Rechercher un chantier, client, fluide…"
+        placeholder="Rechercher des travaux, client, fluide…"
         testId="chantiers-search"
       />
 
       {open && (
-        <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2">
+        <form
+          onSubmit={onSubmit}
+          className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
+        >
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-muted">Client / détenteur *</span>
             <select
@@ -113,14 +135,70 @@ export function ChantiersPage() {
               ))}
             </select>
           </label>
-          <Field label="Nom du chantier *" value={form.nom} onChange={(v) => setForm({ ...form, nom: v })} required className="sm:col-span-2" />
-          <Field label="Adresse" value={form.adresse} onChange={(v) => setForm({ ...form, adresse: v })} className="sm:col-span-2" />
-          <Field label="Code postal" value={form.codePostal} onChange={(v) => setForm({ ...form, codePostal: v })} />
+          <Field
+            label="Nom des travaux / site *"
+            value={form.nom}
+            onChange={(v) => setForm({ ...form, nom: v })}
+            required
+            className="sm:col-span-2"
+          />
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Type de travaux *</span>
+            <select
+              required
+              value={form.typeTravaux || 'installation'}
+              onChange={(e) =>
+                setForm({ ...form, typeTravaux: e.target.value as TypeTravaux })
+              }
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            >
+              {(Object.keys(TYPE_TRAVAUX_LABELS) as TypeTravaux[]).map((key) => (
+                <option key={key} value={key}>
+                  {TYPE_TRAVAUX_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Précision des travaux"
+            value={form.detailTravaux || ''}
+            onChange={(v) => setForm({ ...form, detailTravaux: v })}
+          />
+          <p className="-mt-1 text-xs text-muted sm:col-span-2">
+            Ex. maintenance semestrielle, installation clim bureau directeur, dépannage fuite CTA…
+          </p>
+          <Field
+            label="Adresse"
+            value={form.adresse}
+            onChange={(v) => setForm({ ...form, adresse: v })}
+            className="sm:col-span-2"
+          />
+          <Field
+            label="Code postal"
+            value={form.codePostal}
+            onChange={(v) => setForm({ ...form, codePostal: v })}
+          />
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
-          <Field label="Type d’équipement" value={form.equipementType} onChange={(v) => setForm({ ...form, equipementType: v })} />
-          <Field label="Marque" value={form.equipementMarque} onChange={(v) => setForm({ ...form, equipementMarque: v })} />
-          <Field label="Modèle" value={form.equipementModele} onChange={(v) => setForm({ ...form, equipementModele: v })} />
-          <Field label="N° série" value={form.equipementNumeroSerie} onChange={(v) => setForm({ ...form, equipementNumeroSerie: v })} />
+          <Field
+            label="Type d’équipement"
+            value={form.equipementType}
+            onChange={(v) => setForm({ ...form, equipementType: v })}
+          />
+          <Field
+            label="Marque"
+            value={form.equipementMarque}
+            onChange={(v) => setForm({ ...form, equipementMarque: v })}
+          />
+          <Field
+            label="Modèle"
+            value={form.equipementModele}
+            onChange={(v) => setForm({ ...form, equipementModele: v })}
+          />
+          <Field
+            label="N° série"
+            value={form.equipementNumeroSerie}
+            onChange={(v) => setForm({ ...form, equipementNumeroSerie: v })}
+          />
           <FluideSelect
             label="Fluide"
             value={form.fluideType}
@@ -141,9 +219,7 @@ export function ChantiersPage() {
           />
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
             kg × GWP ÷ 1000
-            {fluideMeta
-              ? ` (${form.chargeNominaleKg || 0} × ${formatGwp(fluideMeta)})`
-              : ''}
+            {fluideMeta ? ` (${form.chargeNominaleKg || 0} × ${formatGwp(fluideMeta)})` : ''}
           </p>
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             <input
@@ -154,10 +230,17 @@ export function ChantiersPage() {
             Système permanent de détection des fuites (cadre [6])
           </label>
           <div className="flex gap-2 sm:col-span-2">
-            <button type="submit" className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover">
+            <button
+              type="submit"
+              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+            >
               Enregistrer
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-full border border-line px-5 py-2.5 text-sm">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-full border border-line px-5 py-2.5 text-sm"
+            >
               Annuler
             </button>
           </div>
@@ -178,6 +261,7 @@ export function ChantiersPage() {
               ? 'Régénérer CERFA'
               : 'Continuer CERFA'
             : 'Ajouter CERFA'
+          const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : null
 
           return (
             <div key={c.id} className="rounded-2xl border border-line bg-white p-4 sm:p-5">
@@ -188,6 +272,18 @@ export function ChantiersPage() {
                     {client?.raisonSociale} · {c.ville} · {c.fluideType} · {c.chargeNominaleKg} kg
                     {c.teqCO2 != null && c.teqCO2 > 0 ? ` · ${c.teqCO2} t eq. CO₂` : ''}
                   </div>
+                  {(typeLabel || c.detailTravaux) && (
+                    <div className="mt-1 text-sm text-ink">
+                      {typeLabel && (
+                        <span className="rounded-full bg-mist px-2.5 py-0.5 text-xs font-semibold">
+                          {typeLabel}
+                        </span>
+                      )}
+                      {c.detailTravaux ? (
+                        <span className="ml-2 text-sm text-muted">{c.detailTravaux}</span>
+                      ) : null}
+                    </div>
+                  )}
                   <div className="mt-1 text-xs text-muted">
                     {c.equipementMarque} {c.equipementModele} · SN {c.equipementNumeroSerie || '—'}
                     {c.detectionPermanente ? ' · Détection permanente' : ''}
@@ -205,7 +301,7 @@ export function ChantiersPage() {
                     title={
                       linked
                         ? 'Ouvrir la même fiche et régénérer le CERFA en fin de travaux'
-                        : 'Créer une fiche CERFA pour ce chantier'
+                        : 'Créer une fiche CERFA pour ces travaux'
                     }
                     className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
                   >
@@ -216,14 +312,14 @@ export function ChantiersPage() {
                     type="button"
                     onClick={() => startEdit(c)}
                     className="rounded-lg p-2 text-accent hover:bg-accent-soft"
-                    title="Modifier le chantier"
+                    title="Modifier les travaux"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      if (confirm('Supprimer ce chantier ?')) deleteChantier(c.id)
+                      if (confirm('Supprimer ces travaux ?')) deleteChantier(c.id)
                     }}
                     className="rounded-lg p-2 text-danger hover:bg-red-50"
                     title="Supprimer"
@@ -236,11 +332,11 @@ export function ChantiersPage() {
           )
         })}
         {filteredChantiers.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-muted">
+          <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-muted">
             {data.chantiers.length === 0
-              ? 'Aucun chantier. Créez d’abord un client, puis un équipement.'
+              ? 'Aucun travaux enregistré. Créez d’abord un client, puis des travaux / un équipement.'
               : 'Aucun résultat pour cette recherche.'}
-          </p>
+          </div>
         )}
       </div>
     </div>

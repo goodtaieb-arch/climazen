@@ -158,6 +158,28 @@ export interface Equipement {
   notes?: string
 }
 
+/** Catégorie de travaux sur un site / équipement. */
+export type TypeTravaux =
+  | 'installation'
+  | 'depanage'
+  | 'maintenance'
+  | 'mise_en_service'
+  | 'controle_etancheite'
+  | 'recuperation'
+  | 'demantelement'
+  | 'autre'
+
+export const TYPE_TRAVAUX_LABELS: Record<TypeTravaux, string> = {
+  installation: 'Installation',
+  depanage: 'Dépannage',
+  maintenance: 'Maintenance',
+  mise_en_service: 'Mise en service',
+  controle_etancheite: 'Contrôle d’étanchéité',
+  recuperation: 'Récupération de fluide',
+  demantelement: 'Démantèlement',
+  autre: 'Autre',
+}
+
 /**
  * Site d’intervention (EHPAD, usine, agence, hypermarché…).
  * Un site peut contenir plusieurs équipements → un CERFA par équipement.
@@ -180,6 +202,10 @@ export interface Site {
   signatureDetenteurQualite?: string
   signatureDetenteurImage?: string
   signatureDetenteurAt?: string
+  /** Catégorie de travaux (installation, dépannage…) */
+  typeTravaux?: TypeTravaux
+  /** Précision libre : « maintenance semestrielle », « clim bureau directeur »… */
+  detailTravaux?: string
   /** Équipement principal (format actuel UI Sites) */
   equipementType: string
   equipementMarque: string

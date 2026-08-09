@@ -94,7 +94,7 @@ const tones: Record<
 const baseLinks = [
   { to: '/app', end: true, label: 'Tableau de bord', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-  { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
+  { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
@@ -103,7 +103,7 @@ const baseLinks = [
 const mobilePrimary = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-  { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
+  { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
