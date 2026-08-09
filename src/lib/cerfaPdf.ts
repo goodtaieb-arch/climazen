@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, PDFName, PDFBool, rgb } from 'pdf-lib'
 import type { CerfaDraft, Client, Chantier, NatureIntervention } from './types'
 import { controlesPeriodiquesInfo } from './fluides'
 import { formatKg, roundKg } from './decimal'
+import { findEquipement } from './migrate'
 
 /**
  * Remplit le CERFA officiel 15497*04 (forme inchangée) puis aplatit les champs
@@ -118,25 +119,34 @@ export async function buildCerfaPdf(opts: {
   )
 
   // [3] Équipement
+  const equip = findEquipement(chantier, draft.equipementId)
   setText(
     form,
     'Equipement_ID',
     [
       chantier.nom,
       `${chantier.adresse}, ${chantier.codePostal} ${chantier.ville}`,
-      `${chantier.equipementType} ${chantier.equipementMarque} ${chantier.equipementModele}`.trim(),
-      chantier.equipementNumeroSerie ? `N° série ${chantier.equipementNumeroSerie}` : '',
+      equip
+        ? `${equip.nom || equip.type} ${equip.marque} ${equip.modele}`.trim()
+        : `${chantier.equipementType} ${chantier.equipementMarque} ${chantier.equipementModele}`.trim(),
+      equip?.numeroSerie
+        ? `N° série ${equip.numeroSerie}`
+        : chantier.equipementNumeroSerie
+          ? `N° série ${chantier.equipementNumeroSerie}`
+          : '',
     ]
       .filter(Boolean)
       .join('\n'),
   )
-  setText(form, 'Equipement_Fluide', draft.fluideType || chantier.fluideType)
+  setText(form, 'Equipement_Fluide', draft.fluideType || equip?.fluideType || chantier.fluideType)
   {
-    const charge = Number(draft.quantiteTotaleKg || chantier.chargeNominaleKg || 0)
+    const charge = Number(
+      draft.quantiteTotaleKg || equip?.chargeNominaleKg || chantier.chargeNominaleKg || 0,
+    )
     if (charge) setText(form, 'Equipement_Charge', formatKg(charge))
   }
   {
-    const teq = Number(draft.teqCO2 ?? chantier.teqCO2 ?? 0)
+    const teq = Number(draft.teqCO2 ?? equip?.teqCO2 ?? chantier.teqCO2 ?? 0)
     if (teq) setText(form, 'Equipement_teqCO2', formatKg(teq, 3))
   }
 

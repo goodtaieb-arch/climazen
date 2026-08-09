@@ -1,9 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileCheck2, Pencil, Snowflake, Trash2, Wrench } from 'lucide-react'
+import { FileCheck2, Plus, Pencil, RefreshCw, Snowflake, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import type { Chantier, TypeTravaux } from '../lib/types'
+import type { Chantier, Equipement, TypeTravaux } from '../lib/types'
 import { siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
@@ -12,6 +12,22 @@ import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
+import { equipementsForCerfa, equipmentLabel, syncEquipementsFromFlat } from '../lib/cerfaBatch'
+import { buildCerfaPdf } from '../lib/cerfaPdf'
+import { saveCerfaPdf } from '../lib/pdfStore'
+
+const blankEquip = (): Equipement => ({
+  id: crypto.randomUUID(),
+  nom: '',
+  type: '',
+  marque: '',
+  modele: '',
+  numeroSerie: '',
+  fluideType: 'R-448A',
+  chargeNominaleKg: 0,
+  teqCO2: 0,
+  detectionPermanente: false,
+})
 
 const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   clientId,
@@ -26,28 +42,39 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   equipementMarque: '',
   equipementModele: '',
   equipementNumeroSerie: '',
-  fluideType: 'R-32',
+  fluideType: 'R-448A',
   chargeNominaleKg: 0,
   teqCO2: 0,
   detectionPermanente: false,
   statut: 'actif',
   notes: '',
+  equipements: [blankEquip()],
 })
 
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export function ChantiersPage() {
-  const { data, upsertChantier, deleteChantier } = useStore()
+  const { data, upsertChantier, deleteChantier, validateMaintenanceCerfas, upsertIntervention } =
+    useStore()
   const { user } = useAuth()
   const [form, setForm] = useState(() => blank(data.clients[0]?.id || ''))
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [equipIdx, setEquipIdx] = useState(0)
+  const [batchBusy, setBatchBusy] = useState<string | null>(null)
 
   const avecFluide = form.avecFluideFrigorigene !== false
+  const equipements = form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)
+  const currentEquip = equipements[Math.min(equipIdx, equipements.length - 1)] || blankEquip()
 
   const filteredChantiers = useMemo(() => {
     return data.chantiers.filter((c) => {
       const client = data.clients.find((cl) => cl.id === c.clientId)
       const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : ''
+      const eqNames = (c.equipements || []).map((e) => e.nom).join(' ')
       return matchesQuery(
         [
           c.nom,
@@ -59,6 +86,7 @@ export function ChantiersPage() {
           typeLabel,
           c.detailTravaux,
           c.createdByName,
+          eqNames,
           siteAvecFluideFrigorigene(c) ? 'fluide cerfa' : 'standard vmc',
         ]
           .filter(Boolean)
@@ -76,20 +104,59 @@ export function ChantiersPage() {
     setForm((f) => ({ ...f, teqCO2: teq }))
   }, [form.fluideType, form.chargeNominaleKg, open, avecFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const patchCurrentEquip = (patch: Partial<Equipement>) => {
+    const list = [...equipements]
+    const i = Math.min(equipIdx, list.length - 1)
+    const nextEq = { ...list[i], ...patch }
+    if (patch.fluideType != null || patch.chargeNominaleKg != null) {
+      const teq = calcTeqCO2FromFluide(
+        Number(nextEq.chargeNominaleKg) || 0,
+        nextEq.fluideType,
+      )
+      if (teq != null) nextEq.teqCO2 = teq
+    }
+    list[i] = nextEq
+    setForm({
+      ...form,
+      equipements: list,
+      equipementType: nextEq.type,
+      equipementMarque: nextEq.marque,
+      equipementModele: nextEq.modele,
+      equipementNumeroSerie: nextEq.numeroSerie,
+      fluideType: nextEq.fluideType,
+      chargeNominaleKg: nextEq.chargeNominaleKg,
+      teqCO2: nextEq.teqCO2,
+      detectionPermanente: nextEq.detectionPermanente,
+    })
+  }
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     const fluide = form.avecFluideFrigorigene !== false
-    const charge = fluide ? Number(form.chargeNominaleKg) || 0 : 0
-    const teq = fluide
-      ? (calcTeqCO2FromFluide(charge, form.fluideType) ?? form.teqCO2)
-      : undefined
+    const list = fluide
+      ? (form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)).map((eq) => ({
+          ...eq,
+          fluideType: eq.fluideType || form.fluideType,
+          chargeNominaleKg: Number(eq.chargeNominaleKg) || 0,
+          teqCO2:
+            eq.teqCO2 ??
+            calcTeqCO2FromFluide(Number(eq.chargeNominaleKg) || 0, eq.fluideType || form.fluideType) ??
+            undefined,
+        }))
+      : []
+    const primary = list[0]
     upsertChantier({
       ...form,
       avecFluideFrigorigene: fluide,
-      chargeNominaleKg: charge,
-      teqCO2: teq,
-      fluideType: fluide ? form.fluideType : '',
-      detectionPermanente: fluide ? form.detectionPermanente : false,
+      equipements: list.length ? list : undefined,
+      equipementType: primary?.type || form.equipementType,
+      equipementMarque: primary?.marque || form.equipementMarque,
+      equipementModele: primary?.modele || form.equipementModele,
+      equipementNumeroSerie: primary?.numeroSerie || form.equipementNumeroSerie,
+      chargeNominaleKg: fluide ? Number(primary?.chargeNominaleKg || form.chargeNominaleKg) || 0 : 0,
+      teqCO2: fluide ? primary?.teqCO2 ?? form.teqCO2 : undefined,
+      fluideType: fluide ? primary?.fluideType || form.fluideType : '',
+      detectionPermanente: fluide ? !!(primary?.detectionPermanente ?? form.detectionPermanente) : false,
       detailTravaux: form.detailTravaux?.trim() || '',
       id: editId ?? undefined,
       createdByUserId: editId ? form.createdByUserId : user?.id,
@@ -99,49 +166,91 @@ export function ChantiersPage() {
     })
     setOpen(false)
     setEditId(null)
+    setEquipIdx(0)
   }
 
   const startEdit = (c: Chantier) => {
     setEditId(c.id)
+    const eqs =
+      c.equipements?.length && c.equipements.length > 0
+        ? c.equipements
+        : syncEquipementsFromFlat(c, c.equipements)
     setForm({
       ...blank(c.clientId),
       ...c,
       typeTravaux: c.typeTravaux || 'installation',
       detailTravaux: c.detailTravaux || '',
       avecFluideFrigorigene: siteAvecFluideFrigorigene(c),
+      equipements: eqs,
     })
+    setEquipIdx(0)
     setOpen(true)
   }
 
   const fluideMeta = findFluide(form.fluideType)
 
   const applyPlaque = (fields: PlaqueFields) => {
-    setForm((f) => {
-      const next = { ...f }
-      if (fields.equipementType) next.equipementType = fields.equipementType
-      if (fields.equipementMarque) next.equipementMarque = fields.equipementMarque
-      if (fields.equipementModele) next.equipementModele = fields.equipementModele
-      if (fields.equipementNumeroSerie) next.equipementNumeroSerie = fields.equipementNumeroSerie
-      if (f.avecFluideFrigorigene !== false) {
-        if (fields.fluideType) next.fluideType = fields.fluideType
-        if (fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0) {
-          next.chargeNominaleKg = fields.chargeNominaleKg
-          const teq = calcTeqCO2FromFluide(
-            fields.chargeNominaleKg,
-            fields.fluideType || next.fluideType,
-          )
-          if (teq != null) next.teqCO2 = teq
-        }
-      }
-      return next
+    patchCurrentEquip({
+      type: fields.equipementType || currentEquip.type,
+      marque: fields.equipementMarque || currentEquip.marque,
+      modele: fields.equipementModele || currentEquip.modele,
+      numeroSerie: fields.equipementNumeroSerie || currentEquip.numeroSerie,
+      nom: fields.equipementType || currentEquip.nom,
+      ...(fields.fluideType ? { fluideType: fields.fluideType } : {}),
+      ...(fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0
+        ? { chargeNominaleKg: fields.chargeNominaleKg }
+        : {}),
     })
+  }
+
+  const onValidateMaintenance = async (site: Chantier) => {
+    if (!user?.signatureImage) {
+      alert('Enregistrez d’abord votre signature dans « Ma signature ».')
+      return
+    }
+    const n = equipementsForCerfa(site).length
+    if (
+      !confirm(
+        `Valider la maintenance du ${today()} et générer ${n} CERFA (1 par équipement) sans resaisir ?`,
+      )
+    ) {
+      return
+    }
+    setBatchBusy(site.id)
+    try {
+      const { drafts, site: s, client } = validateMaintenanceCerfas({
+        siteId: site.id,
+        dateIntervention: today(),
+        signataireNom: user.signataireNom || user.fullName || '',
+        signataireQualite: user.signataireQualite || 'Opérateur attesté',
+        signatureOperateurImage: user.signatureImage,
+        userId: user.id,
+        userName: user.fullName || user.email,
+      })
+      for (const draft of drafts) {
+        const blob = await buildCerfaPdf({ draft, client, chantier: s })
+        const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
+        await saveCerfaPdf(draft.id, blob, fileName, user.organizationId)
+        upsertIntervention({
+          ...draft,
+          hasCerfaPdf: true,
+          cerfaPdfFileName: fileName,
+          cerfaPdfSavedAt: new Date().toISOString(),
+        })
+      }
+      alert(`${drafts.length} CERFA généré${drafts.length > 1 ? 's' : ''} — visibles dans CERFA / Interventions.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Génération impossible')
+    } finally {
+      setBatchBusy(null)
+    }
   }
 
   return (
     <div className="space-y-6">
       <Header
         title="Travaux / équipements"
-        subtitle="Fiches partagées avec toute l’équipe — tout est enregistré sur le compte société (employeur)."
+        subtitle="Équipements sauvegardés sur le site — en maintenance, validez une fois pour régénérer tous les CERFA."
         onAdd={() => {
           setEditId(null)
           setForm(blank(data.clients[0]?.id || ''))
@@ -279,55 +388,138 @@ export function ChantiersPage() {
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
 
           <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
-            <p className="mb-2 text-sm font-semibold text-ink">Équipement</p>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-ink">
+                Équipements enregistrés {avecFluide ? '(réutilisés à chaque maintenance)' : ''}
+              </p>
+              {avecFluide && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = blankEquip()
+                    const list = [...equipements, next]
+                    setForm({ ...form, equipements: list })
+                    setEquipIdx(list.length - 1)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:bg-mist"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Ajouter un équipement
+                </button>
+              )}
+            </div>
+            {avecFluide && equipements.length > 1 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {equipements.map((eq, i) => (
+                  <button
+                    key={eq.id}
+                    type="button"
+                    onClick={() => {
+                      setEquipIdx(i)
+                      setForm({
+                        ...form,
+                        equipementType: eq.type,
+                        equipementMarque: eq.marque,
+                        equipementModele: eq.modele,
+                        equipementNumeroSerie: eq.numeroSerie,
+                        fluideType: eq.fluideType,
+                        chargeNominaleKg: eq.chargeNominaleKg,
+                        teqCO2: eq.teqCO2,
+                        detectionPermanente: eq.detectionPermanente,
+                      })
+                    }}
+                    className={[
+                      'rounded-full px-3 py-1 text-xs font-semibold',
+                      i === equipIdx
+                        ? 'bg-accent text-ink'
+                        : 'border border-line text-muted hover:bg-mist',
+                    ].join(' ')}
+                  >
+                    {eq.nom || eq.type || `Équipement ${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
             <PlaquePhotoButton onParsed={applyPlaque} />
           </div>
 
           <Field
+            label="Nom / libellé équipement"
+            value={currentEquip.nom || ''}
+            onChange={(v) => patchCurrentEquip({ nom: v, type: currentEquip.type || v })}
+          />
+          <Field
             label={avecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
             value={form.equipementType}
-            onChange={(v) => setForm({ ...form, equipementType: v })}
+            onChange={(v) => patchCurrentEquip({ type: v, nom: currentEquip.nom || v })}
           />
           <Field
             label="Marque"
             value={form.equipementMarque}
-            onChange={(v) => setForm({ ...form, equipementMarque: v })}
+            onChange={(v) => patchCurrentEquip({ marque: v })}
           />
           <Field
             label="Modèle"
             value={form.equipementModele}
-            onChange={(v) => setForm({ ...form, equipementModele: v })}
+            onChange={(v) => patchCurrentEquip({ modele: v })}
           />
           <Field
             label="N° série"
             value={form.equipementNumeroSerie}
-            onChange={(v) => setForm({ ...form, equipementNumeroSerie: v })}
+            onChange={(v) => patchCurrentEquip({ numeroSerie: v })}
           />
+          {avecFluide && equipements.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (equipements.length <= 1) return
+                if (!confirm('Retirer cet équipement du site ?')) return
+                const list = equipements.filter((_, i) => i !== equipIdx)
+                const nextIdx = Math.max(0, equipIdx - 1)
+                const eq = list[nextIdx]
+                setEquipIdx(nextIdx)
+                setForm({
+                  ...form,
+                  equipements: list,
+                  equipementType: eq.type,
+                  equipementMarque: eq.marque,
+                  equipementModele: eq.modele,
+                  equipementNumeroSerie: eq.numeroSerie,
+                  fluideType: eq.fluideType,
+                  chargeNominaleKg: eq.chargeNominaleKg,
+                  teqCO2: eq.teqCO2,
+                  detectionPermanente: eq.detectionPermanente,
+                })
+              }}
+              className="text-left text-xs font-semibold text-danger hover:underline sm:col-span-2"
+            >
+              Retirer cet équipement de la liste
+            </button>
+          )}
 
           {avecFluide ? (
             <>
               <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
                 <p className="text-sm font-semibold text-ink">Données fluide / CERFA</p>
                 <p className="text-xs text-muted">
-                  Obligatoire pour les équipements contenant un fluide frigorigène.
+                  Saisis une fois — réutilisés à chaque maintenance / CERFA.
                 </p>
               </div>
               <FluideSelect
                 label="Fluide"
                 value={form.fluideType}
-                onChange={(v) => setForm({ ...form, fluideType: v })}
+                onChange={(v) => patchCurrentEquip({ fluideType: v })}
                 required
               />
               <DecimalField
                 label="Charge nominale (kg)"
                 value={form.chargeNominaleKg}
-                onChange={(n) => setForm({ ...form, chargeNominaleKg: n })}
+                onChange={(n) => patchCurrentEquip({ chargeNominaleKg: n })}
                 placeholder="ex. 2,2"
               />
               <DecimalField
                 label="teq CO₂ (auto)"
                 value={form.teqCO2 ?? 0}
-                onChange={(n) => setForm({ ...form, teqCO2: n })}
+                onChange={(n) => patchCurrentEquip({ teqCO2: n })}
                 placeholder="auto"
               />
               <p className="-mt-1 text-xs text-muted sm:col-span-2">
@@ -338,7 +530,7 @@ export function ChantiersPage() {
                 <input
                   type="checkbox"
                   checked={form.detectionPermanente}
-                  onChange={(e) => setForm({ ...form, detectionPermanente: e.target.checked })}
+                  onChange={(e) => patchCurrentEquip({ detectionPermanente: e.target.checked })}
                 />
                 Système permanent de détection des fuites (cadre [6])
               </label>
@@ -372,6 +564,7 @@ export function ChantiersPage() {
         {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
           const fluide = siteAvecFluideFrigorigene(c)
+          const eqs = equipementsForCerfa(c)
           const linked = [...data.interventions]
             .filter((i) => i.chantierId === c.id)
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
@@ -380,10 +573,11 @@ export function ChantiersPage() {
             : `/app/interventions/new?chantier=${encodeURIComponent(c.id)}`
           const cerfaLabel = linked
             ? linked.hasCerfaPdf
-              ? 'Régénérer CERFA'
+              ? 'Ouvrir CERFA'
               : 'Continuer CERFA'
             : 'Ajouter CERFA'
           const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : null
+          const canBatch = fluide && eqs.length > 0
 
           return (
             <div key={c.id} className="rounded-2xl border border-line bg-white p-4 sm:p-5">
@@ -402,11 +596,6 @@ export function ChantiersPage() {
                   </div>
                   <div className="text-sm text-muted">
                     {client?.raisonSociale} · {c.ville}
-                    {fluide
-                      ? ` · ${c.fluideType || '—'} · ${c.chargeNominaleKg || 0} kg${
-                          c.teqCO2 != null && c.teqCO2 > 0 ? ` · ${c.teqCO2} t eq. CO₂` : ''
-                        }`
-                      : ''}
                     {c.createdByName ? ` · par ${c.createdByName}` : ''}
                   </div>
                   {(typeLabel || c.detailTravaux) && (
@@ -421,29 +610,45 @@ export function ChantiersPage() {
                       ) : null}
                     </div>
                   )}
-                  <div className="mt-1 text-xs text-muted">
-                    {[c.equipementType, c.equipementMarque, c.equipementModele]
-                      .filter(Boolean)
-                      .join(' · ') || '—'}
-                    {c.equipementNumeroSerie ? ` · SN ${c.equipementNumeroSerie}` : ''}
-                    {fluide && c.detectionPermanente ? ' · Détection permanente' : ''}
-                  </div>
-                  {fluide && linked && (
-                    <p className="mt-1.5 text-xs text-muted">
-                      Intervention du {linked.dateIntervention}
-                      {linked.hasCerfaPdf ? ' · CERFA déjà enregistré' : ' · fiche en cours'}
+                  {fluide && (
+                    <ul className="mt-2 space-y-0.5 text-xs text-muted">
+                      {eqs.map((eq) => (
+                        <li key={eq.id}>
+                          {equipmentLabel(eq)}
+                          {eq.fluideType ? ` · ${eq.fluideType}` : ''}
+                          {eq.chargeNominaleKg ? ` · ${eq.chargeNominaleKg} kg` : ''}
+                          {eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {c.derniereMaintenanceDate && (
+                    <p className="mt-1.5 text-xs text-accent">
+                      Dernière maintenance validée : {c.derniereMaintenanceDate}
+                      {eqs.length > 1 ? ` · ${eqs.length} CERFA` : ''}
                     </p>
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
+                  {canBatch && (
+                    <button
+                      type="button"
+                      disabled={batchBusy === c.id}
+                      onClick={() => void onValidateMaintenance(c)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-3.5 py-2 text-xs font-semibold text-slate hover:bg-accent disabled:opacity-60"
+                      title="Génère un CERFA par équipement sans resaisie"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      {batchBusy === c.id
+                        ? 'Génération…'
+                        : eqs.length > 1
+                          ? `Valider maintenance (${eqs.length} CERFA)`
+                          : 'Valider maintenance + CERFA'}
+                    </button>
+                  )}
                   {fluide ? (
                     <Link
                       to={cerfaTo}
-                      title={
-                        linked
-                          ? 'Ouvrir la même fiche et régénérer le CERFA'
-                          : 'Créer une fiche CERFA (fluide frigorigène)'
-                      }
                       className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
                     >
                       <FileCheck2 className="h-3.5 w-3.5" />

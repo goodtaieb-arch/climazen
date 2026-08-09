@@ -28,6 +28,12 @@ import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
 import { deleteCerfaPdf } from './pdfStore'
 import { useAuth } from './AuthContext'
 import { applyStockFromIntervention, enregistrerRetourConsigne, revertStockForIntervention } from './stockMouvements'
+import {
+  buildMaintenanceCerfaDrafts,
+  syncEquipementsFromFlat,
+  syncFlatFromEquipements,
+} from './cerfaBatch'
+import { detecteurForUser } from './detecteurs'
 
 type Store = {
   data: AppData
@@ -40,6 +46,19 @@ type Store = {
   deleteClient: (id: string) => void
   upsertChantier: (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => string
   deleteChantier: (id: string) => void
+  /**
+   * Valide une maintenance : crée 1 CERFA par équipement (équipements déjà sauvés sur le site).
+   * Retourne les fiches créées pour génération PDF côté UI.
+   */
+  validateMaintenanceCerfas: (opts: {
+    siteId: string
+    dateIntervention?: string
+    signataireNom: string
+    signataireQualite: string
+    signatureOperateurImage: string
+    userId?: string
+    userName?: string
+  }) => { drafts: CerfaDraft[]; site: Site; client: Client }
   /** Enregistre la signature client sur le site et l’applique à tous les CERFA du site */
   applySiteClientSignature: (opts: {
     siteId: string
@@ -253,30 +272,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const id = c.id ?? uuid()
       setData((d) => {
         const existing = d.chantiers.find((x) => x.id === id)
-        const equipements: Equipement[] =
-          Array.isArray(c.equipements) && c.equipements.length > 0
-            ? c.equipements.map((e) => ({
-                ...e,
-                id: e.id || uuid(),
-                nom: e.nom || e.type || 'Équipement',
-              }))
-            : existing?.equipements?.length
-              ? existing.equipements
-              : [
-                  {
-                    id: uuid(),
-                    nom: 'Équipement 1',
-                    type: '',
-                    marque: '',
-                    modele: '',
-                    numeroSerie: '',
-                    fluideType: '',
-                    chargeNominaleKg: 0,
-                    detectionPermanente: false,
-                  },
-                ]
+        let equipements: Equipement[]
+        if (Array.isArray(c.equipements) && c.equipements.length > 0) {
+          equipements = c.equipements.map((e) => ({
+            ...e,
+            id: e.id || uuid(),
+            nom: e.nom || e.type || 'Équipement',
+          }))
+        } else {
+          equipements = syncEquipementsFromFlat(c, existing?.equipements)
+        }
+        const flat = syncFlatFromEquipements(equipements)
         const next: Site = {
           ...c,
+          ...flat,
           id,
           equipements,
           createdAt: existing?.createdAt ?? new Date().toISOString(),
@@ -287,6 +296,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             c.signatureDetenteurQualite ?? existing?.signatureDetenteurQualite,
           signatureDetenteurImage: c.signatureDetenteurImage ?? existing?.signatureDetenteurImage,
           signatureDetenteurAt: c.signatureDetenteurAt ?? existing?.signatureDetenteurAt,
+          derniereMaintenanceAt: c.derniereMaintenanceAt ?? existing?.derniereMaintenanceAt,
+          derniereMaintenanceDate: c.derniereMaintenanceDate ?? existing?.derniereMaintenanceDate,
         }
         return {
           ...d,
@@ -306,6 +317,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       chantiers: d.chantiers.filter((c) => c.id !== id),
     }))
   }, [])
+
+  const validateMaintenanceCerfas = useCallback(
+    (opts: {
+      siteId: string
+      dateIntervention?: string
+      signataireNom: string
+      signataireQualite: string
+      signatureOperateurImage: string
+      userId?: string
+      userName?: string
+    }) => {
+      const d = dataRef.current
+      const site = d.chantiers.find((s) => s.id === opts.siteId)
+      if (!site) throw new Error('Site introuvable.')
+      const client = d.clients.find((c) => c.id === site.clientId)
+      if (!client) throw new Error('Client du site introuvable.')
+      const det = detecteurForUser(d, opts.userId)
+      const dateIntervention =
+        opts.dateIntervention || new Date().toISOString().slice(0, 10)
+      const drafts = buildMaintenanceCerfaDrafts({
+        site,
+        client,
+        operateur: d.operateur,
+        dateIntervention,
+        userId: opts.userId,
+        userName: opts.userName,
+        signataireNom: opts.signataireNom,
+        signataireQualite: opts.signataireQualite,
+        signatureOperateurImage: opts.signatureOperateurImage,
+        detecteurIdentification: det?.identification,
+        detecteurControleDate: det?.controleDate,
+      })
+      const now = new Date().toISOString()
+      setData((prev) => ({
+        ...prev,
+        interventions: [...prev.interventions, ...drafts],
+        chantiers: prev.chantiers.map((s) =>
+          s.id === opts.siteId
+            ? {
+                ...s,
+                derniereMaintenanceAt: now,
+                derniereMaintenanceDate: dateIntervention,
+              }
+            : s,
+        ),
+      }))
+      return { drafts, site, client }
+    },
+    [],
+  )
 
   const applySiteClientSignature = useCallback(
     (opts: {
@@ -568,6 +629,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteClient,
       upsertChantier,
       deleteChantier,
+      validateMaintenanceCerfas,
       applySiteClientSignature,
       upsertStock,
       deleteStock,
@@ -590,6 +652,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteClient,
       upsertChantier,
       deleteChantier,
+      validateMaintenanceCerfas,
       applySiteClientSignature,
       upsertStock,
       deleteStock,

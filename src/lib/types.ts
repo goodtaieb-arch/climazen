@@ -219,6 +219,9 @@ export interface Site {
   typeTravaux?: TypeTravaux
   /** Précision libre : « maintenance semestrielle », « clim bureau directeur »… */
   detailTravaux?: string
+  /** Dernière maintenance validée (génération CERFA groupée) */
+  derniereMaintenanceAt?: string
+  derniereMaintenanceDate?: string
   /**
    * true = équipement avec fluide frigorigène → CERFA + stock gaz.
    * false = travaux standard (ex. VMC) → fiche info seule, sans CERFA.

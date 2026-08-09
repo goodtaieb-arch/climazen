@@ -26,6 +26,7 @@ import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideC
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser } from '../lib/detecteurs'
+import { findEquipement } from '../lib/migrate'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
@@ -71,6 +72,7 @@ export function InterventionFormPage() {
   )
 
   const chantierFromQuery = searchParams.get('chantier') || ''
+  const equipementFromQuery = searchParams.get('equipement') || ''
   const chantierQueryOk = data.chantiers.some((c) => c.id === chantierFromQuery)
 
   const defaultSignNom =
@@ -86,6 +88,9 @@ export function InterventionFormPage() {
       (chantierQueryOk ? chantierFromQuery : '') ||
       data.chantiers[0]?.id ||
       '',
+  )
+  const [equipementId, setEquipementId] = useState(
+    existing?.equipementId || equipementFromQuery || '',
   )
   const [natures, setNatures] = useState<NatureIntervention[]>(
     existing?.natures || ['entretien_reparation'],
@@ -166,6 +171,7 @@ export function InterventionFormPage() {
 
   const chantier = data.chantiers.find((c) => c.id === chantierId)
   const client = data.clients.find((c) => c.id === chantier?.clientId)
+  const equipement = findEquipement(chantier, equipementId || equipementFromQuery)
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
   /** Dénomination fluide de la fiche CERFA (pas l’ancien gaz du chantier) */
   const denominationFluide = (fluideType || '').trim()
@@ -203,11 +209,13 @@ export function InterventionFormPage() {
 
   useEffect(() => {
     if (!chantier || existing) return
-    setDetectionPermanente(chantier.detectionPermanente)
-    setFluideType(chantier.fluideType)
-    setQuantiteTotaleKg(chantier.chargeNominaleKg)
-    if (chantier.teqCO2) setTeqCO2(chantier.teqCO2)
-  }, [chantierId]) // eslint-disable-line react-hooks/exhaustive-deps
+    const eq = findEquipement(chantier, equipementId || equipementFromQuery)
+    if (eq?.id && !equipementId) setEquipementId(eq.id)
+    setDetectionPermanente(eq?.detectionPermanente ?? chantier.detectionPermanente)
+    setFluideType(eq?.fluideType || chantier.fluideType)
+    setQuantiteTotaleKg(eq?.chargeNominaleKg ?? chantier.chargeNominaleKg)
+    if (eq?.teqCO2 || chantier.teqCO2) setTeqCO2(eq?.teqCO2 ?? chantier.teqCO2 ?? 0)
+  }, [chantierId, equipementId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Préremplir UN / ADR depuis la 1ʳᵉ bouteille choisie
   useEffect(() => {
@@ -346,6 +354,7 @@ export function InterventionFormPage() {
       id: existing?.id,
       clientId: client?.id || '',
       chantierId,
+      equipementId: equipementId || equipement?.id || undefined,
       dateIntervention,
       operateur: data.operateur,
       natures,
