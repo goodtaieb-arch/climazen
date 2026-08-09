@@ -13,66 +13,81 @@ import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
 import { useAuth } from '../lib/AuthContext'
 
-/** Couleurs distinctes par entrée menu (inline = toujours visibles) */
+/** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
   string,
-  { band: string; icon: string; card: string; cardActive: string; border: string; borderActive: string }
+  {
+    band: string
+    icon: string
+    card: string
+    cardActive: string
+    border: string
+    borderActive: string
+    page: string
+  }
 > = {
   dashboard: {
-    band: '#bfdbfe',
-    icon: '#1d4ed8',
-    card: '#eff6ff',
-    cardActive: '#dbeafe',
-    border: '#93c5fd',
-    borderActive: '#3b82f6',
+    band: 'rgba(59, 130, 246, 0.12)',
+    icon: '#3b82f6',
+    card: 'rgba(59, 130, 246, 0.06)',
+    cardActive: 'rgba(59, 130, 246, 0.14)',
+    border: 'rgba(59, 130, 246, 0.22)',
+    borderActive: 'rgba(59, 130, 246, 0.45)',
+    page: 'rgba(59, 130, 246, 0.07)',
   },
   clients: {
-    band: '#e9d5ff',
-    icon: '#7e22ce',
-    card: '#faf5ff',
-    cardActive: '#f3e8ff',
-    border: '#d8b4fe',
-    borderActive: '#a855f7',
+    band: 'rgba(168, 85, 247, 0.12)',
+    icon: '#9333ea',
+    card: 'rgba(168, 85, 247, 0.06)',
+    cardActive: 'rgba(168, 85, 247, 0.14)',
+    border: 'rgba(168, 85, 247, 0.22)',
+    borderActive: 'rgba(168, 85, 247, 0.45)',
+    page: 'rgba(168, 85, 247, 0.07)',
   },
   sites: {
-    band: '#fdba74',
-    icon: '#c2410c',
-    card: '#fff7ed',
-    cardActive: '#ffedd5',
-    border: '#fb923c',
-    borderActive: '#ea580c',
+    band: 'rgba(249, 115, 22, 0.12)',
+    icon: '#ea580c',
+    card: 'rgba(249, 115, 22, 0.06)',
+    cardActive: 'rgba(249, 115, 22, 0.14)',
+    border: 'rgba(249, 115, 22, 0.22)',
+    borderActive: 'rgba(249, 115, 22, 0.45)',
+    page: 'rgba(249, 115, 22, 0.07)',
   },
   stock: {
-    band: '#fde68a',
-    icon: '#b45309',
-    card: '#fffbeb',
-    cardActive: '#fef3c7',
-    border: '#fcd34d',
-    borderActive: '#f59e0b',
+    band: 'rgba(234, 179, 8, 0.14)',
+    icon: '#ca8a04',
+    card: 'rgba(234, 179, 8, 0.07)',
+    cardActive: 'rgba(234, 179, 8, 0.16)',
+    border: 'rgba(234, 179, 8, 0.25)',
+    borderActive: 'rgba(234, 179, 8, 0.5)',
+    page: 'rgba(234, 179, 8, 0.08)',
   },
   cerfa: {
-    band: '#86efac',
-    icon: '#166534',
-    card: '#f0fdf4',
-    cardActive: '#bbf7d0',
-    border: '#4ade80',
-    borderActive: '#16a34a',
+    band: 'rgba(34, 197, 94, 0.12)',
+    icon: '#16a34a',
+    card: 'rgba(34, 197, 94, 0.06)',
+    cardActive: 'rgba(34, 197, 94, 0.14)',
+    border: 'rgba(34, 197, 94, 0.22)',
+    borderActive: 'rgba(34, 197, 94, 0.45)',
+    page: 'rgba(34, 197, 94, 0.07)',
   },
   equipe: {
-    band: '#fecdd3',
-    icon: '#be123c',
-    card: '#fff1f2',
-    cardActive: '#ffe4e6',
-    border: '#fda4af',
-    borderActive: '#f43f5e',
+    band: 'rgba(244, 63, 94, 0.11)',
+    icon: '#e11d48',
+    card: 'rgba(244, 63, 94, 0.05)',
+    cardActive: 'rgba(244, 63, 94, 0.13)',
+    border: 'rgba(244, 63, 94, 0.2)',
+    borderActive: 'rgba(244, 63, 94, 0.42)',
+    page: 'rgba(244, 63, 94, 0.06)',
   },
   societe: {
-    band: '#e2e8f0',
-    icon: '#334155',
-    card: '#f8fafc',
-    cardActive: '#e2e8f0',
-    border: '#cbd5e1',
-    borderActive: '#64748b',
+    band: 'rgba(100, 116, 139, 0.12)',
+    icon: '#475569',
+    card: 'rgba(100, 116, 139, 0.05)',
+    cardActive: 'rgba(100, 116, 139, 0.12)',
+    border: 'rgba(100, 116, 139, 0.2)',
+    borderActive: 'rgba(100, 116, 139, 0.4)',
+    page: 'rgba(100, 116, 139, 0.06)',
   },
 }
 
