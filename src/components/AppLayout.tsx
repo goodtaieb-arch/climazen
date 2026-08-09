@@ -16,7 +16,7 @@ import { useAuth } from '../lib/AuthContext'
 const baseLinks = [
   { to: '/app', end: true, label: 'Tableau de bord', icon: LayoutDashboard, short: 'Accueil' },
   { to: '/app/clients', label: 'Clients', icon: Building2, short: 'Clients' },
-  { to: '/app/chantiers', label: 'Chantiers', icon: MapPin, short: 'Chantiers' },
+  { to: '/app/chantiers', label: 'Sites', icon: MapPin, short: 'Sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, short: 'Stock' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, short: 'CERFA' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, short: 'Société' },
@@ -25,7 +25,7 @@ const baseLinks = [
 const mobilePrimary = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard },
   { to: '/app/clients', label: 'Clients', icon: Building2 },
-  { to: '/app/chantiers', label: 'Chantiers', icon: MapPin },
+  { to: '/app/chantiers', label: 'Sites', icon: MapPin },
   { to: '/app/stock', label: 'Stock', icon: Package },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList },
 ]
@@ -50,16 +50,15 @@ export function AppLayout() {
   const orgLabel = organization?.name || 'Société'
 
   return (
-    <div className="min-h-screen bg-foam text-ink lg:grid lg:grid-cols-[260px_1fr]">
-      {/* Desktop sidebar */}
-      <aside className="hidden border-r border-line bg-ink text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
-        <div className="flex items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <BrandLogo onDark size="sm" />
-            <div className="mt-2 px-1 text-xs text-white/45">Terrain · CERFA 15497-04</div>
-          </div>
+    <div className="min-h-screen bg-mist/40 text-ink lg:grid lg:grid-cols-[272px_1fr]">
+      {/* Desktop sidebar — clair */}
+      <aside className="hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
+        <div className="border-b border-line px-4 py-5">
+          <BrandLogo size="sm" />
+          <div className="mt-2 px-0.5 text-xs text-muted">Terrain · CERFA 15497-04</div>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
+
+        <nav className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-4">
           {links.map(({ to, end, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -67,28 +66,42 @@ export function AppLayout() {
               end={end}
               className={({ isActive }) =>
                 [
-                  'flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  'group flex items-stretch overflow-hidden rounded-xl border text-sm font-semibold transition-colors',
                   isActive
-                    ? 'bg-accent text-ink'
-                    : 'text-white/75 hover:bg-white/10 hover:text-white',
+                    ? 'border-accent/40 bg-accent-soft text-ink shadow-sm'
+                    : 'border-line bg-white text-slate hover:border-accent/30 hover:bg-foam',
                 ].join(' ')
               }
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={[
+                      'grid w-11 shrink-0 place-items-center border-e',
+                      isActive
+                        ? 'border-accent/25 bg-accent/15 text-accent'
+                        : 'border-line bg-mist/70 text-muted group-hover:text-accent',
+                    ].join(' ')}
+                  >
+                    <Icon className="h-4 w-4" strokeWidth={isActive ? 2.25 : 1.75} />
+                  </span>
+                  <span className="flex flex-1 items-center px-3 py-2.5">{label}</span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-white/10 px-4 py-4">
-          <div className="truncate text-sm font-medium">{orgLabel}</div>
-          <div className="truncate text-xs text-white/45">
+
+        <div className="border-t border-line bg-foam/80 px-4 py-4">
+          <div className="truncate text-sm font-semibold text-ink">{orgLabel}</div>
+          <div className="truncate text-xs text-muted">
             {user?.fullName || user?.email} · {roleLabel}
           </div>
-          <div className="truncate text-[11px] text-white/35">{user?.email || user?.username}</div>
+          <div className="truncate text-[11px] text-muted/80">{user?.email || user?.username}</div>
           <button
             type="button"
             onClick={doLogout}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-mist"
           >
             <LogOut className="h-4 w-4" /> Se déconnecter
           </button>
