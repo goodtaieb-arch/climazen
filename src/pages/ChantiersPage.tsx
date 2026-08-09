@@ -486,10 +486,15 @@ export function ChantiersPage() {
           </div>
 
           <Field
-            label="Nom / libellé équipement"
+            label="Nom / libellé équipement *"
             value={currentEquip.nom || ''}
             onChange={(v) => patchCurrentEquip({ nom: v, type: currentEquip.type || v })}
+            required={avecFluide}
           />
+          <p className="-mt-1 text-xs text-muted sm:col-span-2">
+            Ex. « Chambre froide rayon frais », « Clim bureau 2 » — c’est ce nom qui apparaît dans la
+            sélection (case à cocher).
+          </p>
           <Field
             label={avecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
             value={form.equipementType}
@@ -643,20 +648,46 @@ export function ChantiersPage() {
                     </div>
                   )}
                   {fluide && (
-                    <ul className="mt-2 space-y-1 text-xs text-muted">
+                    <ul className="mt-3 space-y-2">
                       {eqs.map((eq) => (
-                        <li key={eq.id} className="flex flex-wrap items-center gap-2">
-                          <span>
-                            {equipmentLabel(eq)}
-                            {eq.fluideType ? ` · ${eq.fluideType}` : ''}
-                            {eq.chargeNominaleKg ? ` · ${eq.chargeNominaleKg} kg` : ''}
-                            {eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}
-                          </span>
+                        <li
+                          key={eq.id}
+                          className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2.5"
+                        >
+                          <span
+                            className="grid h-5 w-5 shrink-0 place-items-center rounded border-2 border-slate-300 bg-white"
+                            aria-hidden
+                            title="Case pour sélection (via Valider maintenance)"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold text-ink">
+                              {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                            </div>
+                            <div className="text-[11px] text-muted">
+                              {[eq.type && eq.nom ? eq.type : null, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
+                                .filter(Boolean)
+                                .join(' · ') || '—'}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => startEditEquip(c, eq.id)}
+                            className="rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-accent hover:bg-accent-soft"
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeEquipement(c, eq.id)}
+                            className="rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-danger hover:bg-red-50"
+                          >
+                            Supprimer
+                          </button>
                           <Link
                             to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
-                            className="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold text-accent hover:bg-accent-soft"
+                            className="rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-accent-hover"
                           >
-                            CERFA / dépannage
+                            CERFA
                           </Link>
                         </li>
                       ))}
@@ -769,15 +800,19 @@ export function ChantiersPage() {
             <ul className="mt-4 space-y-2">
               {equipementsForCerfa(picker.site).map((eq) => {
                 const checked = picker.selected.includes(eq.id)
+                const libelle = eq.nom?.trim() || eq.type || 'Sans libellé'
                 return (
-                  <li key={eq.id}>
-                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line px-3 py-3 hover:bg-mist">
-                      <input
-                        type={picker.mode === 'intervention' ? 'radio' : 'checkbox'}
-                        name="equip-pick"
-                        className="mt-1"
-                        checked={checked}
-                        onChange={() => {
+                  <li
+                    key={eq.id}
+                    className={[
+                      'rounded-xl border px-3 py-3 transition',
+                      checked ? 'border-accent bg-accent-soft/40' : 'border-line bg-white',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
                           if (picker.mode === 'intervention') {
                             setPicker({ ...picker, selected: [eq.id] })
                             return
@@ -789,16 +824,59 @@ export function ChantiersPage() {
                               : [...picker.selected, eq.id],
                           })
                         }}
-                      />
-                      <span className="text-sm">
-                        <span className="font-medium text-ink">{equipmentLabel(eq)}</span>
+                        className={[
+                          'mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded border-2',
+                          checked
+                            ? 'border-accent bg-accent text-ink'
+                            : 'border-slate-300 bg-white',
+                        ].join(' ')}
+                        aria-pressed={checked}
+                        aria-label={checked ? `Désélectionner ${libelle}` : `Sélectionner ${libelle}`}
+                      >
+                        {checked ? (
+                          <span className="text-sm font-bold leading-none">✓</span>
+                        ) : null}
+                      </button>
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => {
+                          if (picker.mode === 'intervention') {
+                            setPicker({ ...picker, selected: [eq.id] })
+                            return
+                          }
+                          setPicker({
+                            ...picker,
+                            selected: checked
+                              ? picker.selected.filter((id) => id !== eq.id)
+                              : [...picker.selected, eq.id],
+                          })
+                        }}
+                      >
+                        <span className="block text-sm font-semibold text-ink">{libelle}</span>
                         <span className="mt-0.5 block text-xs text-muted">
-                          {[eq.fluideType, eq.chargeNominaleKg ? `${eq.chargeNominaleKg} kg` : '', eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
+                          {[eq.type && eq.nom ? eq.type : null, eq.marque, eq.modele, eq.fluideType, eq.chargeNominaleKg ? `${eq.chargeNominaleKg} kg` : '', eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
                             .filter(Boolean)
                             .join(' · ') || '—'}
                         </span>
-                      </span>
-                    </label>
+                      </button>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditEquip(picker.site, eq.id)}
+                          className="rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-accent hover:bg-mist"
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeEquipement(picker.site, eq.id)}
+                          className="rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-danger hover:bg-red-50"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
                   </li>
                 )
               })}
