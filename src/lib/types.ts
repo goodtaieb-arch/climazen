@@ -70,7 +70,44 @@ export interface Operateur {
   signataireQualite?: string
   /** Signature manuscrite PNG data URL — réutilisée automatiquement */
   signatureImage?: string
+  /**
+   * Facturation externe via Make.com → Tiime, Pennylane, Sellsy…
+   * Évite la double saisie client / devis / facture.
+   */
+  facturationPlateforme?: FacturationPlateforme
+  /** URL webhook Make (Custom webhook) */
+  facturationWebhookUrl?: string
+  /** create_client | create_devis | create_facture */
+  facturationActionDefaut?: FacturationAction
 }
+
+/** Plateformes de facturation les plus utilisées (via Make). */
+export type FacturationPlateforme =
+  | 'tiime'
+  | 'pennylane'
+  | 'sellsy'
+  | 'axonaut'
+  | 'freebe'
+  | 'henrri'
+  | 'indy'
+  | 'autre'
+
+export type FacturationAction = 'create_client' | 'create_devis' | 'create_facture'
+
+export const FACTURATION_PLATEFORMES: {
+  id: FacturationPlateforme
+  label: string
+  makeHint: string
+}[] = [
+  { id: 'tiime', label: 'Tiime', makeHint: 'Module Make « Tiime Apps »' },
+  { id: 'pennylane', label: 'Pennylane', makeHint: 'Module Make Pennylane' },
+  { id: 'sellsy', label: 'Sellsy', makeHint: 'Module Make Sellsy' },
+  { id: 'axonaut', label: 'Axonaut', makeHint: 'Module Make Axonaut' },
+  { id: 'freebe', label: 'Freebe', makeHint: 'HTTP / Make Freebe si dispo' },
+  { id: 'henrri', label: 'Henrri', makeHint: 'HTTP / Make Henrri si dispo' },
+  { id: 'indy', label: 'Indy', makeHint: 'Module Make Indy si dispo' },
+  { id: 'autre', label: 'Autre (Make)', makeHint: 'N’importe quel module Make' },
+]
 
 export interface Client {
   id: string
@@ -82,31 +119,58 @@ export interface Client {
   ville: string
   telephone: string
   email: string
+  /** SIRET client (utile facturation B2B / Tiime) */
+  siret?: string
   notes?: string
   createdAt: string
+  /** Lien devis renvoyé par Make / plateforme */
+  devisLien?: string
+  /** Lien facture renvoyé par Make / plateforme */
+  factureLien?: string
+  /** Dernier envoi vers Make (ISO) */
+  facturationSyncedAt?: string
 }
 
-export interface Chantier {
+export interface Equipement {
+  id: string
+  /** Libellé métier : « Chambre froide 1 », « CTA toiture »… */
+  nom: string
+  type: string
+  marque: string
+  modele: string
+  numeroSerie: string
+  fluideType: string
+  chargeNominaleKg: number
+  teqCO2?: number
+  detectionPermanente: boolean
+  notes?: string
+}
+
+/**
+ * Site d’intervention (EHPAD, usine, agence, hypermarché…).
+ * Un site peut contenir plusieurs équipements → un CERFA par équipement.
+ * Ancien nom : « chantier ».
+ */
+export interface Site {
   id: string
   clientId: string
   nom: string
   adresse: string
   codePostal: string
   ville: string
-  /** Cadre [3] équipement */
-  equipementType: string
-  equipementMarque: string
-  equipementModele: string
-  equipementNumeroSerie: string
-  fluideType: string
-  chargeNominaleKg: number
-  /** tonnes équivalent CO2 si connu — Equipement_teqCO2 */
-  teqCO2?: number
-  detectionPermanente: boolean
+  equipements: Equipement[]
   statut: 'actif' | 'termine' | 'archive'
   notes?: string
   createdAt: string
+  /** Signature client réutilisable pour tous les CERFA du site */
+  signatureDetenteurNom?: string
+  signatureDetenteurQualite?: string
+  signatureDetenteurImage?: string
+  signatureDetenteurAt?: string
 }
+
+/** @deprecated alias — utiliser Site */
+export type Chantier = Site
 
 export interface StockItem {
   id: string
@@ -139,7 +203,13 @@ export interface StockItem {
 /** Mouvement stock lié à un CERFA (ex. sortie 2 kg d’une bouteille de 10 kg). */
 export type StockMouvementSens = 'sortie' | 'entree'
 
-export type StockMouvementKind = 'cerfa' | 'retour_consigne'
+export type StockMouvementKind =
+  | 'cerfa'
+  | 'retour_consigne'
+  /** Fluide neuf acquis (BL fournisseur) */
+  | 'achat'
+  /** Remise à un centre / installation de destruction agréée */
+  | 'destruction'
 
 export interface StockMouvement {
   id: string
@@ -161,12 +231,19 @@ export interface StockMouvement {
   kind?: StockMouvementKind
   /** N° bon de retour de consigne */
   bonRetourReference?: string
+  /** Fournisseur / BL (achat) ou centre de destruction */
+  tiersNom?: string
+  /** Référence BL, BSFF destruction, etc. */
+  documentReference?: string
 }
 
 export interface CerfaDraft {
   id: string
   clientId: string
+  /** ID du site (ex-chantier) */
   chantierId: string
+  /** Équipement du site concerné par ce CERFA (1 CERFA = 1 équipement) */
+  equipementId: string
   dateIntervention: string
 
   /** [1] Opérateur — copie au moment de l'intervention */
@@ -250,7 +327,8 @@ export interface CerfaDraft {
 export interface AppData {
   operateur: Operateur
   clients: Client[]
-  chantiers: Chantier[]
+  /** Sites d’intervention (clé historique « chantiers ») */
+  chantiers: Site[]
   stock: StockItem[]
   /** Historique des usages partiels liés aux CERFA */
   stockMouvements: StockMouvement[]

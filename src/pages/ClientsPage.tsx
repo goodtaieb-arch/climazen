@@ -1,8 +1,10 @@
 import { type FormEvent, useMemo, useState } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { ExternalLink, FileSpreadsheet, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
-import type { Client } from '../lib/types'
+import type { Client, FacturationAction } from '../lib/types'
+import { FACTURATION_PLATEFORMES } from '../lib/types'
 import { SearchField, matchesQuery } from '../components/SearchField'
+import { buildMakeFacturationPayload, sendClientToMake } from '../lib/makeFacturation'
 
 const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   raisonSociale: '',
@@ -12,6 +14,7 @@ const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   ville: '',
   telephone: '',
   email: '',
+  siret: '',
   notes: '',
 })
 
@@ -21,12 +24,20 @@ export function ClientsPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [sendingId, setSendingId] = useState<string | null>(null)
+
+  const plateforme =
+    FACTURATION_PLATEFORMES.find((p) => p.id === data.operateur.facturationPlateforme)?.label ||
+    'Tiime'
+  const webhookConfigured = Boolean(data.operateur.facturationWebhookUrl?.trim())
 
   const filtered = useMemo(
     () =>
       data.clients.filter((c) =>
         matchesQuery(
-          [c.raisonSociale, c.nomContact, c.ville, c.telephone, c.email, c.adresse].join(' '),
+          [c.raisonSociale, c.nomContact, c.ville, c.telephone, c.email, c.adresse, c.siret]
+            .filter(Boolean)
+            .join(' '),
           q,
         ),
       ),
@@ -51,22 +62,67 @@ export function ClientsPage() {
       ville: c.ville,
       telephone: c.telephone,
       email: c.email,
+      siret: c.siret || '',
       notes: c.notes || '',
+      devisLien: c.devisLien,
+      factureLien: c.factureLien,
+      facturationSyncedAt: c.facturationSyncedAt,
     })
     setOpen(true)
+  }
+
+  const envoyerFacturation = async (c: Client, action?: FacturationAction) => {
+    if (!webhookConfigured) {
+      alert(
+        'Configurez d’abord l’URL webhook Make dans Mon entreprise → Facturation (Make → Tiime, Pennylane…).',
+      )
+      return
+    }
+    setSendingId(c.id)
+    try {
+      const payload = buildMakeFacturationPayload({
+        operateur: data.operateur,
+        client: c,
+        sites: data.chantiers,
+        action,
+      })
+      const result = await sendClientToMake({
+        webhookUrl: data.operateur.facturationWebhookUrl || '',
+        payload,
+      })
+      upsertClient({
+        ...c,
+        devisLien: result.devisLien || c.devisLien,
+        factureLien: result.factureLien || c.factureLien,
+        facturationSyncedAt: new Date().toISOString(),
+      })
+      alert(result.message || `Client envoyé vers ${plateforme} via Make.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Envoi Make impossible')
+    } finally {
+      setSendingId(null)
+    }
   }
 
   return (
     <div className="space-y-6">
       <Header
         title="Clients / détenteurs"
-        subtitle="Cadre [2] du CERFA — prérempli sur chaque intervention."
+        subtitle="Cadre [2] du CERFA — prérempli sur chaque intervention. Envoi vers facturation sans double saisie."
         onAdd={() => {
           setEditId(null)
           setForm(blank())
           setOpen(true)
         }}
       />
+
+      {!webhookConfigured && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-slate">
+          Pour créer un devis / facture sans ressaisir : allez dans{' '}
+          <strong>Mon entreprise</strong>, section Facturation, collez votre webhook Make et choisissez{' '}
+          {plateforme} (ou Pennylane, Sellsy…).
+        </div>
+      )}
 
       <SearchField
         value={q}
@@ -84,6 +140,7 @@ export function ClientsPage() {
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
           <Field label="Téléphone" value={form.telephone} onChange={(v) => setForm({ ...form, telephone: v })} />
           <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+          <Field label="SIRET (facturation)" value={form.siret || ''} onChange={(v) => setForm({ ...form, siret: v })} />
           <div className="flex gap-2 sm:col-span-2">
             <button type="submit" className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover">
               Enregistrer
@@ -111,11 +168,44 @@ export function ClientsPage() {
                 <td className="px-4 py-3">
                   <div className="font-medium">{c.raisonSociale}</div>
                   <div className="text-xs text-muted sm:hidden">{c.ville}</div>
+                  {(c.devisLien || c.factureLien) && (
+                    <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+                      {c.devisLien && (
+                        <a
+                          href={c.devisLien}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-accent hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Devis
+                        </a>
+                      )}
+                      {c.factureLien && (
+                        <a
+                          href={c.factureLien}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-accent hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Facture
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="hidden px-4 py-3 sm:table-cell">{c.ville}</td>
                 <td className="hidden px-4 py-3 md:table-cell">{c.nomContact || c.telephone}</td>
                 <td className="px-4 py-3 text-right">
-                  <button type="button" onClick={() => startEdit(c)} className="p-2 text-accent hover:bg-accent-soft rounded-lg">
+                  <button
+                    type="button"
+                    title={`Envoyer vers ${plateforme} (Make)`}
+                    disabled={sendingId === c.id}
+                    onClick={() => void envoyerFacturation(c)}
+                    className="rounded-lg p-2 text-accent hover:bg-accent-soft disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={() => startEdit(c)} className="rounded-lg p-2 text-accent hover:bg-accent-soft">
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
@@ -123,7 +213,7 @@ export function ClientsPage() {
                     onClick={() => {
                       if (confirm('Supprimer ce client ?')) deleteClient(c.id)
                     }}
-                    className="p-2 text-danger hover:bg-red-50 rounded-lg"
+                    className="rounded-lg p-2 text-danger hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
