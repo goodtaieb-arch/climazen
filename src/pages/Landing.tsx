@@ -157,7 +157,7 @@ export function Landing() {
                 <div className="mt-3 space-y-2.5 text-sm">
                   <Field label="Travaux" value="Chambre froide — Rayon frais" />
                   <Field label="Client / détenteur" value="Supermarché Dupont" />
-                  <Field label="Fluide" value="R-32 · 4,2 kg" />
+                  <Field label="Fluide" value="R-448A · 4,2 kg" />
                   <div className="rounded-xl bg-accent-soft px-3 py-2 text-xs font-medium text-slate">
                     Cadres [1]→[14] préremplis · PDF officiel dans l’app
                   </div>

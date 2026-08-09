@@ -128,7 +128,7 @@ export function seedDemoData(): AppData {
         equipementMarque: 'Carrier',
         equipementModele: '30RB-160',
         equipementNumeroSerie: 'SN-88421',
-        fluideType: 'R-32',
+        fluideType: 'R-448A',
         chargeNominaleKg: 4.2,
         detectionPermanente: false,
         equipements: [
@@ -139,7 +139,7 @@ export function seedDemoData(): AppData {
             marque: 'Carrier',
             modele: '30RB-160',
             numeroSerie: 'SN-88421',
-            fluideType: 'R-32',
+            fluideType: 'R-448A',
             chargeNominaleKg: 4.2,
             detectionPermanente: false,
           },
@@ -149,9 +149,9 @@ export function seedDemoData(): AppData {
     stock: [
       {
         id: stockId,
-        fluide: 'R-32',
+        fluide: 'R-448A',
         contenantType: 'vierge',
-        numeroContenant: 'BOT-R32-001',
+        numeroContenant: 'BOT-R448A-001',
         quantiteKg: 12.5,
         quantiteInitialeKg: 12.5,
         updatedAt: now,
