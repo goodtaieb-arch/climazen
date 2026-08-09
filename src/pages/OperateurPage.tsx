@@ -22,9 +22,11 @@ export function OperateurPage() {
   const [pwdError, setPwdError] = useState('')
   const [pwdOk, setPwdOk] = useState('')
   const [pwdBusy, setPwdBusy] = useState(false)
+  const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
 
   useEffect(() => {
     setForm(data.operateur)
+    setExpertMake(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   }, [data.operateur])
 
   useEffect(() => {
@@ -38,7 +40,10 @@ export function OperateurPage() {
   const onSubmitCompany = (e: FormEvent) => {
     e.preventDefault()
     if (!isOwner) return
-    setOperateur(form)
+    setOperateur({
+      ...form,
+      facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
+    })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -146,26 +151,14 @@ export function OperateurPage() {
           />
 
           <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
-            <h2 className="font-display mb-1 text-base font-semibold">
-              Facturation (Make → Tiime, Pennylane…)
-            </h2>
+            <h2 className="font-display mb-1 text-base font-semibold">Facturation (simple)</h2>
             <p className="mb-3 text-sm text-muted">
-              Évite de ressaisir le client : ClimaZEN envoie les données à Make, qui crée le devis /
-              facture sur la plateforme que vous utilisez déjà.
+              Pour l’utilisateur standard : sur un client, <strong>copier les infos</strong> puis{' '}
+              <strong>ouvrir Tiime</strong> (ou Pennylane…) — sans configurer Make.
             </p>
-            <ol className="mb-3 list-decimal space-y-1 pl-5 text-xs text-muted">
-              <li>
-                Sur Make.com : scénario avec module <strong>Custom webhook</strong> → module Tiime /
-                Pennylane / Sellsy…
-              </li>
-              <li>Collez l’URL du webhook ci-dessous.</li>
-              <li>
-                Sur un client ClimaZEN : bouton « Envoyer vers facturation » — plus de double saisie.
-              </li>
-            </ol>
           </div>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Plateforme utilisée</span>
+            <span className="mb-1 block text-muted">Logiciel de facturation habituel</span>
             <select
               value={form.facturationPlateforme || 'tiime'}
               onChange={(e) =>
@@ -178,38 +171,66 @@ export function OperateurPage() {
             >
               {FACTURATION_PLATEFORMES.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label} — {p.makeHint}
+                  {p.label}
                 </option>
               ))}
             </select>
           </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">URL webhook Make (https://…)</span>
-            <input
-              type="url"
-              placeholder="https://hook.eu1.make.com/…"
-              value={form.facturationWebhookUrl || ''}
-              onChange={(e) => setForm({ ...form, facturationWebhookUrl: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
-            />
-          </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Action par défaut</span>
-            <select
-              value={form.facturationActionDefaut || 'create_devis'}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  facturationActionDefaut: e.target.value as typeof form.facturationActionDefaut,
-                })
-              }
-              className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
-            >
-              <option value="create_client">Créer / mettre à jour le client</option>
-              <option value="create_devis">Créer un devis</option>
-              <option value="create_facture">Créer une facture</option>
-            </select>
-          </label>
+
+          <div className="sm:col-span-2 rounded-xl border border-line bg-foam/60 p-4">
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={expertMake}
+                onChange={(e) => setExpertMake(e.target.checked)}
+              />
+              <span>
+                <span className="font-semibold text-ink">Mode expert — Make.com</span>
+                <span className="mt-0.5 block text-muted">
+                  Automatiser la création devis/facture (webhook). Réservé aux utilisateurs à l’aise
+                  avec Make. Les autres n’en ont pas besoin.
+                </span>
+              </span>
+            </label>
+
+            {expertMake && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <p className="text-xs text-muted sm:col-span-2">
+                  Scénario Make : Custom webhook → module {form.facturationPlateforme || 'tiime'} →
+                  créer client / devis / facture.
+                </p>
+                <label className="block text-sm sm:col-span-2">
+                  <span className="mb-1 block text-muted">URL webhook Make (https://…)</span>
+                  <input
+                    type="url"
+                    placeholder="https://hook.eu1.make.com/…"
+                    value={form.facturationWebhookUrl || ''}
+                    onChange={(e) => setForm({ ...form, facturationWebhookUrl: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
+                  />
+                </label>
+                <label className="block text-sm sm:col-span-2">
+                  <span className="mb-1 block text-muted">Action Make par défaut</span>
+                  <select
+                    value={form.facturationActionDefaut || 'create_devis'}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        facturationActionDefaut: e.target
+                          .value as typeof form.facturationActionDefaut,
+                      })
+                    }
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
+                  >
+                    <option value="create_client">Créer / mettre à jour le client</option>
+                    <option value="create_devis">Créer un devis</option>
+                    <option value="create_facture">Créer une facture</option>
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
             <button

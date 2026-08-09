@@ -40,21 +40,51 @@ export type MakeFacturationPayload = {
     codePostal: string
     ville: string
   }[]
-  /** Libellé libre pour le devis / facture Make */
   libelle?: string
   montantHt?: number
 }
 
 export type MakeFacturationResult = {
   ok: boolean
-  /** Lien devis/facture si Make renvoie du JSON { devisLien, factureLien, url } */
   devisLien?: string
   factureLien?: string
   message?: string
 }
 
+function plateformeMeta(id: FacturationPlateforme) {
+  return FACTURATION_PLATEFORMES.find((p) => p.id === id)
+}
+
 function plateformeLabel(id: FacturationPlateforme) {
-  return FACTURATION_PLATEFORMES.find((p) => p.id === id)?.label || id
+  return plateformeMeta(id)?.label || id
+}
+
+/** Texte prêt à coller dans Tiime / Pennylane / etc. */
+export function formatClientPourFacturation(client: Client): string {
+  return [
+    client.raisonSociale,
+    client.nomContact ? `Contact : ${client.nomContact}` : '',
+    client.siret ? `SIRET : ${client.siret}` : '',
+    [client.adresse, [client.codePostal, client.ville].filter(Boolean).join(' ')]
+      .filter(Boolean)
+      .join(', '),
+    client.telephone ? `Tél. : ${client.telephone}` : '',
+    client.email ? `Email : ${client.email}` : '',
+    client.notes ? `Notes : ${client.notes}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+export async function copyClientPourFacturation(client: Client): Promise<void> {
+  await navigator.clipboard.writeText(formatClientPourFacturation(client))
+}
+
+export function openPlateformeFacturation(plateforme: FacturationPlateforme = 'tiime') {
+  const url = plateformeMeta(plateforme)?.openUrl
+  if (!url) return false
+  window.open(url, '_blank', 'noopener,noreferrer')
+  return true
 }
 
 export function buildMakeFacturationPayload(opts: {
@@ -107,16 +137,13 @@ export function buildMakeFacturationPayload(opts: {
   }
 }
 
-/**
- * Envoie le client ClimaZEN vers Make.com (webhook).
- * Make route ensuite vers Tiime / Pennylane / Sellsy… sans double saisie.
- */
+/** Mode expert : webhook Make. */
 export async function sendClientToMake(opts: {
   webhookUrl: string
   payload: MakeFacturationPayload
 }): Promise<MakeFacturationResult> {
   const url = opts.webhookUrl.trim()
-  if (!url) throw new Error('URL webhook Make non configurée (Mon entreprise).')
+  if (!url) throw new Error('URL webhook Make non configurée (Mon entreprise → mode expert).')
   if (!/^https:\/\//i.test(url)) throw new Error('L’URL webhook Make doit commencer par https://')
 
   const res = await fetch(url, {

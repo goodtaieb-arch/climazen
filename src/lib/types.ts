@@ -98,15 +98,27 @@ export const FACTURATION_PLATEFORMES: {
   id: FacturationPlateforme
   label: string
   makeHint: string
+  /** URL d’ouverture simple (sans API) */
+  openUrl: string
 }[] = [
-  { id: 'tiime', label: 'Tiime', makeHint: 'Module Make « Tiime Apps »' },
-  { id: 'pennylane', label: 'Pennylane', makeHint: 'Module Make Pennylane' },
-  { id: 'sellsy', label: 'Sellsy', makeHint: 'Module Make Sellsy' },
-  { id: 'axonaut', label: 'Axonaut', makeHint: 'Module Make Axonaut' },
-  { id: 'freebe', label: 'Freebe', makeHint: 'HTTP / Make Freebe si dispo' },
-  { id: 'henrri', label: 'Henrri', makeHint: 'HTTP / Make Henrri si dispo' },
-  { id: 'indy', label: 'Indy', makeHint: 'Module Make Indy si dispo' },
-  { id: 'autre', label: 'Autre (Make)', makeHint: 'N’importe quel module Make' },
+  { id: 'tiime', label: 'Tiime', makeHint: 'Module Make « Tiime Apps »', openUrl: 'https://www.tiime.fr/' },
+  {
+    id: 'pennylane',
+    label: 'Pennylane',
+    makeHint: 'Module Make Pennylane',
+    openUrl: 'https://app.pennylane.com/',
+  },
+  { id: 'sellsy', label: 'Sellsy', makeHint: 'Module Make Sellsy', openUrl: 'https://www.sellsy.com/' },
+  {
+    id: 'axonaut',
+    label: 'Axonaut',
+    makeHint: 'Module Make Axonaut',
+    openUrl: 'https://axonaut.com/',
+  },
+  { id: 'freebe', label: 'Freebe', makeHint: 'HTTP / Make Freebe si dispo', openUrl: 'https://www.freebe.me/' },
+  { id: 'henrri', label: 'Henrri', makeHint: 'HTTP / Make Henrri si dispo', openUrl: 'https://www.henrri.com/' },
+  { id: 'indy', label: 'Indy', makeHint: 'Module Make Indy si dispo', openUrl: 'https://www.indy.fr/' },
+  { id: 'autre', label: 'Autre', makeHint: 'N’importe quel module Make', openUrl: '' },
 ]
 
 export interface Client {

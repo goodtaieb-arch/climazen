@@ -1,10 +1,15 @@
 import { type FormEvent, useMemo, useState } from 'react'
-import { ExternalLink, FileSpreadsheet, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Copy, ExternalLink, FileSpreadsheet, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import type { Client, FacturationAction } from '../lib/types'
 import { FACTURATION_PLATEFORMES } from '../lib/types'
 import { SearchField, matchesQuery } from '../components/SearchField'
-import { buildMakeFacturationPayload, sendClientToMake } from '../lib/makeFacturation'
+import {
+  buildMakeFacturationPayload,
+  copyClientPourFacturation,
+  openPlateformeFacturation,
+  sendClientToMake,
+} from '../lib/makeFacturation'
 
 const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   raisonSociale: '',
@@ -25,10 +30,11 @@ export function ClientsPage() {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [sendingId, setSendingId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
+  const plateformeId = data.operateur.facturationPlateforme || 'tiime'
   const plateforme =
-    FACTURATION_PLATEFORMES.find((p) => p.id === data.operateur.facturationPlateforme)?.label ||
-    'Tiime'
+    FACTURATION_PLATEFORMES.find((p) => p.id === plateformeId)?.label || 'Tiime'
   const webhookConfigured = Boolean(data.operateur.facturationWebhookUrl?.trim())
 
   const filtered = useMemo(
@@ -71,11 +77,20 @@ export function ClientsPage() {
     setOpen(true)
   }
 
-  const envoyerFacturation = async (c: Client, action?: FacturationAction) => {
+  const copierEtOuvrir = async (c: Client) => {
+    try {
+      await copyClientPourFacturation(c)
+      setCopiedId(c.id)
+      setTimeout(() => setCopiedId(null), 2000)
+      openPlateformeFacturation(plateformeId)
+    } catch {
+      alert('Impossible de copier — autorisez le presse-papiers du navigateur.')
+    }
+  }
+
+  const envoyerMake = async (c: Client, action?: FacturationAction) => {
     if (!webhookConfigured) {
-      alert(
-        'Configurez d’abord l’URL webhook Make dans Mon entreprise → Facturation (Make → Tiime, Pennylane…).',
-      )
+      alert('Mode expert Make non configuré (Mon entreprise).')
       return
     }
     setSendingId(c.id)
@@ -96,7 +111,7 @@ export function ClientsPage() {
         factureLien: result.factureLien || c.factureLien,
         facturationSyncedAt: new Date().toISOString(),
       })
-      alert(result.message || `Client envoyé vers ${plateforme} via Make.`)
+      alert(result.message || `Envoyé vers ${plateforme} via Make.`)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Envoi Make impossible')
     } finally {
@@ -108,7 +123,7 @@ export function ClientsPage() {
     <div className="space-y-6">
       <Header
         title="Clients / détenteurs"
-        subtitle="Cadre [2] du CERFA — prérempli sur chaque intervention. Envoi vers facturation sans double saisie."
+        subtitle="Cadre [2] — copiez les infos et ouvrez Tiime (ou votre logiciel) sans tout retaper."
         onAdd={() => {
           setEditId(null)
           setForm(blank())
@@ -116,13 +131,18 @@ export function ClientsPage() {
         }}
       />
 
-      {!webhookConfigured && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-slate">
-          Pour créer un devis / facture sans ressaisir : allez dans{' '}
-          <strong>Mon entreprise</strong>, section Facturation, collez votre webhook Make et choisissez{' '}
-          {plateforme} (ou Pennylane, Sellsy…).
-        </div>
-      )}
+      <div className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-slate">
+        <strong>Simple :</strong> icône copier → les infos client sont dans le presse-papiers,{' '}
+        {plateforme} s’ouvre → collez dans le devis / facture.
+        {webhookConfigured && (
+          <>
+            {' '}
+            <span className="text-muted">
+              Mode expert Make actif : icône tableur pour envoi automatique.
+            </span>
+          </>
+        )}
+      </div>
 
       <SearchField
         value={q}
@@ -132,20 +152,56 @@ export function ClientsPage() {
       />
 
       {open && (
-        <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2">
-          <Field label="Raison sociale *" value={form.raisonSociale} onChange={(v) => setForm({ ...form, raisonSociale: v })} required />
-          <Field label="Contact" value={form.nomContact} onChange={(v) => setForm({ ...form, nomContact: v })} />
-          <Field label="Adresse" value={form.adresse} onChange={(v) => setForm({ ...form, adresse: v })} className="sm:col-span-2" />
-          <Field label="Code postal" value={form.codePostal} onChange={(v) => setForm({ ...form, codePostal: v })} />
+        <form
+          onSubmit={onSubmit}
+          className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
+        >
+          <Field
+            label="Raison sociale *"
+            value={form.raisonSociale}
+            onChange={(v) => setForm({ ...form, raisonSociale: v })}
+            required
+          />
+          <Field
+            label="Contact"
+            value={form.nomContact}
+            onChange={(v) => setForm({ ...form, nomContact: v })}
+          />
+          <Field
+            label="Adresse"
+            value={form.adresse}
+            onChange={(v) => setForm({ ...form, adresse: v })}
+            className="sm:col-span-2"
+          />
+          <Field
+            label="Code postal"
+            value={form.codePostal}
+            onChange={(v) => setForm({ ...form, codePostal: v })}
+          />
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
-          <Field label="Téléphone" value={form.telephone} onChange={(v) => setForm({ ...form, telephone: v })} />
+          <Field
+            label="Téléphone"
+            value={form.telephone}
+            onChange={(v) => setForm({ ...form, telephone: v })}
+          />
           <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-          <Field label="SIRET (facturation)" value={form.siret || ''} onChange={(v) => setForm({ ...form, siret: v })} />
+          <Field
+            label="SIRET (facturation)"
+            value={form.siret || ''}
+            onChange={(v) => setForm({ ...form, siret: v })}
+          />
           <div className="flex gap-2 sm:col-span-2">
-            <button type="submit" className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover">
+            <button
+              type="submit"
+              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+            >
               Enregistrer
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-full border border-line px-5 py-2.5 text-sm">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-full border border-line px-5 py-2.5 text-sm"
+            >
               Annuler
             </button>
           </div>
@@ -194,18 +250,34 @@ export function ClientsPage() {
                   )}
                 </td>
                 <td className="hidden px-4 py-3 sm:table-cell">{c.ville}</td>
-                <td className="hidden px-4 py-3 md:table-cell">{c.nomContact || c.telephone}</td>
+                <td className="hidden px-4 py-3 md:table-cell">
+                  {c.nomContact || c.telephone}
+                </td>
                 <td className="px-4 py-3 text-right">
                   <button
                     type="button"
-                    title={`Envoyer vers ${plateforme} (Make)`}
-                    disabled={sendingId === c.id}
-                    onClick={() => void envoyerFacturation(c)}
-                    className="rounded-lg p-2 text-accent hover:bg-accent-soft disabled:opacity-50"
+                    title={`Copier et ouvrir ${plateforme}`}
+                    onClick={() => void copierEtOuvrir(c)}
+                    className="rounded-lg p-2 text-accent hover:bg-accent-soft"
                   >
-                    <FileSpreadsheet className="h-4 w-4" />
+                    <Copy className={`h-4 w-4 ${copiedId === c.id ? 'opacity-40' : ''}`} />
                   </button>
-                  <button type="button" onClick={() => startEdit(c)} className="rounded-lg p-2 text-accent hover:bg-accent-soft">
+                  {webhookConfigured && (
+                    <button
+                      type="button"
+                      title={`Make → ${plateforme} (expert)`}
+                      disabled={sendingId === c.id}
+                      onClick={() => void envoyerMake(c)}
+                      className="rounded-lg p-2 text-muted hover:bg-mist disabled:opacity-50"
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => startEdit(c)}
+                    className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                  >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
