@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileCheck2, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -6,6 +6,7 @@ import type { Chantier } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
+import { SearchField, matchesQuery } from '../components/SearchField'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 
 const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
@@ -31,6 +32,19 @@ export function ChantiersPage() {
   const [form, setForm] = useState(() => blank(data.clients[0]?.id || ''))
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+
+  const filteredChantiers = useMemo(() => {
+    return data.chantiers.filter((c) => {
+      const client = data.clients.find((cl) => cl.id === c.clientId)
+      return matchesQuery(
+        [c.nom, c.ville, c.fluideType, c.equipementMarque, c.equipementModele, client?.raisonSociale]
+          .filter(Boolean)
+          .join(' '),
+        q,
+      )
+    })
+  }, [data.chantiers, data.clients, q])
 
   useEffect(() => {
     if (!open) return
@@ -72,6 +86,13 @@ export function ChantiersPage() {
           setForm(blank(data.clients[0]?.id || ''))
           setOpen(true)
         }}
+      />
+
+      <SearchField
+        value={q}
+        onChange={setQ}
+        placeholder="Rechercher un chantier, client, fluide…"
+        testId="chantiers-search"
       />
 
       {open && (
@@ -144,7 +165,7 @@ export function ChantiersPage() {
       )}
 
       <div className="grid gap-3">
-        {data.chantiers.map((c) => {
+        {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
           const linked = [...data.interventions]
             .filter((i) => i.chantierId === c.id)
@@ -214,9 +235,11 @@ export function ChantiersPage() {
             </div>
           )
         })}
-        {data.chantiers.length === 0 && (
+        {filteredChantiers.length === 0 && (
           <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-muted">
-            Aucun chantier. Créez d’abord un client, puis un équipement.
+            {data.chantiers.length === 0
+              ? 'Aucun chantier. Créez d’abord un client, puis un équipement.'
+              : 'Aucun résultat pour cette recherche.'}
           </p>
         )}
       </div>

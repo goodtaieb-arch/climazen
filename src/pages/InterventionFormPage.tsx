@@ -1,6 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Eye, FileCheck2, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, FileCheck2, Plus, Save, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -27,6 +27,14 @@ import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
+
+const CERFA_STEPS = [
+  { id: 'chantier', label: 'Chantier' },
+  { id: 'nature', label: 'Nature' },
+  { id: 'controles', label: 'Contrôles' },
+  { id: 'fluide', label: 'Fluide' },
+  { id: 'signatures', label: 'Signatures' },
+] as const
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -147,6 +155,7 @@ export function InterventionFormPage() {
   )
   const [status, setStatus] = useState<CerfaDraft['status']>(existing?.status || 'brouillon')
   const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState(0)
   const [savedMsg, setSavedMsg] = useState('')
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [hasPdf, setHasPdf] = useState(!!existing?.hasCerfaPdf)
@@ -552,6 +561,49 @@ export function InterventionFormPage() {
       )}
 
       <form onSubmit={onSubmit} className="space-y-5">
+        <div className="rounded-2xl border border-line bg-white p-3 sm:p-4">
+          <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted">
+            <span>
+              Étape {step + 1} / {CERFA_STEPS.length}
+            </span>
+            <span className="font-medium text-slate">{CERFA_STEPS[step]?.label}</span>
+          </div>
+          <div className="flex gap-1">
+            {CERFA_STEPS.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStep(i)}
+                className={[
+                  'h-1.5 flex-1 rounded-full transition-colors',
+                  i <= step ? 'bg-accent' : 'bg-mist',
+                ].join(' ')}
+                aria-label={s.label}
+              />
+            ))}
+          </div>
+          <div className="mt-3 hidden flex-wrap gap-1 sm:flex">
+            {CERFA_STEPS.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStep(i)}
+                className={[
+                  'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  i === step
+                    ? 'bg-accent text-ink'
+                    : i < step
+                      ? 'bg-accent-soft text-slate'
+                      : 'bg-mist text-muted',
+                ].join(' ')}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={step === 0 ? 'space-y-5' : 'hidden'}>
         <Section title="[3] Chantier & équipement (auto)">
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Chantier *</span>
@@ -642,7 +694,9 @@ export function InterventionFormPage() {
             </Link>
           </p>
         </Section>
+        </div>
 
+        <div className={step === 1 ? 'space-y-5' : 'hidden'}>
         <Section title="[4] Nature de l’intervention">
           <div className="grid gap-2 sm:grid-cols-2">
             {ALL_NATURES.map((n) => (
@@ -693,7 +747,9 @@ export function InterventionFormPage() {
             )}
           </Section>
         )}
+        </div>
 
+        <div className={step === 2 ? 'space-y-5' : 'hidden'}>
         <Section title={detectionPermanente ? '[9] Avec détection permanente' : '[8] Sans détection permanente'}>
           <p
             className={[
@@ -807,7 +863,9 @@ export function InterventionFormPage() {
             </div>
           )}
         </Section>
+        </div>
 
+        <div className={step === 3 ? 'space-y-5' : 'hidden'}>
         <Section title="[11] Manipulation fluide (depuis stock)">
           <div className="space-y-3">
             {manips.map((m, idx) => {
@@ -946,7 +1004,9 @@ export function InterventionFormPage() {
             />
           </div>
         </Section>
+        </div>
 
+        <div className={step === 4 ? 'space-y-5' : 'hidden'}>
         <Section title="[14] Observations & signatures">
           <Field label="Observations" value={observations} onChange={setObservations} />
 
@@ -1015,22 +1075,49 @@ export function InterventionFormPage() {
           </label>
         </Section>
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60"
-        >
-          <Save className="h-4 w-4" />
-          {busy
-            ? 'Génération…'
-            : hasPdf
-              ? 'Régénérer le CERFA'
-              : 'Enregistrer & générer le CERFA'}
-        </button>
-        <p className="text-xs text-muted">
-          En fin de travaux : vérifiez les signatures, puis appuyez ici pour (re)générer le PDF
-          officiel dans ClimaZEN.
-        </p>
+        {step === 4 && (
+          <>
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60"
+            >
+              <Save className="h-4 w-4" />
+              {busy
+                ? 'Génération…'
+                : hasPdf
+                  ? 'Régénérer le CERFA'
+                  : 'Enregistrer & générer le CERFA'}
+            </button>
+            <p className="text-xs text-muted">
+              En fin de travaux : vérifiez les signatures, puis appuyez ici pour (re)générer le PDF
+              officiel dans ClimaZEN.
+            </p>
+          </>
+        )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <button
+            type="button"
+            disabled={step === 0}
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+          >
+            <ArrowLeft className="h-4 w-4" /> Précédent
+          </button>
+          {step < CERFA_STEPS.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep((s) => Math.min(CERFA_STEPS.length - 1, s + 1))}
+              className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-ink hover:bg-accent-hover"
+            >
+              Suivant <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="text-xs text-muted">Dernière étape — générez le CERFA</span>
+          )}
+        </div>
       </form>
 
       {pdfUrl && (

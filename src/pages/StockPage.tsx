@@ -13,6 +13,7 @@ import { Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
+import { SearchField, matchesQuery } from '../components/SearchField'
 import { findFluide, formatGwp } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { mouvementsForBottle } from '../lib/stockMouvements'
@@ -58,14 +59,33 @@ export function StockPage() {
     bonRetourFournisseur: '',
     bonRetourNotes: '',
   })
+  const [q, setQ] = useState('')
 
   const actifStock = useMemo(
-    () => data.stock.filter((s) => !isBouteilleRetournee(s)),
-    [data.stock],
+    () =>
+      data.stock.filter(
+        (s) =>
+          !isBouteilleRetournee(s) &&
+          matchesQuery(
+            [s.fluide, s.numeroContenant, s.contenantType, s.bsffReference, s.codeUn, s.notes]
+              .filter(Boolean)
+              .join(' '),
+            q,
+          ),
+      ),
+    [data.stock, q],
   )
   const retournees = useMemo(
-    () => data.stock.filter((s) => isBouteilleRetournee(s)),
-    [data.stock],
+    () =>
+      data.stock.filter(
+        (s) =>
+          isBouteilleRetournee(s) &&
+          matchesQuery(
+            [s.fluide, s.numeroContenant, s.contenantType, s.bsffReference].filter(Boolean).join(' '),
+            q,
+          ),
+      ),
+    [data.stock, q],
   )
 
   const groups = useMemo(() => {
@@ -152,6 +172,13 @@ export function StockPage() {
           setForm(blank())
           setOpen(true)
         }}
+      />
+
+      <SearchField
+        value={q}
+        onChange={setQ}
+        placeholder="Rechercher fluide, n° bouteille, BSFF…"
+        testId="stock-search"
       />
 
       {open && (

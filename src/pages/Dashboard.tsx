@@ -1,12 +1,74 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ClipboardList, MapPin, Package, Plus } from 'lucide-react'
+import { Building2, CheckCircle2, ClipboardList, MapPin, Package, Plus, X } from 'lucide-react'
 import { useStore } from '../lib/store'
+
+const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
 export function Dashboard() {
   const { data } = useStore()
   const actifs = data.chantiers.filter((c) => c.statut === 'actif').length
   const stockKg = data.stock.reduce((s, i) => s + i.quantiteKg, 0)
   const brouillons = data.interventions.filter((i) => i.status === 'brouillon').length
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
+  const steps = [
+    {
+      id: 'client',
+      done: data.clients.length > 0,
+      label: 'Ajouter un client / détenteur',
+      to: '/app/clients',
+      icon: Building2,
+    },
+    {
+      id: 'chantier',
+      done: data.chantiers.length > 0,
+      label: 'Créer un chantier / équipement',
+      to: '/app/chantiers',
+      icon: MapPin,
+    },
+    {
+      id: 'stock',
+      done: data.stock.length > 0,
+      label: 'Enregistrer une bouteille de stock',
+      to: '/app/stock',
+      icon: Package,
+    },
+    {
+      id: 'cerfa',
+      done: data.interventions.length > 0,
+      label: 'Créer une fiche CERFA',
+      to: '/app/interventions/new',
+      icon: ClipboardList,
+    },
+  ]
+  const allDone = steps.every((s) => s.done)
+  const progress = steps.filter((s) => s.done).length
+
+  useEffect(() => {
+    if (allDone) {
+      setShowOnboarding(false)
+      return
+    }
+    try {
+      if (localStorage.getItem(ONBOARDING_KEY) === '1') {
+        setShowOnboarding(false)
+        return
+      }
+    } catch {
+      /* ignore */
+    }
+    setShowOnboarding(true)
+  }, [allDone])
+
+  const dismissOnboarding = () => {
+    try {
+      localStorage.setItem(ONBOARDING_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+    setShowOnboarding(false)
+  }
 
   return (
     <div className="space-y-8">
@@ -24,6 +86,51 @@ export function Dashboard() {
           <Plus className="h-4 w-4" /> Nouvelle intervention
         </Link>
       </div>
+
+      {showOnboarding && (
+        <section className="rounded-2xl border border-accent/30 bg-accent-soft/50 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-slate">
+                Premiers pas ({progress}/{steps.length})
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Client → Chantier → Stock → CERFA — pour être opérationnel rapidement.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={dismissOnboarding}
+              className="rounded-lg p-1.5 text-muted hover:bg-white/70"
+              aria-label="Masquer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+            {steps.map(({ id, done, label, to, icon: Icon }) => (
+              <li key={id}>
+                <Link
+                  to={to}
+                  className={[
+                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-sm transition-colors',
+                    done
+                      ? 'border-accent/20 bg-white/70 text-muted'
+                      : 'border-line bg-white hover:border-accent/40',
+                  ].join(' ')}
+                >
+                  {done ? (
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" />
+                  ) : (
+                    <Icon className="h-5 w-5 shrink-0 text-accent" />
+                  )}
+                  <span className={done ? 'line-through' : 'font-medium'}>{label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={Building2} label="Clients" value={String(data.clients.length)} to="/app/clients" />

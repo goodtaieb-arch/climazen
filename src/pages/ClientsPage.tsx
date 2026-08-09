@@ -1,7 +1,8 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useMemo, useState } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import type { Client } from '../lib/types'
+import { SearchField, matchesQuery } from '../components/SearchField'
 
 const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   raisonSociale: '',
@@ -19,6 +20,18 @@ export function ClientsPage() {
   const [form, setForm] = useState(blank())
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+
+  const filtered = useMemo(
+    () =>
+      data.clients.filter((c) =>
+        matchesQuery(
+          [c.raisonSociale, c.nomContact, c.ville, c.telephone, c.email, c.adresse].join(' '),
+          q,
+        ),
+      ),
+    [data.clients, q],
+  )
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -55,6 +68,13 @@ export function ClientsPage() {
         }}
       />
 
+      <SearchField
+        value={q}
+        onChange={setQ}
+        placeholder="Rechercher un client, ville, téléphone…"
+        testId="clients-search"
+      />
+
       {open && (
         <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2">
           <Field label="Raison sociale *" value={form.raisonSociale} onChange={(v) => setForm({ ...form, raisonSociale: v })} required />
@@ -86,7 +106,7 @@ export function ClientsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {data.clients.map((c) => (
+            {filtered.map((c) => (
               <tr key={c.id}>
                 <td className="px-4 py-3">
                   <div className="font-medium">{c.raisonSociale}</div>
@@ -110,10 +130,12 @@ export function ClientsPage() {
                 </td>
               </tr>
             ))}
-            {data.clients.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-muted">
-                  Aucun client — ajoutez un détenteur.
+                  {data.clients.length === 0
+                    ? 'Aucun client — ajoutez un détenteur.'
+                    : 'Aucun résultat pour cette recherche.'}
                 </td>
               </tr>
             )}
