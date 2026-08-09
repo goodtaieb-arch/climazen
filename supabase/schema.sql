@@ -58,8 +58,9 @@ language sql
 stable
 security definer
 set search_path = public
+set row_security = off
 as $$
-  select organization_id from public.profiles where id = auth.uid()
+  select organization_id from public.profiles where id = auth.uid() limit 1
 $$;
 
 create or replace function public.current_role()
@@ -68,8 +69,9 @@ language sql
 stable
 security definer
 set search_path = public
+set row_security = off
 as $$
-  select role from public.profiles where id = auth.uid()
+  select role from public.profiles where id = auth.uid() limit 1
 $$;
 
 create or replace function public.is_org_owner()
@@ -78,6 +80,7 @@ language sql
 stable
 security definer
 set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1 from public.profiles

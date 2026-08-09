@@ -2,6 +2,7 @@
 
 import type { AppData } from './types'
 import { emptyData } from './storage'
+import { migrateAppData } from './migrate'
 import { getSupabase } from './supabase'
 
 export type UserRole = 'owner' | 'operateur'
@@ -282,14 +283,22 @@ export async function createOperatorAccount(opts: {
 
 export async function listOrgUsers(organizationId: string): Promise<UserAccount[]> {
   const sb = getSupabase()
+  // Pas de signature_image : personnelle, invisible pour l’admin / collègues
   const { data, error } = await sb
     .from('profiles')
-    .select('*')
+    .select(
+      'id, organization_id, email, username, full_name, role, active, signataire_nom, signataire_qualite, created_at',
+    )
     .eq('organization_id', organizationId)
     .order('role', { ascending: true })
   if (error) throw new Error(error.message)
   return (data || [])
-    .map(mapProfile)
+    .map((row) =>
+      mapProfile({
+        ...row,
+        signature_image: null,
+      }),
+    )
     .sort((a, b) => {
       if (a.role === b.role) return a.fullName.localeCompare(b.fullName)
       return a.role === 'owner' ? -1 : 1
@@ -316,6 +325,12 @@ export async function updateUserProfile(
   patch: Partial<Pick<UserAccount, 'fullName' | 'signataireNom' | 'signataireQualite' | 'signatureImage'>>,
 ): Promise<UserAccount> {
   const sb = getSupabase()
+  const {
+    data: { user: authUser },
+  } = await sb.auth.getUser()
+  if (!authUser || authUser.id !== userId) {
+    throw new Error('Vous ne pouvez modifier que votre propre signature / profil.')
+  }
   const row: Record<string, string | undefined> = {}
   if (patch.fullName !== undefined) row.full_name = patch.fullName
   if (patch.signataireNom !== undefined) row.signataire_nom = patch.signataireNom
@@ -454,7 +469,7 @@ export function normalizeAppData(raw: unknown): AppData {
     ...s,
     quantiteInitialeKg: s.quantiteInitialeKg ?? s.quantiteKg,
   }))
-  return {
+  return migrateAppData({
     ...base,
     ...parsed,
     operateur: parsed.operateur || base.operateur,
@@ -463,7 +478,8 @@ export function normalizeAppData(raw: unknown): AppData {
     interventions: parsed.interventions || [],
     clients: parsed.clients || [],
     chantiers: parsed.chantiers || [],
-  }
+    detecteurs: parsed.detecteurs,
+  })
 }
 
 /** Données locales encore présentes sur cet appareil (avant migration cloud). */

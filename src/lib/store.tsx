@@ -12,9 +12,11 @@ import { v4 as uuid } from 'uuid'
 import type {
   AppData,
   CerfaDraft,
-  Chantier,
   Client,
+  DetecteurManuel,
+  Equipement,
   Operateur,
+  Site,
   StockItem,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
@@ -33,8 +35,15 @@ type Store = {
   setOperateur: (o: Operateur) => void
   upsertClient: (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => string
   deleteClient: (id: string) => void
-  upsertChantier: (c: Omit<Chantier, 'id' | 'createdAt'> & { id?: string }) => string
+  upsertChantier: (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => string
   deleteChantier: (id: string) => void
+  /** Enregistre la signature client sur le site et l’applique à tous les CERFA du site */
+  applySiteClientSignature: (opts: {
+    siteId: string
+    signatureDetenteur: string
+    signatureDetenteurQualite: string
+    signatureDetenteurImage: string
+  }) => number
   upsertStock: (s: Omit<StockItem, 'id' | 'updatedAt'> & { id?: string }) => string
   deleteStock: (id: string) => void
   enregistrerRetourConsigneBouteille: (opts: {
@@ -53,6 +62,10 @@ type Store = {
     opts?: { createdByName?: string },
   ) => string
   deleteIntervention: (id: string) => void
+  upsertDetecteur: (
+    d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
+  ) => string
+  deleteDetecteur: (id: string) => void
   resetDemo: () => void
   /** Remplace les données cloud par un payload (import local). */
   replaceData: (next: AppData) => Promise<void>
@@ -141,8 +154,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const setOperateur = useCallback((o: Operateur) => {
+    if (user?.role !== 'owner') {
+      console.warn('ClimaZEN: seul l’administrateur peut modifier les infos société.')
+      return
+    }
     setData((d) => ({ ...d, operateur: o }))
-  }, [])
+  }, [user?.role])
 
   const upsertClient = useCallback(
     (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => {
@@ -153,6 +170,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...c,
           id,
           createdAt: existing?.createdAt ?? new Date().toISOString(),
+          createdByUserId: existing?.createdByUserId || c.createdByUserId,
+          createdByName: existing?.createdByName || c.createdByName,
         }
         return {
           ...d,
@@ -175,14 +194,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const upsertChantier = useCallback(
-    (c: Omit<Chantier, 'id' | 'createdAt'> & { id?: string }) => {
+    (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => {
       const id = c.id ?? uuid()
       setData((d) => {
         const existing = d.chantiers.find((x) => x.id === id)
-        const next: Chantier = {
+        const equipements: Equipement[] =
+          Array.isArray(c.equipements) && c.equipements.length > 0
+            ? c.equipements.map((e) => ({
+                ...e,
+                id: e.id || uuid(),
+                nom: e.nom || e.type || 'Équipement',
+              }))
+            : existing?.equipements?.length
+              ? existing.equipements
+              : [
+                  {
+                    id: uuid(),
+                    nom: 'Équipement 1',
+                    type: '',
+                    marque: '',
+                    modele: '',
+                    numeroSerie: '',
+                    fluideType: '',
+                    chargeNominaleKg: 0,
+                    detectionPermanente: false,
+                  },
+                ]
+        const next: Site = {
           ...c,
           id,
+          equipements,
           createdAt: existing?.createdAt ?? new Date().toISOString(),
+          createdByUserId: existing?.createdByUserId || c.createdByUserId,
+          createdByName: existing?.createdByName || c.createdByName,
+          signatureDetenteurNom: c.signatureDetenteurNom ?? existing?.signatureDetenteurNom,
+          signatureDetenteurQualite:
+            c.signatureDetenteurQualite ?? existing?.signatureDetenteurQualite,
+          signatureDetenteurImage: c.signatureDetenteurImage ?? existing?.signatureDetenteurImage,
+          signatureDetenteurAt: c.signatureDetenteurAt ?? existing?.signatureDetenteurAt,
         }
         return {
           ...d,
@@ -202,6 +251,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       chantiers: d.chantiers.filter((c) => c.id !== id),
     }))
   }, [])
+
+  const applySiteClientSignature = useCallback(
+    (opts: {
+      siteId: string
+      signatureDetenteur: string
+      signatureDetenteurQualite: string
+      signatureDetenteurImage: string
+    }) => {
+      const now = new Date().toISOString()
+      let count = 0
+      setData((d) => {
+        const site = d.chantiers.find((s) => s.id === opts.siteId)
+        if (!site) return d
+        const sites = d.chantiers.map((s) =>
+          s.id === opts.siteId
+            ? {
+                ...s,
+                signatureDetenteurNom: opts.signatureDetenteur,
+                signatureDetenteurQualite: opts.signatureDetenteurQualite,
+                signatureDetenteurImage: opts.signatureDetenteurImage,
+                signatureDetenteurAt: now,
+              }
+            : s,
+        )
+        const interventions = d.interventions.map((i) => {
+          if (i.chantierId !== opts.siteId) return i
+          count += 1
+          return {
+            ...i,
+            signatureDetenteur: opts.signatureDetenteur,
+            signatureDetenteurQualite: opts.signatureDetenteurQualite,
+            signatureDetenteurImage: opts.signatureDetenteurImage,
+            updatedAt: now,
+          }
+        })
+        return { ...d, chantiers: sites, interventions }
+      })
+      return count
+    },
+    [],
+  )
 
   const upsertStock = useCallback(
     (s: Omit<StockItem, 'id' | 'updatedAt'> & { id?: string }) => {
@@ -333,6 +423,76 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [orgId],
   )
 
+  const upsertDetecteur = useCallback(
+    (d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string }) => {
+      const id = d.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((prev) => {
+        const list = prev.detecteurs || []
+        const existing = list.find((x) => x.id === id)
+        let nextList: DetecteurManuel[]
+        const next: DetecteurManuel = {
+          id,
+          identification: d.identification.trim(),
+          controleDate: d.controleDate || '',
+          assigneeUserId: d.assigneeUserId || undefined,
+          assigneeName: d.assigneeName || undefined,
+          notes: d.notes || undefined,
+          updatedAt: now,
+        }
+        // Un technicien = un détecteur max
+        if (next.assigneeUserId) {
+          nextList = list.map((x) =>
+            x.assigneeUserId === next.assigneeUserId && x.id !== id
+              ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
+              : x,
+          )
+        } else {
+          nextList = [...list]
+        }
+        if (existing) {
+          nextList = nextList.map((x) => (x.id === id ? next : x))
+        } else {
+          nextList = [...nextList.filter((x) => x.id !== id), next]
+        }
+        const unassigned = nextList.find((x) => !x.assigneeUserId)
+        return {
+          ...prev,
+          detecteurs: nextList,
+          operateur: {
+            ...prev.operateur,
+            detecteurIdentification:
+              unassigned?.identification ||
+              nextList[0]?.identification ||
+              prev.operateur.detecteurIdentification,
+            detecteurControleDate:
+              unassigned?.controleDate ||
+              nextList[0]?.controleDate ||
+              prev.operateur.detecteurControleDate,
+          },
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteDetecteur = useCallback((id: string) => {
+    setData((prev) => {
+      const nextList = (prev.detecteurs || []).filter((x) => x.id !== id)
+      const unassigned = nextList.find((x) => !x.assigneeUserId)
+      return {
+        ...prev,
+        detecteurs: nextList,
+        operateur: {
+          ...prev.operateur,
+          detecteurIdentification: unassigned?.identification || nextList[0]?.identification || '',
+          detecteurControleDate: unassigned?.controleDate || nextList[0]?.controleDate || '',
+        },
+      }
+    })
+  }, [])
+
   const resetDemo = useCallback(() => {
     if (!orgId) return
     const demo = seedDemoData()
@@ -352,12 +512,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteClient,
       upsertChantier,
       deleteChantier,
+      applySiteClientSignature,
       upsertStock,
       deleteStock,
       enregistrerRetourConsigneBouteille,
       upsertIntervention,
       saveInterventionWithStock,
       deleteIntervention,
+      upsertDetecteur,
+      deleteDetecteur,
       resetDemo,
       replaceData,
     }),
@@ -370,12 +533,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteClient,
       upsertChantier,
       deleteChantier,
+      applySiteClientSignature,
       upsertStock,
       deleteStock,
       enregistrerRetourConsigneBouteille,
       upsertIntervention,
       saveInterventionWithStock,
       deleteIntervention,
+      upsertDetecteur,
+      deleteDetecteur,
       resetDemo,
       replaceData,
     ],

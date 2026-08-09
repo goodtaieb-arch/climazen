@@ -14,6 +14,7 @@ import { StockPage } from './pages/StockPage'
 import { InterventionsPage } from './pages/InterventionsPage'
 import { InterventionFormPage } from './pages/InterventionFormPage'
 import { OperateurPage } from './pages/OperateurPage'
+import { ProfilPage } from './pages/ProfilPage'
 import { EquipePage } from './pages/EquipePage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="interventions/:id" element={<InterventionFormPage />} />
               <Route path="equipe" element={<EquipePage />} />
               <Route path="operateur" element={<OperateurPage />} />
+              <Route path="profil" element={<ProfilPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import type { AppData, CerfaDraft, Equipement, Site } from './types'
+import type { AppData, CerfaDraft, DetecteurManuel, Equipement, Site } from './types'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
 type LegacyChantier = {
@@ -106,12 +106,39 @@ export function migrateIntervention(raw: CerfaDraft & { equipementId?: string },
   }
 }
 
+function migrateDetecteurs(data: AppData): DetecteurManuel[] {
+  const raw = Array.isArray(data.detecteurs) ? data.detecteurs : []
+  if (raw.length > 0) {
+    return raw.map((d) => ({
+      id: d.id || crypto.randomUUID(),
+      identification: (d.identification || '').trim(),
+      controleDate: d.controleDate || '',
+      assigneeUserId: d.assigneeUserId || undefined,
+      assigneeName: d.assigneeName || undefined,
+      notes: d.notes || undefined,
+      updatedAt: d.updatedAt || new Date().toISOString(),
+    }))
+  }
+  const id = data.operateur?.detecteurIdentification?.trim()
+  if (!id) return []
+  return [
+    {
+      id: crypto.randomUUID(),
+      identification: id,
+      controleDate: data.operateur.detecteurControleDate || '',
+      updatedAt: new Date().toISOString(),
+    },
+  ]
+}
+
 export function migrateAppData(data: AppData): AppData {
   const sites = (data.chantiers || []).map((c) => migrateSite(c as unknown as LegacyChantier))
   const interventions = (data.interventions || []).map((i) => migrateIntervention(i, sites))
+  const detecteurs = migrateDetecteurs(data)
   return {
     ...data,
     chantiers: sites,
     interventions,
+    detecteurs,
   }
 }

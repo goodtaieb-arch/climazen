@@ -4,6 +4,7 @@ import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
+import { useStore } from '../lib/store'
 
 export function EquipePage() {
   const {
@@ -15,6 +16,10 @@ export function EquipePage() {
     resetOperatorPassword,
     listTeam,
   } = useAuth()
+  const { data } = useStore()
+  const detecteurs = data.detecteurs || []
+  const detectorFor = (userId: string) =>
+    detecteurs.find((d) => d.assigneeUserId === userId)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState(() => generateTempPassword())
@@ -83,8 +88,21 @@ export function EquipePage() {
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">Équipe / Opérateurs</h1>
         <p className="mt-1 text-muted">
-          Société <strong>{organization?.name}</strong> — connexion par e-mail (cloud Supabase).
+          Société <strong>{organization?.name}</strong> — l’administrateur crée les accès employés.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5 text-sm text-slate">
+        <div className="font-display text-base font-semibold text-ink">Grande entreprise — coffre partagé</div>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Chaque employé se connecte avec l’e-mail / mot de passe que vous créez ici.</li>
+          <li>
+            Clients, travaux et CERFA saisis par n’importe qui sont <strong>visibles par toute l’équipe</strong>.
+          </li>
+          <li>
+            Tout est stocké sur le <strong>compte société</strong> (employeur) — pas sur un téléphone isolé.
+          </li>
+        </ul>
       </div>
 
       {createdCodes && (
@@ -174,6 +192,12 @@ export function EquipePage() {
                 <div className="text-xs text-muted">
                   {m.role === 'owner' ? 'Compte officiel société' : 'Opérateur'}
                   {m.active === false ? ' · désactivé' : ''}
+                  {(() => {
+                    const det = detectorFor(m.id)
+                    return det
+                      ? ` · détecteur ${det.identification}`
+                      : ' · aucun détecteur attribué'
+                  })()}
                 </div>
               </div>
               {m.role === 'operateur' && m.id !== user?.id && (

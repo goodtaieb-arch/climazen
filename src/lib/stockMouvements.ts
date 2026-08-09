@@ -84,6 +84,7 @@ export function applyStockFromIntervention(
           cerfaLabel: label,
           createdByName: opts?.createdByName,
           date,
+          kind: 'cerfa',
         }),
       )
     } else {
@@ -100,6 +101,7 @@ export function applyStockFromIntervention(
           cerfaLabel: label,
           createdByName: opts?.createdByName,
           date,
+          kind: 'cerfa',
         }),
       )
     }
@@ -114,10 +116,15 @@ function makeMouvement(opts: {
   quantiteKg: number
   quantiteAvantKg: number
   quantiteApresKg: number
-  interventionId: string
+  interventionId?: string
   cerfaLabel: string
   createdByName?: string
   date: string
+  kind?: StockMouvement['kind']
+  note?: string
+  bonRetourReference?: string
+  tiersNom?: string
+  documentReference?: string
 }): StockMouvement {
   return {
     id: uuid(),
@@ -132,6 +139,11 @@ function makeMouvement(opts: {
     interventionId: opts.interventionId,
     cerfaLabel: opts.cerfaLabel,
     createdByName: opts.createdByName,
+    kind: opts.kind ?? (opts.interventionId ? 'cerfa' : undefined),
+    note: opts.note,
+    bonRetourReference: opts.bonRetourReference,
+    tiersNom: opts.tiersNom,
+    documentReference: opts.documentReference,
   }
 }
 
@@ -221,6 +233,8 @@ export function enregistrerRetourConsigne(
     createdByName: opts.createdByName,
     kind: 'retour_consigne',
     bonRetourReference: ref,
+    tiersNom: opts.bonRetourFournisseur?.trim() || undefined,
+    documentReference: ref,
     note: [
       'Retour consigne / emballage réutilisable vide',
       opts.bonRetourFournisseur?.trim() ? `Fournisseur : ${opts.bonRetourFournisseur.trim()}` : '',
@@ -234,6 +248,152 @@ export function enregistrerRetourConsigne(
   return {
     ...data,
     stock,
+    stockMouvements: [...(data.stockMouvements || []), mouvement],
+  }
+}
+
+/**
+ * Entrée de fluide neuf (achat / BL fournisseur) — bouteille vierge ou régénérée.
+ * Crée la bouteille et un mouvement `achat` daté précisément.
+ */
+export function enregistrerAchat(
+  data: AppData,
+  opts: {
+    fluide: string
+    contenantType?: ContenantType
+    numeroContenant: string
+    quantiteKg: number
+    date: string
+    fournisseur?: string
+    documentReference?: string
+    bsffReference?: string
+    codeUn?: string
+    denominationAdr?: string
+    notes?: string
+    createdByName?: string
+  },
+): AppData {
+  const numero = opts.numeroContenant.trim()
+  if (!numero) throw new Error('N° de bouteille obligatoire.')
+  const qty = roundKg(Number(opts.quantiteKg) || 0)
+  if (qty <= 0) throw new Error('Quantité achetée (kg) obligatoire.')
+  const type = opts.contenantType || 'vierge'
+  if (type === 'recuperation') {
+    throw new Error('Un achat concerne une bouteille neuve (vierge) ou régénérée, pas récupération.')
+  }
+  if (data.stock.some((s) => s.numeroContenant.trim().toLowerCase() === numero.toLowerCase())) {
+    throw new Error(`Une bouteille ${numero} existe déjà dans le stock.`)
+  }
+
+  const now = new Date().toISOString()
+  const date = opts.date || now.slice(0, 10)
+  const item: StockItem = {
+    id: uuid(),
+    fluide: opts.fluide.trim(),
+    contenantType: type,
+    numeroContenant: numero,
+    quantiteKg: qty,
+    quantiteInitialeKg: qty,
+    bsffReference: opts.bsffReference?.trim() || undefined,
+    codeUn: opts.codeUn?.trim() || undefined,
+    denominationAdr: opts.denominationAdr?.trim() || undefined,
+    notes: opts.notes?.trim() || undefined,
+    updatedAt: now,
+  }
+
+  const ref = opts.documentReference?.trim()
+  const fournisseur = opts.fournisseur?.trim()
+  const mouvement = makeMouvement({
+    item,
+    sens: 'entree',
+    quantiteKg: qty,
+    quantiteAvantKg: 0,
+    quantiteApresKg: qty,
+    date,
+    cerfaLabel: ref ? `ACHAT-${ref}` : `ACHAT-${date}-${numero}`,
+    createdByName: opts.createdByName,
+    kind: 'achat',
+    tiersNom: fournisseur,
+    documentReference: ref,
+    note: [
+      'Achat fluide neuf',
+      fournisseur ? `Fournisseur : ${fournisseur}` : '',
+      ref ? `BL / doc. : ${ref}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  })
+
+  return {
+    ...data,
+    stock: [...data.stock, item],
+    stockMouvements: [...(data.stockMouvements || []), mouvement],
+  }
+}
+
+/**
+ * Destruction / remise à une installation agréée (fluide usagé / récupéré).
+ * Sortie stock avec date précise + traçabilité (BSFF, centre).
+ */
+export function enregistrerDestruction(
+  data: AppData,
+  opts: {
+    stockItemId: string
+    quantiteKg: number
+    date: string
+    centreDestruction?: string
+    documentReference?: string
+    notes?: string
+    createdByName?: string
+  },
+): AppData {
+  const idx = data.stock.findIndex((s) => s.id === opts.stockItemId)
+  if (idx < 0) throw new Error('Bouteille introuvable.')
+  const item = data.stock[idx]
+  const qty = roundKg(Number(opts.quantiteKg) || 0)
+  if (qty <= 0) throw new Error('Quantité à détruire (kg) obligatoire.')
+  if (qty > item.quantiteKg + 1e-9) {
+    throw new Error(`Stock insuffisant : reste ${item.quantiteKg} kg.`)
+  }
+
+  const now = new Date().toISOString()
+  const date = opts.date || now.slice(0, 10)
+  const apres = roundKg(item.quantiteKg - qty)
+  const centre = opts.centreDestruction?.trim()
+  const ref = opts.documentReference?.trim() || item.bsffReference?.trim()
+
+  const nextItem: StockItem = {
+    ...item,
+    quantiteKg: apres,
+    updatedAt: now,
+    ...(ref && !item.bsffReference ? { bsffReference: ref } : {}),
+  }
+
+  const mouvement = makeMouvement({
+    item,
+    sens: 'sortie',
+    quantiteKg: qty,
+    quantiteAvantKg: item.quantiteKg,
+    quantiteApresKg: apres,
+    date,
+    cerfaLabel: ref ? `DEST-${ref}` : `DEST-${date}-${item.numeroContenant}`,
+    createdByName: opts.createdByName,
+    kind: 'destruction',
+    tiersNom: centre,
+    documentReference: ref,
+    note: [
+      'Destruction / traitement agréé',
+      centre ? `Centre : ${centre}` : '',
+      ref ? `BSFF / doc. : ${ref}` : '',
+      opts.notes?.trim() || '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  })
+
+  return {
+    ...data,
+    stock: data.stock.map((s, i) => (i === idx ? nextItem : s)),
     stockMouvements: [...(data.stockMouvements || []), mouvement],
   }
 }

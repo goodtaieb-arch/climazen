@@ -6,12 +6,14 @@ import {
   LogOut,
   MapPin,
   Package,
+  PenLine,
   Settings,
   Users,
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
 import { useAuth } from '../lib/AuthContext'
+import { useStore } from '../lib/store'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -91,13 +93,24 @@ const tones: Record<
   },
 }
 
-const baseLinks = [
+const baseLinksOwner = [
   { to: '/app', end: true, label: 'Tableau de bord', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+  { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
+]
+
+const baseLinksOperator = [
+  { to: '/app', end: true, label: 'Tableau de bord', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+  { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
+  { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
 ]
 
 const mobilePrimary = [
@@ -117,16 +130,11 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
 
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
+  const { syncError, data } = useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
-  const links = isOwner
-    ? [
-        ...baseLinks.slice(0, 5),
-        { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
-        ...baseLinks.slice(5),
-      ]
-    : baseLinks
+  const links = isOwner ? baseLinksOwner : baseLinksOperator
 
   const pageTone = toneForPath(pathname, links)
 
@@ -134,8 +142,10 @@ export function AppLayout() {
     void logout().then(() => navigate('/login'))
   }
 
-  const roleLabel = isOwner ? 'Compte officiel' : 'Opérateur'
-  const orgLabel = organization?.name || 'Société'
+  const roleLabel = isOwner ? 'Administrateur' : 'Employé'
+  const orgLabel = organization?.name || data.operateur.raisonSociale || 'Société'
+  const companyLogo = data.operateur.logoImage || null
+  const companyName = data.operateur.raisonSociale || organization?.name || ''
 
   return (
     <div
@@ -147,8 +157,7 @@ export function AppLayout() {
     >
       <aside className="hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
         <div className="border-b border-line px-4 py-5">
-          <BrandLogo size="sm" />
-          <div className="mt-2 px-0.5 text-xs text-muted">Terrain · CERFA 15497-04</div>
+          <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
         </div>
 
         <nav className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-4">
@@ -192,6 +201,9 @@ export function AppLayout() {
           <div className="truncate text-xs text-muted">
             {user?.fullName || user?.email} · {roleLabel}
           </div>
+          <div className="truncate text-[11px] text-muted/80">
+            Données partagées · compte société
+          </div>
           <div className="truncate text-[11px] text-muted/80">{user?.email || user?.username}</div>
           <button
             type="button"
@@ -213,7 +225,7 @@ export function AppLayout() {
           }}
         >
           <div className="min-w-0 lg:hidden">
-            <BrandLogo size="sm" />
+            <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
           </div>
           <div className="hidden min-w-0 lg:block">
             <div className="truncate text-sm font-medium text-ink">{orgLabel}</div>
@@ -223,11 +235,19 @@ export function AppLayout() {
           </div>
           <div className="flex items-center gap-2">
             <NavLink
-              to="/app/operateur"
+              to="/app/profil"
               className="rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white lg:hidden"
             >
-              Société
+              Signature
             </NavLink>
+            {isOwner && (
+              <NavLink
+                to="/app/operateur"
+                className="rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white lg:hidden"
+              >
+                Société
+              </NavLink>
+            )}
             {isOwner && (
               <NavLink
                 to="/app/equipe"
@@ -248,6 +268,12 @@ export function AppLayout() {
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
           <ImportLocalBanner />
+          {syncError && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">
+              Sync cloud impossible — les données ne partent pas vers le compte société pour le
+              moment. Vérifiez la connexion ({syncError}).
+            </div>
+          )}
           <Outlet />
         </div>
       </main>

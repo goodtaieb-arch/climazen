@@ -20,6 +20,7 @@ export function emptyData(): AppData {
     stock: [],
     stockMouvements: [],
     interventions: [],
+    detecteurs: [],
   }
 }
 
@@ -49,6 +50,7 @@ export function loadData(organizationId?: string | null): AppData {
       chantiers: parsed.chantiers || [],
       clients: parsed.clients || [],
       operateur: parsed.operateur || base.operateur,
+      detecteurs: parsed.detecteurs,
     })
   } catch {
     return emptyData()
@@ -90,6 +92,15 @@ export function seedDemoData(): AppData {
       detecteurIdentification: 'DET-SN-2024-0042',
       detecteurControleDate: new Date().toISOString().slice(0, 10),
     },
+    detecteurs: [
+      {
+        id: uuid(),
+        identification: 'DET-SN-2024-0042',
+        controleDate: new Date().toISOString().slice(0, 10),
+        notes: 'Détecteur démo',
+        updatedAt: now,
+      },
+    ],
     clients: [
       {
         id: clientId,

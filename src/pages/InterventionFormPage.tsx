@@ -25,6 +25,7 @@ import { LabelHint } from '../components/LabelHint'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideCode } from '../lib/fluides'
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
+import { detecteurForUser } from '../lib/detecteurs'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
@@ -73,10 +74,12 @@ export function InterventionFormPage() {
   const chantierQueryOk = data.chantiers.some((c) => c.id === chantierFromQuery)
 
   const defaultSignNom =
-    user?.signataireNom || user?.fullName || data.operateur.signataireNom || data.operateur.raisonSociale || ''
+    user?.signataireNom || user?.fullName || ''
   const defaultSignQualite =
-    user?.signataireQualite || data.operateur.signataireQualite || 'Opérateur attesté'
-  const defaultSignImage = user?.signatureImage || data.operateur.signatureImage || ''
+    user?.signataireQualite || (user?.role === 'owner' ? 'Responsable / gérant' : 'Opérateur attesté')
+  /** Signature perso uniquement (jamais celle « société ») */
+  const defaultSignImage = user?.signatureImage || ''
+  const monDetecteur = detecteurForUser(data, user?.id)
 
   const [chantierId, setChantierId] = useState(
     existing?.chantierId ||
@@ -112,10 +115,10 @@ export function InterventionFormPage() {
     existing?.fuite3Reparee === undefined ? null : !!existing.fuite3Reparee,
   )
   const [detecteurIdentification, setDetecteurIdentification] = useState(
-    existing?.detecteurIdentification || data.operateur.detecteurIdentification || '',
+    existing?.detecteurIdentification || monDetecteur?.identification || '',
   )
   const [detecteurControleDate, setDetecteurControleDate] = useState(
-    existing?.detecteurControleDate || data.operateur.detecteurControleDate || '',
+    existing?.detecteurControleDate || monDetecteur?.controleDate || '',
   )
   const [manips, setManips] = useState<ManipDraft[]>(() => {
     const fromExisting = (existing?.manipulations || []).filter((m) => m.stockItemId)
@@ -410,6 +413,23 @@ export function InterventionFormPage() {
       if (!ok) throw new Error('Enregistrement annulé.')
     }
 
+    if (!signatureOperateur.trim()) {
+      throw new Error('Signature opérateur : indiquez votre nom.')
+    }
+    if (!signatureOperateurImage) {
+      throw new Error(
+        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Ma signature », puis validez le CERFA.',
+      )
+    }
+    if (status === 'signe' || status === 'envoye') {
+      if (!signatureDetenteur.trim()) {
+        throw new Error('Pour valider (signé / envoyé) : nom du détenteur requis.')
+      }
+      if (!signatureDetenteurImage) {
+        throw new Error('Pour valider (signé / envoyé) : signature détenteur obligatoire.')
+      }
+    }
+
     if (ctrlPeriodique.obligatoire) {
       const per = periodiciteControle || ctrlPeriodique.periodeSuggeree
       if (!per) {
@@ -687,11 +707,18 @@ export function InterventionFormPage() {
 
         <Section title="[1] Opérateur (auto)">
           <p className="text-sm text-muted">
-            {data.operateur.raisonSociale || '—'} · Attestation {data.operateur.attestationNumero || '—'}{' '}
-            ·{' '}
-            <Link to="/app/operateur" className="font-medium text-accent">
-              Modifier
-            </Link>
+            {data.operateur.raisonSociale || '—'} · Attestation {data.operateur.attestationNumero || '—'}
+            {user?.role === 'owner' ? (
+              <>
+                {' '}
+                ·{' '}
+                <Link to="/app/operateur" className="font-medium text-accent">
+                  Modifier (admin)
+                </Link>
+              </>
+            ) : (
+              <span className="text-xs"> — géré par l’administrateur</span>
+            )}
           </p>
         </Section>
         </div>
@@ -717,6 +744,11 @@ export function InterventionFormPage() {
           <Section title="[5] Détecteur manuel de fuite">
             <p className="mb-3 text-sm text-muted">
               Identification (réf.) + date de contrôle — contrôle <strong>chaque année</strong>.
+              {monDetecteur?.assigneeName || monDetecteur?.assigneeUserId === user?.id
+                ? ' Prérempli depuis votre détecteur attribué.'
+                : monDetecteur
+                  ? ' Prérempli depuis le détecteur société (aucun détecteur nominatif).'
+                  : ''}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
@@ -1013,25 +1045,33 @@ export function InterventionFormPage() {
           <div className="mt-5 space-y-5">
             <div className="rounded-xl border border-line bg-mist/40 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-display text-sm font-semibold">Signature opérateur</h3>
-                <Link to="/app/operateur" className="text-xs font-medium text-accent hover:underline">
-                  Enregistrer ma signature dans Mon entreprise
+                <h3 className="font-display text-sm font-semibold">Signature opérateur *</h3>
+                <Link to="/app/profil" className="text-xs font-medium text-accent hover:underline">
+                  Enregistrer ma signature (espace perso)
                 </Link>
               </div>
+              {!user?.signatureImage && (
+                <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-danger">
+                  Aucune signature enregistrée sur votre compte — obligatoire pour générer / valider
+                  le CERFA.
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Nom" value={signatureOperateur} onChange={setSignatureOperateur} />
+                <Field label="Nom *" value={signatureOperateur} onChange={setSignatureOperateur} required />
                 <Field
-                  label="Qualité"
+                  label="Qualité *"
                   value={signatureOperateurQualite}
                   onChange={setSignatureOperateurQualite}
+                  required
                 />
               </div>
               <div className="mt-3">
                 <SignaturePad
-                  label="Signature (auto depuis Mon entreprise — modifiable)"
+                  label="Signature manuscrite opérateur *"
                   value={signatureOperateurImage}
                   onChange={setSignatureOperateurImage}
                   height={150}
+                  hint="Personnelle — préremplie depuis Ma signature."
                 />
               </div>
             </div>

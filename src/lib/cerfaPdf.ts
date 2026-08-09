@@ -285,12 +285,8 @@ export async function buildCerfaPdf(opts: {
   setText(form, '14_Observations', draft.observations || '')
 
   // Signatures — noms / qualités / dates (case « Date et signature »)
-  const opNom =
-    draft.signatureOperateur ||
-    draft.operateur.signataireNom ||
-    draft.operateur.raisonSociale
-  const opQual =
-    draft.signatureOperateurQualite || draft.operateur.signataireQualite || 'Opérateur attesté'
+  const opNom = draft.signatureOperateur || ''
+  const opQual = draft.signatureOperateurQualite || 'Opérateur attesté'
   const detNom = draft.signatureDetenteur || client.nomContact || client.raisonSociale
   const detQual = draft.signatureDetenteurQualite || 'Détenteur'
   const dateFr = formatDateFr(draft.dateIntervention)
@@ -353,7 +349,8 @@ export async function buildCerfaPdf(opts: {
   paintTinyField('Controle_Annee', ctrl.annee)
 
   // Signature manuscrite DANS la case « Date et signature », à droite de la date
-  const opImg = draft.signatureOperateurImage || draft.operateur.signatureImage
+  // Uniquement celle de la fiche (perso opérateur) — pas de fallback société
+  const opImg = draft.signatureOperateurImage
   const detImg = draft.signatureDetenteurImage
 
   const drawSigInDateBox = async (dataUrl: string | undefined, fieldName: string) => {

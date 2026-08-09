@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileCheck2, Pencil, Snowflake, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import type { Chantier, TypeTravaux } from '../lib/types'
 import { siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
@@ -35,6 +36,7 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
 
 export function ChantiersPage() {
   const { data, upsertChantier, deleteChantier } = useStore()
+  const { user } = useAuth()
   const [form, setForm] = useState(() => blank(data.clients[0]?.id || ''))
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -56,6 +58,7 @@ export function ChantiersPage() {
           client?.raisonSociale,
           typeLabel,
           c.detailTravaux,
+          c.createdByName,
           siteAvecFluideFrigorigene(c) ? 'fluide cerfa' : 'standard vmc',
         ]
           .filter(Boolean)
@@ -89,6 +92,10 @@ export function ChantiersPage() {
       detectionPermanente: fluide ? form.detectionPermanente : false,
       detailTravaux: form.detailTravaux?.trim() || '',
       id: editId ?? undefined,
+      createdByUserId: editId ? form.createdByUserId : user?.id,
+      createdByName: editId
+        ? form.createdByName
+        : user?.fullName || user?.email || user?.username,
     })
     setOpen(false)
     setEditId(null)
@@ -134,7 +141,7 @@ export function ChantiersPage() {
     <div className="space-y-6">
       <Header
         title="Travaux / équipements"
-        subtitle="Travaux standard (VMC…) ou équipement avec fluide frigorigène (CERFA)."
+        subtitle="Fiches partagées avec toute l’équipe — tout est enregistré sur le compte société (employeur)."
         onAdd={() => {
           setEditId(null)
           setForm(blank(data.clients[0]?.id || ''))
@@ -400,6 +407,7 @@ export function ChantiersPage() {
                           c.teqCO2 != null && c.teqCO2 > 0 ? ` · ${c.teqCO2} t eq. CO₂` : ''
                         }`
                       : ''}
+                    {c.createdByName ? ` · par ${c.createdByName}` : ''}
                   </div>
                   {(typeLabel || c.detailTravaux) && (
                     <div className="mt-1 text-sm text-ink">

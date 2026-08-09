@@ -60,7 +60,10 @@ export interface Operateur {
   attestationNumero: string
   telephone: string
   email: string
-  /** Détecteur manuel entreprise — cadre [5] Identification */
+  /**
+   * Fallback société (1 détecteur) — cadre [5].
+   * Préférer `AppData.detecteurs` avec attribution par technicien.
+   */
   detecteurIdentification?: string
   /** Date du dernier contrôle / étalonnage (annuel) — cadre [5] Contrôlé le */
   detecteurControleDate?: string
@@ -70,6 +73,8 @@ export interface Operateur {
   signataireQualite?: string
   /** Signature manuscrite PNG data URL — réutilisée automatiquement */
   signatureImage?: string
+  /** Logo société (data URL) — affiché à côté de ClimaZEN dans l’app */
+  logoImage?: string
   /**
    * Facturation externe via Make.com → Tiime, Pennylane, Sellsy…
    * Évite la double saisie client / devis / facture.
@@ -135,6 +140,9 @@ export interface Client {
   siret?: string
   notes?: string
   createdAt: string
+  /** Qui a enregistré le client (admin ou employé) — visible par toute l’équipe */
+  createdByUserId?: string
+  createdByName?: string
   /** Lien devis renvoyé par Make / plateforme */
   devisLien?: string
   /** Lien facture renvoyé par Make / plateforme */
@@ -199,6 +207,9 @@ export interface Site {
   statut: 'actif' | 'termine' | 'archive'
   notes?: string
   createdAt: string
+  /** Qui a créé le site / travaux — visible par toute l’équipe */
+  createdByUserId?: string
+  createdByName?: string
   /** Signature client réutilisable pour tous les CERFA du site */
   signatureDetenteurNom?: string
   signatureDetenteurQualite?: string
@@ -384,6 +395,21 @@ export interface CerfaDraft {
   updatedAt: string
 }
 
+/** Détecteur manuel de fuite — parc société, attribué à un technicien */
+export interface DetecteurManuel {
+  id: string
+  /** Identification / réf. (n° série, étiquette…) — CERFA cadre [5] */
+  identification: string
+  /** Date du dernier contrôle annuel */
+  controleDate: string
+  /** Compte utilisateur (opérateur) qui utilise ce détecteur */
+  assigneeUserId?: string
+  /** Nom affiché (copie au moment de l’attribution) */
+  assigneeName?: string
+  notes?: string
+  updatedAt: string
+}
+
 export interface AppData {
   operateur: Operateur
   clients: Client[]
@@ -393,6 +419,8 @@ export interface AppData {
   /** Historique des usages partiels liés aux CERFA */
   stockMouvements: StockMouvement[]
   interventions: CerfaDraft[]
+  /** Parc détecteurs manuels — un par technicien si plusieurs */
+  detecteurs?: DetecteurManuel[]
 }
 
 /** Libellé CERFA pour traçabilité stock */

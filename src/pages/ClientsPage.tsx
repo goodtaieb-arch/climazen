@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import { Copy, ExternalLink, FileSpreadsheet, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import type { Client, FacturationAction } from '../lib/types'
 import { FACTURATION_PLATEFORMES } from '../lib/types'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -25,6 +26,7 @@ const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
 
 export function ClientsPage() {
   const { data, upsertClient, deleteClient, setOperateur } = useStore()
+  const { user, isOwner } = useAuth()
   const [form, setForm] = useState(blank())
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -38,6 +40,7 @@ export function ClientsPage() {
   const webhookConfigured = Boolean(data.operateur.facturationWebhookUrl?.trim())
 
   const setPlateforme = (id: (typeof FACTURATION_PLATEFORMES)[number]['id']) => {
+    if (!isOwner) return
     setOperateur({ ...data.operateur, facturationPlateforme: id })
   }
 
@@ -45,7 +48,16 @@ export function ClientsPage() {
     () =>
       data.clients.filter((c) =>
         matchesQuery(
-          [c.raisonSociale, c.nomContact, c.ville, c.telephone, c.email, c.adresse, c.siret]
+          [
+            c.raisonSociale,
+            c.nomContact,
+            c.ville,
+            c.telephone,
+            c.email,
+            c.adresse,
+            c.siret,
+            c.createdByName,
+          ]
             .filter(Boolean)
             .join(' '),
           q,
@@ -56,7 +68,14 @@ export function ClientsPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    upsertClient({ ...form, id: editId ?? undefined })
+    upsertClient({
+      ...form,
+      id: editId ?? undefined,
+      createdByUserId: editId ? form.createdByUserId : user?.id,
+      createdByName: editId
+        ? form.createdByName
+        : user?.fullName || user?.email || user?.username,
+    })
     setForm(blank())
     setEditId(null)
     setOpen(false)
@@ -77,6 +96,8 @@ export function ClientsPage() {
       devisLien: c.devisLien,
       factureLien: c.factureLien,
       facturationSyncedAt: c.facturationSyncedAt,
+      createdByUserId: c.createdByUserId,
+      createdByName: c.createdByName,
     })
     setOpen(true)
   }
@@ -127,7 +148,7 @@ export function ClientsPage() {
     <div className="space-y-6">
       <Header
         title="Clients / détenteurs"
-        subtitle="Cadre [2] — copiez les infos et ouvrez Tiime (ou votre logiciel) sans tout retaper."
+        subtitle="Partagés dans toute l’entreprise — un client créé par un employé est visible par tous, stocké sur le compte société."
         onAdd={() => {
           setEditId(null)
           setForm(blank())
@@ -145,6 +166,7 @@ export function ClientsPage() {
           <span className="text-muted">Facturer avec</span>
           <select
             value={plateformeId}
+            disabled={!isOwner}
             onChange={(e) =>
               setPlateforme(e.target.value as (typeof FACTURATION_PLATEFORMES)[number]['id'])
             }
@@ -246,6 +268,9 @@ export function ClientsPage() {
                 <td className="px-4 py-3">
                   <div className="font-medium">{c.raisonSociale}</div>
                   <div className="text-xs text-muted sm:hidden">{c.ville}</div>
+                  {c.createdByName && (
+                    <div className="text-[11px] text-muted">Enregistré par {c.createdByName}</div>
+                  )}
                   {(c.devisLien || c.factureLien) && (
                     <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
                       {c.devisLien && (
