@@ -118,13 +118,19 @@ export type MaintenanceCerfaInput = {
   detecteurIdentification?: string
   detecteurControleDate?: string
   natures?: NatureIntervention[]
+  /** Si fourni : seulement ces équipements (maintenance partielle / sélection). */
+  equipementIds?: string[]
 }
 
 /** Prépare une fiche CERFA par équipement (maintenance validée). */
 export function buildMaintenanceCerfaDrafts(input: MaintenanceCerfaInput): CerfaDraft[] {
-  const equipements = equipementsForCerfa(input.site)
+  let equipements = equipementsForCerfa(input.site)
+  if (input.equipementIds?.length) {
+    const wanted = new Set(input.equipementIds)
+    equipements = equipements.filter((e) => wanted.has(e.id))
+  }
   if (equipements.length === 0) {
-    throw new Error('Aucun équipement fluide enregistré sur ce site.')
+    throw new Error('Sélectionnez au moins un équipement fluide du site.')
   }
   if (!input.signatureOperateurImage) {
     throw new Error('Signature opérateur obligatoire — enregistrez-la dans Ma signature.')

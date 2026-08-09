@@ -58,6 +58,8 @@ type Store = {
     signatureOperateurImage: string
     userId?: string
     userName?: string
+    equipementIds?: string[]
+    natures?: import('./types').NatureIntervention[]
   }) => { drafts: CerfaDraft[]; site: Site; client: Client }
   /** Enregistre la signature client sur le site et l’applique à tous les CERFA du site */
   applySiteClientSignature: (opts: {
@@ -327,6 +329,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signatureOperateurImage: string
       userId?: string
       userName?: string
+      equipementIds?: string[]
+      natures?: import('./types').NatureIntervention[]
     }) => {
       const d = dataRef.current
       const site = d.chantiers.find((s) => s.id === opts.siteId)
@@ -348,6 +352,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         signatureOperateurImage: opts.signatureOperateurImage,
         detecteurIdentification: det?.identification,
         detecteurControleDate: det?.controleDate,
+        equipementIds: opts.equipementIds,
+        natures: opts.natures,
       })
       const now = new Date().toISOString()
       setData((prev) => ({

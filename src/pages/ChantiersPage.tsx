@@ -1,9 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FileCheck2, Plus, Pencil, RefreshCw, Snowflake, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import type { Chantier, Equipement, TypeTravaux } from '../lib/types'
+import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
 import { siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
@@ -59,16 +59,102 @@ export function ChantiersPage() {
   const { data, upsertChantier, deleteChantier, validateMaintenanceCerfas, upsertIntervention } =
     useStore()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [form, setForm] = useState(() => blank(data.clients[0]?.id || ''))
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [batchBusy, setBatchBusy] = useState<string | null>(null)
+  const [picker, setPicker] = useState<{
+    site: Chantier
+    mode: 'maintenance' | 'intervention'
+    selected: string[]
+    nature: 'maintenance' | 'depanage' | 'controle'
+  } | null>(null)
 
   const avecFluide = form.avecFluideFrigorigene !== false
   const equipements = form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)
   const currentEquip = equipements[Math.min(equipIdx, equipements.length - 1)] || blankEquip()
+
+  const openPicker = (site: Chantier, mode: 'maintenance' | 'intervention') => {
+    const eqs = equipementsForCerfa(site)
+    setPicker({
+      site,
+      mode,
+      selected: mode === 'maintenance' ? eqs.map((e) => e.id) : eqs[0] ? [eqs[0].id] : [],
+      nature:
+        mode === 'maintenance'
+          ? 'maintenance'
+          : site.typeTravaux === 'controle_etancheite'
+            ? 'controle'
+            : 'depanage',
+    })
+  }
+
+  const naturesForPicker = (nature: 'maintenance' | 'depanage' | 'controle'): NatureIntervention[] => {
+    if (nature === 'depanage') return ['entretien_reparation']
+    if (nature === 'controle') return ['controle_etancheite_periodique']
+    return ['entretien_reparation', 'controle_etancheite_periodique']
+  }
+
+  const onConfirmPicker = async () => {
+    if (!picker || !user) return
+    const eqs = equipementsForCerfa(picker.site)
+    const selected = picker.selected.filter((id) => eqs.some((e) => e.id === id))
+    if (selected.length === 0) {
+      alert('Cochez au moins un équipement.')
+      return
+    }
+
+    if (picker.mode === 'intervention') {
+      const eqId = selected[0]
+      setPicker(null)
+      navigate(
+        `/app/interventions/new?chantier=${encodeURIComponent(picker.site.id)}&equipement=${encodeURIComponent(eqId)}`,
+      )
+      return
+    }
+
+    if (!user.signatureImage) {
+      alert('Enregistrez d’abord votre signature dans « Ma signature ».')
+      return
+    }
+
+    setBatchBusy(picker.site.id)
+    try {
+      const { drafts, site: s, client } = validateMaintenanceCerfas({
+        siteId: picker.site.id,
+        dateIntervention: today(),
+        signataireNom: user.signataireNom || user.fullName || '',
+        signataireQualite: user.signataireQualite || 'Opérateur attesté',
+        signatureOperateurImage: user.signatureImage,
+        userId: user.id,
+        userName: user.fullName || user.email,
+        equipementIds: selected,
+        natures: naturesForPicker(picker.nature),
+      })
+      setPicker(null)
+      for (const draft of drafts) {
+        const blob = await buildCerfaPdf({ draft, client, chantier: s })
+        const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
+        await saveCerfaPdf(draft.id, blob, fileName, user.organizationId)
+        upsertIntervention({
+          ...draft,
+          hasCerfaPdf: true,
+          cerfaPdfFileName: fileName,
+          cerfaPdfSavedAt: new Date().toISOString(),
+        })
+      }
+      alert(
+        `${drafts.length} CERFA généré${drafts.length > 1 ? 's' : ''} pour les équipements choisis.`,
+      )
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Génération impossible')
+    } finally {
+      setBatchBusy(null)
+    }
+  }
 
   const filteredChantiers = useMemo(() => {
     return data.chantiers.filter((c) => {
@@ -203,54 +289,11 @@ export function ChantiersPage() {
     })
   }
 
-  const onValidateMaintenance = async (site: Chantier) => {
-    if (!user?.signatureImage) {
-      alert('Enregistrez d’abord votre signature dans « Ma signature ».')
-      return
-    }
-    const n = equipementsForCerfa(site).length
-    if (
-      !confirm(
-        `Valider la maintenance du ${today()} et générer ${n} CERFA (1 par équipement) sans resaisir ?`,
-      )
-    ) {
-      return
-    }
-    setBatchBusy(site.id)
-    try {
-      const { drafts, site: s, client } = validateMaintenanceCerfas({
-        siteId: site.id,
-        dateIntervention: today(),
-        signataireNom: user.signataireNom || user.fullName || '',
-        signataireQualite: user.signataireQualite || 'Opérateur attesté',
-        signatureOperateurImage: user.signatureImage,
-        userId: user.id,
-        userName: user.fullName || user.email,
-      })
-      for (const draft of drafts) {
-        const blob = await buildCerfaPdf({ draft, client, chantier: s })
-        const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
-        await saveCerfaPdf(draft.id, blob, fileName, user.organizationId)
-        upsertIntervention({
-          ...draft,
-          hasCerfaPdf: true,
-          cerfaPdfFileName: fileName,
-          cerfaPdfSavedAt: new Date().toISOString(),
-        })
-      }
-      alert(`${drafts.length} CERFA généré${drafts.length > 1 ? 's' : ''} — visibles dans CERFA / Interventions.`)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Génération impossible')
-    } finally {
-      setBatchBusy(null)
-    }
-  }
-
   return (
     <div className="space-y-6">
       <Header
         title="Travaux / équipements"
-        subtitle="Équipements sauvegardés sur le site — en maintenance, validez une fois pour régénérer tous les CERFA."
+        subtitle="Choisissez le(s) équipement(s) déjà enregistrés — maintenance partielle ou dépannage ciblé."
         onAdd={() => {
           setEditId(null)
           setForm(blank(data.clients[0]?.id || ''))
@@ -565,17 +608,6 @@ export function ChantiersPage() {
           const client = data.clients.find((x) => x.id === c.clientId)
           const fluide = siteAvecFluideFrigorigene(c)
           const eqs = equipementsForCerfa(c)
-          const linked = [...data.interventions]
-            .filter((i) => i.chantierId === c.id)
-            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
-          const cerfaTo = linked
-            ? `/app/interventions/${linked.id}`
-            : `/app/interventions/new?chantier=${encodeURIComponent(c.id)}`
-          const cerfaLabel = linked
-            ? linked.hasCerfaPdf
-              ? 'Ouvrir CERFA'
-              : 'Continuer CERFA'
-            : 'Ajouter CERFA'
           const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : null
           const canBatch = fluide && eqs.length > 0
 
@@ -611,13 +643,21 @@ export function ChantiersPage() {
                     </div>
                   )}
                   {fluide && (
-                    <ul className="mt-2 space-y-0.5 text-xs text-muted">
+                    <ul className="mt-2 space-y-1 text-xs text-muted">
                       {eqs.map((eq) => (
-                        <li key={eq.id}>
-                          {equipmentLabel(eq)}
-                          {eq.fluideType ? ` · ${eq.fluideType}` : ''}
-                          {eq.chargeNominaleKg ? ` · ${eq.chargeNominaleKg} kg` : ''}
-                          {eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}
+                        <li key={eq.id} className="flex flex-wrap items-center gap-2">
+                          <span>
+                            {equipmentLabel(eq)}
+                            {eq.fluideType ? ` · ${eq.fluideType}` : ''}
+                            {eq.chargeNominaleKg ? ` · ${eq.chargeNominaleKg} kg` : ''}
+                            {eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}
+                          </span>
+                          <Link
+                            to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
+                            className="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold text-accent hover:bg-accent-soft"
+                          >
+                            CERFA / dépannage
+                          </Link>
                         </li>
                       ))}
                     </ul>
@@ -625,7 +665,6 @@ export function ChantiersPage() {
                   {c.derniereMaintenanceDate && (
                     <p className="mt-1.5 text-xs text-accent">
                       Dernière maintenance validée : {c.derniereMaintenanceDate}
-                      {eqs.length > 1 ? ` · ${eqs.length} CERFA` : ''}
                     </p>
                   )}
                 </div>
@@ -634,26 +673,23 @@ export function ChantiersPage() {
                     <button
                       type="button"
                       disabled={batchBusy === c.id}
-                      onClick={() => void onValidateMaintenance(c)}
+                      onClick={() => openPicker(c, 'maintenance')}
                       className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-3.5 py-2 text-xs font-semibold text-slate hover:bg-accent disabled:opacity-60"
-                      title="Génère un CERFA par équipement sans resaisie"
+                      title="Choisir les équipements traités aujourd’hui"
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
-                      {batchBusy === c.id
-                        ? 'Génération…'
-                        : eqs.length > 1
-                          ? `Valider maintenance (${eqs.length} CERFA)`
-                          : 'Valider maintenance + CERFA'}
+                      {batchBusy === c.id ? 'Génération…' : 'Valider maintenance'}
                     </button>
                   )}
                   {fluide ? (
-                    <Link
-                      to={cerfaTo}
+                    <button
+                      type="button"
+                      onClick={() => openPicker(c, 'intervention')}
                       className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
                     >
                       <FileCheck2 className="h-3.5 w-3.5" />
-                      {cerfaLabel}
-                    </Link>
+                      CERFA sur un équipement
+                    </button>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-foam px-3.5 py-2 text-xs font-medium text-muted">
                       <Wrench className="h-3.5 w-3.5" />
@@ -691,6 +727,129 @@ export function ChantiersPage() {
           </div>
         )}
       </div>
+
+      {picker && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-white p-5 shadow-xl">
+            <h2 className="font-display text-lg font-semibold">
+              {picker.mode === 'maintenance'
+                ? 'Quels équipements avez-vous traités ?'
+                : 'Quel équipement pour ce CERFA ?'}
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              {picker.site.nom} — équipements déjà enregistrés, sans resaisie.
+            </p>
+
+            {picker.mode === 'maintenance' && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(
+                  [
+                    ['maintenance', 'Maintenance'],
+                    ['depanage', 'Dépannage'],
+                    ['controle', 'Contrôle étanchéité'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setPicker({ ...picker, nature: id })}
+                    className={[
+                      'rounded-full px-3 py-1.5 text-xs font-semibold',
+                      picker.nature === id
+                        ? 'bg-accent text-ink'
+                        : 'border border-line text-muted hover:bg-mist',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <ul className="mt-4 space-y-2">
+              {equipementsForCerfa(picker.site).map((eq) => {
+                const checked = picker.selected.includes(eq.id)
+                return (
+                  <li key={eq.id}>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line px-3 py-3 hover:bg-mist">
+                      <input
+                        type={picker.mode === 'intervention' ? 'radio' : 'checkbox'}
+                        name="equip-pick"
+                        className="mt-1"
+                        checked={checked}
+                        onChange={() => {
+                          if (picker.mode === 'intervention') {
+                            setPicker({ ...picker, selected: [eq.id] })
+                            return
+                          }
+                          setPicker({
+                            ...picker,
+                            selected: checked
+                              ? picker.selected.filter((id) => id !== eq.id)
+                              : [...picker.selected, eq.id],
+                          })
+                        }}
+                      />
+                      <span className="text-sm">
+                        <span className="font-medium text-ink">{equipmentLabel(eq)}</span>
+                        <span className="mt-0.5 block text-xs text-muted">
+                          {[eq.fluideType, eq.chargeNominaleKg ? `${eq.chargeNominaleKg} kg` : '', eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
+                            .filter(Boolean)
+                            .join(' · ') || '—'}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {picker.mode === 'maintenance' && (
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <button
+                  type="button"
+                  className="font-semibold text-accent hover:underline"
+                  onClick={() =>
+                    setPicker({
+                      ...picker,
+                      selected: equipementsForCerfa(picker.site).map((e) => e.id),
+                    })
+                  }
+                >
+                  Tout cocher
+                </button>
+                <button
+                  type="button"
+                  className="font-semibold text-muted hover:underline"
+                  onClick={() => setPicker({ ...picker, selected: [] })}
+                >
+                  Tout décocher
+                </button>
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={batchBusy === picker.site.id}
+                onClick={() => void onConfirmPicker()}
+                className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+              >
+                {picker.mode === 'maintenance'
+                  ? `Générer ${picker.selected.length || 0} CERFA`
+                  : 'Ouvrir la fiche CERFA'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPicker(null)}
+                className="rounded-full border border-line px-5 py-2.5 text-sm"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -26,6 +26,7 @@ import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideC
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser } from '../lib/detecteurs'
+import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -635,11 +636,14 @@ export function InterventionFormPage() {
         <div className={step === 0 ? 'space-y-5' : 'hidden'}>
         <Section title="[3] Chantier & équipement (auto)">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Chantier *</span>
+            <span className="mb-1 block text-muted">Chantier / site *</span>
             <select
               required
               value={chantierId}
-              onChange={(e) => setChantierId(e.target.value)}
+              onChange={(e) => {
+                setChantierId(e.target.value)
+                setEquipementId('')
+              }}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
               <option value="">— Choisir —</option>
@@ -650,6 +654,29 @@ export function InterventionFormPage() {
               ))}
             </select>
           </label>
+          {chantier && equipementsForCerfa(chantier).length > 0 && (
+            <label className="mt-3 block text-sm">
+              <span className="mb-1 block text-muted">Équipement précis *</span>
+              <select
+                required
+                value={equipementId || equipement?.id || ''}
+                onChange={(e) => setEquipementId(e.target.value)}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="">— Choisir l’équipement —</option>
+                {equipementsForCerfa(chantier).map((eq) => (
+                  <option key={eq.id} value={eq.id}>
+                    {equipmentLabel(eq)}
+                    {eq.fluideType ? ` · ${eq.fluideType}` : ''}
+                    {eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-muted">
+                Liste des équipements déjà enregistrés sur ce site (dépannage / maintenance ciblée).
+              </span>
+            </label>
+          )}
           {chantier && client && (
             <div className="mt-3 rounded-xl bg-accent-soft/60 p-3 text-sm text-slate">
               <div>
@@ -657,8 +684,10 @@ export function InterventionFormPage() {
                 {client.codePostal} {client.ville}
               </div>
               <div className="mt-1">
-                <strong>Équipement :</strong> {chantier.equipementType} · {chantier.equipementMarque}{' '}
-                {chantier.equipementModele} · SN {chantier.equipementNumeroSerie || '—'}
+                <strong>Équipement :</strong>{' '}
+                {equipement
+                  ? `${equipmentLabel(equipement)}${equipement.numeroSerie ? ` · SN ${equipement.numeroSerie}` : ''}`
+                  : `${chantier.equipementType} · ${chantier.equipementMarque} ${chantier.equipementModele} · SN ${chantier.equipementNumeroSerie || '—'}`}
               </div>
             </div>
           )}
