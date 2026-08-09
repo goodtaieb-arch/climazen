@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
   ClipboardList,
@@ -93,9 +93,17 @@ const mobilePrimary = [
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
+function toneForPath(pathname: string, links: { to: string; end?: boolean; tone: string }[]) {
+  const match = links.find(({ to, end }) =>
+    end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`),
+  )
+  return tones[match?.tone || 'dashboard'] || tones.dashboard
+}
+
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   const links = isOwner
     ? [
@@ -105,6 +113,8 @@ export function AppLayout() {
       ]
     : baseLinks
 
+  const pageTone = toneForPath(pathname, links)
+
   const doLogout = () => {
     void logout().then(() => navigate('/login'))
   }
@@ -113,7 +123,10 @@ export function AppLayout() {
   const orgLabel = organization?.name || 'Société'
 
   return (
-    <div className="min-h-screen bg-mist/40 text-ink lg:grid lg:grid-cols-[272px_1fr]">
+    <div
+      className="min-h-screen text-ink lg:grid lg:grid-cols-[272px_1fr]"
+      style={{ backgroundColor: pageTone.band }}
+    >
       <aside className="hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
         <div className="border-b border-line px-4 py-5">
           <BrandLogo size="sm" />
@@ -172,8 +185,14 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-20 lg:pb-0">
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 sm:px-6 lg:px-8">
+      <main className="min-w-0 pb-20 lg:pb-0" style={{ backgroundColor: pageTone.band }}>
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 lg:px-8"
+          style={{
+            backgroundColor: pageTone.card,
+            borderColor: pageTone.border,
+          }}
+        >
           <div className="min-w-0 lg:hidden">
             <BrandLogo size="sm" />
           </div>
@@ -186,14 +205,14 @@ export function AppLayout() {
           <div className="flex items-center gap-2">
             <NavLink
               to="/app/operateur"
-              className="rounded-full border border-line bg-foam px-3 py-2 text-xs font-semibold text-ink hover:bg-mist lg:hidden"
+              className="rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white lg:hidden"
             >
               Société
             </NavLink>
             {isOwner && (
               <NavLink
                 to="/app/equipe"
-                className="hidden rounded-full border border-line bg-foam px-3 py-2 text-xs font-semibold text-ink hover:bg-mist sm:inline-flex lg:hidden"
+                className="hidden rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white sm:inline-flex lg:hidden"
               >
                 Équipe
               </NavLink>
@@ -201,7 +220,7 @@ export function AppLayout() {
             <button
               type="button"
               onClick={doLogout}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-foam px-3 py-2 text-sm font-semibold text-ink hover:bg-mist sm:px-4"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white/80 px-3 py-2 text-sm font-semibold text-ink hover:bg-white sm:px-4"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Se déconnecter</span>
