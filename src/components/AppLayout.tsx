@@ -14,6 +14,7 @@ import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
+import { loadCompanyLogoLocal } from '../lib/companyLogo'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -144,19 +145,20 @@ export function AppLayout() {
 
   const roleLabel = isOwner ? 'Administrateur' : 'Employé'
   const orgLabel = organization?.name || data.operateur.raisonSociale || 'Société'
-  const companyLogo = data.operateur.logoImage || null
+  const companyLogo =
+    data.operateur.logoImage || loadCompanyLogoLocal(user?.organizationId) || null
   const companyName = data.operateur.raisonSociale || organization?.name || ''
 
   return (
     <div
-      className="min-h-screen text-ink lg:grid lg:grid-cols-[272px_1fr]"
+      className="min-h-screen text-ink lg:grid lg:grid-cols-[300px_1fr]"
       style={{
         backgroundColor: '#ffffff',
         backgroundImage: `linear-gradient(${pageTone.page}, ${pageTone.page})`,
       }}
     >
       <aside className="hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
-        <div className="border-b border-line px-4 py-5">
+        <div className="overflow-visible border-b border-line px-3 py-4 sm:px-4">
           <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
         </div>
 

@@ -24,6 +24,7 @@ import {
   loadOrgDataRemote,
   saveOrgDataRemote,
 } from './auth'
+import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
 import { deleteCerfaPdf } from './pdfStore'
 import { useAuth } from './AuthContext'
 import { applyStockFromIntervention, enregistrerRetourConsigne, revertStockForIntervention } from './stockMouvements'
@@ -33,6 +34,8 @@ type Store = {
   loading: boolean
   syncError: string | null
   setOperateur: (o: Operateur) => void
+  /** Enregistre le logo société et sync cloud immédiat (affiché à côté de ClimaZEN). */
+  setCompanyLogo: (logoImage: string | undefined) => Promise<void>
   upsertClient: (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => string
   deleteClient: (id: string) => void
   upsertChantier: (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => string
@@ -83,6 +86,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false)
   const skipNextSave = useRef(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dataRef = useRef(data)
+  dataRef.current = data
 
   useEffect(() => {
     let cancelled = false
@@ -98,16 +103,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         const remote = await loadOrgDataRemote(orgId)
         if (cancelled) return
+        const localLogo = loadCompanyLogoLocal(orgId)
+        const merged: AppData = {
+          ...remote,
+          operateur: {
+            ...remote.operateur,
+            logoImage: remote.operateur.logoImage || localLogo || undefined,
+          },
+        }
+        if (merged.operateur.logoImage) {
+          saveCompanyLogoLocal(orgId, merged.operateur.logoImage)
+        }
         skipNextSave.current = true
-        setData(remote)
-        saveData(remote, orgId)
+        setData(merged)
+        saveData(merged, orgId)
         setHydrated(true)
       } catch (err) {
         console.error(err)
         if (!cancelled) {
           const local = loadData(orgId)
+          const localLogo = loadCompanyLogoLocal(orgId)
+          const merged: AppData = {
+            ...local,
+            operateur: {
+              ...local.operateur,
+              logoImage: local.operateur.logoImage || localLogo || undefined,
+            },
+          }
           skipNextSave.current = true
-          setData(local)
+          setData(merged)
           setHydrated(true)
           setSyncError(err instanceof Error ? err.message : 'Sync impossible')
         }
@@ -153,13 +177,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [orgId],
   )
 
-  const setOperateur = useCallback((o: Operateur) => {
-    if (user?.role !== 'owner') {
-      console.warn('ClimaZEN: seul l’administrateur peut modifier les infos société.')
-      return
-    }
-    setData((d) => ({ ...d, operateur: o }))
-  }, [user?.role])
+  const setOperateur = useCallback(
+    (o: Operateur) => {
+      if (user?.role !== 'owner') {
+        console.warn('ClimaZEN: seul l’administrateur peut modifier les infos société.')
+        return
+      }
+      if (orgId) saveCompanyLogoLocal(orgId, o.logoImage || null)
+      setData((d) => ({ ...d, operateur: o }))
+    },
+    [user?.role, orgId],
+  )
+
+  const setCompanyLogo = useCallback(
+    async (logoImage: string | undefined) => {
+      if (!orgId) throw new Error('Organisation introuvable.')
+      if (user?.role !== 'owner') throw new Error('Seul l’administrateur peut changer le logo.')
+      const prev = dataRef.current
+      const operateur: Operateur = { ...prev.operateur }
+      if (logoImage) operateur.logoImage = logoImage
+      else delete operateur.logoImage
+      const next: AppData = { ...prev, operateur }
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      skipNextSave.current = true
+      dataRef.current = next
+      setData(next)
+      saveData(next, orgId)
+      saveCompanyLogoLocal(orgId, logoImage || null)
+      try {
+        await saveOrgDataRemote(orgId, next)
+        setSyncError(null)
+      } catch (err) {
+        console.error(err)
+        setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
+        throw err
+      }
+    },
+    [orgId, user?.role],
+  )
 
   const upsertClient = useCallback(
     (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => {
@@ -508,6 +563,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       loading,
       syncError,
       setOperateur,
+      setCompanyLogo,
       upsertClient,
       deleteClient,
       upsertChantier,
@@ -529,6 +585,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       loading,
       syncError,
       setOperateur,
+      setCompanyLogo,
       upsertClient,
       deleteClient,
       upsertChantier,

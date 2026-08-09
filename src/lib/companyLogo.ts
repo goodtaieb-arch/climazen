@@ -1,4 +1,4 @@
-/** Redimensionne une image pour le logo société (JPEG compact, stocké dans org_data). */
+/** Redimensionne une image pour le logo société (JPEG compact). */
 export function fileToCompanyLogoDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
@@ -16,8 +16,8 @@ export function fileToCompanyLogoDataUrl(file: File): Promise<string> {
       const img = new Image()
       img.onerror = () => reject(new Error('Image illisible.'))
       img.onload = () => {
-        const maxW = 240
-        const maxH = 96
+        const maxW = 200
+        const maxH = 80
         let w = img.width
         let h = img.height
         const ratio = Math.min(maxW / w, maxH / h, 1)
@@ -34,11 +34,34 @@ export function fileToCompanyLogoDataUrl(file: File): Promise<string> {
         ctx.fillStyle = '#ffffff'
         ctx.fillRect(0, 0, w, h)
         ctx.drawImage(img, 0, 0, w, h)
-        // JPEG beaucoup plus léger que PNG → évite l’échec de sync cloud
-        resolve(canvas.toDataURL('image/jpeg', 0.85))
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
       }
       img.src = src
     }
     reader.readAsDataURL(file)
   })
+}
+
+function logoKey(organizationId: string) {
+  return `climazen_company_logo_${organizationId}`
+}
+
+/** Cache local du logo (affichage immédiat + secours si sync cloud lente). */
+export function saveCompanyLogoLocal(organizationId: string, dataUrl: string | null | undefined) {
+  try {
+    if (!organizationId) return
+    if (!dataUrl) localStorage.removeItem(logoKey(organizationId))
+    else localStorage.setItem(logoKey(organizationId), dataUrl)
+  } catch {
+    // quota
+  }
+}
+
+export function loadCompanyLogoLocal(organizationId: string | null | undefined): string | null {
+  if (!organizationId) return null
+  try {
+    return localStorage.getItem(logoKey(organizationId))
+  } catch {
+    return null
+  }
 }

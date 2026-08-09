@@ -10,11 +10,12 @@ import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
-  const { data, setOperateur, resetDemo } = useStore()
+  const { data, setOperateur, setCompanyLogo, resetDemo } = useStore()
   const { user, organization, isOwner, listTeam } = useAuth()
 
   const [form, setForm] = useState(data.operateur)
   const [saved, setSaved] = useState(false)
+  const [logoBusy, setLogoBusy] = useState(false)
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   const [team, setTeam] = useState<UserAccount[]>([])
 
@@ -42,17 +43,23 @@ export function OperateurPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const persistLogo = (logoImage: string | undefined) => {
-    const next = {
-      ...data.operateur,
-      ...form,
-      logoImage,
-      facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
+  const persistLogo = async (logoImage: string | undefined) => {
+    setLogoBusy(true)
+    try {
+      await setCompanyLogo(logoImage)
+      setForm((f) => {
+        const next = { ...f }
+        if (logoImage) next.logoImage = logoImage
+        else delete next.logoImage
+        return next
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Impossible d’enregistrer le logo')
+    } finally {
+      setLogoBusy(false)
     }
-    setForm(next)
-    setOperateur(next)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
   }
 
   return (
@@ -113,12 +120,18 @@ export function OperateurPage() {
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              <label className="cursor-pointer rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover">
-                {form.logoImage ? 'Changer le logo' : 'Ajouter un logo'}
+              <label
+                className={[
+                  'cursor-pointer rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover',
+                  logoBusy ? 'opacity-60' : '',
+                ].join(' ')}
+              >
+                {logoBusy ? 'Enregistrement…' : form.logoImage ? 'Changer le logo' : 'Ajouter un logo'}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="hidden"
+                  disabled={logoBusy}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     e.target.value = ''
@@ -134,16 +147,19 @@ export function OperateurPage() {
               {form.logoImage && (
                 <button
                   type="button"
-                  onClick={() => persistLogo(undefined)}
-                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist"
+                  disabled={logoBusy}
+                  onClick={() => void persistLogo(undefined)}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist disabled:opacity-60"
                 >
                   Retirer
                 </button>
               )}
             </div>
           </div>
-          {saved && form.logoImage && (
-            <p className="mt-2 text-sm text-accent">Logo enregistré.</p>
+          {saved && (
+            <p className="mt-2 text-sm text-accent">
+              Logo enregistré — visible à côté de ClimaZEN dans le menu.
+            </p>
           )}
         </div>
 
