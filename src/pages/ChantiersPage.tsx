@@ -1,9 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileCheck2, Pencil, Trash2 } from 'lucide-react'
+import { FileCheck2, Pencil, Snowflake, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import type { Chantier, TypeTravaux } from '../lib/types'
-import { TYPE_TRAVAUX_LABELS } from '../lib/types'
+import { siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
@@ -18,6 +18,7 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   ville: '',
   typeTravaux: 'installation',
   detailTravaux: '',
+  avecFluideFrigorigene: true,
   equipementType: '',
   equipementMarque: '',
   equipementModele: '',
@@ -37,6 +38,8 @@ export function ChantiersPage() {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
 
+  const avecFluide = form.avecFluideFrigorigene !== false
+
   const filteredChantiers = useMemo(() => {
     return data.chantiers.filter((c) => {
       const client = data.clients.find((cl) => cl.id === c.clientId)
@@ -51,6 +54,7 @@ export function ChantiersPage() {
           client?.raisonSociale,
           typeLabel,
           c.detailTravaux,
+          siteAvecFluideFrigorigene(c) ? 'fluide cerfa' : 'standard vmc',
         ]
           .filter(Boolean)
           .join(' '),
@@ -60,21 +64,27 @@ export function ChantiersPage() {
   }, [data.chantiers, data.clients, q])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !avecFluide) return
     const teq = calcTeqCO2FromFluide(Number(form.chargeNominaleKg) || 0, form.fluideType)
     if (teq === null) return
     if (form.teqCO2 === teq) return
     setForm((f) => ({ ...f, teqCO2: teq }))
-  }, [form.fluideType, form.chargeNominaleKg, open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.fluideType, form.chargeNominaleKg, open, avecFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    const charge = Number(form.chargeNominaleKg) || 0
-    const teq = calcTeqCO2FromFluide(charge, form.fluideType) ?? form.teqCO2
+    const fluide = form.avecFluideFrigorigene !== false
+    const charge = fluide ? Number(form.chargeNominaleKg) || 0 : 0
+    const teq = fluide
+      ? (calcTeqCO2FromFluide(charge, form.fluideType) ?? form.teqCO2)
+      : undefined
     upsertChantier({
       ...form,
+      avecFluideFrigorigene: fluide,
       chargeNominaleKg: charge,
       teqCO2: teq,
+      fluideType: fluide ? form.fluideType : '',
+      detectionPermanente: fluide ? form.detectionPermanente : false,
       detailTravaux: form.detailTravaux?.trim() || '',
       id: editId ?? undefined,
     })
@@ -89,6 +99,7 @@ export function ChantiersPage() {
       ...c,
       typeTravaux: c.typeTravaux || 'installation',
       detailTravaux: c.detailTravaux || '',
+      avecFluideFrigorigene: siteAvecFluideFrigorigene(c),
     })
     setOpen(true)
   }
@@ -99,7 +110,7 @@ export function ChantiersPage() {
     <div className="space-y-6">
       <Header
         title="Travaux / équipements"
-        subtitle="Cadre [3] — type de travaux, fluide, charge et détection permanente."
+        subtitle="Travaux standard (VMC…) ou équipement avec fluide frigorigène (CERFA)."
         onAdd={() => {
           setEditId(null)
           setForm(blank(data.clients[0]?.id || ''))
@@ -119,6 +130,60 @@ export function ChantiersPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-sm font-medium text-ink">Nature de l’équipement / travaux</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, avecFluideFrigorigene: true })}
+                className={[
+                  'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition',
+                  avecFluide
+                    ? 'border-accent bg-accent-soft/60 shadow-sm'
+                    : 'border-line bg-foam hover:bg-mist',
+                ].join(' ')}
+              >
+                <Snowflake className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+                <span>
+                  <span className="block text-sm font-semibold text-ink">
+                    Contient du fluide frigorigène
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Accès CERFA, stock gaz, charge, détection — cadre réglementaire.
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    avecFluideFrigorigene: false,
+                    typeTravaux:
+                      form.typeTravaux === 'controle_etancheite' ||
+                      form.typeTravaux === 'recuperation'
+                        ? 'ventilation_vmc'
+                        : form.typeTravaux,
+                  })
+                }
+                className={[
+                  'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition',
+                  !avecFluide
+                    ? 'border-accent bg-accent-soft/60 shadow-sm'
+                    : 'border-line bg-foam hover:bg-mist',
+                ].join(' ')}
+              >
+                <Wrench className="mt-0.5 h-5 w-5 shrink-0 text-slate" />
+                <span>
+                  <span className="block text-sm font-semibold text-ink">Travaux standard</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Ex. installation VMC — fiche info simple, sans CERFA ni fluide.
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-muted">Client / détenteur *</span>
             <select
@@ -165,7 +230,9 @@ export function ChantiersPage() {
             onChange={(v) => setForm({ ...form, detailTravaux: v })}
           />
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
-            Ex. maintenance semestrielle, installation clim bureau directeur, dépannage fuite CTA…
+            {avecFluide
+              ? 'Ex. maintenance semestrielle, installation clim bureau directeur…'
+              : 'Ex. installation VMC sanitaires, remplacement extracteur cuisine…'}
           </p>
           <Field
             label="Adresse"
@@ -180,7 +247,7 @@ export function ChantiersPage() {
           />
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
           <Field
-            label="Type d’équipement"
+            label={avecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
             value={form.equipementType}
             onChange={(v) => setForm({ ...form, equipementType: v })}
           />
@@ -199,36 +266,53 @@ export function ChantiersPage() {
             value={form.equipementNumeroSerie}
             onChange={(v) => setForm({ ...form, equipementNumeroSerie: v })}
           />
-          <FluideSelect
-            label="Fluide"
-            value={form.fluideType}
-            onChange={(v) => setForm({ ...form, fluideType: v })}
-            required
-          />
-          <DecimalField
-            label="Charge nominale (kg)"
-            value={form.chargeNominaleKg}
-            onChange={(n) => setForm({ ...form, chargeNominaleKg: n })}
-            placeholder="ex. 2,2"
-          />
-          <DecimalField
-            label="teq CO₂ (auto)"
-            value={form.teqCO2 ?? 0}
-            onChange={(n) => setForm({ ...form, teqCO2: n })}
-            placeholder="auto"
-          />
-          <p className="-mt-1 text-xs text-muted sm:col-span-2">
-            kg × GWP ÷ 1000
-            {fluideMeta ? ` (${form.chargeNominaleKg || 0} × ${formatGwp(fluideMeta)})` : ''}
-          </p>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.detectionPermanente}
-              onChange={(e) => setForm({ ...form, detectionPermanente: e.target.checked })}
-            />
-            Système permanent de détection des fuites (cadre [6])
-          </label>
+
+          {avecFluide ? (
+            <>
+              <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
+                <p className="text-sm font-semibold text-ink">Données fluide / CERFA</p>
+                <p className="text-xs text-muted">
+                  Obligatoire pour les équipements contenant un fluide frigorigène.
+                </p>
+              </div>
+              <FluideSelect
+                label="Fluide"
+                value={form.fluideType}
+                onChange={(v) => setForm({ ...form, fluideType: v })}
+                required
+              />
+              <DecimalField
+                label="Charge nominale (kg)"
+                value={form.chargeNominaleKg}
+                onChange={(n) => setForm({ ...form, chargeNominaleKg: n })}
+                placeholder="ex. 2,2"
+              />
+              <DecimalField
+                label="teq CO₂ (auto)"
+                value={form.teqCO2 ?? 0}
+                onChange={(n) => setForm({ ...form, teqCO2: n })}
+                placeholder="auto"
+              />
+              <p className="-mt-1 text-xs text-muted sm:col-span-2">
+                kg × GWP ÷ 1000
+                {fluideMeta ? ` (${form.chargeNominaleKg || 0} × ${formatGwp(fluideMeta)})` : ''}
+              </p>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.detectionPermanente}
+                  onChange={(e) => setForm({ ...form, detectionPermanente: e.target.checked })}
+                />
+                Système permanent de détection des fuites (cadre [6])
+              </label>
+            </>
+          ) : (
+            <div className="sm:col-span-2 rounded-xl border border-dashed border-line bg-foam px-4 py-3 text-sm text-muted">
+              Travaux standard : pas de CERFA ni de suivi fluide. Les infos ci-dessus suffisent pour
+              le dossier client.
+            </div>
+          )}
+
           <div className="flex gap-2 sm:col-span-2">
             <button
               type="submit"
@@ -250,6 +334,7 @@ export function ChantiersPage() {
       <div className="grid gap-3">
         {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
+          const fluide = siteAvecFluideFrigorigene(c)
           const linked = [...data.interventions]
             .filter((i) => i.chantierId === c.id)
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
@@ -267,10 +352,24 @@ export function ChantiersPage() {
             <div key={c.id} className="rounded-2xl border border-line bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="font-display text-lg font-semibold">{c.nom}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="font-display text-lg font-semibold">{c.nom}</div>
+                    <span
+                      className={[
+                        'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                        fluide ? 'bg-accent-soft text-slate' : 'bg-mist text-muted',
+                      ].join(' ')}
+                    >
+                      {fluide ? 'Fluide / CERFA' : 'Travaux standard'}
+                    </span>
+                  </div>
                   <div className="text-sm text-muted">
-                    {client?.raisonSociale} · {c.ville} · {c.fluideType} · {c.chargeNominaleKg} kg
-                    {c.teqCO2 != null && c.teqCO2 > 0 ? ` · ${c.teqCO2} t eq. CO₂` : ''}
+                    {client?.raisonSociale} · {c.ville}
+                    {fluide
+                      ? ` · ${c.fluideType || '—'} · ${c.chargeNominaleKg || 0} kg${
+                          c.teqCO2 != null && c.teqCO2 > 0 ? ` · ${c.teqCO2} t eq. CO₂` : ''
+                        }`
+                      : ''}
                   </div>
                   {(typeLabel || c.detailTravaux) && (
                     <div className="mt-1 text-sm text-ink">
@@ -285,10 +384,13 @@ export function ChantiersPage() {
                     </div>
                   )}
                   <div className="mt-1 text-xs text-muted">
-                    {c.equipementMarque} {c.equipementModele} · SN {c.equipementNumeroSerie || '—'}
-                    {c.detectionPermanente ? ' · Détection permanente' : ''}
+                    {[c.equipementType, c.equipementMarque, c.equipementModele]
+                      .filter(Boolean)
+                      .join(' · ') || '—'}
+                    {c.equipementNumeroSerie ? ` · SN ${c.equipementNumeroSerie}` : ''}
+                    {fluide && c.detectionPermanente ? ' · Détection permanente' : ''}
                   </div>
-                  {linked && (
+                  {fluide && linked && (
                     <p className="mt-1.5 text-xs text-muted">
                       Intervention du {linked.dateIntervention}
                       {linked.hasCerfaPdf ? ' · CERFA déjà enregistré' : ' · fiche en cours'}
@@ -296,18 +398,25 @@ export function ChantiersPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
-                  <Link
-                    to={cerfaTo}
-                    title={
-                      linked
-                        ? 'Ouvrir la même fiche et régénérer le CERFA en fin de travaux'
-                        : 'Créer une fiche CERFA pour ces travaux'
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
-                  >
-                    <FileCheck2 className="h-3.5 w-3.5" />
-                    {cerfaLabel}
-                  </Link>
+                  {fluide ? (
+                    <Link
+                      to={cerfaTo}
+                      title={
+                        linked
+                          ? 'Ouvrir la même fiche et régénérer le CERFA'
+                          : 'Créer une fiche CERFA (fluide frigorigène)'
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
+                    >
+                      <FileCheck2 className="h-3.5 w-3.5" />
+                      {cerfaLabel}
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-foam px-3.5 py-2 text-xs font-medium text-muted">
+                      <Wrench className="h-3.5 w-3.5" />
+                      Info travaux
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => startEdit(c)}
@@ -334,7 +443,7 @@ export function ChantiersPage() {
         {filteredChantiers.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-muted">
             {data.chantiers.length === 0
-              ? 'Aucun travaux enregistré. Créez d’abord un client, puis des travaux / un équipement.'
+              ? 'Aucun travaux enregistré. Créez d’abord un client, puis des travaux.'
               : 'Aucun résultat pour cette recherche.'}
           </div>
         )}

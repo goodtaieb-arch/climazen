@@ -167,6 +167,7 @@ export type TypeTravaux =
   | 'controle_etancheite'
   | 'recuperation'
   | 'demantelement'
+  | 'ventilation_vmc'
   | 'autre'
 
 export const TYPE_TRAVAUX_LABELS: Record<TypeTravaux, string> = {
@@ -177,6 +178,7 @@ export const TYPE_TRAVAUX_LABELS: Record<TypeTravaux, string> = {
   controle_etancheite: 'Contrôle d’étanchéité',
   recuperation: 'Récupération de fluide',
   demantelement: 'Démantèlement',
+  ventilation_vmc: 'Ventilation / VMC',
   autre: 'Autre',
 }
 
@@ -206,6 +208,11 @@ export interface Site {
   typeTravaux?: TypeTravaux
   /** Précision libre : « maintenance semestrielle », « clim bureau directeur »… */
   detailTravaux?: string
+  /**
+   * true = équipement avec fluide frigorigène → CERFA + stock gaz.
+   * false = travaux standard (ex. VMC) → fiche info seule, sans CERFA.
+   */
+  avecFluideFrigorigene?: boolean
   /** Équipement principal (format actuel UI Sites) */
   equipementType: string
   equipementMarque: string
@@ -219,6 +226,11 @@ export interface Site {
 
 /** @deprecated alias — utiliser Site */
 export type Chantier = Site
+
+/** Travaux concernés par CERFA / fluides (défaut true pour les fiches existantes). */
+export function siteAvecFluideFrigorigene(s: Pick<Site, 'avecFluideFrigorigene'>): boolean {
+  return s.avecFluideFrigorigene !== false
+}
 
 export interface StockItem {
   id: string
