@@ -3,103 +3,163 @@ import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  FileCheck2,
   MapPin,
   Package,
+  PenLine,
+  Smartphone,
+  Timer,
   Users,
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
+import { CONTACT_EMAIL } from '../components/PublicLayout'
 
-const points = [
-  'CERFA officiel 15497*04 prérempli (forme administration inchangée)',
-  'Compte société + opérateurs — les CERFA remontent sur le compte de la boîte',
-  'Clients, chantiers, stock fluides — saisie terrain guidée',
+const heroPoints = [
+  'CERFA officiel 15497*04 — mise en page administration inchangée',
+  'Saisie terrain → données dispo au bureau en temps réel',
+  'Clients, chantiers, stock fluides et équipe sur le même compte',
+]
+
+const whyItems = [
+  {
+    icon: FileCheck2,
+    title: 'Conformité F-Gas / CERFA',
+    text: 'Obligation de traçabilité des fluides : ClimaZEN préremplit le CERFA FI 15497-04 à partir de vos données métier.',
+  },
+  {
+    icon: Timer,
+    title: 'Moins de double saisie',
+    text: 'Le technicien saisit une fois sur le terrain. Le bureau retrouve clients, stock et CERFA sans retaper.',
+  },
+  {
+    icon: PenLine,
+    title: 'Signatures sur la fiche',
+    text: 'Signatures opérateur et détenteur intégrées à la fiche avant génération du PDF officiel.',
+  },
+]
+
+const savings = [
+  {
+    title: 'Fini le papier dispersé',
+    text: 'Plus de PDF perdus dans les mails et les dossiers. Chaque CERFA reste dans ClimaZEN, lié au chantier.',
+  },
+  {
+    title: 'Saisie unique',
+    text: 'Client, équipement, fluide et bouteilles : une base pour toutes les interventions de l’équipe.',
+  },
+  {
+    title: 'Traçabilité des contenants',
+    text: 'Stock vierge / régénéré / récupération et mouvements liés aux CERFA pour un suivi clair.',
+  },
 ]
 
 const features = [
   {
     icon: Building2,
     title: 'Clients / détenteurs',
-    text: 'Cadre [2] prêt : raison sociale, adresse, contact — réutilisé sur chaque intervention.',
+    text: 'Cadre [2] : raison sociale, adresse, contact — réutilisé à chaque intervention.',
   },
   {
     icon: MapPin,
     title: 'Chantiers & équipements',
-    text: 'Fluide, charge, teq CO₂ et détection permanente — cadre [3] sans double saisie.',
+    text: 'Fluide, charge, teq CO₂, détection permanente — cadre [3] prêt.',
   },
   {
     icon: Package,
     title: 'Stock fluides',
-    text: 'Bouteilles vierges, régénérées, récupération — mouvements liés aux CERFA.',
+    text: 'Bouteilles, historique de mouvements et lien avec les fiches CERFA.',
   },
   {
     icon: Users,
     title: 'Équipe terrain',
-    text: 'Opérateurs sur le même compte société : les fiches remontent au bureau.',
+    text: 'Opérateurs sur le compte société : les CERFA remontent au bureau.',
   },
+  {
+    icon: Smartphone,
+    title: 'Mobile & PC',
+    text: 'Navigateur web, pas d’App Store. Même compte sur téléphone et ordinateur.',
+  },
+  {
+    icon: ClipboardList,
+    title: 'CERFA 15497-04',
+    text: 'PDF officiel généré dans l’app — cadres préremplis, prêt pour contrôle.',
+  },
+]
+
+const steps = [
+  { n: '01', title: 'Compte société', text: 'Créez l’espace ClimaZEN pour votre entreprise.' },
+  { n: '02', title: 'Clients & chantiers', text: 'Enregistrez détenteurs, équipements et stock.' },
+  { n: '03', title: 'Intervention CERFA', text: 'Préremplissage guidé, signatures, PDF officiel.' },
 ]
 
 export function Landing() {
   return (
     <>
+      {/* HERO */}
       <section className="relative overflow-hidden">
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse 80% 60% at 70% 20%, #1aa89655, transparent), radial-gradient(ellipse 50% 40% at 10% 80%, #3dd6c333, transparent)',
+              'radial-gradient(ellipse 90% 70% at 75% 10%, #1aa89644, transparent 55%), radial-gradient(ellipse 50% 45% at 5% 90%, #3dd6c322, transparent), linear-gradient(180deg, #071820 0%, #0c2430 100%)',
           }}
         />
-        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-              Frigoristes · Fluides · CERFA
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pb-16 pt-10 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-14 lg:pb-24 lg:pt-14">
+          <div className="animate-[fadeUp_0.7s_ease-out]">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
+              Application frigoristes · fluides · CERFA
             </p>
-            <h1 className="sr-only">ClimaZEN by TAIEB</h1>
-            <div className="mt-4 inline-flex rounded-2xl bg-white px-4 py-3 shadow-lg shadow-black/20 sm:px-5 sm:py-4">
+            <div className="mt-5 inline-flex rounded-2xl bg-white px-4 py-3 shadow-xl shadow-black/25 sm:px-5 sm:py-4">
               <BrandLogo size="lg" />
             </div>
-            <p className="mt-6 max-w-xl text-lg text-white/75 sm:text-xl">
-              Fini les CERFA PDF dispersés : clients, chantiers, stock fluides — et la fiche
-              15497-04 remplie automatiquement.
+            <h1 className="font-display mt-7 max-w-xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
+              Simplifiez la gestion réglementaire des fluides frigorigènes
+            </h1>
+            <p className="mt-4 max-w-xl text-base text-white/70 sm:text-lg">
+              ClimaZEN dématérialise le CERFA 15497-04 : clients, chantiers, stock et équipe —
+              une saisie terrain, un PDF officiel prêt.
             </p>
-            <ul className="mt-8 space-y-3">
-              {points.map((p) => (
-                <li key={p} className="flex items-start gap-3 text-white/90">
+            <ul className="mt-7 space-y-3">
+              {heroPoints.map((p) => (
+                <li key={p} className="flex items-start gap-3 text-sm text-white/90 sm:text-base">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
                   <span>{p}</span>
                 </li>
               ))}
             </ul>
-            <div className="mt-10 flex flex-wrap gap-3">
+            <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 to="/register"
-                className="inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-colors hover:bg-accent-hover"
+                className="inline-flex items-center justify-center rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-ink shadow-lg shadow-accent/25 transition-transform hover:bg-accent-hover hover:scale-[1.02]"
               >
                 Créer le compte société
               </Link>
               <Link
-                to="/login"
-                className="inline-flex items-center justify-center rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                to="/contact"
+                className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
               >
-                Se connecter
+                Demander une démo
               </Link>
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-sm">
-            <div className="absolute -inset-4 rounded-[2.5rem] bg-accent/20 blur-2xl" aria-hidden />
-            <div className="relative rounded-[2rem] border border-white/15 bg-slate p-4 shadow-2xl shadow-black/40">
-              <div className="rounded-[1.5rem] bg-foam p-4 text-ink">
-                <div className="mb-3">
+          <div className="relative mx-auto w-full max-w-md animate-[fadeUp_0.9s_ease-out]">
+            <div className="absolute -inset-6 rounded-[2.75rem] bg-accent/25 blur-3xl" aria-hidden />
+            <div className="relative rotate-[-1.5deg] rounded-[2rem] border border-white/20 bg-slate/90 p-3 shadow-2xl shadow-black/50 backdrop-blur sm:rotate-[-2deg] sm:p-4">
+              <div className="rounded-[1.5rem] bg-foam p-4 text-ink sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-2">
                   <BrandLogo size="sm" />
+                  <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate">
+                    Terrain
+                  </span>
                 </div>
                 <div className="font-display text-sm font-bold text-slate">CERFA 15497-04</div>
-                <div className="mt-3 space-y-3 text-sm">
+                <div className="mt-3 space-y-2.5 text-sm">
                   <Field label="Chantier" value="Chambre froide — Rayon frais" />
                   <Field label="Client / détenteur" value="Supermarché Dupont" />
                   <Field label="Fluide" value="R-32 · 4,2 kg" />
                   <div className="rounded-xl bg-accent-soft px-3 py-2 text-xs font-medium text-slate">
-                    Cadres [1]→[14] préremplis depuis clients, chantiers et stock
+                    Cadres [1]→[14] préremplis · PDF officiel dans l’app
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-line bg-white px-3 py-3">
                     <span className="text-xs text-muted">Signature détenteur</span>
@@ -112,70 +172,148 @@ export function Landing() {
         </div>
       </section>
 
-      <section className="bg-foam px-4 py-16 text-ink sm:px-6">
+      {/* POURQUOI */}
+      <section id="pourquoi" className="scroll-mt-20 bg-foam px-4 py-16 text-ink sm:px-6 sm:py-20">
         <div className="mx-auto max-w-6xl">
-          <h2 className="font-display max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
-            Le CERFA papier ralentit vos équipes et augmente les risques d’erreurs
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Pourquoi ClimaZEN</p>
+          <h2 className="font-display mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Pensé pour les pros du froid — pas pour la paperasse
           </h2>
-          <div className="mt-10 grid gap-8 sm:grid-cols-3">
-            <Pain
-              icon={ClipboardList}
-              title="Oublis et incohérences"
-              text="Champs manquants, quantités incohérentes, signatures oubliées : la traçabilité en pâtit."
-            />
-            <Pain
-              icon={MapPin}
-              title="Double saisie inutile"
-              text="Le tech note sur le terrain, le bureau retape. ClimaZEN préremplit depuis le chantier et le stock."
-            />
-            <Pain
-              icon={Package}
-              title="Suivi & conformité"
-              text="Conservez interventions, stock fluides et historiques prêts pour contrôle — 5 ans."
-            />
+          <p className="mt-4 max-w-2xl text-muted">
+            Attestation de capacité, interventions sur équipements à fluides : le CERFA FI 15497
+            fait partie du quotidien. ClimaZEN le rend plus rapide et plus fiable.
+          </p>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {whyItems.map(({ icon: Icon, title, text }) => (
+              <div
+                key={title}
+                className="rounded-2xl border border-line bg-white p-6 shadow-sm transition-transform hover:-translate-y-0.5"
+              >
+                <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-accent-soft text-accent">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-display text-lg font-semibold">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-ink px-4 py-16 sm:px-6">
+      {/* GAINS */}
+      <section className="border-y border-white/10 bg-slate px-4 py-16 text-white sm:px-6 sm:py-20">
         <div className="mx-auto max-w-6xl">
-          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            Tout le parcours terrain dans une seule app
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Gains concrets</p>
+          <h2 className="font-display mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Moins d’administratif, plus de terrain
+          </h2>
+          <div className="mt-10 grid gap-5 sm:grid-cols-3">
+            {savings.map((s) => (
+              <div key={s.title} className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <h3 className="font-display text-lg font-semibold text-accent">{s.title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-white/65">{s.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* COMMENT ÇA MARCHE */}
+      <section className="bg-foam px-4 py-16 text-ink sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">En 3 étapes</p>
+          <h2 className="font-display mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            Opérationnel rapidement
+          </h2>
+          <ol className="mt-10 grid gap-6 md:grid-cols-3">
+            {steps.map((s) => (
+              <li key={s.n} className="relative rounded-2xl border border-line bg-white p-6">
+                <span className="font-display text-3xl font-bold text-accent/35">{s.n}</span>
+                <h3 className="font-display mt-2 text-lg font-semibold">{s.title}</h3>
+                <p className="mt-2 text-sm text-muted">{s.text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* FONCTIONNALITÉS */}
+      <section id="fonctionnalites" className="scroll-mt-20 bg-ink px-4 py-16 sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">L’application</p>
+          <h2 className="font-display mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Tout le parcours dans une seule app
           </h2>
           <p className="mt-3 max-w-2xl text-white/60">
-            De la fiche client au PDF officiel CERFA — sans changer la mise en page de
-            l’administration.
+            Compatible navigateur — smartphone, tablette ou PC. Toujours à jour, sans installer
+            d’application store.
           </p>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {features.map(({ icon: Icon, title, text }) => (
               <div
                 key={title}
-                className="rounded-2xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-accent/40"
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition-colors hover:border-accent/40 hover:bg-white/[0.07]"
               >
                 <div className="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="font-display text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/65">{text}</p>
+                <h3 className="font-display text-lg font-semibold text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/60">{text}</p>
               </div>
             ))}
           </div>
-          <div className="mt-12 rounded-2xl border border-accent/30 bg-accent/10 px-6 py-8 text-center sm:px-10">
-            <p className="font-display text-xl font-semibold sm:text-2xl">
-              Prêt pour le terrain et le bureau
-            </p>
-            <p className="mx-auto mt-2 max-w-lg text-sm text-white/65">
-              Créez le compte société, invitez vos opérateurs, générez le CERFA 15497-04.
-            </p>
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section className="relative overflow-hidden bg-foam px-4 py-16 text-ink sm:px-6 sm:py-20">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            background:
+              'radial-gradient(ellipse 60% 80% at 50% 100%, #1aa89633, transparent)',
+          }}
+        />
+        <div className="relative mx-auto max-w-3xl rounded-3xl border border-line bg-white px-6 py-10 text-center shadow-lg sm:px-12 sm:py-14">
+          <div className="flex justify-center">
+            <BrandLogo size="md" />
+          </div>
+          <h2 className="font-display mt-6 text-2xl font-bold tracking-tight sm:text-3xl">
+            Démarrez avec ClimaZEN
+          </h2>
+          <p className="mx-auto mt-3 max-w-lg text-sm text-muted sm:text-base">
+            Créez le compte société, invitez vos opérateurs, générez vos CERFA. Une question ?
+            Écrivez-nous.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               to="/register"
-              className="mt-6 inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink transition-colors hover:bg-accent-hover"
+              className="inline-flex rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-ink hover:bg-accent-hover"
             >
               Créer le compte société
             </Link>
+            <Link
+              to="/contact"
+              className="inline-flex rounded-full border border-line px-7 py-3.5 text-sm font-semibold hover:bg-mist"
+            >
+              Contact / démo
+            </Link>
           </div>
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="mt-5 inline-block text-sm font-medium text-accent hover:underline"
+          >
+            {CONTACT_EMAIL}
+          </a>
         </div>
       </section>
+
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </>
   )
 }
@@ -185,26 +323,6 @@ function Field({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-line bg-white px-3 py-2">
       <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
       <div className="font-medium">{value}</div>
-    </div>
-  )
-}
-
-function Pain({
-  icon: Icon,
-  title,
-  text,
-}: {
-  icon: typeof ClipboardList
-  title: string
-  text: string
-}) {
-  return (
-    <div>
-      <div className="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
-        <Icon className="h-5 w-5" />
-      </div>
-      <h3 className="font-display text-lg font-semibold">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{text}</p>
     </div>
   )
 }

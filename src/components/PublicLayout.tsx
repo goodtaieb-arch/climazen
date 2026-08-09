@@ -10,7 +10,19 @@ export function PublicLayout() {
         <Link to="/" aria-label="ClimaZEN — accueil">
           <BrandLogo onDark size="sm" />
         </Link>
-        <nav className="hidden items-center gap-1 text-sm sm:flex">
+        <nav className="hidden items-center gap-1 text-sm md:flex">
+          <a
+            href="/#pourquoi"
+            className="rounded-full px-3 py-2 font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Pourquoi
+          </a>
+          <a
+            href="/#fonctionnalites"
+            className="rounded-full px-3 py-2 font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Fonctionnalités
+          </a>
           <NavLink
             to="/contact"
             className={({ isActive }) =>
