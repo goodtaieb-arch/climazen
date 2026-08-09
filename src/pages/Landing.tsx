@@ -101,7 +101,7 @@ export function Landing() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse 90% 70% at 75% 10%, #1aa89644, transparent 55%), radial-gradient(ellipse 50% 45% at 5% 90%, #3dd6c322, transparent), linear-gradient(180deg, #071820 0%, #0c2430 100%)',
+              'radial-gradient(ellipse 80% 60% at 85% 0%, #7ee8d955, transparent 50%), radial-gradient(ellipse 55% 50% at 0% 80%, #93c5fd44, transparent 55%), linear-gradient(165deg, #f0fdfb 0%, #e8f7f5 40%, #eff6ff 100%)',
           }}
         />
         <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pb-16 pt-10 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-14 lg:pb-24 lg:pt-14">
@@ -109,19 +109,19 @@ export function Landing() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
               Application frigoristes · fluides · CERFA
             </p>
-            <div className="mt-5 inline-flex rounded-2xl bg-white px-4 py-3 shadow-xl shadow-black/25 sm:px-5 sm:py-4">
+            <div className="mt-5 inline-flex rounded-2xl border border-line/80 bg-white px-4 py-3 shadow-lg shadow-accent/10 sm:px-5 sm:py-4">
               <BrandLogo size="lg" />
             </div>
-            <h1 className="font-display mt-7 max-w-xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
+            <h1 className="font-display mt-7 max-w-xl text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl lg:text-[2.75rem]">
               Simplifiez la gestion réglementaire des fluides frigorigènes
             </h1>
-            <p className="mt-4 max-w-xl text-base text-white/70 sm:text-lg">
-              ClimaZEN dématérialise le CERFA 15497-04 : clients, chantiers, stock et équipe —
+            <p className="mt-4 max-w-xl text-base text-muted sm:text-lg">
+              ClimaZEN dématérialise le CERFA 15497-04 : clients, travaux, stock et équipe —
               une saisie terrain, un PDF officiel prêt.
             </p>
             <ul className="mt-7 space-y-3">
               {heroPoints.map((p) => (
-                <li key={p} className="flex items-start gap-3 text-sm text-white/90 sm:text-base">
+                <li key={p} className="flex items-start gap-3 text-sm text-slate sm:text-base">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
                   <span>{p}</span>
                 </li>
@@ -130,13 +130,13 @@ export function Landing() {
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 to="/register"
-                className="inline-flex items-center justify-center rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-ink shadow-lg shadow-accent/25 transition-transform hover:bg-accent-hover hover:scale-[1.02]"
+                className="inline-flex items-center justify-center rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-ink shadow-lg shadow-accent/30 transition-transform hover:bg-accent-hover hover:scale-[1.02]"
               >
                 Créer le compte société
               </Link>
               <Link
                 to="/contact"
-                className="inline-flex items-center justify-center rounded-full border border-white/30 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                className="inline-flex items-center justify-center rounded-full border border-line bg-white px-7 py-3.5 text-sm font-semibold text-ink transition-colors hover:bg-mist"
               >
                 Demander une démo
               </Link>
@@ -144,9 +144,9 @@ export function Landing() {
           </div>
 
           <div className="relative mx-auto w-full max-w-md animate-[fadeUp_0.9s_ease-out]">
-            <div className="absolute -inset-6 rounded-[2.75rem] bg-accent/25 blur-3xl" aria-hidden />
-            <div className="relative rotate-[-1.5deg] rounded-[2rem] border border-white/20 bg-slate/90 p-3 shadow-2xl shadow-black/50 backdrop-blur sm:rotate-[-2deg] sm:p-4">
-              <div className="rounded-[1.5rem] bg-foam p-4 text-ink sm:p-5">
+            <div className="absolute -inset-6 rounded-[2.75rem] bg-accent/20 blur-3xl" aria-hidden />
+            <div className="relative rotate-[-1.5deg] rounded-[2rem] border border-line bg-white p-3 shadow-xl shadow-slate/10 sm:rotate-[-2deg] sm:p-4">
+              <div className="rounded-[1.5rem] bg-gradient-to-br from-foam to-mist/80 p-4 text-ink sm:p-5">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <BrandLogo size="sm" />
                   <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate">
@@ -155,7 +155,7 @@ export function Landing() {
                 </div>
                 <div className="font-display text-sm font-bold text-slate">CERFA 15497-04</div>
                 <div className="mt-3 space-y-2.5 text-sm">
-                  <Field label="Chantier" value="Chambre froide — Rayon frais" />
+                  <Field label="Travaux" value="Chambre froide — Rayon frais" />
                   <Field label="Client / détenteur" value="Supermarché Dupont" />
                   <Field label="Fluide" value="R-32 · 4,2 kg" />
                   <div className="rounded-xl bg-accent-soft px-3 py-2 text-xs font-medium text-slate">
@@ -173,7 +173,7 @@ export function Landing() {
       </section>
 
       {/* POURQUOI */}
-      <section id="pourquoi" className="scroll-mt-20 bg-foam px-4 py-16 text-ink sm:px-6 sm:py-20">
+      <section id="pourquoi" className="scroll-mt-20 bg-white px-4 py-16 text-ink sm:px-6 sm:py-20">
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Pourquoi ClimaZEN</p>
           <h2 className="font-display mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
@@ -187,7 +187,7 @@ export function Landing() {
             {whyItems.map(({ icon: Icon, title, text }) => (
               <div
                 key={title}
-                className="rounded-2xl border border-line bg-white p-6 shadow-sm transition-transform hover:-translate-y-0.5"
+                className="rounded-2xl border border-line bg-foam/80 p-6 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-accent-soft text-accent">
                   <Icon className="h-5 w-5" />
@@ -201,7 +201,13 @@ export function Landing() {
       </section>
 
       {/* GAINS */}
-      <section className="border-y border-white/10 bg-slate px-4 py-16 text-white sm:px-6 sm:py-20">
+      <section
+        className="border-y border-line px-4 py-16 text-ink sm:px-6 sm:py-20"
+        style={{
+          background:
+            'linear-gradient(135deg, #ecfdf8 0%, #e0f2fe 55%, #f0fdfa 100%)',
+        }}
+      >
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Gains concrets</p>
           <h2 className="font-display mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
@@ -209,9 +215,12 @@ export function Landing() {
           </h2>
           <div className="mt-10 grid gap-5 sm:grid-cols-3">
             {savings.map((s) => (
-              <div key={s.title} className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div
+                key={s.title}
+                className="rounded-2xl border border-white/80 bg-white/80 p-6 shadow-sm backdrop-blur"
+              >
                 <h3 className="font-display text-lg font-semibold text-accent">{s.title}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-white/65">{s.text}</p>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{s.text}</p>
               </div>
             ))}
           </div>
@@ -227,8 +236,8 @@ export function Landing() {
           </h2>
           <ol className="mt-10 grid gap-6 md:grid-cols-3">
             {steps.map((s) => (
-              <li key={s.n} className="relative rounded-2xl border border-line bg-white p-6">
-                <span className="font-display text-3xl font-bold text-accent/35">{s.n}</span>
+              <li key={s.n} className="relative rounded-2xl border border-line bg-white p-6 shadow-sm">
+                <span className="font-display text-3xl font-bold text-accent/40">{s.n}</span>
                 <h3 className="font-display mt-2 text-lg font-semibold">{s.title}</h3>
                 <p className="mt-2 text-sm text-muted">{s.text}</p>
               </li>
@@ -238,13 +247,13 @@ export function Landing() {
       </section>
 
       {/* FONCTIONNALITÉS */}
-      <section id="fonctionnalites" className="scroll-mt-20 bg-ink px-4 py-16 sm:px-6 sm:py-20">
+      <section id="fonctionnalites" className="scroll-mt-20 bg-white px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">L’application</p>
-          <h2 className="font-display mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="font-display mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
             Tout le parcours dans une seule app
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
+          <p className="mt-3 max-w-2xl text-muted">
             Compatible navigateur — smartphone, tablette ou PC. Toujours à jour, sans installer
             d’application store.
           </p>
@@ -252,13 +261,13 @@ export function Landing() {
             {features.map(({ icon: Icon, title, text }) => (
               <div
                 key={title}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition-colors hover:border-accent/40 hover:bg-white/[0.07]"
+                className="rounded-2xl border border-line bg-foam/60 p-5 transition-colors hover:border-accent/40 hover:bg-accent-soft/40"
               >
                 <div className="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="font-display text-lg font-semibold text-white">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/60">{text}</p>
+                <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{text}</p>
               </div>
             ))}
           </div>
@@ -266,15 +275,15 @@ export function Landing() {
       </section>
 
       {/* CTA FINAL */}
-      <section className="relative overflow-hidden bg-foam px-4 py-16 text-ink sm:px-6 sm:py-20">
+      <section className="relative overflow-hidden px-4 py-16 text-ink sm:px-6 sm:py-20">
         <div
-          className="pointer-events-none absolute inset-0 opacity-70"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse 60% 80% at 50% 100%, #1aa89633, transparent)',
+              'radial-gradient(ellipse 70% 80% at 50% 100%, #5eead44d, transparent), linear-gradient(180deg, #f4fbfb, #e0f2fe)',
           }}
         />
-        <div className="relative mx-auto max-w-3xl rounded-3xl border border-line bg-white px-6 py-10 text-center shadow-lg sm:px-12 sm:py-14">
+        <div className="relative mx-auto max-w-3xl rounded-3xl border border-line bg-white px-6 py-10 text-center shadow-lg shadow-accent/10 sm:px-12 sm:py-14">
           <div className="flex justify-center">
             <BrandLogo size="md" />
           </div>
