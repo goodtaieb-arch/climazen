@@ -140,7 +140,10 @@ export function AppLayout() {
   return (
     <div
       className="min-h-screen text-ink lg:grid lg:grid-cols-[272px_1fr]"
-      style={{ backgroundColor: pageTone.band }}
+      style={{
+        backgroundColor: '#ffffff',
+        backgroundImage: `linear-gradient(${pageTone.page}, ${pageTone.page})`,
+      }}
     >
       <aside className="hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
         <div className="border-b border-line px-4 py-5">
@@ -200,11 +203,12 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-20 lg:pb-0" style={{ backgroundColor: pageTone.band }}>
+      <main className="min-w-0 pb-20 lg:pb-0">
         <div
           className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 lg:px-8"
           style={{
-            backgroundColor: pageTone.card,
+            backgroundColor: '#ffffff',
+            backgroundImage: `linear-gradient(${pageTone.card}, ${pageTone.card})`,
             borderColor: pageTone.border,
           }}
         >
