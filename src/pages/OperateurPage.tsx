@@ -42,6 +42,19 @@ export function OperateurPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const persistLogo = (logoImage: string | undefined) => {
+    const next = {
+      ...data.operateur,
+      ...form,
+      logoImage,
+      facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
+    }
+    setForm(next)
+    setOperateur(next)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -87,10 +100,7 @@ export function OperateurPage() {
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Logo de la société</h2>
-          <p className="mb-3 text-sm text-muted">
-            Affiché à côté de ClimaZEN dans l’application (toute l’équipe).
-          </p>
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="mt-3 flex flex-wrap items-center gap-4">
             {form.logoImage ? (
               <img
                 src={form.logoImage}
@@ -114,7 +124,7 @@ export function OperateurPage() {
                     e.target.value = ''
                     if (!file) return
                     void fileToCompanyLogoDataUrl(file)
-                      .then((logoImage) => setForm((f) => ({ ...f, logoImage })))
+                      .then((logoImage) => persistLogo(logoImage))
                       .catch((err) =>
                         alert(err instanceof Error ? err.message : 'Import impossible'),
                       )
@@ -124,7 +134,7 @@ export function OperateurPage() {
               {form.logoImage && (
                 <button
                   type="button"
-                  onClick={() => setForm((f) => ({ ...f, logoImage: undefined }))}
+                  onClick={() => persistLogo(undefined)}
                   className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist"
                 >
                   Retirer
@@ -132,6 +142,9 @@ export function OperateurPage() {
               )}
             </div>
           </div>
+          {saved && form.logoImage && (
+            <p className="mt-2 text-sm text-accent">Logo enregistré.</p>
+          )}
         </div>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
