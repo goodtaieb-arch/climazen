@@ -289,6 +289,72 @@ export function ChantiersPage() {
     })
   }
 
+  const startEditEquip = (site: Chantier, equipementId: string) => {
+    const eqs =
+      site.equipements?.length && site.equipements.length > 0
+        ? site.equipements
+        : syncEquipementsFromFlat(site, site.equipements)
+    const idx = Math.max(
+      0,
+      eqs.findIndex((e) => e.id === equipementId),
+    )
+    const eq = eqs[idx] || eqs[0]
+    setEditId(site.id)
+    setForm({
+      ...blank(site.clientId),
+      ...site,
+      typeTravaux: site.typeTravaux || 'installation',
+      detailTravaux: site.detailTravaux || '',
+      avecFluideFrigorigene: siteAvecFluideFrigorigene(site),
+      equipements: eqs,
+      equipementType: eq?.type || '',
+      equipementMarque: eq?.marque || '',
+      equipementModele: eq?.modele || '',
+      equipementNumeroSerie: eq?.numeroSerie || '',
+      fluideType: eq?.fluideType || site.fluideType,
+      chargeNominaleKg: eq?.chargeNominaleKg ?? site.chargeNominaleKg,
+      teqCO2: eq?.teqCO2 ?? site.teqCO2,
+      detectionPermanente: eq?.detectionPermanente ?? site.detectionPermanente,
+    })
+    setEquipIdx(idx)
+    setPicker(null)
+    setOpen(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const removeEquipement = (site: Chantier, equipementId: string) => {
+    const eqs =
+      site.equipements?.length && site.equipements.length > 0
+        ? site.equipements
+        : syncEquipementsFromFlat(site, site.equipements)
+    const target = eqs.find((e) => e.id === equipementId)
+    const label = target?.nom?.trim() || (target ? equipmentLabel(target) : 'cet équipement')
+    if (
+      !confirm(
+        `Retirer « ${label} » du site ?\n(matériel changé, hors contrat, ou plus présent)`,
+      )
+    ) {
+      return
+    }
+    const next = eqs.filter((e) => e.id !== equipementId)
+    if (next.length === 0) {
+      alert('Il faut au moins un équipement, ou passez le site en « travaux standard ».')
+      return
+    }
+    upsertChantier({
+      ...site,
+      equipements: next,
+      id: site.id,
+    })
+    if (picker?.site.id === site.id) {
+      setPicker({
+        ...picker,
+        site: { ...site, equipements: next },
+        selected: picker.selected.filter((id) => id !== equipementId),
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Header
