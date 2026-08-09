@@ -24,7 +24,7 @@ const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
 })
 
 export function ClientsPage() {
-  const { data, upsertClient, deleteClient } = useStore()
+  const { data, upsertClient, deleteClient, setOperateur } = useStore()
   const [form, setForm] = useState(blank())
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -36,6 +36,10 @@ export function ClientsPage() {
   const plateforme =
     FACTURATION_PLATEFORMES.find((p) => p.id === plateformeId)?.label || 'Tiime'
   const webhookConfigured = Boolean(data.operateur.facturationWebhookUrl?.trim())
+
+  const setPlateforme = (id: (typeof FACTURATION_PLATEFORMES)[number]['id']) => {
+    setOperateur({ ...data.operateur, facturationPlateforme: id })
+  }
 
   const filtered = useMemo(
     () =>
@@ -131,18 +135,36 @@ export function ClientsPage() {
         }}
       />
 
-      <div className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-slate">
-        <strong>Simple :</strong> icône copier → les infos client sont dans le presse-papiers,{' '}
-        {plateforme} s’ouvre → collez dans le devis / facture.
-        {webhookConfigured && (
-          <>
-            {' '}
-            <span className="text-muted">
-              Mode expert Make actif : icône tableur pour envoi automatique.
-            </span>
-          </>
-        )}
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate">
+          <strong>Simple :</strong> choisissez votre logiciel, puis icône{' '}
+          <strong>copier</strong> → infos dans le presse-papiers + ouverture du site. Collez dans le
+          devis / facture.
+        </p>
+        <label className="flex shrink-0 items-center gap-2 text-sm">
+          <span className="text-muted">Facturer avec</span>
+          <select
+            value={plateformeId}
+            onChange={(e) =>
+              setPlateforme(e.target.value as (typeof FACTURATION_PLATEFORMES)[number]['id'])
+            }
+            className="h-10 rounded-xl border border-line bg-foam px-3 font-semibold text-ink outline-none focus:border-accent"
+          >
+            {FACTURATION_PLATEFORMES.filter((p) => p.id !== 'autre').map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+                {p.id === 'tiime' ? ' (défaut)' : ''}
+              </option>
+            ))}
+            <option value="autre">Autre…</option>
+          </select>
+        </label>
       </div>
+      {webhookConfigured && (
+        <p className="text-xs text-muted">
+          Mode expert Make actif : icône tableur pour envoi automatique vers {plateforme}.
+        </p>
+      )}
 
       <SearchField
         value={q}

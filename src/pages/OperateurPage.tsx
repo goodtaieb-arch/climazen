@@ -158,7 +158,7 @@ export function OperateurPage() {
             </p>
           </div>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Logiciel de facturation habituel</span>
+            <span className="mb-1 block text-muted">Logiciel de facturation (défaut : Tiime)</span>
             <select
               value={form.facturationPlateforme || 'tiime'}
               onChange={(e) =>
