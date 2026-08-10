@@ -581,15 +581,6 @@ export function ChantiersPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
-            <button
-              type="button"
-              onClick={closeForm}
-              className="text-sm font-semibold text-accent hover:underline"
-            >
-              ← Retour à la liste
-            </button>
-          </div>
           {editId && (
             <p className="sm:col-span-2 rounded-xl border border-accent/40 bg-accent-soft/50 px-3 py-2 text-xs text-slate">
               Site déjà enregistré — adresse et infos reprises. Ajoutez ou modifiez seulement les
