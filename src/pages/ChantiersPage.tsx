@@ -21,6 +21,7 @@ import type { PlaqueFields } from '../lib/plaqueOcr'
 import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat } from '../lib/cerfaBatch'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
+import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 
 const blankEquip = (avecFluide = true): Equipement => ({
   id: crypto.randomUUID(),
@@ -63,8 +64,14 @@ function today() {
 }
 
 export function ChantiersPage() {
-  const { data, upsertChantier, deleteChantier, validateMaintenanceCerfas, upsertIntervention } =
-    useStore()
+  const {
+    data,
+    upsertChantier,
+    deleteChantier,
+    validateMaintenanceCerfas,
+    upsertIntervention,
+    upsertFicheMaintenanceClim,
+  } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -198,6 +205,53 @@ export function ChantiersPage() {
     if (nature === 'depanage') return ['entretien_reparation']
     if (nature === 'controle') return ['controle_etancheite_periodique']
     return ['entretien_reparation', 'controle_etancheite_periodique']
+  }
+
+  const openFichesMaintenanceFromPicker = (equipementIds?: string[]) => {
+    if (!picker) return
+    const eqs = equipementsForCerfa(picker.site)
+    const selected = (equipementIds || picker.selected).filter((id) => eqs.some((e) => e.id === id))
+    if (selected.length === 0) {
+      alert('Cochez au moins un équipement.')
+      return
+    }
+    const client = data.clients.find((c) => c.id === picker.site.clientId)
+    const site = picker.site
+    const adresse =
+      [site.adresse, site.codePostal, site.ville].filter(Boolean).join(', ') ||
+      [client?.adresse, client?.codePostal, client?.ville].filter(Boolean).join(', ')
+    const technicien = user?.signataireNom || user?.fullName || user?.email || ''
+    const createdIds: string[] = []
+    for (const eqId of selected) {
+      const eq = eqs.find((e) => e.id === eqId)
+      if (!eq) continue
+      const base = blankFicheMaintenanceClim()
+      const marqueModele = [eq.marque, eq.modele].filter(Boolean).join(' / ')
+      const id = upsertFicheMaintenanceClim({
+        ...base,
+        date: today(),
+        technicien,
+        clientId: client?.id || site.clientId,
+        chantierId: site.id,
+        equipementId: eq.id,
+        clientNom: client?.raisonSociale || '',
+        adresse,
+        marqueModele: marqueModele || eq.type || '',
+        numeroSerie: eq.numeroSerie || '',
+        fluide: eq.fluideType || '',
+        signatureTechnicienImage: user?.signatureImage || '',
+        signatureClientImage: site.signatureDetenteurImage || '',
+      })
+      createdIds.push(id)
+    }
+    setPicker(null)
+    if (createdIds.length === 0) return
+    const first = createdIds[0]
+    const q =
+      createdIds.length > 1
+        ? `id=${encodeURIComponent(first)}&batch=${encodeURIComponent(createdIds.join(','))}`
+        : `id=${encodeURIComponent(first)}`
+    navigate(`/app/fiche-maintenance-clim?${q}`)
   }
 
   const onConfirmPicker = async () => {
@@ -1307,6 +1361,17 @@ export function ChantiersPage() {
                         </span>
                       </button>
                       <div className="flex shrink-0 flex-col gap-1">
+                        {picker.mode === 'maintenance' && (
+                          <button
+                            type="button"
+                            onClick={() => openFichesMaintenanceFromPicker([eq.id])}
+                            className="inline-flex items-center justify-center gap-1 rounded-full border border-accent bg-accent-soft px-2.5 py-1 text-[11px] font-semibold text-slate hover:bg-accent"
+                            title="Générer fiche de maintenance"
+                          >
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            Fiche
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => startEditEquip(picker.site, eq.id)}
@@ -1357,12 +1422,26 @@ export function ChantiersPage() {
                 type="button"
                 disabled={batchBusy === picker.site.id}
                 onClick={() => void onConfirmPicker()}
-                className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
+                <FileCheck2 className="h-4 w-4" />
                 {picker.mode === 'maintenance'
                   ? `Générer ${picker.selected.length || 0} CERFA`
                   : 'Choisir le type d’intervention'}
               </button>
+              {picker.mode === 'maintenance' && (
+                <button
+                  type="button"
+                  onClick={() => openFichesMaintenanceFromPicker()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-5 py-2.5 text-sm font-semibold text-slate hover:bg-accent"
+                  title="Checklist maintenance clim / PAC (PDF)"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  {picker.selected.length > 1
+                    ? `Générer ${picker.selected.length} fiches maintenance`
+                    : 'Générer fiche de maintenance'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setPicker(null)}

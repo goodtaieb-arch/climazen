@@ -82,6 +82,18 @@ export function FicheMaintenanceClimPage() {
   const chantierId = params.get('chantier') || ''
   const equipementId = params.get('equipement') || ''
   const editId = params.get('id') || ''
+  const batchIds = useMemo(
+    () =>
+      (params.get('batch') || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [params],
+  )
+  const batchIndex = batchIds.length ? batchIds.indexOf(editId) : -1
+  const batchQuery = batchIds.length
+    ? `&batch=${encodeURIComponent(batchIds.join(','))}`
+    : ''
 
   const existing = useMemo(
     () => (data.fichesMaintenanceClim || []).find((f) => f.id === editId) || null,
@@ -251,6 +263,35 @@ export function FicheMaintenanceClimPage() {
           </p>
         </div>
       </div>
+
+      {batchIds.length > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-accent-soft/40 px-4 py-3 text-sm">
+          <span className="font-semibold text-ink">
+            Fiche maintenance {batchIndex >= 0 ? batchIndex + 1 : '—'} / {batchIds.length}
+            {form.marqueModele || form.numeroSerie
+              ? ` — ${[form.marqueModele, form.numeroSerie].filter(Boolean).join(' · ')}`
+              : ''}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {batchIndex > 0 && (
+              <Link
+                to={`/app/fiche-maintenance-clim?id=${encodeURIComponent(batchIds[batchIndex - 1])}${batchQuery}`}
+                className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold hover:bg-mist"
+              >
+                ← Précédente
+              </Link>
+            )}
+            {batchIndex >= 0 && batchIndex < batchIds.length - 1 && (
+              <Link
+                to={`/app/fiche-maintenance-clim?id=${encodeURIComponent(batchIds[batchIndex + 1])}${batchQuery}`}
+                className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
+              >
+                Suivante →
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       {relatedFiches.length > 0 && (
         <div className="rounded-2xl border border-line bg-white p-4">
