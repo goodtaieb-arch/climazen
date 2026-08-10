@@ -39,6 +39,7 @@ type Store = {
   data: AppData
   loading: boolean
   syncError: string | null
+  clearSyncError: () => void
   setOperateur: (o: Operateur) => void
   /** Enregistre le logo société et sync cloud immédiat (affiché à côté de ClimaZEN). */
   setCompanyLogo: (logoImage: string | undefined) => Promise<void>
@@ -122,7 +123,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setLoading(true)
       setSyncError(null)
       try {
-        const remote = await loadOrgDataRemote(orgId)
+        const remote = await Promise.race([
+          loadOrgDataRemote(orgId),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(
+              () => reject(new Error('Sync cloud — délai dépassé (10s)')),
+              10000,
+            ),
+          ),
+        ])
         if (cancelled) return
         const localLogo = loadCompanyLogoLocal(orgId)
         const merged: AppData = {
@@ -185,6 +194,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
   }, [data, orgId, hydrated])
+
+  const clearSyncError = useCallback(() => setSyncError(null), [])
 
   const replaceData = useCallback(
     async (next: AppData) => {
@@ -629,6 +640,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       data,
       loading,
       syncError,
+      clearSyncError,
       setOperateur,
       setCompanyLogo,
       upsertClient,
@@ -652,6 +664,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       data,
       loading,
       syncError,
+      clearSyncError,
       setOperateur,
       setCompanyLogo,
       upsertClient,

@@ -25,6 +25,24 @@ import {
 } from './auth'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(() => {
+      reject(new Error(`${label} — délai dépassé (${Math.round(ms / 1000)}s)`))
+    }, ms)
+    promise.then(
+      (v) => {
+        window.clearTimeout(t)
+        resolve(v)
+      },
+      (e) => {
+        window.clearTimeout(t)
+        reject(e)
+      },
+    )
+  })
+}
+
 type AuthCtx = {
   user: UserAccount | null
   organization: Organization | null
@@ -73,17 +91,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     const sb = getSupabase()
-    const { data: sessionData } = await sb.auth.getSession()
+    const { data: sessionData } = await withTimeout(
+      sb.auth.getSession(),
+      10000,
+      'Connexion session',
+    )
     const uid = sessionData.session?.user?.id
     if (!uid) {
       setUser(null)
       setOrganization(null)
       return
     }
-    const u = await fetchProfile(uid)
+    const u = await withTimeout(fetchProfile(uid), 10000, 'Chargement profil')
     setUser(u)
     if (u?.organizationId) {
-      const org = await getOrganization(u.organizationId)
+      const org = await withTimeout(
+        getOrganization(u.organizationId),
+        10000,
+        'Chargement société',
+      )
       setOrganization(org)
     } else {
       setOrganization(null)

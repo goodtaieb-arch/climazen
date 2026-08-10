@@ -131,7 +131,7 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
 
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
-  const { syncError, data } = useStore()
+  const { syncError, clearSyncError, data } = useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -271,9 +271,18 @@ export function AppLayout() {
         <div className="p-4 sm:p-6 lg:p-8">
           <ImportLocalBanner />
           {syncError && (
-            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">
-              Sync cloud impossible — les données ne partent pas vers le compte société pour le
-              moment. Vérifiez la connexion ({syncError}).
+            <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate">
+              <p>
+                Connexion cloud temporairement indisponible — vos données restent sur cet appareil.
+                Réessayez plus tard ({syncError}).
+              </p>
+              <button
+                type="button"
+                onClick={clearSyncError}
+                className="shrink-0 text-xs font-semibold text-muted hover:text-ink"
+              >
+                Fermer
+              </button>
             </div>
           )}
           <Outlet />
