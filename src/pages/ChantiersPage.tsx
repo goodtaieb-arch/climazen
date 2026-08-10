@@ -714,50 +714,61 @@ export function ChantiersPage() {
                     </div>
                   )}
                   {fluide && (
-                    <ul className="mt-3 space-y-2">
-                      {eqs.map((eq) => (
-                        <li
-                          key={eq.id}
-                          className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2.5"
-                        >
-                          <span
-                            className="grid h-5 w-5 shrink-0 place-items-center rounded border-2 border-slate-300 bg-white"
-                            aria-hidden
-                            title="Case pour sélection (via Valider maintenance)"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold text-ink">
-                              {eq.nom?.trim() || eq.type || 'Sans libellé'}
-                            </div>
-                            <div className="text-[11px] text-muted">
-                              {[eq.type && eq.nom ? eq.type : null, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
-                                .filter(Boolean)
-                                .join(' · ') || '—'}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => startEditEquip(c, eq.id)}
-                            className="rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-accent hover:bg-accent-soft"
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeEquipement(c, eq.id)}
-                            className="rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-danger hover:bg-red-50"
-                          >
-                            Supprimer
-                          </button>
-                          <Link
-                            to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
-                            className="rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-accent-hover"
-                          >
-                            CERFA
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-3">
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                        Équipements — Modifier / Supprimer / CERFA
+                      </p>
+                      {eqs.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-line bg-foam/50 px-3 py-2.5 text-xs text-muted">
+                          Aucun équipement fluide encore. Ouvrez le crayon pour en ajouter.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {eqs.map((eq) => (
+                            <li
+                              key={eq.id}
+                              className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2.5"
+                            >
+                              <span
+                                className="grid h-5 w-5 shrink-0 place-items-center rounded border-2 border-slate-300 bg-white"
+                                aria-hidden
+                                title="Case pour sélection (via Valider maintenance)"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-ink">
+                                  {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                                </div>
+                                <div className="text-[11px] text-muted">
+                                  {[eq.type && eq.nom ? eq.type : null, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
+                                    .filter(Boolean)
+                                    .join(' · ') || '—'}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => startEditEquip(c, eq.id)}
+                                className="rounded-full border border-accent bg-accent-soft px-3 py-1.5 text-xs font-semibold text-slate hover:bg-accent"
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeEquipement(c, eq.id)}
+                                className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-danger hover:bg-red-50"
+                              >
+                                Supprimer
+                              </button>
+                              <Link
+                                to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
+                                className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
+                              >
+                                CERFA
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   )}
                   {c.derniereMaintenanceDate && (
                     <p className="mt-1.5 text-xs text-accent">
