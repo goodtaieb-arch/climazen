@@ -126,6 +126,8 @@ export interface FicheMaintenanceClim {
   marqueModele: string
   numeroSerie: string
   fluide: string
+  /** Quantité de fluide (kg) — charge nominale équipement */
+  quantiteFluideKg?: number | null
   checks: Partial<Record<FicheMaintCheckId, boolean>>
   tempSouffleC?: number | null
   tempReprisC?: number | null
@@ -143,10 +145,11 @@ export interface FicheMaintenanceClim {
   pdfFileName?: string
 }
 
+/** Toutes les tâches cochées par défaut — l’opérateur décoche ce qui n’a pas été fait. */
 export function blankFicheMaintChecks(): Partial<Record<FicheMaintCheckId, boolean>> {
   const o: Partial<Record<FicheMaintCheckId, boolean>> = {}
   for (const sec of FICHE_MAINT_SECTIONS) {
-    for (const it of sec.items) o[it.id] = false
+    for (const it of sec.items) o[it.id] = true
   }
   return o
 }
@@ -161,6 +164,7 @@ export function blankFicheMaintenanceClim(): Omit<FicheMaintenanceClim, 'id' | '
     marqueModele: '',
     numeroSerie: '',
     fluide: '',
+    quantiteFluideKg: null,
     checks: blankFicheMaintChecks(),
     tempSouffleC: null,
     tempReprisC: null,
@@ -169,6 +173,6 @@ export function blankFicheMaintenanceClim(): Omit<FicheMaintenanceClim, 'id' | '
     tensionV: null,
     intensiteA: null,
     observations: '',
-    resultat: '',
+    resultat: 'conforme',
   }
 }

@@ -44,13 +44,26 @@ function buildPrefill(opts: {
     type?: string
     numeroSerie?: string
     fluideType?: string
+    chargeNominaleKg?: number
   }
   technicien: string
   signatureOperateur?: string
 }): Omit<FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'> {
   if (opts.existing) {
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = opts.existing
-    return rest
+    return {
+      ...rest,
+      // Signatures auto comme CERFA (profil + signature client du site)
+      signatureTechnicienImage:
+        rest.signatureTechnicienImage || opts.signatureOperateur || '',
+      signatureClientImage:
+        rest.signatureClientImage || opts.site?.signatureDetenteurImage || '',
+      quantiteFluideKg:
+        rest.quantiteFluideKg ??
+        (opts.equip?.chargeNominaleKg != null && opts.equip.chargeNominaleKg > 0
+          ? opts.equip.chargeNominaleKg
+          : rest.quantiteFluideKg ?? null),
+    }
   }
   const base = blankFicheMaintenanceClim()
   const { site, client, equip } = opts
@@ -69,6 +82,10 @@ function buildPrefill(opts: {
     marqueModele: marqueModele || equip?.type || '',
     numeroSerie: equip?.numeroSerie || '',
     fluide: equip?.fluideType || '',
+    quantiteFluideKg:
+      equip?.chargeNominaleKg != null && equip.chargeNominaleKg > 0
+        ? equip.chargeNominaleKg
+        : null,
     signatureTechnicienImage: opts.signatureOperateur || '',
     signatureClientImage: site?.signatureDetenteurImage || '',
   }
@@ -155,6 +172,26 @@ export function FicheMaintenanceClimPage() {
     user?.signatureImage,
   ])
 
+  // Signatures auto (comme CERFA) dès que le profil / site est dispo
+  useEffect(() => {
+    const tech = user?.signatureImage
+    const clientSig = site?.signatureDetenteurImage
+    if (!tech && !clientSig) return
+    setForm((f) => {
+      const next = { ...f }
+      let changed = false
+      if (tech && !f.signatureTechnicienImage) {
+        next.signatureTechnicienImage = tech
+        changed = true
+      }
+      if (clientSig && !f.signatureClientImage) {
+        next.signatureClientImage = clientSig
+        changed = true
+      }
+      return changed ? next : f
+    })
+  }, [user?.signatureImage, site?.signatureDetenteurImage])
+
   const relatedFiches = useMemo(() => {
     const list = data.fichesMaintenanceClim || []
     const eqId = equipementId || existing?.equipementId || form.equipementId
@@ -211,26 +248,54 @@ export function FicheMaintenanceClimPage() {
   }
 
   const onPdf = async () => {
+    const techSig = form.signatureTechnicienImage || user?.signatureImage || ''
+    if (!techSig) {
+      alert(
+        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Ma signature », comme pour le CERFA.',
+      )
+      return
+    }
     setBusy(true)
     try {
-      const id = persist()
+      const withSig = {
+        ...form,
+        signatureTechnicienImage: techSig,
+        signatureClientImage:
+          form.signatureClientImage || site?.signatureDetenteurImage || '',
+      }
+      setForm(withSig)
+      const id = upsertFicheMaintenanceClim({
+        ...withSig,
+        id: existing?.id,
+      })
       const fiche =
         (data.fichesMaintenanceClim || []).find((f) => f.id === id) ||
         ({
-          ...form,
+          ...withSig,
           id,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         } as FicheMaintenanceClim)
-      const blob = await buildFicheMaintenanceClimPdf({
-        ...fiche,
-        ...form,
-        id,
-      })
+      const op = data.operateur
+      const blob = await buildFicheMaintenanceClimPdf(
+        {
+          ...fiche,
+          ...withSig,
+          id,
+        },
+        {
+          raisonSociale: op.raisonSociale,
+          adresse: op.adresse,
+          telephone: op.telephone,
+          email: op.email,
+          siret: op.siret,
+          logoImage: op.logoImage,
+        },
+      )
       const url = URL.createObjectURL(blob)
       setPdfUrl(url)
       upsertFicheMaintenanceClim({
-        ...form,
+        ...withSig,
         id,
         hasPdf: true,
         pdfFileName: `fiche-maint-clim-${form.date || today()}.pdf`,
@@ -258,8 +323,8 @@ export function FicheMaintenanceClimPage() {
             Fiche de Maintenance Climatisation / PAC
           </h1>
           <p className="text-sm text-muted">
-            Checklist terrain (hors CERFA). Les contrôles d’étanchéité légaux restent sur le CERFA
-            15497-04.
+            Checklist terrain (hors CERFA). Toutes les tâches sont cochées : décochez seulement ce
+            qui n’a pas été fait. Signatures reprises automatiquement (comme le CERFA).
           </p>
         </div>
       </div>
@@ -382,7 +447,7 @@ export function FicheMaintenanceClimPage() {
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
             </label>
-            <label className="block text-sm sm:col-span-2">
+            <label className="block text-sm">
               <span className="mb-1 block text-muted">Fluide</span>
               <input
                 value={form.fluide}
@@ -390,12 +455,37 @@ export function FicheMaintenanceClimPage() {
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
             </label>
+            <div className="block text-sm">
+              <DecimalField
+                label="Quantité de fluide (kg)"
+                value={num(form.quantiteFluideKg)}
+                onChange={(n) => setForm({ ...form, quantiteFluideKg: n || null })}
+                placeholder="ex. 1,2"
+              />
+            </div>
           </div>
         </div>
 
         {FICHE_MAINT_SECTIONS.map((sec) => (
           <div key={sec.id} className="border-t border-line pt-3">
-            <h2 className="font-display mb-2 text-base font-semibold">{sec.title}</h2>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-base font-semibold">{sec.title}</h2>
+              <button
+                type="button"
+                className="text-xs font-semibold text-accent hover:underline"
+                onClick={() => {
+                  const next = { ...form.checks }
+                  const allOn = sec.items.every((it) => next[it.id])
+                  for (const it of sec.items) next[it.id] = !allOn
+                  setForm({ ...form, checks: next })
+                }}
+              >
+                Tout cocher / décocher
+              </button>
+            </div>
+            <p className="mb-2 text-xs text-muted">
+              Pré-validé — décochez uniquement ce qui n’a pas été réalisé.
+            </p>
             <ul className="space-y-2">
               {sec.items.map((it) => (
                 <li key={it.id} className="rounded-xl border border-line bg-foam/40 px-3 py-2.5">
@@ -556,14 +646,22 @@ export function FicheMaintenanceClimPage() {
               value={form.signatureTechnicienImage}
               onChange={(v) => setForm({ ...form, signatureTechnicienImage: v })}
               height={140}
+              hint="Automatique depuis « Ma signature » (comme le CERFA)."
             />
             <SignaturePad
               label="Signature client"
               value={form.signatureClientImage}
               onChange={(v) => setForm({ ...form, signatureClientImage: v })}
               height={140}
+              hint="Automatique si déjà enregistrée sur le site / CERFA."
             />
           </div>
+          {!user?.signatureImage && (
+            <p className="mt-2 text-xs text-danger">
+              Aucune signature opérateur en profil — enregistrez-la dans « Ma signature » avant le
+              PDF.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-line pt-4">

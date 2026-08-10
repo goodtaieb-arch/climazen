@@ -239,6 +239,8 @@ export function ChantiersPage() {
         marqueModele: marqueModele || eq.type || '',
         numeroSerie: eq.numeroSerie || '',
         fluide: eq.fluideType || '',
+        quantiteFluideKg:
+          eq.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
         signatureTechnicienImage: user?.signatureImage || '',
         signatureClientImage: site.signatureDetenteurImage || '',
       })
