@@ -159,6 +159,12 @@ export interface Equipement {
   marque: string
   modele: string
   numeroSerie: string
+  /**
+   * true = cet équipement contient du fluide → CERFA / stock gaz.
+   * false = matériel sans fluide (ex. VMC) sur le même site.
+   * Défaut true pour les fiches existantes.
+   */
+  avecFluideFrigorigene?: boolean
   fluideType: string
   chargeNominaleKg: number
   teqCO2?: number
@@ -223,8 +229,9 @@ export interface Site {
   derniereMaintenanceAt?: string
   derniereMaintenanceDate?: string
   /**
-   * true = équipement avec fluide frigorigène → CERFA + stock gaz.
-   * false = travaux standard (ex. VMC) → fiche info seule, sans CERFA.
+   * true = au moins un équipement avec fluide → CERFA / stock gaz.
+   * false = uniquement travaux / matériel standard (ex. VMC).
+   * Dérivé des équipements à l’enregistrement ; conservé pour compat.
    */
   avecFluideFrigorigene?: boolean
   /** Équipement principal (format actuel UI Sites) */
@@ -241,8 +248,20 @@ export interface Site {
 /** @deprecated alias — utiliser Site */
 export type Chantier = Site
 
-/** Travaux concernés par CERFA / fluides (défaut true pour les fiches existantes). */
-export function siteAvecFluideFrigorigene(s: Pick<Site, 'avecFluideFrigorigene'>): boolean {
+/** Équipement concerné par CERFA / fluides (défaut true pour les fiches existantes). */
+export function equipAvecFluideFrigorigene(
+  e: Pick<Equipement, 'avecFluideFrigorigene'>,
+): boolean {
+  return e.avecFluideFrigorigene !== false
+}
+
+/** Site concerné par CERFA / fluides — true si au moins un équipement fluide. */
+export function siteAvecFluideFrigorigene(
+  s: Pick<Site, 'avecFluideFrigorigene' | 'equipements'>,
+): boolean {
+  if (s.equipements && s.equipements.length > 0) {
+    return s.equipements.some((e) => equipAvecFluideFrigorigene(e))
+  }
   return s.avecFluideFrigorigene !== false
 }
 

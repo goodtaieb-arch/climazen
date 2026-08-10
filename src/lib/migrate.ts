@@ -28,6 +28,7 @@ type LegacyChantier = {
 }
 
 export function legacyEquipementFromFlat(c: LegacyChantier, id?: string): Equipement {
+  const avecFluide = Boolean((c.fluideType || '').trim())
   return {
     id: id || uuid(),
     nom: (c.equipementType || c.nom || 'Équipement').trim() || 'Équipement',
@@ -35,6 +36,7 @@ export function legacyEquipementFromFlat(c: LegacyChantier, id?: string): Equipe
     marque: c.equipementMarque || '',
     modele: c.equipementModele || '',
     numeroSerie: c.equipementNumeroSerie || '',
+    avecFluideFrigorigene: avecFluide,
     fluideType: c.fluideType || '',
     chargeNominaleKg: Number(c.chargeNominaleKg) || 0,
     teqCO2: c.teqCO2,
@@ -52,6 +54,7 @@ export function migrateSite(raw: LegacyChantier): Site {
           marque: e.marque || '',
           modele: e.modele || '',
           numeroSerie: e.numeroSerie || '',
+          avecFluideFrigorigene: e.avecFluideFrigorigene !== false,
           fluideType: e.fluideType || '',
           chargeNominaleKg: Number(e.chargeNominaleKg) || 0,
           teqCO2: e.teqCO2,

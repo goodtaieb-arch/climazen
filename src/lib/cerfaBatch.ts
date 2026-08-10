@@ -1,22 +1,48 @@
 import { v4 as uuid } from 'uuid'
 import type { CerfaDraft, Client, Equipement, NatureIntervention, Operateur, Site } from './types'
-import { siteAvecFluideFrigorigene } from './types'
+import { equipAvecFluideFrigorigene, siteAvecFluideFrigorigene } from './types'
 import { findEquipement } from './migrate'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo } from './fluides'
 
-export function equipementsForCerfa(site: Site): Equipement[] {
-  if (!siteAvecFluideFrigorigene(site)) return []
-  const list = site.equipements?.filter((e) => (e.fluideType || '').trim()) || []
-  if (list.length > 0) return list
-  if ((site.fluideType || '').trim()) {
+/** Tous les équipements du site (fluide + standard). */
+export function allEquipements(site: Site): Equipement[] {
+  if (site.equipements?.length) return site.equipements
+  if ((site.equipementType || site.fluideType || site.nom || '').trim()) {
     return [
       {
-        id: site.equipements?.[0]?.id || uuid(),
+        id: uuid(),
         nom: site.equipementType || site.nom || 'Équipement',
         type: site.equipementType || '',
         marque: site.equipementMarque || '',
         modele: site.equipementModele || '',
         numeroSerie: site.equipementNumeroSerie || '',
+        avecFluideFrigorigene: siteAvecFluideFrigorigene(site),
+        fluideType: site.fluideType || '',
+        chargeNominaleKg: Number(site.chargeNominaleKg) || 0,
+        teqCO2: site.teqCO2,
+        detectionPermanente: !!site.detectionPermanente,
+      },
+    ]
+  }
+  return []
+}
+
+/** Équipements fluide → CERFA uniquement. */
+export function equipementsForCerfa(site: Site): Equipement[] {
+  const list = allEquipements(site).filter(
+    (e) => equipAvecFluideFrigorigene(e) && (e.fluideType || '').trim(),
+  )
+  if (list.length > 0) return list
+  if (siteAvecFluideFrigorigene(site) && (site.fluideType || '').trim() && !site.equipements?.length) {
+    return [
+      {
+        id: uuid(),
+        nom: site.equipementType || site.nom || 'Équipement',
+        type: site.equipementType || '',
+        marque: site.equipementMarque || '',
+        modele: site.equipementModele || '',
+        numeroSerie: site.equipementNumeroSerie || '',
+        avecFluideFrigorigene: true,
         fluideType: site.fluideType || '',
         chargeNominaleKg: Number(site.chargeNominaleKg) || 0,
         teqCO2: site.teqCO2,
@@ -64,6 +90,7 @@ export function syncEquipementsFromFlat(
     | 'teqCO2'
     | 'detectionPermanente'
     | 'nom'
+    | 'avecFluideFrigorigene'
   >,
   existing?: Equipement[],
 ): Equipement[] {
@@ -79,6 +106,7 @@ export function syncEquipementsFromFlat(
         marque: site.equipementMarque || first.marque || '',
         modele: site.equipementModele || first.modele || '',
         numeroSerie: site.equipementNumeroSerie || first.numeroSerie || '',
+        avecFluideFrigorigene: first.avecFluideFrigorigene !== false,
         fluideType: site.fluideType || first.fluideType || '',
         chargeNominaleKg: Number(site.chargeNominaleKg ?? first.chargeNominaleKg) || 0,
         teqCO2: site.teqCO2 ?? first.teqCO2,
@@ -88,14 +116,19 @@ export function syncEquipementsFromFlat(
     ]
   }
   const prevId = existing?.[0]?.id
+  const avecFluide =
+    existing?.[0]?.avecFluideFrigorigene !== undefined
+      ? existing[0].avecFluideFrigorigene !== false
+      : site.avecFluideFrigorigene !== false
   return [
     {
       id: prevId || uuid(),
-      nom: site.equipementType || site.nom || 'Équipement',
+      nom: existing?.[0]?.nom || site.equipementType || site.nom || 'Équipement',
       type: site.equipementType || '',
       marque: site.equipementMarque || '',
       modele: site.equipementModele || '',
       numeroSerie: site.equipementNumeroSerie || '',
+      avecFluideFrigorigene: avecFluide,
       fluideType: site.fluideType || '',
       chargeNominaleKg: Number(site.chargeNominaleKg) || 0,
       teqCO2: site.teqCO2,

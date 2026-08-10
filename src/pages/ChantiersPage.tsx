@@ -4,7 +4,7 @@ import { FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-reac
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
-import { siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
+import { equipAvecFluideFrigorigene, siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
@@ -12,18 +12,19 @@ import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
-import { equipementsForCerfa, equipmentLabel, syncEquipementsFromFlat } from '../lib/cerfaBatch'
+import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat } from '../lib/cerfaBatch'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
 
-const blankEquip = (): Equipement => ({
+const blankEquip = (avecFluide = true): Equipement => ({
   id: crypto.randomUUID(),
   nom: '',
   type: '',
   marque: '',
   modele: '',
   numeroSerie: '',
-  fluideType: 'R-448A',
+  avecFluideFrigorigene: avecFluide,
+  fluideType: avecFluide ? 'R-448A' : '',
   chargeNominaleKg: 0,
   teqCO2: 0,
   detectionPermanente: false,
@@ -48,7 +49,7 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   detectionPermanente: false,
   statut: 'actif',
   notes: '',
-  equipements: [blankEquip()],
+  equipements: [blankEquip(true)],
 })
 
 function today() {
@@ -73,9 +74,9 @@ export function ChantiersPage() {
     nature: 'maintenance' | 'depanage' | 'controle'
   } | null>(null)
 
-  const avecFluide = form.avecFluideFrigorigene !== false
   const equipements = form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)
   const currentEquip = equipements[Math.min(equipIdx, equipements.length - 1)] || blankEquip()
+  const currentAvecFluide = equipAvecFluideFrigorigene(currentEquip)
 
   const openPicker = (site: Chantier, mode: 'maintenance' | 'intervention') => {
     const eqs = equipementsForCerfa(site)
@@ -183,12 +184,12 @@ export function ChantiersPage() {
   }, [data.chantiers, data.clients, q])
 
   useEffect(() => {
-    if (!open || !avecFluide) return
+    if (!open || !currentAvecFluide) return
     const teq = calcTeqCO2FromFluide(Number(form.chargeNominaleKg) || 0, form.fluideType)
     if (teq === null) return
     if (form.teqCO2 === teq) return
     setForm((f) => ({ ...f, teqCO2: teq }))
-  }, [form.fluideType, form.chargeNominaleKg, open, avecFluide]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.fluideType, form.chargeNominaleKg, open, currentAvecFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const patchCurrentEquip = (patch: Partial<Equipement>) => {
     const list = [...equipements]
@@ -201,10 +202,21 @@ export function ChantiersPage() {
       )
       if (teq != null) nextEq.teqCO2 = teq
     }
+    if (patch.avecFluideFrigorigene === false) {
+      nextEq.fluideType = ''
+      nextEq.chargeNominaleKg = 0
+      nextEq.teqCO2 = 0
+      nextEq.detectionPermanente = false
+    }
+    if (patch.avecFluideFrigorigene === true && !nextEq.fluideType) {
+      nextEq.fluideType = 'R-448A'
+    }
     list[i] = nextEq
+    const siteFluide = list.some((e) => equipAvecFluideFrigorigene(e))
     setForm({
       ...form,
       equipements: list,
+      avecFluideFrigorigene: siteFluide,
       equipementType: nextEq.type,
       equipementMarque: nextEq.marque,
       equipementModele: nextEq.modele,
@@ -218,31 +230,43 @@ export function ChantiersPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    const fluide = form.avecFluideFrigorigene !== false
-    const list = fluide
-      ? (form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)).map((eq) => ({
+    const list = (form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)).map(
+      (eq) => {
+        const fluide = equipAvecFluideFrigorigene(eq)
+        return {
           ...eq,
-          fluideType: eq.fluideType || form.fluideType,
-          chargeNominaleKg: Number(eq.chargeNominaleKg) || 0,
-          teqCO2:
-            eq.teqCO2 ??
-            calcTeqCO2FromFluide(Number(eq.chargeNominaleKg) || 0, eq.fluideType || form.fluideType) ??
-            undefined,
-        }))
-      : []
-    const primary = list[0]
+          avecFluideFrigorigene: fluide,
+          fluideType: fluide ? eq.fluideType || form.fluideType || 'R-448A' : '',
+          chargeNominaleKg: fluide ? Number(eq.chargeNominaleKg) || 0 : 0,
+          teqCO2: fluide
+            ? eq.teqCO2 ??
+              calcTeqCO2FromFluide(Number(eq.chargeNominaleKg) || 0, eq.fluideType || form.fluideType) ??
+              undefined
+            : undefined,
+          detectionPermanente: fluide ? !!eq.detectionPermanente : false,
+        }
+      },
+    )
+    if (list.length === 0) {
+      alert('Ajoutez au moins un équipement.')
+      return
+    }
+    const siteFluide = list.some((e) => equipAvecFluideFrigorigene(e))
+    const primary = list.find((e) => equipAvecFluideFrigorigene(e)) || list[0]
     upsertChantier({
       ...form,
-      avecFluideFrigorigene: fluide,
-      equipements: list.length ? list : undefined,
+      avecFluideFrigorigene: siteFluide,
+      equipements: list,
       equipementType: primary?.type || form.equipementType,
       equipementMarque: primary?.marque || form.equipementMarque,
       equipementModele: primary?.modele || form.equipementModele,
       equipementNumeroSerie: primary?.numeroSerie || form.equipementNumeroSerie,
-      chargeNominaleKg: fluide ? Number(primary?.chargeNominaleKg || form.chargeNominaleKg) || 0 : 0,
-      teqCO2: fluide ? primary?.teqCO2 ?? form.teqCO2 : undefined,
-      fluideType: fluide ? primary?.fluideType || form.fluideType : '',
-      detectionPermanente: fluide ? !!(primary?.detectionPermanente ?? form.detectionPermanente) : false,
+      chargeNominaleKg: siteFluide ? Number(primary?.chargeNominaleKg || form.chargeNominaleKg) || 0 : 0,
+      teqCO2: siteFluide ? primary?.teqCO2 ?? form.teqCO2 : undefined,
+      fluideType: siteFluide ? primary?.fluideType || form.fluideType : '',
+      detectionPermanente: siteFluide
+        ? !!(primary?.detectionPermanente ?? form.detectionPermanente)
+        : false,
       detailTravaux: form.detailTravaux?.trim() || '',
       id: editId ?? undefined,
       createdByUserId: editId ? form.createdByUserId : user?.id,
@@ -338,18 +362,23 @@ export function ChantiersPage() {
     }
     const next = eqs.filter((e) => e.id !== equipementId)
     if (next.length === 0) {
-      alert('Il faut au moins un équipement, ou passez le site en « travaux standard ».')
+      alert('Il faut au moins un équipement sur le site.')
       return
     }
     upsertChantier({
       ...site,
       equipements: next,
+      avecFluideFrigorigene: next.some((e) => equipAvecFluideFrigorigene(e)),
       id: site.id,
     })
     if (picker?.site.id === site.id) {
       setPicker({
         ...picker,
-        site: { ...site, equipements: next },
+        site: {
+          ...site,
+          equipements: next,
+          avecFluideFrigorigene: next.some((e) => equipAvecFluideFrigorigene(e)),
+        },
         selected: picker.selected.filter((id) => id !== equipementId),
       })
     }
@@ -379,33 +408,6 @@ export function ChantiersPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
-          <label className="flex items-center gap-3 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={avecFluide}
-              onChange={(e) => {
-                const checked = e.target.checked
-                setForm({
-                  ...form,
-                  avecFluideFrigorigene: checked,
-                  typeTravaux:
-                    !checked &&
-                    (form.typeTravaux === 'controle_etancheite' ||
-                      form.typeTravaux === 'recuperation')
-                      ? 'ventilation_vmc'
-                      : form.typeTravaux,
-                })
-              }}
-              className="h-5 w-5 shrink-0 rounded border-2 border-slate-300 accent-accent"
-            />
-            <span className="text-sm font-medium text-ink">
-              Contient du fluide frigorigène
-              <span className="mt-0.5 block text-xs font-normal text-muted">
-                Case cochée = CERFA / stock gaz. Décochée = travaux standard (ex. VMC).
-              </span>
-            </span>
-          </label>
-
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-muted">Client / détenteur *</span>
             <select
@@ -452,9 +454,7 @@ export function ChantiersPage() {
             onChange={(v) => setForm({ ...form, detailTravaux: v })}
           />
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
-            {avecFluide
-              ? 'Ex. maintenance semestrielle, installation clim bureau directeur…'
-              : 'Ex. installation VMC sanitaires, remplacement extracteur cuisine…'}
+            Ex. maintenance semestrielle, installation clim bureau directeur, pose VMC…
           </p>
           <Field
             label="Adresse"
@@ -471,25 +471,21 @@ export function ChantiersPage() {
 
           <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-ink">
-                Équipements enregistrés {avecFluide ? '(réutilisés à chaque maintenance)' : ''}
-              </p>
-              {avecFluide && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = blankEquip()
-                    const list = [...equipements, next]
-                    setForm({ ...form, equipements: list })
-                    setEquipIdx(list.length - 1)
-                  }}
-                  className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:bg-mist"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Ajouter un équipement
-                </button>
-              )}
+              <p className="text-sm font-semibold text-ink">Équipements enregistrés</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = blankEquip(true)
+                  const list = [...equipements, next]
+                  setForm({ ...form, equipements: list, avecFluideFrigorigene: true })
+                  setEquipIdx(list.length - 1)
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:bg-mist"
+              >
+                <Plus className="h-3.5 w-3.5" /> Ajouter un équipement
+              </button>
             </div>
-            {avecFluide && equipements.length > 1 && (
+            {equipements.length > 1 && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {equipements.map((eq, i) => (
                   <button
@@ -517,6 +513,7 @@ export function ChantiersPage() {
                     ].join(' ')}
                   >
                     {eq.nom || eq.type || `Équipement ${i + 1}`}
+                    {equipAvecFluideFrigorigene(eq) ? '' : ' · standard'}
                   </button>
                 ))}
               </div>
@@ -524,18 +521,33 @@ export function ChantiersPage() {
             <PlaquePhotoButton onParsed={applyPlaque} />
           </div>
 
+          <label className="flex items-center gap-3 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={currentAvecFluide}
+              onChange={(e) => patchCurrentEquip({ avecFluideFrigorigene: e.target.checked })}
+              className="h-5 w-5 shrink-0 rounded border-2 border-slate-300 accent-accent"
+            />
+            <span className="text-sm font-medium text-ink">
+              Contient du fluide frigorigène
+              <span className="mt-0.5 block text-xs font-normal text-muted">
+                Case cochée = CERFA / stock gaz pour cet équipement. Décochée = matériel standard
+                (ex. VMC).
+              </span>
+            </span>
+          </label>
+
           <Field
             label="Nom / libellé équipement *"
             value={currentEquip.nom || ''}
             onChange={(v) => patchCurrentEquip({ nom: v, type: currentEquip.type || v })}
-            required={avecFluide}
+            required
           />
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
-            Ex. « Chambre froide rayon frais », « Clim bureau 2 » — c’est ce nom qui apparaît dans la
-            sélection (case à cocher).
+            Ex. « Chambre froide rayon frais », « Clim bureau 2 », « VMC sanitaires ».
           </p>
           <Field
-            label={avecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
+            label={currentAvecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
             value={form.equipementType}
             onChange={(v) => patchCurrentEquip({ type: v, nom: currentEquip.nom || v })}
           />
@@ -554,7 +566,7 @@ export function ChantiersPage() {
             value={form.equipementNumeroSerie}
             onChange={(v) => patchCurrentEquip({ numeroSerie: v })}
           />
-          {avecFluide && equipements.length > 1 && (
+          {equipements.length > 1 && (
             <button
               type="button"
               onClick={() => {
@@ -567,6 +579,7 @@ export function ChantiersPage() {
                 setForm({
                   ...form,
                   equipements: list,
+                  avecFluideFrigorigene: list.some((e) => equipAvecFluideFrigorigene(e)),
                   equipementType: eq.type,
                   equipementMarque: eq.marque,
                   equipementModele: eq.modele,
@@ -583,7 +596,7 @@ export function ChantiersPage() {
             </button>
           )}
 
-          {avecFluide ? (
+          {currentAvecFluide ? (
             <>
               <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
                 <p className="text-sm font-semibold text-ink">Données fluide / CERFA</p>
@@ -624,8 +637,7 @@ export function ChantiersPage() {
             </>
           ) : (
             <div className="sm:col-span-2 rounded-xl border border-dashed border-line bg-foam px-4 py-3 text-sm text-muted">
-              Travaux standard : pas de CERFA ni de suivi fluide. Les infos ci-dessus suffisent pour
-              le dossier client.
+              Équipement standard : pas de CERFA ni de suivi fluide pour celui-ci.
             </div>
           )}
 
@@ -651,9 +663,10 @@ export function ChantiersPage() {
         {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
           const fluide = siteAvecFluideFrigorigene(c)
-          const eqs = equipementsForCerfa(c)
+          const eqs = allEquipements(c)
+          const eqsCerfa = equipementsForCerfa(c)
           const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : null
-          const canBatch = fluide && eqs.length > 0
+          const canBatch = eqsCerfa.length > 0
 
           return (
             <div key={c.id} className="rounded-2xl border border-line bg-white p-4 sm:p-5">
@@ -686,18 +699,19 @@ export function ChantiersPage() {
                       ) : null}
                     </div>
                   )}
-                  {fluide && (
-                    <div className="mt-3">
-                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-                        Équipements — Modifier / Supprimer / CERFA
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                      Équipements — Modifier / Supprimer / CERFA
+                    </p>
+                    {eqs.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-line bg-foam/50 px-3 py-2.5 text-xs text-muted">
+                        Aucun équipement encore. Ouvrez le crayon pour en ajouter.
                       </p>
-                      {eqs.length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-line bg-foam/50 px-3 py-2.5 text-xs text-muted">
-                          Aucun équipement fluide encore. Ouvrez le crayon pour en ajouter.
-                        </p>
-                      ) : (
-                        <ul className="space-y-2">
-                          {eqs.map((eq) => (
+                    ) : (
+                      <ul className="space-y-2">
+                        {eqs.map((eq) => {
+                          const eqFluide = equipAvecFluideFrigorigene(eq)
+                          return (
                             <li
                               key={eq.id}
                               className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2.5"
@@ -708,11 +722,27 @@ export function ChantiersPage() {
                                 title="Case pour sélection (via Valider maintenance)"
                               />
                               <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold text-ink">
-                                  {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-semibold text-ink">
+                                    {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                                  </span>
+                                  <span
+                                    className={[
+                                      'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                      eqFluide ? 'bg-accent-soft text-slate' : 'bg-mist text-muted',
+                                    ].join(' ')}
+                                  >
+                                    {eqFluide ? 'Fluide' : 'Standard'}
+                                  </span>
                                 </div>
                                 <div className="text-[11px] text-muted">
-                                  {[eq.type && eq.nom ? eq.type : null, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
+                                  {[
+                                    eq.type && eq.nom ? eq.type : null,
+                                    eq.marque,
+                                    eq.modele,
+                                    eqFluide ? eq.fluideType : null,
+                                    eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
+                                  ]
                                     .filter(Boolean)
                                     .join(' · ') || '—'}
                                 </div>
@@ -731,18 +761,20 @@ export function ChantiersPage() {
                               >
                                 Supprimer
                               </button>
-                              <Link
-                                to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
-                                className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
-                              >
-                                CERFA
-                              </Link>
+                              {eqFluide && (
+                                <Link
+                                  to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
+                                  className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
+                                >
+                                  CERFA
+                                </Link>
+                              )}
                             </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
                   {c.derniereMaintenanceDate && (
                     <p className="mt-1.5 text-xs text-accent">
                       Dernière maintenance validée : {c.derniereMaintenanceDate}
