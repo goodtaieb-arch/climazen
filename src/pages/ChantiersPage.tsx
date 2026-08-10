@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -67,6 +67,7 @@ export function ChantiersPage() {
     useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [form, setForm] = useState(() => blank(data.clients[0]?.id || ''))
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -96,6 +97,21 @@ export function ChantiersPage() {
   const equipements = form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)
   const currentEquip = equipements[Math.min(equipIdx, equipements.length - 1)] || blankEquip()
   const currentAvecFluide = equipAvecFluideFrigorigene(currentEquip)
+
+  const closeForm = () => {
+    setOpen(false)
+    setEditId(null)
+    setPicker(null)
+    setEquipWork(null)
+    setEquipFilter('')
+  }
+
+  // Clic menu Travaux (même page) → revenir à la liste
+  useEffect(() => {
+    const st = location.state as { travauxList?: number } | null
+    if (st?.travauxList) closeForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   const clientSuggestions: SmartSuggestion[] = useMemo(
     () =>
@@ -565,6 +581,15 @@ export function ChantiersPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
+            <button
+              type="button"
+              onClick={closeForm}
+              className="text-sm font-semibold text-accent hover:underline"
+            >
+              ← Retour à la liste
+            </button>
+          </div>
           {editId && (
             <p className="sm:col-span-2 rounded-xl border border-accent/40 bg-accent-soft/50 px-3 py-2 text-xs text-slate">
               Site déjà enregistré — adresse et infos reprises. Ajoutez ou modifiez seulement les
@@ -900,7 +925,7 @@ export function ChantiersPage() {
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={closeForm}
               className="rounded-full border border-line px-5 py-2.5 text-sm"
             >
               Annuler

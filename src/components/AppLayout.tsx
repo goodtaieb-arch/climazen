@@ -149,6 +149,14 @@ export function AppLayout() {
     data.operateur.logoImage || loadCompanyLogoLocal(user?.organizationId) || null
   const companyName = data.operateur.raisonSociale || organization?.name || ''
 
+  /** Sur Travaux, recliquer le menu ferme le formulaire et revient à la liste. */
+  const goNav = (to: string) => (e: React.MouseEvent) => {
+    if (to === '/app/chantiers' && (pathname === to || pathname.startsWith(`${to}/`))) {
+      e.preventDefault()
+      navigate('/app/chantiers', { state: { travauxList: Date.now() }, replace: true })
+    }
+  }
+
   return (
     <div
       className="min-h-screen text-ink lg:grid lg:grid-cols-[300px_1fr]"
@@ -170,6 +178,7 @@ export function AppLayout() {
                 key={to}
                 to={to}
                 end={end}
+                onClick={goNav(to)}
                 className="group flex items-stretch overflow-hidden rounded-xl border text-sm font-semibold transition-all"
                 style={({ isActive }) => ({
                   backgroundColor: isActive ? t.cardActive : t.card,
@@ -302,6 +311,7 @@ export function AppLayout() {
                 key={to}
                 to={to}
                 end={end}
+                onClick={goNav(to)}
                 className="flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium"
                 style={({ isActive }) => ({ color: isActive ? t.icon : '#5a7880' })}
               >
