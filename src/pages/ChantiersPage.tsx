@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FileCheck2, Plus, Pencil, RefreshCw, Snowflake, Trash2, Wrench } from 'lucide-react'
+import { FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -379,59 +379,32 @@ export function ChantiersPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
-          <div className="sm:col-span-2">
-            <p className="mb-2 text-sm font-medium text-ink">Nature de l’équipement / travaux</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, avecFluideFrigorigene: true })}
-                className={[
-                  'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition',
-                  avecFluide
-                    ? 'border-accent bg-accent-soft/60 shadow-sm'
-                    : 'border-line bg-foam hover:bg-mist',
-                ].join(' ')}
-              >
-                <Snowflake className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
-                <span>
-                  <span className="block text-sm font-semibold text-ink">
-                    Contient du fluide frigorigène
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    Accès CERFA, stock gaz, charge, détection — cadre réglementaire.
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    avecFluideFrigorigene: false,
-                    typeTravaux:
-                      form.typeTravaux === 'controle_etancheite' ||
-                      form.typeTravaux === 'recuperation'
-                        ? 'ventilation_vmc'
-                        : form.typeTravaux,
-                  })
-                }
-                className={[
-                  'flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition',
-                  !avecFluide
-                    ? 'border-accent bg-accent-soft/60 shadow-sm'
-                    : 'border-line bg-foam hover:bg-mist',
-                ].join(' ')}
-              >
-                <Wrench className="mt-0.5 h-5 w-5 shrink-0 text-slate" />
-                <span>
-                  <span className="block text-sm font-semibold text-ink">Travaux standard</span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    Ex. installation VMC — fiche info simple, sans CERFA ni fluide.
-                  </span>
-                </span>
-              </button>
-            </div>
-          </div>
+          <label className="flex items-center gap-3 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={avecFluide}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setForm({
+                  ...form,
+                  avecFluideFrigorigene: checked,
+                  typeTravaux:
+                    !checked &&
+                    (form.typeTravaux === 'controle_etancheite' ||
+                      form.typeTravaux === 'recuperation')
+                      ? 'ventilation_vmc'
+                      : form.typeTravaux,
+                })
+              }}
+              className="h-5 w-5 shrink-0 rounded border-2 border-slate-300 accent-accent"
+            />
+            <span className="text-sm font-medium text-ink">
+              Contient du fluide frigorigène
+              <span className="mt-0.5 block text-xs font-normal text-muted">
+                Case cochée = CERFA / stock gaz. Décochée = travaux standard (ex. VMC).
+              </span>
+            </span>
+          </label>
 
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-muted">Client / détenteur *</span>
