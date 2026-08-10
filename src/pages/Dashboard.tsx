@@ -115,16 +115,16 @@ export function Dashboard() {
                   className={[
                     'flex items-center gap-3 rounded-xl border px-3 py-3 text-sm transition-colors',
                     done
-                      ? 'border-accent/20 bg-white/70 text-muted'
-                      : 'border-line bg-white hover:border-accent/40',
+                      ? 'border-line/60 bg-white/60 text-ink/45 hover:border-line hover:text-ink/70'
+                      : 'border-line bg-white text-ink hover:border-accent/40',
                   ].join(' ')}
                 >
                   {done ? (
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" />
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-accent/70" />
                   ) : (
                     <Icon className="h-5 w-5 shrink-0 text-accent" />
                   )}
-                  <span className={done ? 'line-through' : 'font-medium'}>{label}</span>
+                  <span className="font-medium">{label}</span>
                 </Link>
               </li>
             ))}
