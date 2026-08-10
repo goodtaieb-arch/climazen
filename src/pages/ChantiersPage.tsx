@@ -396,12 +396,14 @@ export function ChantiersPage() {
         }}
       />
 
+      {!open && (
       <SearchField
         value={q}
         onChange={setQ}
         placeholder="Rechercher des travaux, client, fluide…"
         testId="chantiers-search"
       />
+      )}
 
       {open && (
         <form
@@ -659,6 +661,7 @@ export function ChantiersPage() {
         </form>
       )}
 
+      {!open && (
       <div className="grid gap-3">
         {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
@@ -840,6 +843,7 @@ export function ChantiersPage() {
           </div>
         )}
       </div>
+      )}
 
       {picker && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
