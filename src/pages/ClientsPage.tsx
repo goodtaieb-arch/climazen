@@ -25,8 +25,8 @@ const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
 })
 
 export function ClientsPage() {
-  const { data, upsertClient, deleteClient, setOperateur } = useStore()
-  const { user, isOwner } = useAuth()
+  const { data, upsertClient, deleteClient } = useStore()
+  const { user } = useAuth()
   const [form, setForm] = useState(blank())
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -38,11 +38,6 @@ export function ClientsPage() {
   const plateforme =
     FACTURATION_PLATEFORMES.find((p) => p.id === plateformeId)?.label || 'Tiime'
   const webhookConfigured = Boolean(data.operateur.facturationWebhookUrl?.trim())
-
-  const setPlateforme = (id: (typeof FACTURATION_PLATEFORMES)[number]['id']) => {
-    if (!isOwner) return
-    setOperateur({ ...data.operateur, facturationPlateforme: id })
-  }
 
   const filtered = useMemo(
     () =>
@@ -156,27 +151,6 @@ export function ClientsPage() {
         }}
       />
 
-      <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-line bg-white px-4 py-3">
-        <label className="flex shrink-0 items-center gap-2 text-sm">
-          <span className="text-muted">Facturer avec</span>
-          <select
-            value={plateformeId}
-            disabled={!isOwner}
-            onChange={(e) =>
-              setPlateforme(e.target.value as (typeof FACTURATION_PLATEFORMES)[number]['id'])
-            }
-            className="h-10 rounded-xl border border-line bg-foam px-3 font-semibold text-ink outline-none focus:border-accent"
-          >
-            {FACTURATION_PLATEFORMES.filter((p) => p.id !== 'autre').map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-                {p.id === 'tiime' ? ' (défaut)' : ''}
-              </option>
-            ))}
-            <option value="autre">Autre…</option>
-          </select>
-        </label>
-      </div>
       {webhookConfigured && (
         <p className="text-xs text-muted">
           Mode expert Make actif : icône tableur pour envoi automatique vers {plateforme}.
