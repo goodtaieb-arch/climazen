@@ -10,6 +10,7 @@ import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
+import { SmartSuggestField, type SmartSuggestion } from '../components/SmartSuggestField'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat } from '../lib/cerfaBatch'
@@ -66,17 +67,88 @@ export function ChantiersPage() {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
+  const [equipFilter, setEquipFilter] = useState('')
+  const [clientQuery, setClientQuery] = useState(() => {
+    const c = data.clients.find((cl) => cl.id === data.clients[0]?.id)
+    return c?.raisonSociale || ''
+  })
   const [batchBusy, setBatchBusy] = useState<string | null>(null)
   const [picker, setPicker] = useState<{
     site: Chantier
     mode: 'maintenance' | 'intervention'
     selected: string[]
     nature: 'maintenance' | 'depanage' | 'controle'
+    filter: string
   } | null>(null)
 
   const equipements = form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)
   const currentEquip = equipements[Math.min(equipIdx, equipements.length - 1)] || blankEquip()
   const currentAvecFluide = equipAvecFluideFrigorigene(currentEquip)
+
+  const clientSuggestions: SmartSuggestion[] = useMemo(
+    () =>
+      data.clients.map((c) => ({
+        id: c.id,
+        label: c.raisonSociale,
+        hint: [c.ville, c.codePostal].filter(Boolean).join(' · ') || undefined,
+      })),
+    [data.clients],
+  )
+
+  const siteSuggestions: SmartSuggestion[] = useMemo(() => {
+    const sites = data.chantiers.filter((c) => !form.clientId || c.clientId === form.clientId)
+    const seen = new Set<string>()
+    const out: SmartSuggestion[] = []
+    for (const s of sites) {
+      const key = s.nom.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push({
+        id: s.id,
+        label: s.nom,
+        hint: [s.ville, s.adresse].filter(Boolean).join(' · ') || undefined,
+      })
+    }
+    return out
+  }, [data.chantiers, form.clientId])
+
+  const equipSuggestions: SmartSuggestion[] = useMemo(() => {
+    const seen = new Set<string>()
+    const out: SmartSuggestion[] = []
+    for (const site of data.chantiers) {
+      if (form.clientId && site.clientId !== form.clientId) continue
+      for (const eq of allEquipements(site)) {
+        const label = (eq.nom || eq.type || '').trim()
+        if (!label) continue
+        const key = label.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push({
+          id: `${site.id}:${eq.id}`,
+          label,
+          hint: [eq.type && eq.nom !== eq.type ? eq.type : null, eq.marque, eq.modele, eq.fluideType]
+            .filter(Boolean)
+            .join(' · ') || undefined,
+        })
+      }
+    }
+    return out
+  }, [data.chantiers, form.clientId])
+
+  const filteredEquipIndices = useMemo(() => {
+    if (!equipFilter.trim()) return equipements.map((_, i) => i)
+    return equipements
+      .map((eq, i) => ({ eq, i }))
+      .filter(({ eq }) =>
+        matchesQuery(
+          [eq.nom, eq.type, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie]
+            .filter(Boolean)
+            .join(' '),
+          equipFilter,
+        ),
+      )
+      .map(({ i }) => i)
+  }, [equipements, equipFilter])
 
   const openPicker = (site: Chantier, mode: 'maintenance' | 'intervention') => {
     const eqs = equipementsForCerfa(site)
@@ -90,6 +162,7 @@ export function ChantiersPage() {
           : site.typeTravaux === 'controle_etancheite'
             ? 'controle'
             : 'depanage',
+      filter: '',
     })
   }
 
@@ -230,6 +303,10 @@ export function ChantiersPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
+    if (!form.clientId) {
+      alert('Choisissez un client dans la liste de suggestions.')
+      return
+    }
     const list = (form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)).map(
       (eq) => {
         const fluide = equipAvecFluideFrigorigene(eq)
@@ -286,6 +363,8 @@ export function ChantiersPage() {
         ? c.equipements
         : syncEquipementsFromFlat(c, c.equipements)
     const client = data.clients.find((cl) => cl.id === c.clientId)
+    setClientQuery(client?.raisonSociale || '')
+    setEquipFilter('')
     setForm({
       ...blank(c.clientId),
       ...c,
@@ -327,7 +406,10 @@ export function ChantiersPage() {
       eqs.findIndex((e) => e.id === equipementId),
     )
     const eq = eqs[idx] || eqs[0]
+    const client = data.clients.find((cl) => cl.id === site.clientId)
     setEditId(site.id)
+    setClientQuery(client?.raisonSociale || '')
+    setEquipFilter('')
     setForm({
       ...blank(site.clientId),
       ...site,
@@ -406,7 +488,10 @@ export function ChantiersPage() {
   const openNew = () => {
     setEditId(null)
     setEquipIdx(0)
+    setEquipFilter('')
     const clientId = data.clients[0]?.id || ''
+    const client = data.clients.find((c) => c.id === clientId)
+    setClientQuery(client?.raisonSociale || '')
     setForm(fillAdresseFromClient(clientId, blank(clientId)))
     setOpen(true)
   }
@@ -418,7 +503,10 @@ export function ChantiersPage() {
         : syncEquipementsFromFlat(site, site.equipements)
     const next = blankEquip(true)
     const list = [...eqs, next]
+    const client = data.clients.find((c) => c.id === site.clientId)
     setEditId(site.id)
+    setClientQuery(client?.raisonSociale || '')
+    setEquipFilter('')
     setForm({
       ...blank(site.clientId),
       ...site,
@@ -469,31 +557,61 @@ export function ChantiersPage() {
               équipements.
             </p>
           )}
-          <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Client / détenteur *</span>
-            <select
-              required
-              value={form.clientId}
-              onChange={(e) => {
-                const clientId = e.target.value
-                setForm(fillAdresseFromClient(clientId, form))
-              }}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="">— Choisir —</option>
-              {data.clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.raisonSociale}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Field
+          <SmartSuggestField
+            label="Client / détenteur *"
+            value={clientQuery}
+            onChange={(v) => {
+              setClientQuery(v)
+              const exact = data.clients.find(
+                (c) => c.raisonSociale.trim().toLowerCase() === v.trim().toLowerCase(),
+              )
+              if (exact) setForm(fillAdresseFromClient(exact.id, form))
+              else if (form.clientId) setForm({ ...form, clientId: '' })
+            }}
+            onPick={(s) => {
+              setClientQuery(s.label)
+              setForm(fillAdresseFromClient(s.id, form))
+            }}
+            suggestions={clientSuggestions}
+            required
+            showWhenEmpty
+            placeholder="Tapez pour chercher un client…"
+            className="sm:col-span-2"
+            inputMode="search"
+          />
+          {/* Keep HTML5 required without native select */}
+          <input type="hidden" required value={form.clientId} readOnly />
+          <SmartSuggestField
             label="Nom des travaux / site *"
             value={form.nom}
             onChange={(v) => setForm({ ...form, nom: v })}
+            onPick={(s) => {
+              const site = data.chantiers.find((c) => c.id === s.id)
+              if (!site) {
+                setForm({ ...form, nom: s.label })
+                return
+              }
+              // Création : reprendre adresse du site connu sans écraser un edit en cours
+              if (editId) {
+                setForm({ ...form, nom: s.label })
+                return
+              }
+              setForm({
+                ...form,
+                nom: site.nom,
+                adresse: site.adresse || form.adresse,
+                codePostal: site.codePostal || form.codePostal,
+                ville: site.ville || form.ville,
+                typeTravaux: site.typeTravaux || form.typeTravaux,
+                detailTravaux: form.detailTravaux || site.detailTravaux || '',
+              })
+            }}
+            suggestions={siteSuggestions}
             required
+            showWhenEmpty
+            placeholder="Ex. EHPAD sud, hypermarché Nice…"
             className="sm:col-span-2"
+            inputMode="search"
           />
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Type de travaux *</span>
@@ -535,7 +653,16 @@ export function ChantiersPage() {
 
           <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-ink">Équipements enregistrés</p>
+              <p className="text-sm font-semibold text-ink">
+                Équipements enregistrés
+                {equipements.length > 0 ? (
+                  <span className="ml-2 font-normal text-muted">
+                    {filteredEquipIndices.length === equipements.length
+                      ? `${equipements.length}`
+                      : `${filteredEquipIndices.length} / ${equipements.length}`}
+                  </span>
+                ) : null}
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -543,43 +670,60 @@ export function ChantiersPage() {
                   const list = [...equipements, next]
                   setForm({ ...form, equipements: list, avecFluideFrigorigene: true })
                   setEquipIdx(list.length - 1)
+                  setEquipFilter('')
                 }}
                 className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:bg-mist"
               >
                 <Plus className="h-3.5 w-3.5" /> Ajouter un équipement
               </button>
             </div>
+            {equipements.length > 5 && (
+              <div className="mb-3">
+                <SearchField
+                  value={equipFilter}
+                  onChange={setEquipFilter}
+                  placeholder="Filtrer les équipements (nom, marque, fluide…)"
+                  testId="equipements-filter"
+                />
+              </div>
+            )}
             {equipements.length > 1 && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {equipements.map((eq, i) => (
-                  <button
-                    key={eq.id}
-                    type="button"
-                    onClick={() => {
-                      setEquipIdx(i)
-                      setForm({
-                        ...form,
-                        equipementType: eq.type,
-                        equipementMarque: eq.marque,
-                        equipementModele: eq.modele,
-                        equipementNumeroSerie: eq.numeroSerie,
-                        fluideType: eq.fluideType,
-                        chargeNominaleKg: eq.chargeNominaleKg,
-                        teqCO2: eq.teqCO2,
-                        detectionPermanente: eq.detectionPermanente,
-                      })
-                    }}
-                    className={[
-                      'rounded-full px-3 py-1 text-xs font-semibold',
-                      i === equipIdx
-                        ? 'bg-accent text-ink'
-                        : 'border border-line text-muted hover:bg-mist',
-                    ].join(' ')}
-                  >
-                    {eq.nom || eq.type || `Équipement ${i + 1}`}
-                    {equipAvecFluideFrigorigene(eq) ? '' : ' · standard'}
-                  </button>
-                ))}
+              <div className="mb-3 flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                {filteredEquipIndices.map((i) => {
+                  const eq = equipements[i]
+                  return (
+                    <button
+                      key={eq.id}
+                      type="button"
+                      onClick={() => {
+                        setEquipIdx(i)
+                        setForm({
+                          ...form,
+                          equipementType: eq.type,
+                          equipementMarque: eq.marque,
+                          equipementModele: eq.modele,
+                          equipementNumeroSerie: eq.numeroSerie,
+                          fluideType: eq.fluideType,
+                          chargeNominaleKg: eq.chargeNominaleKg,
+                          teqCO2: eq.teqCO2,
+                          detectionPermanente: eq.detectionPermanente,
+                        })
+                      }}
+                      className={[
+                        'rounded-full px-3 py-1 text-xs font-semibold',
+                        i === equipIdx
+                          ? 'bg-accent text-ink'
+                          : 'border border-line text-muted hover:bg-mist',
+                      ].join(' ')}
+                    >
+                      {eq.nom || eq.type || `Équipement ${i + 1}`}
+                      {equipAvecFluideFrigorigene(eq) ? '' : ' · standard'}
+                    </button>
+                  )
+                })}
+                {filteredEquipIndices.length === 0 && (
+                  <p className="text-xs text-muted">Aucun équipement pour ce filtre.</p>
+                )}
               </div>
             )}
             <PlaquePhotoButton onParsed={applyPlaque} />
@@ -601,14 +745,42 @@ export function ChantiersPage() {
             </span>
           </label>
 
-          <Field
+          <SmartSuggestField
             label="Nom / libellé équipement *"
             value={currentEquip.nom || ''}
             onChange={(v) => patchCurrentEquip({ nom: v, type: currentEquip.type || v })}
+            onPick={(s) => {
+              // Reprendre type/marque/modèle d’un équipement déjà connu (nouvel id)
+              const [siteId, eqId] = s.id.split(':')
+              const site = data.chantiers.find((c) => c.id === siteId)
+              const src = site ? allEquipements(site).find((e) => e.id === eqId) : undefined
+              if (!src) {
+                patchCurrentEquip({ nom: s.label, type: currentEquip.type || s.label })
+                return
+              }
+              patchCurrentEquip({
+                nom: src.nom || s.label,
+                type: src.type || src.nom || s.label,
+                marque: src.marque || currentEquip.marque,
+                modele: src.modele || currentEquip.modele,
+                avecFluideFrigorigene: src.avecFluideFrigorigene,
+                fluideType: src.fluideType || currentEquip.fluideType,
+                chargeNominaleKg: src.chargeNominaleKg || currentEquip.chargeNominaleKg,
+                teqCO2: src.teqCO2 ?? currentEquip.teqCO2,
+                detectionPermanente: src.detectionPermanente,
+              })
+            }}
+            suggestions={equipSuggestions}
             required
+            showWhenEmpty
+            placeholder="Ex. Chambre froide 1 — suggestions auto"
+            className="sm:col-span-2"
+            inputMode="search"
+            limit={12}
           />
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
-            Ex. « Chambre froide rayon frais », « Clim bureau 2 », « VMC sanitaires ».
+            Tapez pour suggérer des libellés déjà utilisés. Ex. « Chambre froide rayon frais », « Clim
+            bureau 2 ».
           </p>
           <Field
             label={currentAvecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
@@ -954,8 +1126,28 @@ export function ChantiersPage() {
               </div>
             )}
 
+            {equipementsForCerfa(picker.site).length > 5 && (
+              <div className="mt-3">
+                <SearchField
+                  value={picker.filter}
+                  onChange={(v) => setPicker({ ...picker, filter: v })}
+                  placeholder="Filtrer les équipements…"
+                  testId="picker-equip-filter"
+                />
+              </div>
+            )}
+
             <ul className="mt-4 space-y-2">
-              {equipementsForCerfa(picker.site).map((eq) => {
+              {equipementsForCerfa(picker.site)
+                .filter((eq) =>
+                  matchesQuery(
+                    [eq.nom, eq.type, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie]
+                      .filter(Boolean)
+                      .join(' '),
+                    picker.filter,
+                  ),
+                )
+                .map((eq) => {
                 const checked = picker.selected.includes(eq.id)
                 const libelle = eq.nom?.trim() || eq.type || 'Sans libellé'
                 return (
