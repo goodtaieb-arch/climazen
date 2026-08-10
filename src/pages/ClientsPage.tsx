@@ -156,12 +156,7 @@ export function ClientsPage() {
         }}
       />
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate">
-          <strong>Simple :</strong> choisissez votre logiciel, puis icône{' '}
-          <strong>copier</strong> → infos dans le presse-papiers + ouverture du site. Collez dans le
-          devis / facture.
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-line bg-white px-4 py-3">
         <label className="flex shrink-0 items-center gap-2 text-sm">
           <span className="text-muted">Facturer avec</span>
           <select
