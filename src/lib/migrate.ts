@@ -143,5 +143,6 @@ export function migrateAppData(data: AppData): AppData {
     chantiers: sites,
     interventions,
     detecteurs,
+    fichesMaintenanceClim: data.fichesMaintenanceClim || [],
   }
 }

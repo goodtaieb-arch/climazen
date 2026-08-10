@@ -479,6 +479,7 @@ export function normalizeAppData(raw: unknown): AppData {
     clients: parsed.clients || [],
     chantiers: parsed.chantiers || [],
     detecteurs: parsed.detecteurs,
+    fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
   })
 }
 

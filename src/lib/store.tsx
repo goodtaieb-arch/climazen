@@ -47,6 +47,12 @@ type Store = {
   deleteClient: (id: string) => void
   upsertChantier: (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => string
   deleteChantier: (id: string) => void
+  upsertFicheMaintenanceClim: (
+    f: Omit<import('./ficheMaintenanceClim').FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
+  ) => string
+  deleteFicheMaintenanceClim: (id: string) => void
   /**
    * Valide une maintenance : crée 1 CERFA par équipement (équipements déjà sauvés sur le site).
    * Retourne les fiches créées pour génération PDF côté UI.
@@ -328,6 +334,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({
       ...d,
       chantiers: d.chantiers.filter((c) => c.id !== id),
+    }))
+  }, [])
+
+  const upsertFicheMaintenanceClim = useCallback(
+    (
+      f: Omit<import('./ficheMaintenanceClim').FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+      },
+    ) => {
+      const id = f.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.fichesMaintenanceClim || []
+        const existing = list.find((x) => x.id === id)
+        const next = {
+          ...f,
+          id,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          fichesMaintenanceClim: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteFicheMaintenanceClim = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      fichesMaintenanceClim: (d.fichesMaintenanceClim || []).filter((f) => f.id !== id),
     }))
   }, [])
 
@@ -647,6 +689,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteClient,
       upsertChantier,
       deleteChantier,
+      upsertFicheMaintenanceClim,
+      deleteFicheMaintenanceClim,
       validateMaintenanceCerfas,
       applySiteClientSignature,
       upsertStock,
@@ -671,6 +715,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteClient,
       upsertChantier,
       deleteChantier,
+      upsertFicheMaintenanceClim,
+      deleteFicheMaintenanceClim,
       validateMaintenanceCerfas,
       applySiteClientSignature,
       upsertStock,

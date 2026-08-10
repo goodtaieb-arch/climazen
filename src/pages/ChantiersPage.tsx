@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react'
+import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -1053,6 +1053,18 @@ export function ChantiersPage() {
                               >
                                 Supprimer
                               </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`,
+                                  )
+                                }
+                                className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-mist"
+                                title="Checklist maintenance climatisation / PAC"
+                              >
+                                Fiche clim
+                              </button>
                               {eqFluide && (
                                 <button
                                   type="button"
@@ -1420,6 +1432,18 @@ export function ChantiersPage() {
                 className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
                 Ouvrir le CERFA
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
+                  setEquipWork(null)
+                  navigate(url)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line px-5 py-2.5 text-sm font-semibold hover:bg-mist"
+              >
+                <ClipboardList className="h-4 w-4" />
+                Fiche maintenance clim
               </button>
               <button
                 type="button"

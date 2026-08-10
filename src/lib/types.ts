@@ -1,5 +1,7 @@
 /** Référence réglementaire : CERFA FI 15497-04 (fiche d'intervention fluides). */
 
+import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
+
 export type NatureIntervention =
   | 'mise_en_service'
   | 'assemblage'
@@ -443,6 +445,8 @@ export interface AppData {
   interventions: CerfaDraft[]
   /** Parc détecteurs manuels — un par technicien si plusieurs */
   detecteurs?: DetecteurManuel[]
+  /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
+  fichesMaintenanceClim?: FicheMaintenanceClim[]
 }
 
 /** Libellé CERFA pour traçabilité stock */
