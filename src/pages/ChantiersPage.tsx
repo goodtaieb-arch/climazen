@@ -285,6 +285,7 @@ export function ChantiersPage() {
       c.equipements?.length && c.equipements.length > 0
         ? c.equipements
         : syncEquipementsFromFlat(c, c.equipements)
+    const client = data.clients.find((cl) => cl.id === c.clientId)
     setForm({
       ...blank(c.clientId),
       ...c,
@@ -292,6 +293,9 @@ export function ChantiersPage() {
       detailTravaux: c.detailTravaux || '',
       avecFluideFrigorigene: siteAvecFluideFrigorigene(c),
       equipements: eqs,
+      adresse: c.adresse || client?.adresse || '',
+      codePostal: c.codePostal || client?.codePostal || '',
+      ville: c.ville || client?.ville || '',
     })
     setEquipIdx(0)
     setOpen(true)
@@ -384,16 +388,65 @@ export function ChantiersPage() {
     }
   }
 
+  const fillAdresseFromClient = (
+    clientId: string,
+    base: Omit<Chantier, 'id' | 'createdAt'> | typeof form,
+  ) => {
+    const client = data.clients.find((c) => c.id === clientId)
+    if (!client) return { ...base, clientId }
+    return {
+      ...base,
+      clientId,
+      adresse: client.adresse || base.adresse || '',
+      codePostal: client.codePostal || base.codePostal || '',
+      ville: client.ville || base.ville || '',
+    }
+  }
+
+  const openNew = () => {
+    setEditId(null)
+    setEquipIdx(0)
+    const clientId = data.clients[0]?.id || ''
+    setForm(fillAdresseFromClient(clientId, blank(clientId)))
+    setOpen(true)
+  }
+
+  const addEquipementToSite = (site: Chantier) => {
+    const eqs =
+      site.equipements?.length && site.equipements.length > 0
+        ? site.equipements
+        : syncEquipementsFromFlat(site, site.equipements)
+    const next = blankEquip(true)
+    const list = [...eqs, next]
+    setEditId(site.id)
+    setForm({
+      ...blank(site.clientId),
+      ...site,
+      typeTravaux: site.typeTravaux || 'installation',
+      detailTravaux: site.detailTravaux || '',
+      avecFluideFrigorigene: true,
+      equipements: list,
+      equipementType: next.type,
+      equipementMarque: next.marque,
+      equipementModele: next.modele,
+      equipementNumeroSerie: next.numeroSerie,
+      fluideType: next.fluideType,
+      chargeNominaleKg: next.chargeNominaleKg,
+      teqCO2: next.teqCO2,
+      detectionPermanente: next.detectionPermanente,
+    })
+    setEquipIdx(list.length - 1)
+    setPicker(null)
+    setOpen(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
     <div className="space-y-6">
       <Header
         title="Travaux / équipements"
         subtitle="Choisissez le(s) équipement(s) déjà enregistrés — maintenance partielle ou dépannage ciblé."
-        onAdd={() => {
-          setEditId(null)
-          setForm(blank(data.clients[0]?.id || ''))
-          setOpen(true)
-        }}
+        onAdd={openNew}
       />
 
       {!open && (
@@ -410,12 +463,21 @@ export function ChantiersPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
+          {editId && (
+            <p className="sm:col-span-2 rounded-xl border border-accent/40 bg-accent-soft/50 px-3 py-2 text-xs text-slate">
+              Site déjà enregistré — adresse et infos reprises. Ajoutez ou modifiez seulement les
+              équipements.
+            </p>
+          )}
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-muted">Client / détenteur *</span>
             <select
               required
               value={form.clientId}
-              onChange={(e) => setForm({ ...form, clientId: e.target.value })}
+              onChange={(e) => {
+                const clientId = e.target.value
+                setForm(fillAdresseFromClient(clientId, form))
+              }}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
               <option value="">— Choisir —</option>
@@ -812,6 +874,15 @@ export function ChantiersPage() {
                       Info travaux
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => addEquipementToSite(c)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-xs font-semibold text-ink hover:bg-mist"
+                    title="Ajouter un équipement sur ce site (sans ressaisir l’adresse)"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Ajouter équipement
+                  </button>
                   <button
                     type="button"
                     onClick={() => startEdit(c)}
