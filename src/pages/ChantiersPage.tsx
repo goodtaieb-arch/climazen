@@ -1,10 +1,15 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
-import { equipAvecFluideFrigorigene, siteAvecFluideFrigorigene, TYPE_TRAVAUX_LABELS } from '../lib/types'
+import {
+  equipAvecFluideFrigorigene,
+  NATURE_LABELS,
+  siteAvecFluideFrigorigene,
+  TYPE_TRAVAUX_LABELS,
+} from '../lib/types'
 import { Field, Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
@@ -80,6 +85,13 @@ export function ChantiersPage() {
     nature: 'maintenance' | 'depanage' | 'controle'
     filter: string
   } | null>(null)
+  const [equipWork, setEquipWork] = useState<{
+    site: Chantier
+    equipementId: string
+    natures: NatureIntervention[]
+  } | null>(null)
+
+  const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
   const equipements = form.equipements?.length ? form.equipements : syncEquipementsFromFlat(form)
   const currentEquip = equipements[Math.min(equipIdx, equipements.length - 1)] || blankEquip()
@@ -184,9 +196,11 @@ export function ChantiersPage() {
     if (picker.mode === 'intervention') {
       const eqId = selected[0]
       setPicker(null)
-      navigate(
-        `/app/interventions/new?chantier=${encodeURIComponent(picker.site.id)}&equipement=${encodeURIComponent(eqId)}`,
-      )
+      setEquipWork({
+        site: picker.site,
+        equipementId: eqId,
+        natures: naturesForPicker(picker.nature),
+      })
       return
     }
 
@@ -902,7 +916,6 @@ export function ChantiersPage() {
           const fluide = siteAvecFluideFrigorigene(c)
           const eqs = allEquipements(c)
           const eqsCerfa = equipementsForCerfa(c)
-          const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : null
           const canBatch = eqsCerfa.length > 0
 
           return (
@@ -924,21 +937,12 @@ export function ChantiersPage() {
                     {client?.raisonSociale} · {c.ville}
                     {c.createdByName ? ` · par ${c.createdByName}` : ''}
                   </div>
-                  {(typeLabel || c.detailTravaux) && (
-                    <div className="mt-1 text-sm text-ink">
-                      {typeLabel && (
-                        <span className="rounded-full bg-mist px-2.5 py-0.5 text-xs font-semibold">
-                          {typeLabel}
-                        </span>
-                      )}
-                      {c.detailTravaux ? (
-                        <span className="ml-2 text-sm text-muted">{c.detailTravaux}</span>
-                      ) : null}
-                    </div>
-                  )}
+                  {c.detailTravaux ? (
+                    <p className="mt-1 text-sm text-muted">{c.detailTravaux}</p>
+                  ) : null}
                   <div className="mt-3">
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-                      Équipements — Modifier / Supprimer / CERFA
+                      Équipements — toucher pour choisir le type d’intervention
                     </p>
                     {eqs.length === 0 ? (
                       <p className="rounded-xl border border-dashed border-line bg-foam/50 px-3 py-2.5 text-xs text-muted">
@@ -953,12 +957,38 @@ export function ChantiersPage() {
                               key={eq.id}
                               className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2.5"
                             >
-                              <span
-                                className="grid h-5 w-5 shrink-0 place-items-center rounded border-2 border-slate-300 bg-white"
-                                aria-hidden
-                                title="Case pour sélection (via Valider maintenance)"
+                              <button
+                                type="button"
+                                disabled={!eqFluide}
+                                onClick={() => {
+                                  if (!eqFluide) return
+                                  setEquipWork({
+                                    site: c,
+                                    equipementId: eq.id,
+                                    natures: ['entretien_reparation'],
+                                  })
+                                }}
+                                className="grid h-5 w-5 shrink-0 place-items-center rounded border-2 border-slate-300 bg-white disabled:opacity-40"
+                                title={
+                                  eqFluide
+                                    ? 'Choisir le type d’intervention / CERFA'
+                                    : 'Équipement standard — pas de CERFA'
+                                }
+                                aria-label="Choisir intervention"
                               />
-                              <div className="min-w-0 flex-1">
+                              <button
+                                type="button"
+                                disabled={!eqFluide}
+                                onClick={() => {
+                                  if (!eqFluide) return
+                                  setEquipWork({
+                                    site: c,
+                                    equipementId: eq.id,
+                                    natures: ['entretien_reparation'],
+                                  })
+                                }}
+                                className="min-w-0 flex-1 text-left disabled:opacity-70"
+                              >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-sm font-semibold text-ink">
                                     {eq.nom?.trim() || eq.type || 'Sans libellé'}
@@ -983,7 +1013,7 @@ export function ChantiersPage() {
                                     .filter(Boolean)
                                     .join(' · ') || '—'}
                                 </div>
-                              </div>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => startEditEquip(c, eq.id)}
@@ -999,12 +1029,19 @@ export function ChantiersPage() {
                                 Supprimer
                               </button>
                               {eqFluide && (
-                                <Link
-                                  to={`/app/interventions/new?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEquipWork({
+                                      site: c,
+                                      equipementId: eq.id,
+                                      natures: ['entretien_reparation'],
+                                    })
+                                  }
                                   className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
                                 >
-                                  CERFA
-                                </Link>
+                                  Intervention
+                                </button>
                               )}
                             </li>
                           )
@@ -1099,6 +1136,38 @@ export function ChantiersPage() {
             <p className="mt-1 text-sm text-muted">
               {picker.site.nom} — équipements déjà enregistrés, sans resaisie.
             </p>
+
+            {picker.mode === 'intervention' && (
+              <div className="mt-3">
+                <p className="mb-2 text-xs font-semibold text-muted">Type d’intervention (prérempli sur le CERFA)</p>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['depanage', 'Entretien / réparation'],
+                      ['controle', 'Contrôle étanchéité'],
+                      ['maintenance', 'Maintenance + contrôle'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setPicker({ ...picker, nature: id })}
+                      className={[
+                        'rounded-full px-3 py-1.5 text-xs font-semibold',
+                        picker.nature === id
+                          ? 'bg-accent text-ink'
+                          : 'border border-line text-muted hover:bg-mist',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted">
+                  Ou ouvrez l’équipement pour choisir démantèlement, charge, récupération…
+                </p>
+              </div>
+            )}
 
             {picker.mode === 'maintenance' && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1264,11 +1333,72 @@ export function ChantiersPage() {
               >
                 {picker.mode === 'maintenance'
                   ? `Générer ${picker.selected.length || 0} CERFA`
-                  : 'Ouvrir la fiche CERFA'}
+                  : 'Choisir le type d’intervention'}
               </button>
               <button
                 type="button"
                 onClick={() => setPicker(null)}
+                className="rounded-full border border-line px-5 py-2.5 text-sm"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {equipWork && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-white p-5 shadow-xl">
+            <h2 className="font-display text-lg font-semibold">Type d’intervention</h2>
+            <p className="mt-1 text-sm text-muted">
+              {equipWork.site.nom} —{' '}
+              {allEquipements(equipWork.site).find((e) => e.id === equipWork.equipementId)?.nom ||
+                'équipement'}
+              . Cochez la nature des travaux (cadre CERFA [4]).
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {ALL_NATURES.map((n) => {
+                const on = equipWork.natures.includes(n)
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => {
+                      setEquipWork({
+                        ...equipWork,
+                        natures: on
+                          ? equipWork.natures.filter((x) => x !== n)
+                          : [...equipWork.natures, n],
+                      })
+                    }}
+                    className={[
+                      'rounded-full px-3 py-1.5 text-xs font-semibold',
+                      on ? 'bg-accent text-ink' : 'border border-line text-muted hover:bg-mist',
+                    ].join(' ')}
+                  >
+                    {NATURE_LABELS[n]}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={equipWork.natures.length === 0}
+                onClick={() => {
+                  const natures = encodeURIComponent(equipWork.natures.join(','))
+                  const url = `/app/interventions/new?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}&natures=${natures}`
+                  setEquipWork(null)
+                  navigate(url)
+                }}
+                className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+              >
+                Ouvrir le CERFA
+              </button>
+              <button
+                type="button"
+                onClick={() => setEquipWork(null)}
                 className="rounded-full border border-line px-5 py-2.5 text-sm"
               >
                 Annuler

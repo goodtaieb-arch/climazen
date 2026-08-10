@@ -74,6 +74,10 @@ export function InterventionFormPage() {
 
   const chantierFromQuery = searchParams.get('chantier') || ''
   const equipementFromQuery = searchParams.get('equipement') || ''
+  const naturesFromQuery = (searchParams.get('natures') || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s): s is NatureIntervention => s in NATURE_LABELS)
   const chantierQueryOk = data.chantiers.some((c) => c.id === chantierFromQuery)
 
   const defaultSignNom =
@@ -94,7 +98,8 @@ export function InterventionFormPage() {
     existing?.equipementId || equipementFromQuery || '',
   )
   const [natures, setNatures] = useState<NatureIntervention[]>(
-    existing?.natures || ['entretien_reparation'],
+    existing?.natures ||
+      (naturesFromQuery.length > 0 ? naturesFromQuery : ['entretien_reparation']),
   )
   const [dateIntervention, setDateIntervention] = useState(existing?.dateIntervention || today())
   const [detectionPermanente, setDetectionPermanente] = useState(
