@@ -150,25 +150,46 @@ export function Landing() {
           </div>
 
           {/* Capture mobile — téléphone */}
-          <div className="relative mx-auto w-full max-w-[280px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[300px]">
+          <div className="relative mx-auto w-full max-w-[300px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[320px]">
             <div
-              className="pointer-events-none absolute -inset-8 rounded-full bg-accent/25 blur-3xl"
+              className="pointer-events-none absolute -inset-10 rounded-[50%] bg-gradient-to-br from-accent/35 via-sky-300/25 to-transparent blur-3xl"
               aria-hidden
             />
-            <div className="relative mx-auto overflow-hidden rounded-[2.35rem] border-[10px] border-ink bg-ink shadow-2xl shadow-slate/30">
-              <div className="absolute left-1/2 top-2 z-10 h-5 w-24 -translate-x-1/2 rounded-full bg-ink" />
-              <img
-                src="/landing-mobile-terrain.png"
-                alt="ClimaZEN sur smartphone — Accueil terrain et mode hors ligne"
-                className="block aspect-[9/16] w-full object-cover object-top"
-                width={720}
-                height={1280}
-                loading="eager"
+            {/* Cadre téléphone */}
+            <div className="relative mx-auto rounded-[2.75rem] bg-gradient-to-b from-slate-800 via-ink to-slate-950 p-[11px] shadow-[0_28px_60px_-12px_rgba(7,24,32,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset]">
+              {/* Boutons latéraux (décoratifs) */}
+              <span
+                className="pointer-events-none absolute -left-[3px] top-28 h-8 w-[3px] rounded-l-sm bg-slate-700"
+                aria-hidden
               />
+              <span
+                className="pointer-events-none absolute -left-[3px] top-40 h-12 w-[3px] rounded-l-sm bg-slate-700"
+                aria-hidden
+              />
+              <span
+                className="pointer-events-none absolute -right-[3px] top-36 h-16 w-[3px] rounded-r-sm bg-slate-700"
+                aria-hidden
+              />
+              <div className="relative overflow-hidden rounded-[2.15rem] bg-white ring-1 ring-white/20">
+                <div className="absolute left-1/2 top-2.5 z-10 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-ink shadow-inner" />
+                <img
+                  src="/landing-mobile-terrain.png"
+                  alt="ClimaZEN sur smartphone — accueil terrain, sites génériques et mode hors ligne"
+                  className="block aspect-[9/16] w-full object-cover object-top"
+                  width={720}
+                  height={1280}
+                  loading="eager"
+                />
+              </div>
             </div>
-            <p className="mt-4 text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-              Rendu smartphone · chantier
-            </p>
+            <div className="mt-5 flex flex-col items-center gap-1.5">
+              <p className="rounded-full border border-line/80 bg-white/90 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate shadow-sm">
+                Rendu smartphone · chantier
+              </p>
+              <p className="max-w-[240px] text-center text-xs text-muted">
+                Accueil terrain, recherche et mode hors ligne — sans données clients réelles.
+              </p>
+            </div>
           </div>
         </div>
       </section>
