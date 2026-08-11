@@ -13,10 +13,16 @@ export function PublicLayout() {
           </Link>
           <nav className="hidden items-center gap-1 text-sm md:flex">
             <a
-              href="/#pourquoi"
+              href="/#conformite"
               className="rounded-full px-3 py-2 font-medium text-muted transition-colors hover:bg-mist hover:text-ink"
             >
-              Pourquoi
+              Conformité
+            </a>
+            <a
+              href="/#hors-ligne"
+              className="rounded-full px-3 py-2 font-medium text-muted transition-colors hover:bg-mist hover:text-ink"
+            >
+              Hors ligne
             </a>
             <a
               href="/#fonctionnalites"
