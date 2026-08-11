@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, Wrench } from 'lucide-react'
+import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, ChevronRight, ArrowLeft } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -10,7 +10,7 @@ import {
   siteAvecFluideFrigorigene,
   TYPE_TRAVAUX_LABELS,
 } from '../lib/types'
-import { Field, Header } from './ClientsPage'
+import { Field } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
@@ -79,6 +79,9 @@ export function ChantiersPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [focusSiteId, setFocusSiteId] = useState<string | null>(null)
+  const [siteMenuOpen, setSiteMenuOpen] = useState(false)
+  const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [equipFilter, setEquipFilter] = useState('')
   const [clientQuery, setClientQuery] = useState(() => {
@@ -112,16 +115,34 @@ export function ChantiersPage() {
     setPicker(null)
     setEquipWork(null)
     setEquipFilter('')
+    setSiteMenuOpen(false)
   }
 
   // Clic menu Travaux (même page) → revenir à la liste ; Accueil peut préremplir la recherche
   useEffect(() => {
     const st = location.state as { travauxList?: number; search?: string } | null
     if (!st) return
-    if (st.travauxList) closeForm()
-    if (typeof st.search === 'string') {
+    if (st.travauxList) {
       closeForm()
-      setQ(st.search)
+      setFocusSiteId(null)
+    }
+    if (typeof st.search === 'string') {
+      const search = st.search
+      closeForm()
+      setQ(search)
+      // Ouvrir directement le site si un seul match exact / unique
+      const needle = search.trim().toLowerCase()
+      const hits = data.chantiers.filter((c) => {
+        const client = data.clients.find((cl) => cl.id === c.clientId)
+        return matchesQuery(
+          [c.nom, c.ville, client?.raisonSociale].filter(Boolean).join(' '),
+          search,
+        )
+      })
+      const exact = hits.find((c) => c.nom.trim().toLowerCase() === needle)
+      if (exact) setFocusSiteId(exact.id)
+      else if (hits.length === 1) setFocusSiteId(hits[0].id)
+      else setFocusSiteId(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
@@ -622,18 +643,46 @@ export function ChantiersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Header
-        title="Travaux"
-        subtitle="Sur le terrain : touchez un équipement → Fiche clim ou CERFA."
-        onAdd={openNew}
-      />
+    <div className="mx-auto w-full max-w-3xl space-y-4 overflow-x-hidden lg:max-w-none">
+      {!open && !focusSiteId && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-bold tracking-tight">Travaux</h1>
+            <p className="text-sm text-muted">Cherchez un site, puis un équipement.</p>
+          </div>
+          <button
+            type="button"
+            onClick={openNew}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-ink active:bg-accent-hover"
+          >
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
+      )}
 
-      {!open && (
+      {open && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={closeForm}
+            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-white px-3 text-sm font-semibold active:bg-mist"
+          >
+            <ArrowLeft className="h-4 w-4" /> Liste
+          </button>
+          <h1 className="font-display text-lg font-bold">
+            {editId ? 'Modifier le site' : 'Nouveau site'}
+          </h1>
+        </div>
+      )}
+
+      {!open && !focusSiteId && (
       <SearchField
         value={q}
-        onChange={setQ}
-        placeholder="Rechercher des travaux, client, fluide…"
+        onChange={(v) => {
+          setQ(v)
+          setFocusSiteId(null)
+        }}
+        placeholder="Site, client, équipement, n° série…"
         testId="chantiers-search"
       />
       )}
@@ -641,7 +690,7 @@ export function ChantiersPage() {
       {open && (
         <form
           onSubmit={onSubmit}
-          className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
+          className="grid gap-3 overflow-x-hidden rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 sm:p-5"
         >
           {editId && (
             <p className="sm:col-span-2 rounded-xl border border-accent/40 bg-accent-soft/50 px-3 py-2 text-xs text-slate">
@@ -987,196 +1036,270 @@ export function ChantiersPage() {
         </form>
       )}
 
-      {!open && (
-      <div className="grid gap-3">
+      {!open && !focusSiteId && (
+      <div className="grid gap-2 overflow-x-hidden">
         {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
-          const fluide = siteAvecFluideFrigorigene(c)
           const eqs = allEquipements(c)
-          const eqsCerfa = equipementsForCerfa(c)
-          const canBatch = eqsCerfa.length > 0
-
           return (
-            <div key={c.id} className="rounded-2xl border border-line bg-white p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="font-display text-lg font-semibold">{c.nom}</div>
-                    <span
-                      className={[
-                        'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
-                        fluide ? 'bg-accent-soft text-slate' : 'bg-mist text-muted',
-                      ].join(' ')}
-                    >
-                      {fluide ? 'Fluide / CERFA' : 'Travaux standard'}
-                    </span>
-                  </div>
-                  <div className="text-sm text-muted">
-                    {client?.raisonSociale} · {c.ville}
-                    {c.createdByName ? ` · par ${c.createdByName}` : ''}
-                  </div>
-                  {c.detailTravaux ? (
-                    <p className="mt-1 text-sm text-muted">{c.detailTravaux}</p>
-                  ) : null}
-                  <div className="mt-3">
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-                      Équipements — touchez Intervenir
-                    </p>
-                    {eqs.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-line bg-foam/50 px-3 py-2.5 text-xs text-muted">
-                        Aucun équipement encore. Ouvrez Modifier pour en ajouter.
-                      </p>
-                    ) : (
-                      <ul className="space-y-3">
-                        {eqs.map((eq) => {
-                          const eqFluide = equipAvecFluideFrigorigene(eq)
-                          return (
-                            <li
-                              key={eq.id}
-                              className="rounded-2xl border border-line bg-foam/50 p-3"
-                            >
-                              <div className="flex flex-wrap items-start gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-base font-semibold text-ink">
-                                      {eq.nom?.trim() || eq.type || 'Sans libellé'}
-                                    </span>
-                                    <span
-                                      className={[
-                                        'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                        eqFluide
-                                          ? 'bg-accent-soft text-slate'
-                                          : 'bg-mist text-muted',
-                                      ].join(' ')}
-                                    >
-                                      {eqFluide ? 'Fluide' : 'Standard'}
-                                    </span>
-                                  </div>
-                                  <div className="mt-0.5 text-xs text-muted">
-                                    {[
-                                      eq.type && eq.nom ? eq.type : null,
-                                      eq.marque,
-                                      eq.modele,
-                                      eqFluide ? eq.fluideType : null,
-                                      eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
-                                    ]
-                                      .filter(Boolean)
-                                      .join(' · ') || '—'}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEquipWork({
-                                      site: c,
-                                      equipementId: eq.id,
-                                      natures: eqFluide
-                                        ? ['entretien_reparation']
-                                        : ['entretien_reparation'],
-                                    })
-                                  }
-                                  className="min-h-12 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-ink active:bg-accent-hover"
-                                >
-                                  Intervenir
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => startEditEquip(c, eq.id)}
-                                  className="min-h-12 rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-ink active:bg-mist sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
-                                >
-                                  Modifier
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeEquipement(c, eq.id)}
-                                  className="min-h-12 rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-danger active:bg-red-50 sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
-                                >
-                                  Supprimer
-                                </button>
-                              </div>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                  {c.derniereMaintenanceDate && (
-                    <p className="mt-1.5 text-xs text-accent">
-                      Dernière maintenance validée : {c.derniereMaintenanceDate}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  {canBatch && (
-                    <button
-                      type="button"
-                      disabled={batchBusy === c.id}
-                      onClick={() => openPicker(c, 'maintenance')}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-3.5 py-2 text-xs font-semibold text-slate hover:bg-accent disabled:opacity-60"
-                      title="Choisir les équipements traités aujourd’hui"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      {batchBusy === c.id ? 'Génération…' : 'Valider maintenance'}
-                    </button>
-                  )}
-                  {fluide ? (
-                    <button
-                      type="button"
-                      onClick={() => openPicker(c, 'intervention')}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
-                    >
-                      <FileCheck2 className="h-3.5 w-3.5" />
-                      CERFA sur un équipement
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-foam px-3.5 py-2 text-xs font-medium text-muted">
-                      <Wrench className="h-3.5 w-3.5" />
-                      Info travaux
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => addEquipementToSite(c)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-xs font-semibold text-ink hover:bg-mist"
-                    title="Ajouter un équipement sur ce site (sans ressaisir l’adresse)"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Ajouter équipement
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startEdit(c)}
-                    className="rounded-lg p-2 text-accent hover:bg-accent-soft"
-                    title="Modifier les travaux"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('Supprimer ces travaux ?')) deleteChantier(c.id)
-                    }}
-                    className="rounded-lg p-2 text-danger hover:bg-red-50"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setFocusSiteId(c.id)
+                setSiteMenuOpen(false)
+                setEquipQ('')
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-line bg-white px-4 py-4 text-left active:bg-mist"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-display text-base font-semibold text-ink">
+                  {c.nom}
+                </span>
+                <span className="mt-0.5 block truncate text-sm text-muted">
+                  {client?.raisonSociale || '—'}
+                  {c.ville ? ` · ${c.ville}` : ''}
+                </span>
+              </span>
+              <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs font-semibold text-muted">
+                {eqs.length}
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+            </button>
           )
         })}
         {filteredChantiers.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-muted">
             {data.chantiers.length === 0
-              ? 'Aucun travaux enregistré. Créez d’abord un client, puis des travaux.'
+              ? 'Aucun site. Ajoutez un client, puis un site.'
               : 'Aucun résultat pour cette recherche.'}
           </div>
         )}
       </div>
       )}
+
+      {!open &&
+        focusSiteId &&
+        (() => {
+          const c = data.chantiers.find((x) => x.id === focusSiteId)
+          if (!c) return null
+          const client = data.clients.find((x) => x.id === c.clientId)
+          const fluide = siteAvecFluideFrigorigene(c)
+          const eqs = allEquipements(c)
+          const eqsCerfa = equipementsForCerfa(c)
+          const canBatch = eqsCerfa.length > 0
+          const eqFilter = equipQ.trim()
+            ? eqs.filter((eq) =>
+                matchesQuery(
+                  [eq.nom, eq.type, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie]
+                    .filter(Boolean)
+                    .join(' '),
+                  equipQ,
+                ),
+              )
+            : eqs
+
+          return (
+            <div className="space-y-4 overflow-x-hidden">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusSiteId(null)
+                    setSiteMenuOpen(false)
+                  }}
+                  className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-white px-3 text-sm font-semibold active:bg-mist"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Sites
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSiteMenuOpen((v) => !v)}
+                  className="ml-auto inline-flex min-h-11 items-center rounded-full border border-line bg-white px-3 text-sm font-semibold active:bg-mist"
+                >
+                  Options
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-line bg-white p-4">
+                <h1 className="font-display text-xl font-bold leading-tight">{c.nom}</h1>
+                <p className="mt-1 truncate text-sm text-muted">
+                  {client?.raisonSociale || '—'}
+                  {c.ville ? ` · ${c.ville}` : ''}
+                </p>
+                {c.adresse ? (
+                  <p className="mt-0.5 truncate text-xs text-muted">{c.adresse}</p>
+                ) : null}
+                {c.derniereMaintenanceDate ? (
+                  <p className="mt-2 text-xs font-medium text-accent">
+                    Dernière maintenance : {c.derniereMaintenanceDate}
+                  </p>
+                ) : null}
+              </div>
+
+              {siteMenuOpen && (
+                <div className="grid gap-2 rounded-2xl border border-line bg-white p-3">
+                  {canBatch && (
+                    <button
+                      type="button"
+                      disabled={batchBusy === c.id}
+                      onClick={() => {
+                        setSiteMenuOpen(false)
+                        openPicker(c, 'maintenance')
+                      }}
+                      className="flex min-h-12 items-center gap-2 rounded-xl bg-accent-soft px-3 text-sm font-semibold text-slate active:bg-accent disabled:opacity-60"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      {batchBusy === c.id ? 'Génération…' : 'Valider maintenance (lot)'}
+                    </button>
+                  )}
+                  {fluide && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSiteMenuOpen(false)
+                        openPicker(c, 'intervention')
+                      }}
+                      className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist"
+                    >
+                      <FileCheck2 className="h-4 w-4" /> CERFA sur un équipement
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteMenuOpen(false)
+                      addEquipementToSite(c)
+                    }}
+                    className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist"
+                  >
+                    <Plus className="h-4 w-4" /> Ajouter équipement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteMenuOpen(false)
+                      startEdit(c)
+                    }}
+                    className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist"
+                  >
+                    <Pencil className="h-4 w-4" /> Modifier le site
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Supprimer ces travaux ?')) {
+                        deleteChantier(c.id)
+                        setFocusSiteId(null)
+                      }
+                    }}
+                    className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold text-danger active:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" /> Supprimer le site
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+                    Équipements ({eqFilter.length})
+                  </h2>
+                </div>
+                {eqs.length > 4 && (
+                  <div className="mb-3">
+                    <SearchField
+                      value={equipQ}
+                      onChange={setEquipQ}
+                      placeholder="Filtrer un équipement…"
+                      testId="site-equip-filter"
+                    />
+                  </div>
+                )}
+                {eqFilter.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-line bg-white px-4 py-6 text-center text-sm text-muted">
+                    {eqs.length === 0
+                      ? 'Aucun équipement. Options → Ajouter équipement.'
+                      : 'Aucun équipement pour ce filtre.'}
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {eqFilter.map((eq) => {
+                      const eqFluide = equipAvecFluideFrigorigene(eq)
+                      return (
+                        <li
+                          key={eq.id}
+                          className="overflow-hidden rounded-2xl border border-line bg-white"
+                        >
+                          <div className="px-4 pt-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-ink">
+                                  {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                                </p>
+                                <p className="mt-0.5 truncate text-xs text-muted">
+                                  {[
+                                    eq.marque,
+                                    eq.modele,
+                                    eqFluide ? eq.fluideType : null,
+                                    eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ') || (eqFluide ? 'Fluide' : 'Standard')}
+                                </p>
+                              </div>
+                              <span
+                                className={[
+                                  'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                  eqFluide ? 'bg-accent-soft text-slate' : 'bg-mist text-muted',
+                                ].join(' ')}
+                              >
+                                {eqFluide ? 'Fluide' : 'Std'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-1 gap-0 border-t border-line">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEquipWork({
+                                  site: c,
+                                  equipementId: eq.id,
+                                  natures: ['entretien_reparation'],
+                                  step: 'choose',
+                                })
+                              }
+                              className="min-h-14 bg-accent px-4 text-base font-bold text-ink active:bg-accent-hover"
+                            >
+                              Intervenir
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 border-t border-line">
+                            <button
+                              type="button"
+                              onClick={() => startEditEquip(c, eq.id)}
+                              className="min-h-11 text-sm font-semibold text-muted active:bg-mist"
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeEquipement(c, eq.id)}
+                              className="min-h-11 border-l border-line text-sm font-semibold text-danger active:bg-red-50"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
       {picker && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">

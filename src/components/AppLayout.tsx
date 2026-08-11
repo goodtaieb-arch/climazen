@@ -256,7 +256,7 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-24 lg:pb-0">
+      <main className="min-w-0 overflow-x-hidden pb-24 lg:pb-0">
         <div
           className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 lg:px-8"
           style={{
@@ -285,7 +285,7 @@ export function AppLayout() {
             </button>
           </div>
         </div>
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <ImportLocalBanner />
           {syncError && (
             <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate">
