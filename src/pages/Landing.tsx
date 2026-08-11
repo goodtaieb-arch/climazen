@@ -109,20 +109,24 @@ export function Landing() {
         />
         <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:pb-20 lg:pt-12">
           <div className="animate-[fadeUp_0.7s_ease-out]">
-            <div className="inline-flex rounded-2xl border border-line/70 bg-white/90 px-4 py-3 shadow-lg shadow-accent/15 backdrop-blur">
-              <BrandLogo size="lg" />
+            <div className="flex flex-col items-start gap-5">
+              <div className="overflow-visible rounded-2xl border border-line/70 bg-white/90 px-5 py-4 shadow-lg shadow-accent/15 backdrop-blur">
+                <BrandLogo size="lg" />
+              </div>
+
+              <div className="flex flex-col items-start gap-2.5">
+                <p className="inline-flex items-center gap-2 rounded-full bg-ink px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
+                  <ShieldCheck className="h-3.5 w-3.5 text-accent" />
+                  100 % conforme F-Gas
+                </p>
+                <p className="inline-flex flex-wrap items-center gap-2 rounded-full border border-accent/40 bg-white/90 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate shadow-sm">
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
+                  Gratuit pour auto-entrepreneurs &amp; micro-sociétés
+                </p>
+              </div>
             </div>
 
-            <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-ink px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
-              <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-              100 % conforme F-Gas
-            </p>
-            <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-full border border-accent/40 bg-white/90 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate shadow-sm">
-              <Sparkles className="h-3.5 w-3.5 text-accent" />
-              Gratuit pour auto-entrepreneurs &amp; micro-sociétés
-            </p>
-
-            <h1 className="font-display mt-4 max-w-xl text-3xl font-bold leading-[1.12] tracking-tight text-ink sm:text-4xl lg:text-[2.65rem]">
+            <h1 className="font-display mt-6 max-w-xl text-3xl font-bold leading-[1.12] tracking-tight text-ink sm:text-4xl lg:text-[2.65rem]">
               ClimaZEN — CERFA fluides, même sans réseau
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-slate sm:text-lg">
@@ -189,7 +193,7 @@ export function Landing() {
                 <img
                   src="/landing-mobile-terrain.png"
                   alt="ClimaZEN sur smartphone — accueil terrain, sites génériques et mode hors ligne"
-                  className="block aspect-[9/16] w-full object-cover object-top"
+                  className="block aspect-[9/16] w-full bg-white object-contain object-top"
                   width={720}
                   height={1280}
                   loading="eager"
