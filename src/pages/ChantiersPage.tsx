@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, ChevronRight, ArrowLeft } from 'lucide-react'
+import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, ChevronRight, ArrowLeft, Building2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -79,6 +79,7 @@ export function ChantiersPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [listFilter, setListFilter] = useState<'tous' | 'actifs' | 'fluide' | 'standard'>('tous')
   const [focusSiteId, setFocusSiteId] = useState<string | null>(null)
   const [focusEquipId, setFocusEquipId] = useState<string | null>(null)
   const [siteMenuOpen, setSiteMenuOpen] = useState(false)
@@ -354,6 +355,9 @@ export function ChantiersPage() {
 
   const filteredChantiers = useMemo(() => {
     return data.chantiers.filter((c) => {
+      if (listFilter === 'actifs' && c.statut !== 'actif') return false
+      if (listFilter === 'fluide' && !siteAvecFluideFrigorigene(c)) return false
+      if (listFilter === 'standard' && siteAvecFluideFrigorigene(c)) return false
       const client = data.clients.find((cl) => cl.id === c.clientId)
       const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : ''
       const eqNames = (c.equipements || []).map((e) => e.nom).join(' ')
@@ -376,7 +380,7 @@ export function ChantiersPage() {
         q,
       )
     })
-  }, [data.chantiers, data.clients, q])
+  }, [data.chantiers, data.clients, q, listFilter])
 
   useEffect(() => {
     if (!open || !currentAvecFluide) return
@@ -654,17 +658,25 @@ export function ChantiersPage() {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 overflow-x-hidden lg:max-w-none">
       {!open && !focusSiteId && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="font-display text-xl font-bold tracking-tight">Travaux</h1>
-            <p className="text-xs text-muted">Sites → équipements → action</p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="font-display text-[1.75rem] font-bold leading-none tracking-tight sm:text-[2rem]">
+                Travaux
+              </h1>
+              <span className="rounded-full bg-mist px-2.5 py-1 text-xs font-bold text-slate">
+                {filteredChantiers.length}
+              </span>
+            </div>
+            <p className="mt-1.5 text-sm text-muted">Sites → équipements → action</p>
           </div>
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg bg-accent px-3 text-xs font-semibold text-ink active:bg-accent-hover"
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white shadow-[0_4px_12px_rgba(15,118,110,0.35)] active:translate-y-px"
           >
-            <Plus className="h-3.5 w-3.5" /> Ajouter
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            Nouveau site
           </button>
         </div>
       )}
@@ -685,15 +697,41 @@ export function ChantiersPage() {
       )}
 
       {!open && !focusSiteId && (
-      <SearchField
-        value={q}
-        onChange={(v) => {
-          setQ(v)
-          setFocusSiteId(null)
-        }}
-        placeholder="Site, client, équipement, n° série…"
-        testId="chantiers-search"
-      />
+        <div className="space-y-3">
+          <SearchField
+            value={q}
+            onChange={(v) => {
+              setQ(v)
+              setFocusSiteId(null)
+            }}
+            placeholder="Chercher un site, client, équipement…"
+            testId="chantiers-search"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ['tous', 'Tous'],
+                ['actifs', 'En cours'],
+                ['fluide', 'F-Gas / CERFA'],
+                ['standard', 'Standard'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setListFilter(id)}
+                className={[
+                  'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                  listFilter === id
+                    ? 'bg-ink text-white'
+                    : 'border border-line bg-white text-muted hover:bg-mist',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {open && (
@@ -1046,10 +1084,21 @@ export function ChantiersPage() {
       )}
 
       {!open && !focusSiteId && (
-      <div className="overflow-hidden rounded-xl border border-line bg-white">
-        {filteredChantiers.map((c, idx) => {
+      <div className="grid gap-2.5">
+        {filteredChantiers.map((c) => {
           const client = data.clients.find((x) => x.id === c.clientId)
           const eqs = allEquipements(c)
+          const fluide = siteAvecFluideFrigorigene(c)
+          const primary = eqs.find((e) => equipAvecFluideFrigorigene(e)) || eqs[0]
+          const status =
+            c.statut === 'termine'
+              ? { label: 'Terminé', cls: 'bg-sky-100 text-sky-800' }
+              : c.statut === 'archive'
+                ? { label: 'Archivé', cls: 'bg-slate-100 text-slate-600' }
+                : { label: 'En cours', cls: 'bg-emerald-100 text-emerald-800' }
+          const modified =
+            c.derniereMaintenanceDate ||
+            (c.createdAt ? c.createdAt.slice(0, 10) : '')
           return (
             <button
               key={c.id}
@@ -1061,28 +1110,61 @@ export function ChantiersPage() {
                 setEquipQ('')
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
-              className={[
-                'flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left active:bg-mist',
-                idx > 0 ? 'border-t border-line' : '',
-              ].join(' ')}
+              className="group flex w-full min-w-0 items-start gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-3.5 py-3 text-left shadow-sm transition hover:border-accent/30 hover:shadow-md active:bg-mist/40 sm:items-center sm:px-4"
             >
+              <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-600">
+                <Building2 className="h-5 w-5" />
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink">{c.nom}</span>
-                <span className="block truncate text-[11px] text-muted">
-                  {client?.raisonSociale || '—'}
-                  {c.ville ? ` · ${c.ville}` : ''}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="truncate text-[15px] font-semibold text-ink">{c.nom}</span>
+                  {primary?.nom || primary?.type ? (
+                    <span className="truncate text-xs text-muted">
+                      ({primary.nom?.trim() || primary.type})
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted sm:text-xs">
+                  <span className="truncate">{client?.raisonSociale || '—'}</span>
+                  <span className="text-line">·</span>
+                  {fluide ? (
+                    <span className="truncate">
+                      {[primary?.fluideType || c.fluideType, primary?.chargeNominaleKg || c.chargeNominaleKg
+                        ? `${primary?.chargeNominaleKg || c.chargeNominaleKg} kg`
+                        : null]
+                        .filter(Boolean)
+                        .join(' · ') || 'Fluide'}
+                    </span>
+                  ) : (
+                    <span>{eqs.length} équip.</span>
+                  )}
+                  {modified ? (
+                    <>
+                      <span className="text-line">·</span>
+                      <span className="truncate">{modified}</span>
+                    </>
+                  ) : null}
                 </span>
               </span>
-              <span className="shrink-0 text-[11px] font-medium text-muted">{eqs.length}</span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+              <span className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                <span
+                  className={[
+                    'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+                    status.cls,
+                  ].join(' ')}
+                >
+                  {status.label}
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted transition group-hover:text-ink" />
+              </span>
             </button>
           )
         })}
         {filteredChantiers.length === 0 && (
-          <div className="px-3 py-8 text-center text-sm text-muted">
+          <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-10 text-center text-sm text-muted">
             {data.chantiers.length === 0
               ? 'Aucun site. Ajoutez un client, puis un site.'
-              : 'Aucun résultat pour cette recherche.'}
+              : 'Aucun résultat pour cette recherche / filtre.'}
           </div>
         )}
       </div>

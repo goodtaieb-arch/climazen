@@ -195,12 +195,18 @@ export function AppLayout() {
         backgroundImage: `linear-gradient(${pageTone.page}, ${pageTone.page})`,
       }}
     >
-      <aside className="hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
-        <div className="overflow-visible border-b border-line px-3 py-4 sm:px-4">
+      <aside className="hidden border-r border-line bg-[#fafbfc] lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
+        <div className="border-b border-line bg-white px-4 py-4">
           <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
+          <div className="mt-3 min-w-0">
+            <div className="truncate text-sm font-semibold text-ink">{orgLabel}</div>
+            <div className="truncate text-xs text-muted">
+              {user?.fullName || user?.email} · {roleLabel}
+            </div>
+          </div>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-4">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 py-3">
           {links.map(({ to, end, label, icon: Icon, tone }) => {
             const t = tones[tone] || tones.societe
             return (
@@ -209,51 +215,32 @@ export function AppLayout() {
                 to={to}
                 end={end}
                 onClick={goNav(to)}
-                className="group flex items-stretch overflow-hidden rounded-xl border text-sm font-semibold transition-all"
+                className="group flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-[13px] font-semibold transition-colors"
                 style={({ isActive }) => ({
-                  backgroundColor: isActive ? t.cardActive : t.card,
-                  borderColor: isActive ? t.borderActive : t.border,
-                  color: '#071820',
-                  boxShadow: isActive ? '0 1px 2px rgb(0 0 0 / 0.06)' : undefined,
+                  backgroundColor: isActive ? 'rgba(255,255,255,0.95)' : 'transparent',
+                  color: '#0f172a',
+                  boxShadow: isActive ? '0 1px 2px rgb(15 23 42 / 0.06)' : undefined,
+                  border: isActive ? '1px solid #e5e7eb' : '1px solid transparent',
                 })}
               >
                 {({ isActive }) => (
                   <>
                     <span
-                      className="grid w-11 shrink-0 place-items-center border-e"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl"
                       style={{
                         backgroundColor: t.band,
                         color: t.icon,
-                        borderColor: isActive ? 'rgb(0 0 0 / 0.1)' : 'rgb(0 0 0 / 0.05)',
                       }}
                     >
-                      <Icon className="h-4 w-4" strokeWidth={isActive ? 2.35 : 1.85} />
+                      <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
                     </span>
-                    <span className="flex flex-1 items-center px-3 py-2.5">{label}</span>
+                    <span className="flex-1 truncate">{label}</span>
                   </>
                 )}
               </NavLink>
             )
           })}
         </nav>
-
-        <div className="border-t border-line bg-foam/80 px-4 py-4">
-          <div className="truncate text-sm font-semibold text-ink">{orgLabel}</div>
-          <div className="truncate text-xs text-muted">
-            {user?.fullName || user?.email} · {roleLabel}
-          </div>
-          <div className="truncate text-[11px] text-muted/80">
-            Données partagées · compte société
-          </div>
-          <div className="truncate text-[11px] text-muted/80">{user?.email || user?.username}</div>
-          <button
-            type="button"
-            onClick={doLogout}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-semibold text-ink hover:bg-mist"
-          >
-            <LogOut className="h-4 w-4" /> Se déconnecter
-          </button>
-        </div>
       </aside>
 
       <main className="min-w-0 overflow-x-hidden pb-24 lg:pb-0">
