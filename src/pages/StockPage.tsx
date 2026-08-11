@@ -350,12 +350,15 @@ export function StockPage() {
         </form>
       )}
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {groups.map((group) => {
           const f = findFluide(group.fluide)
           return (
-            <section key={group.fluide} className="space-y-2">
-              <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-accent/25 bg-accent-soft/40 px-4 py-3">
+            <section
+              key={group.fluide}
+              className="overflow-hidden rounded-2xl border border-accent/25 bg-white"
+            >
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-accent/20 bg-accent-soft/40 px-4 py-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                     Type de gaz
@@ -378,7 +381,7 @@ export function StockPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <ul className="divide-y divide-line">
                 {group.bottles.map((s) => {
                   const hist = mouvementsForBottle(data, s.id)
                   const openHist = expandedId === s.id
@@ -386,62 +389,52 @@ export function StockPage() {
                     TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType
                   const awaitRetour = needsRetourConsigne(s)
                   return (
-                    <div
-                      key={s.id}
-                      className="overflow-hidden rounded-2xl border border-line bg-white"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                    <li key={s.id}>
+                      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
                         <button
                           type="button"
-                          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
                           onClick={() => setExpandedId(openHist ? null : s.id)}
                         >
                           {openHist ? (
-                            <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-muted" />
+                            <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
                           ) : (
-                            <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted" />
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
                           )}
-                          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
-                            <div className="rounded-xl border border-line bg-mist/50 px-3 py-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                                Nom de bouteille
-                              </div>
-                              <div className="mt-0.5 break-all font-display text-base font-semibold text-ink">
-                                {s.numeroContenant || '—'}
-                              </div>
-                              <div className="mt-0.5 text-xs text-muted">{typeLabel}</div>
-                            </div>
-                            <div className="rounded-xl border border-accent/30 bg-accent-soft/50 px-3 py-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                                Quantité
-                              </div>
-                              <div className="mt-0.5 font-display text-lg font-bold text-ink">
-                                {s.quantiteKg}{' '}
-                                <span className="text-sm font-semibold text-muted">kg</span>
-                              </div>
-                              <div className="mt-0.5 text-xs text-muted">
-                                {awaitRetour
-                                  ? 'Vide — retour consigne à enregistrer'
-                                  : s.quantiteInitialeKg != null
-                                    ? `entrée ${s.quantiteInitialeKg} kg`
-                                    : 'reste actuel'}
-                                {hist.length > 0
-                                  ? ` · ${hist.length} mouvement${hist.length > 1 ? 's' : ''}`
-                                  : ''}
-                              </div>
-                            </div>
-                          </div>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold text-ink">
+                              {s.numeroContenant || '—'}
+                            </span>
+                            <span className="block truncate text-xs text-muted">
+                              {typeLabel}
+                              {' · '}
+                              {awaitRetour
+                                ? 'Vide — retour consigne'
+                                : s.quantiteInitialeKg != null
+                                  ? `entrée ${s.quantiteInitialeKg} kg`
+                                  : 'reste actuel'}
+                              {hist.length > 0
+                                ? ` · ${hist.length} mvt${hist.length > 1 ? 's' : ''}`
+                                : ''}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-right">
+                            <span className="font-display text-base font-bold text-ink">
+                              {s.quantiteKg}{' '}
+                              <span className="text-xs font-semibold text-muted">kg</span>
+                            </span>
+                          </span>
                         </button>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex shrink-0 flex-wrap items-center gap-0.5">
                           {awaitRetour && (
                             <button
                               type="button"
                               onClick={() => openRetour(s)}
-                              className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-2 text-xs font-semibold text-ink hover:bg-accent-hover"
+                              className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
                               title="Bon de retour de consigne"
                             >
                               <FileCheck2 className="h-3.5 w-3.5" />
-                              Bon de retour
+                              Retour
                             </button>
                           )}
                           <button
@@ -525,10 +518,10 @@ export function StockPage() {
                           )}
                         </div>
                       )}
-                    </div>
+                    </li>
                   )
                 })}
-              </div>
+              </ul>
             </section>
           )
         })}
