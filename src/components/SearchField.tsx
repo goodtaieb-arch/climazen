@@ -12,7 +12,7 @@ export function SearchField({
   testId?: string
 }) {
   return (
-    <div className="relative max-w-md">
+    <div className="relative w-full max-w-md">
       <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
       <input
         data-testid={testId}
