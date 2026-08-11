@@ -1175,7 +1175,9 @@ export function ChantiersPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-[15px] font-semibold text-ink">{c.nom}</span>
+                    <span className="truncate text-[15px] font-semibold text-ink">
+                      {client?.raisonSociale || c.nom}
+                    </span>
                     <span
                       className={[
                         'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
@@ -1188,8 +1190,11 @@ export function ChantiersPage() {
                     </span>
                   </span>
                   <span className="mt-1 block truncate text-xs text-muted">
-                    {client?.raisonSociale || '—'}
-                    {c.ville ? ` · ${c.ville}` : ''}
+                    {client?.raisonSociale
+                      ? [c.nom, c.ville && !c.nom.toLowerCase().includes(c.ville.toLowerCase()) ? c.ville : null]
+                          .filter(Boolean)
+                          .join(' · ')
+                      : c.ville || '—'}
                   </span>
                   <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted sm:text-xs">
                     <span>
@@ -1232,7 +1237,7 @@ export function ChantiersPage() {
                   <ChevronRight className="h-4 w-4 text-muted" />
                 </span>
               </button>
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
                 {fluide ? (
                   <button
                     type="button"
