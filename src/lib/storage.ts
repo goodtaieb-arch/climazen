@@ -125,6 +125,8 @@ export function seedDemoData(): AppData {
         codePostal: '69003',
         ville: 'Lyon',
         statut: 'actif',
+        modeGestion: 'contrat',
+        typeTravaux: 'maintenance',
         createdAt: now,
         equipementType: 'Groupe froid monobloc',
         equipementMarque: 'Carrier',

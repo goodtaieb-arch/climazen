@@ -62,8 +62,8 @@ const features = [
   },
   {
     icon: MapPin,
-    title: 'Travaux & équipements',
-    text: 'Parcours menu → site → équipement. Fluide, charge, teq CO₂ prêts pour le CERFA.',
+    title: 'Sites & parc équipements',
+    text: 'Inventaire sous contrat : sites, équipements, fluide. CERFA à la demande, sans dossier travaux inutile.',
   },
   {
     icon: Package,

@@ -1,11 +1,12 @@
 import { v4 as uuid } from 'uuid'
-import type { AppData, CerfaDraft, DetecteurManuel, Equipement, Site } from './types'
+import type { AppData, CerfaDraft, DetecteurManuel, Equipement, ModeGestion, Site, TypeTravaux } from './types'
+import { addMonthsIso, resolveModeGestion } from './siteParc'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
-type LegacyChantier = {
+type LegacyChantier = Partial<Site> & {
   id: string
   clientId: string
-  nom: string
+  nom?: string
   adresse?: string
   codePostal?: string
   ville?: string
@@ -25,6 +26,15 @@ type LegacyChantier = {
   signatureDetenteurQualite?: string
   signatureDetenteurImage?: string
   signatureDetenteurAt?: string
+  typeTravaux?: TypeTravaux
+  detailTravaux?: string
+  modeGestion?: ModeGestion
+  prochaineControleEtancheite?: string
+  derniereMaintenanceAt?: string
+  derniereMaintenanceDate?: string
+  createdByUserId?: string
+  createdByName?: string
+  avecFluideFrigorigene?: boolean
 }
 
 export function legacyEquipementFromFlat(c: LegacyChantier, id?: string): Equipement {
@@ -64,6 +74,15 @@ export function migrateSite(raw: LegacyChantier): Site {
       : [legacyEquipementFromFlat(raw)]
 
   const primary = equipements[0]
+  const typeTravaux = raw.typeTravaux
+  const modeGestion = resolveModeGestion({
+    modeGestion: raw.modeGestion,
+    typeTravaux,
+  })
+  const derniereMaintenanceDate = raw.derniereMaintenanceDate
+  const prochaineControleEtancheite =
+    raw.prochaineControleEtancheite ||
+    (derniereMaintenanceDate ? addMonthsIso(derniereMaintenanceDate, 12) : undefined)
 
   return {
     id: raw.id,
@@ -76,10 +95,21 @@ export function migrateSite(raw: LegacyChantier): Site {
     statut: raw.statut || 'actif',
     notes: raw.notes,
     createdAt: raw.createdAt || new Date().toISOString(),
+    createdByUserId: raw.createdByUserId,
+    createdByName: raw.createdByName,
     signatureDetenteurNom: raw.signatureDetenteurNom,
     signatureDetenteurQualite: raw.signatureDetenteurQualite,
     signatureDetenteurImage: raw.signatureDetenteurImage,
     signatureDetenteurAt: raw.signatureDetenteurAt,
+    typeTravaux,
+    detailTravaux: raw.detailTravaux,
+    modeGestion,
+    prochaineControleEtancheite,
+    derniereMaintenanceAt: raw.derniereMaintenanceAt,
+    derniereMaintenanceDate,
+    avecFluideFrigorigene:
+      raw.avecFluideFrigorigene ??
+      equipements.some((e) => e.avecFluideFrigorigene !== false),
     equipementType: raw.equipementType || primary?.type || '',
     equipementMarque: raw.equipementMarque || primary?.marque || '',
     equipementModele: raw.equipementModele || primary?.modele || '',

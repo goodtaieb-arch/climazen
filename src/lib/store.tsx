@@ -435,6 +435,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           signatureDetenteurAt: c.signatureDetenteurAt ?? existing?.signatureDetenteurAt,
           derniereMaintenanceAt: c.derniereMaintenanceAt ?? existing?.derniereMaintenanceAt,
           derniereMaintenanceDate: c.derniereMaintenanceDate ?? existing?.derniereMaintenanceDate,
+          modeGestion: c.modeGestion ?? existing?.modeGestion,
+          prochaineControleEtancheite:
+            c.prochaineControleEtancheite ?? existing?.prochaineControleEtancheite,
         }
         return {
           ...d,

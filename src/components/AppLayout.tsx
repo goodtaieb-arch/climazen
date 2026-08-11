@@ -109,7 +109,7 @@ const tones: Record<
 const baseLinksOwner = [
   { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-  { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
+  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
@@ -120,7 +120,7 @@ const baseLinksOwner = [
 const baseLinksOperator = [
   { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-  { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
+  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
@@ -129,7 +129,7 @@ const baseLinksOperator = [
 /** Nav terrain : 3 actions + menu Plus (Clients / Stock / admin) */
 const mobilePrimary = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
-  { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
+  { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 

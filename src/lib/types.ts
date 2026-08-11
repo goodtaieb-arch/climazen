@@ -199,6 +199,18 @@ export const TYPE_TRAVAUX_LABELS: Record<TypeTravaux, string> = {
 }
 
 /**
+ * Relation commerciale / usage du site dans le parc.
+ * - contrat : inventaire sous contrat (équipements en veille, prêts pour CERFA)
+ * - ponctuel : chantier / dépannage occasionnel
+ */
+export type ModeGestion = 'contrat' | 'ponctuel'
+
+export const MODE_GESTION_LABELS: Record<ModeGestion, string> = {
+  contrat: 'Contrat maintenance',
+  ponctuel: 'Travaux occasionnels',
+}
+
+/**
  * Site d’intervention (EHPAD, usine, agence, hypermarché…).
  * Un site peut contenir plusieurs équipements → un CERFA par équipement.
  * Ancien nom : « chantier ».
@@ -223,10 +235,14 @@ export interface Site {
   signatureDetenteurQualite?: string
   signatureDetenteurImage?: string
   signatureDetenteurAt?: string
-  /** Catégorie de travaux (installation, dépannage…) */
+  /** Catégorie de travaux (installation, dépannage…) — nature typique, pas l’état du parc */
   typeTravaux?: TypeTravaux
   /** Précision libre : « maintenance semestrielle », « clim bureau directeur »… */
   detailTravaux?: string
+  /** Contrat (parc en veille) vs travaux / dépannage ponctuel */
+  modeGestion?: ModeGestion
+  /** Prochain contrôle d’étanchéité annuel (YYYY-MM-DD) */
+  prochaineControleEtancheite?: string
   /** Dernière maintenance validée (génération CERFA groupée) */
   derniereMaintenanceAt?: string
   derniereMaintenanceDate?: string

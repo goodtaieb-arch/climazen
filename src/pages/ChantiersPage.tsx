@@ -3,13 +3,24 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, ChevronRight, ArrowLeft, Building2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import type { Chantier, Equipement, NatureIntervention, TypeTravaux } from '../lib/types'
+import type { Chantier, Equipement, ModeGestion, NatureIntervention, TypeTravaux } from '../lib/types'
 import {
   equipAvecFluideFrigorigene,
+  MODE_GESTION_LABELS,
   NATURE_LABELS,
   siteAvecFluideFrigorigene,
   TYPE_TRAVAUX_LABELS,
 } from '../lib/types'
+import {
+  formatMoisAnnee,
+  modeGestionLabel,
+  resolveModeGestion,
+  resolveProchaineControle,
+  siteChargeTotaleKg,
+  siteFluidesSummary,
+  siteHasCerfaASigner,
+  siteParcChip,
+} from '../lib/siteParc'
 import { Field } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
@@ -43,8 +54,10 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   adresse: '',
   codePostal: '',
   ville: '',
-  typeTravaux: 'installation',
+  typeTravaux: 'maintenance',
   detailTravaux: '',
+  modeGestion: 'contrat',
+  prochaineControleEtancheite: '',
   avecFluideFrigorigene: true,
   equipementType: '',
   equipementMarque: '',
@@ -79,7 +92,7 @@ export function ChantiersPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
-  const [listFilter, setListFilter] = useState<'tous' | 'actifs' | 'fluide' | 'standard'>('tous')
+  const [listFilter, setListFilter] = useState<'tous' | 'contrat' | 'travaux' | 'cerfa'>('tous')
   const [focusSiteId, setFocusSiteId] = useState<string | null>(null)
   const [focusEquipId, setFocusEquipId] = useState<string | null>(null)
   const [siteMenuOpen, setSiteMenuOpen] = useState(false)
@@ -355,9 +368,10 @@ export function ChantiersPage() {
 
   const filteredChantiers = useMemo(() => {
     return data.chantiers.filter((c) => {
-      if (listFilter === 'actifs' && c.statut !== 'actif') return false
-      if (listFilter === 'fluide' && !siteAvecFluideFrigorigene(c)) return false
-      if (listFilter === 'standard' && siteAvecFluideFrigorigene(c)) return false
+      const mode = resolveModeGestion(c)
+      if (listFilter === 'contrat' && (mode !== 'contrat' || c.statut !== 'actif')) return false
+      if (listFilter === 'travaux' && (mode !== 'ponctuel' || c.statut !== 'actif')) return false
+      if (listFilter === 'cerfa' && !siteHasCerfaASigner(c.id, data.interventions)) return false
       const client = data.clients.find((cl) => cl.id === c.clientId)
       const typeLabel = c.typeTravaux ? TYPE_TRAVAUX_LABELS[c.typeTravaux] : ''
       const eqNames = (c.equipements || []).map((e) => e.nom).join(' ')
@@ -373,6 +387,7 @@ export function ChantiersPage() {
           c.detailTravaux,
           c.createdByName,
           eqNames,
+          modeGestionLabel(c),
           siteAvecFluideFrigorigene(c) ? 'fluide cerfa' : 'standard vmc',
         ]
           .filter(Boolean)
@@ -380,7 +395,7 @@ export function ChantiersPage() {
         q,
       )
     })
-  }, [data.chantiers, data.clients, q, listFilter])
+  }, [data.chantiers, data.clients, data.interventions, q, listFilter])
 
   useEffect(() => {
     if (!open || !currentAvecFluide) return
@@ -471,6 +486,8 @@ export function ChantiersPage() {
         ? !!(primary?.detectionPermanente ?? form.detectionPermanente)
         : false,
       detailTravaux: form.detailTravaux?.trim() || '',
+      modeGestion: form.modeGestion || 'contrat',
+      prochaineControleEtancheite: form.prochaineControleEtancheite?.trim() || undefined,
       id: editId ?? undefined,
       createdByUserId: editId ? form.createdByUserId : user?.id,
       createdByName: editId
@@ -494,8 +511,10 @@ export function ChantiersPage() {
     setForm({
       ...blank(c.clientId),
       ...c,
-      typeTravaux: c.typeTravaux || 'installation',
+      typeTravaux: c.typeTravaux || 'maintenance',
       detailTravaux: c.detailTravaux || '',
+      modeGestion: resolveModeGestion(c),
+      prochaineControleEtancheite: c.prochaineControleEtancheite || '',
       avecFluideFrigorigene: siteAvecFluideFrigorigene(c),
       equipements: eqs,
       adresse: c.adresse || client?.adresse || '',
@@ -539,8 +558,10 @@ export function ChantiersPage() {
     setForm({
       ...blank(site.clientId),
       ...site,
-      typeTravaux: site.typeTravaux || 'installation',
+      typeTravaux: site.typeTravaux || 'maintenance',
       detailTravaux: site.detailTravaux || '',
+      modeGestion: resolveModeGestion(site),
+      prochaineControleEtancheite: site.prochaineControleEtancheite || '',
       avecFluideFrigorigene: siteAvecFluideFrigorigene(site),
       equipements: eqs,
       equipementType: eq?.type || '',
@@ -636,8 +657,10 @@ export function ChantiersPage() {
     setForm({
       ...blank(site.clientId),
       ...site,
-      typeTravaux: site.typeTravaux || 'installation',
+      typeTravaux: site.typeTravaux || 'maintenance',
       detailTravaux: site.detailTravaux || '',
+      modeGestion: resolveModeGestion(site),
+      prochaineControleEtancheite: site.prochaineControleEtancheite || '',
       avecFluideFrigorigene: true,
       equipements: list,
       equipementType: next.type,
@@ -662,13 +685,15 @@ export function ChantiersPage() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="font-display text-[1.75rem] font-bold leading-none tracking-tight sm:text-[2rem]">
-                Travaux
+                Sites & Parc
               </h1>
               <span className="rounded-full bg-mist px-2.5 py-1 text-xs font-bold text-slate">
                 {filteredChantiers.length}
               </span>
             </div>
-            <p className="mt-1.5 text-sm text-muted">Sites → équipements → action</p>
+            <p className="mt-1.5 text-sm text-muted">
+              Inventaire sous contrat — interventions via CERFA
+            </p>
           </div>
           <button
             type="button"
@@ -711,9 +736,9 @@ export function ChantiersPage() {
             {(
               [
                 ['tous', 'Tous'],
-                ['actifs', 'En cours'],
-                ['fluide', 'F-Gas / CERFA'],
-                ['standard', 'Standard'],
+                ['contrat', 'Sous contrat'],
+                ['travaux', 'Travaux / dépannages'],
+                ['cerfa', 'CERFA à signer'],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -770,7 +795,7 @@ export function ChantiersPage() {
           {/* Keep HTML5 required without native select */}
           <input type="hidden" required value={form.clientId} readOnly />
           <SmartSuggestField
-            label="Nom des travaux / site *"
+            label="Nom du site *"
             value={form.nom}
             onChange={(v) => setForm({ ...form, nom: v })}
             onPick={(s) => {
@@ -792,20 +817,39 @@ export function ChantiersPage() {
                 ville: site.ville || form.ville,
                 typeTravaux: site.typeTravaux || form.typeTravaux,
                 detailTravaux: form.detailTravaux || site.detailTravaux || '',
+                modeGestion: resolveModeGestion(site),
+                prochaineControleEtancheite:
+                  site.prochaineControleEtancheite || form.prochaineControleEtancheite || '',
               })
             }}
             suggestions={siteSuggestions}
             required
             showWhenEmpty
-            placeholder="Ex. EHPAD sud, hypermarché Nice…"
+            placeholder="Ex. Domusvi Auribeau, Hôpital de Nice…"
             className="sm:col-span-2"
             inputMode="search"
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Type de travaux *</span>
+            <span className="mb-1 block text-muted">Mode de gestion *</span>
             <select
               required
-              value={form.typeTravaux || 'installation'}
+              value={form.modeGestion || 'contrat'}
+              onChange={(e) =>
+                setForm({ ...form, modeGestion: e.target.value as ModeGestion })
+              }
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            >
+              {(Object.keys(MODE_GESTION_LABELS) as ModeGestion[]).map((key) => (
+                <option key={key} value={key}>
+                  {MODE_GESTION_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Nature typique</span>
+            <select
+              value={form.typeTravaux || 'maintenance'}
               onChange={(e) =>
                 setForm({ ...form, typeTravaux: e.target.value as TypeTravaux })
               }
@@ -819,12 +863,27 @@ export function ChantiersPage() {
             </select>
           </label>
           <Field
-            label="Précision des travaux"
+            label="Précision / contexte"
             value={form.detailTravaux || ''}
             onChange={(v) => setForm({ ...form, detailTravaux: v })}
+            className="sm:col-span-2"
           />
+          {(form.modeGestion || 'contrat') === 'contrat' && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-muted">Prochain contrôle d’étanchéité</span>
+              <input
+                type="date"
+                value={form.prochaineControleEtancheite || ''}
+                onChange={(e) =>
+                  setForm({ ...form, prochaineControleEtancheite: e.target.value })
+                }
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              />
+            </label>
+          )}
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
-            Ex. maintenance semestrielle, installation clim bureau directeur, pose VMC…
+            Contrat = parc en veille (équipements déclarés, CERFA à la demande). Occasionnel =
+            chantier / dépannage ponctuel.
           </p>
           <Field
             label="Adresse"
@@ -1089,81 +1148,123 @@ export function ChantiersPage() {
           const client = data.clients.find((x) => x.id === c.clientId)
           const eqs = allEquipements(c)
           const fluide = siteAvecFluideFrigorigene(c)
-          const primary = eqs.find((e) => equipAvecFluideFrigorigene(e)) || eqs[0]
-          const status =
-            c.statut === 'termine'
-              ? { label: 'Terminé', cls: 'bg-sky-100 text-sky-800' }
-              : c.statut === 'archive'
-                ? { label: 'Archivé', cls: 'bg-slate-100 text-slate-600' }
-                : { label: 'En cours', cls: 'bg-emerald-100 text-emerald-800' }
-          const modified =
-            c.derniereMaintenanceDate ||
-            (c.createdAt ? c.createdAt.slice(0, 10) : '')
+          const chip = siteParcChip(c)
+          const mode = resolveModeGestion(c)
+          const charge = siteChargeTotaleKg(c)
+          const fluides = siteFluidesSummary(c)
+          const nextCtrl = resolveProchaineControle(c)
+          const cerfaPending = siteHasCerfaASigner(c.id, data.interventions)
           return (
-            <button
+            <div
               key={c.id}
-              type="button"
-              onClick={() => {
-                setFocusSiteId(c.id)
-                setFocusEquipId(null)
-                setSiteMenuOpen(false)
-                setEquipQ('')
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              className="group flex w-full min-w-0 items-start gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-3.5 py-3 text-left shadow-sm transition hover:border-accent/30 hover:shadow-md active:bg-mist/40 sm:items-center sm:px-4"
+              className="rounded-2xl border border-[#E5E7EB] bg-white p-3.5 shadow-sm transition hover:border-accent/30 hover:shadow-md sm:p-4"
             >
-              <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-600">
-                <Building2 className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="truncate text-[15px] font-semibold text-ink">{c.nom}</span>
-                  {primary?.nom || primary?.type ? (
-                    <span className="truncate text-xs text-muted">
-                      ({primary.nom?.trim() || primary.type})
-                    </span>
-                  ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setFocusSiteId(c.id)
+                  setFocusEquipId(null)
+                  setSiteMenuOpen(false)
+                  setEquipQ('')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                className="flex w-full min-w-0 items-start gap-3 text-left"
+              >
+                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-600">
+                  <Building2 className="h-5 w-5" />
                 </span>
-                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted sm:text-xs">
-                  <span className="truncate">{client?.raisonSociale || '—'}</span>
-                  <span className="text-line">·</span>
-                  {fluide ? (
-                    <span className="truncate">
-                      {[primary?.fluideType || c.fluideType, primary?.chargeNominaleKg || c.chargeNominaleKg
-                        ? `${primary?.chargeNominaleKg || c.chargeNominaleKg} kg`
-                        : null]
-                        .filter(Boolean)
-                        .join(' · ') || 'Fluide'}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-[15px] font-semibold text-ink">{c.nom}</span>
+                    <span
+                      className={[
+                        'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                        mode === 'contrat'
+                          ? 'bg-slate-100 text-slate-700'
+                          : 'bg-orange-100 text-orange-800',
+                      ].join(' ')}
+                    >
+                      {modeGestionLabel(c)}
                     </span>
-                  ) : (
-                    <span>{eqs.length} équip.</span>
-                  )}
-                  {modified ? (
-                    <>
-                      <span className="text-line">·</span>
-                      <span className="truncate">{modified}</span>
-                    </>
-                  ) : null}
+                  </span>
+                  <span className="mt-1 block truncate text-xs text-muted">
+                    {client?.raisonSociale || '—'}
+                    {c.ville ? ` · ${c.ville}` : ''}
+                  </span>
+                  <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted sm:text-xs">
+                    <span>
+                      {eqs.length} équipement{eqs.length > 1 ? 's' : ''}
+                      {fluide && charge > 0
+                        ? ` · ${charge} kg${fluides ? ` ${fluides}` : ''}`
+                        : fluide
+                          ? ' · fluide'
+                          : ''}
+                    </span>
+                    {nextCtrl ? (
+                      <>
+                        <span className="text-line">·</span>
+                        <span>Contrôle : {formatMoisAnnee(nextCtrl)}</span>
+                      </>
+                    ) : null}
+                    {c.detailTravaux && mode === 'ponctuel' ? (
+                      <>
+                        <span className="text-line">·</span>
+                        <span className="truncate">{c.detailTravaux}</span>
+                      </>
+                    ) : null}
+                    {cerfaPending ? (
+                      <>
+                        <span className="text-line">·</span>
+                        <span className="font-semibold text-amber-700">CERFA à signer</span>
+                      </>
+                    ) : null}
+                  </span>
                 </span>
-              </span>
-              <span className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-                <span
-                  className={[
-                    'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
-                    status.cls,
-                  ].join(' ')}
+                <span className="flex shrink-0 flex-col items-end gap-2">
+                  <span
+                    className={[
+                      'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+                      chip.cls,
+                    ].join(' ')}
+                  >
+                    {chip.label}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted" />
+                </span>
+              </button>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+                {fluide ? (
+                  <button
+                    type="button"
+                    onClick={() => openPicker(c, 'intervention')}
+                    className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white shadow-sm active:translate-y-px sm:flex-none"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    Créer CERFA
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusSiteId(c.id)
+                    setFocusEquipId(null)
+                    setSiteMenuOpen(false)
+                    setEquipQ('')
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
                 >
-                  {status.label}
-                </span>
-                <ChevronRight className="h-4 w-4 text-muted transition group-hover:text-ink" />
-              </span>
-            </button>
+                  Ouvrir le parc
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           )
         })}
         {filteredChantiers.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-10 text-center text-sm text-muted">
             {data.chantiers.length === 0
-              ? 'Aucun site. Ajoutez un client, puis un site.'
+              ? 'Aucun site. Ajoutez un client, puis un site avec son parc d’équipements.'
               : 'Aucun résultat pour cette recherche / filtre.'}
           </div>
         )}
@@ -1210,6 +1311,16 @@ export function ChantiersPage() {
                   <span className="font-semibold text-ink">{c.nom}</span>
                   {client?.raisonSociale ? ` · ${client.raisonSociale}` : ''}
                 </p>
+                {fluide ? (
+                  <button
+                    type="button"
+                    onClick={() => openPicker(c, 'intervention')}
+                    className="inline-flex h-9 items-center gap-1 rounded-lg bg-[#0f766e] px-2.5 text-xs font-bold text-white"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    CERFA
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setSiteMenuOpen((v) => !v)}
@@ -1270,7 +1381,7 @@ export function ChantiersPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (confirm('Supprimer ces travaux ?')) {
+                      if (confirm('Supprimer ce site et son parc d’équipements ?')) {
                         deleteChantier(c.id)
                         setFocusSiteId(null)
                         setFocusEquipId(null)

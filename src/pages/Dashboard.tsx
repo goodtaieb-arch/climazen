@@ -37,7 +37,7 @@ export function Dashboard() {
     {
       id: 'chantier',
       done: data.chantiers.length > 0,
-      label: 'Créer un chantier / équipement',
+      label: 'Créer un site / parc équipements',
       to: '/app/chantiers',
       icon: MapPin,
     },
@@ -178,7 +178,7 @@ export function Dashboard() {
                 onClick={() => goTravaux(q)}
                 className="w-full px-4 py-3 text-left text-sm font-semibold text-accent active:bg-mist"
               >
-                Voir tous les résultats dans Travaux →
+                Voir tous les résultats dans Sites →
               </button>
             </li>
           </ul>
@@ -293,7 +293,7 @@ export function Dashboard() {
                 Premiers pas ({progress}/{steps.length})
               </h2>
               <p className="mt-1 text-sm text-muted">
-                Une fois → Client + site. Sur le terrain → Accueil ou Travaux.
+                Une fois → Client + site. Sur le terrain → Accueil ou Sites.
               </p>
             </div>
             <button
@@ -333,7 +333,7 @@ export function Dashboard() {
       {/* Bureau : stats (desktop) */}
       <div className="hidden gap-4 lg:grid lg:grid-cols-4">
         <Stat icon={Building2} label="Clients" value={String(data.clients.length)} to="/app/clients" />
-        <Stat icon={MapPin} label="Chantiers actifs" value={String(actifs.length)} to="/app/chantiers" />
+        <Stat icon={MapPin} label="Sites actifs" value={String(actifs.length)} to="/app/chantiers" />
         <Stat icon={Package} label="Stock fluides" value={`${stockKg.toFixed(1)} kg`} to="/app/stock" />
         <Stat
           icon={ClipboardList}
