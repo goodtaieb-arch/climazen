@@ -27,6 +27,7 @@ import { FluideSelect } from '../components/FluideSelect'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { SmartSuggestField, type SmartSuggestion } from '../components/SmartSuggestField'
+import { MobileFab } from '../components/MobileFab'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat } from '../lib/cerfaBatch'
@@ -717,7 +718,7 @@ export function ChantiersPage() {
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white shadow-[0_4px_12px_rgba(15,118,110,0.35)] active:translate-y-px"
+            className="hidden h-12 shrink-0 items-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white shadow-[0_4px_12px_rgba(15,118,110,0.35)] active:translate-y-px md:inline-flex"
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} />
             Nouveau site
@@ -1261,7 +1262,7 @@ export function ChantiersPage() {
                   <button
                     type="button"
                     onClick={() => openPicker(c, 'intervention')}
-                    className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white shadow-sm active:translate-y-px sm:flex-none"
+                    className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white shadow-sm active:translate-y-px sm:flex-none"
                   >
                     <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                     Créer CERFA
@@ -1276,7 +1277,7 @@ export function ChantiersPage() {
                     setEquipQ('')
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
-                  className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
+                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
                 >
                   Ouvrir le parc
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -1947,6 +1948,12 @@ export function ChantiersPage() {
           </div>
         </div>
       )}
+
+      <MobileFab
+        label="Nouveau site"
+        hidden={open || !!focusSiteId}
+        onClick={openNew}
+      />
     </div>
   )
 }

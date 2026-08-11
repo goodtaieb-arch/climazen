@@ -19,7 +19,9 @@ export function SearchField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-xl border border-line bg-white ps-9 pe-3 text-sm outline-none focus:border-accent"
+        inputMode="search"
+        enterKeyHint="search"
+        className="h-12 w-full rounded-xl border border-line bg-white ps-9 pe-3 text-base outline-none focus:border-accent md:h-11 md:text-sm"
       />
     </div>
   )

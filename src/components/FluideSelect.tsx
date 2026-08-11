@@ -38,7 +38,7 @@ export function FluideSelect({
           if (v === '__custom__') return
           onChange(v)
         }}
-        className="h-11 w-full rounded-xl border border-line bg-white px-3"
+        className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
       >
         <option value="">— Choisir un fluide —</option>
         {groups.map((g) =>

@@ -19,6 +19,7 @@ import { BarcodeScanButton } from '../components/BarcodeScanButton'
 import { adrInfoForFluide, findFluide, formatGwp } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { mouvementsForBottle } from '../lib/stockMouvements'
+import { MobileFab } from '../components/MobileFab'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -751,6 +752,18 @@ export function StockPage() {
           </p>
         )}
       </div>
+
+      <MobileFab
+        label="Ajouter"
+        hidden={open || !!retourId}
+        onClick={() => {
+          setEditId(null)
+          setForm(blank())
+          setRegsOpen(false)
+          setOpen(true)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
     </div>
   )
 }

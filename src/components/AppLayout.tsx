@@ -126,10 +126,11 @@ const baseLinksOperator = [
   { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
 ]
 
-/** Nav terrain : 3 actions + menu Plus (Clients / Stock / admin) */
+/** Nav terrain mobile (<768px) : 4 actions principales */
 const mobilePrimary = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
+  { to: '/app/stock', label: 'Fluides', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
@@ -173,7 +174,6 @@ export function AppLayout() {
 
   const moreLinks = [
     { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-    { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
     { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
     ...(isOwner
       ? [
@@ -183,19 +183,15 @@ export function AppLayout() {
       : []),
   ]
 
-  const moreActive = moreLinks.some(
-    ({ to }) => pathname === to || pathname.startsWith(`${to}/`),
-  )
-
   return (
     <div
-      className="min-h-screen text-ink lg:grid lg:grid-cols-[300px_1fr]"
+      className="min-h-screen text-ink md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr]"
       style={{
         backgroundColor: '#ffffff',
         backgroundImage: `linear-gradient(${pageTone.page}, ${pageTone.page})`,
       }}
     >
-      <aside className="hidden border-r border-line bg-[#fafbfc] lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start lg:overflow-y-auto">
+      <aside className="hidden border-r border-line bg-[#fafbfc] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:self-start md:overflow-y-auto">
         <div className="border-b border-line bg-white px-4 py-4">
           <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
           <div className="mt-3 min-w-0">
@@ -215,7 +211,7 @@ export function AppLayout() {
                 to={to}
                 end={end}
                 onClick={goNav(to)}
-                className="group flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-[13px] font-semibold transition-colors"
+                className="group flex min-h-12 items-center gap-2.5 rounded-xl px-2 py-2 text-[13px] font-semibold transition-colors"
                 style={({ isActive }) => ({
                   backgroundColor: isActive ? 'rgba(255,255,255,0.95)' : 'transparent',
                   color: '#0f172a',
@@ -226,7 +222,7 @@ export function AppLayout() {
                 {({ isActive }) => (
                   <>
                     <span
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
                       style={{
                         backgroundColor: t.band,
                         color: t.icon,
@@ -243,29 +239,38 @@ export function AppLayout() {
         </nav>
       </aside>
 
-      <main className="min-w-0 overflow-x-hidden pb-24 lg:pb-0">
+      <main className="min-w-0 overflow-x-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <div
-          className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 lg:px-8"
+          className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2 sm:px-6 lg:px-8"
           style={{
             backgroundColor: '#ffffff',
             backgroundImage: `linear-gradient(${pageTone.card}, ${pageTone.card})`,
             borderColor: pageTone.border,
           }}
         >
-          <div className="min-w-0 lg:hidden">
+          <div className="min-w-0 md:hidden">
             <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
           </div>
-          <div className="hidden min-w-0 lg:block">
+          <div className="hidden min-w-0 md:block">
             <div className="truncate text-sm font-medium text-ink">{orgLabel}</div>
             <div className="truncate text-xs text-muted">
               {user?.fullName || user?.email} · {roleLabel} · {user?.email || user?.username}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              className="touch-target inline-flex items-center justify-center rounded-full border border-line bg-white/80 px-3 text-sm font-semibold text-ink hover:bg-white md:hidden"
+              aria-label="Menu Plus"
+              title="Clients & réglages"
+            >
+              <Ellipsis className="h-5 w-5" />
+            </button>
             <button
               type="button"
               onClick={doLogout}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white/80 px-3 py-2.5 text-sm font-semibold text-ink hover:bg-white sm:px-4"
+              className="touch-target inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white/80 px-3 text-sm font-semibold text-ink hover:bg-white sm:px-4"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Se déconnecter</span>
@@ -291,7 +296,7 @@ export function AppLayout() {
               <button
                 type="button"
                 onClick={() => void flushPendingSync()}
-                className="shrink-0 text-xs font-semibold text-accent hover:underline"
+                className="touch-target shrink-0 px-2 text-xs font-semibold text-accent hover:underline"
               >
                 Synchroniser
               </button>
@@ -307,14 +312,14 @@ export function AppLayout() {
                 <button
                   type="button"
                   onClick={() => void flushPendingSync()}
-                  className="text-xs font-semibold text-accent hover:underline"
+                  className="touch-target px-2 text-xs font-semibold text-accent hover:underline"
                 >
                   Réessayer
                 </button>
                 <button
                   type="button"
                   onClick={clearSyncError}
-                  className="text-xs font-semibold text-muted hover:text-ink"
+                  className="touch-target px-2 text-xs font-semibold text-muted hover:text-ink"
                 >
                   Fermer
                 </button>
@@ -326,7 +331,7 @@ export function AppLayout() {
       </main>
 
       {moreOpen && (
-        <div className="fixed inset-0 z-30 lg:hidden">
+        <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-ink/40"
@@ -339,13 +344,13 @@ export function AppLayout() {
               <button
                 type="button"
                 onClick={() => setMoreOpen(false)}
-                className="rounded-full p-2 text-muted hover:bg-mist"
+                className="touch-target rounded-full p-2 text-muted hover:bg-mist"
                 aria-label="Fermer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mb-3 text-sm text-muted">Bureau / réglages — pas pour l’intervention.</p>
+            <p className="mb-3 text-sm text-muted">Clients, signature et réglages.</p>
             <ul className="space-y-2">
               {moreLinks.map(({ to, label, icon: Icon, tone }) => {
                 const t = tones[tone] || tones.more
@@ -361,7 +366,7 @@ export function AppLayout() {
                       })}
                     >
                       <span
-                        className="grid h-10 w-10 place-items-center rounded-xl"
+                        className="grid h-12 w-12 place-items-center rounded-xl"
                         style={{ backgroundColor: t.band, color: t.icon }}
                       >
                         <Icon className="h-5 w-5" />
@@ -377,7 +382,7 @@ export function AppLayout() {
                   onClick={doLogout}
                   className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-line px-4 py-3 font-semibold text-ink active:bg-mist"
                 >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-mist text-muted">
+                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-mist text-muted">
                     <LogOut className="h-5 w-5" />
                   </span>
                   Se déconnecter
@@ -389,7 +394,7 @@ export function AppLayout() {
       )}
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur-md lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur-md md:hidden"
         style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom))' }}
         aria-label="Navigation principale"
       >
@@ -402,39 +407,23 @@ export function AppLayout() {
                 to={to}
                 end={end}
                 onClick={goNav(to)}
-                className="flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 py-2 text-xs font-semibold"
+                className="flex min-h-14 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold"
                 style={({ isActive }) => ({ color: isActive ? t.icon : '#5a7880' })}
               >
                 {({ isActive }) => (
                   <>
                     <span
-                      className="grid h-9 w-9 place-items-center rounded-xl"
+                      className="grid h-10 w-10 place-items-center rounded-xl"
                       style={{ backgroundColor: isActive ? t.band : 'transparent' }}
                     >
                       <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
                     </span>
-                    <span className="truncate">{label}</span>
+                    <span className="truncate px-0.5">{label}</span>
                   </>
                 )}
               </NavLink>
             )
           })}
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            className="flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 py-2 text-xs font-semibold"
-            style={{ color: moreActive || moreOpen ? tones.more.icon : '#5a7880' }}
-          >
-            <span
-              className="grid h-9 w-9 place-items-center rounded-xl"
-              style={{
-                backgroundColor: moreActive || moreOpen ? tones.more.band : 'transparent',
-              }}
-            >
-              <Ellipsis className="h-5 w-5" strokeWidth={moreActive || moreOpen ? 2.25 : 1.75} />
-            </span>
-            <span>Plus</span>
-          </button>
         </div>
       </nav>
     </div>

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Eye, FileCheck2, Pencil, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
 import { loadCerfaPdf } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SearchField, matchesQuery } from '../components/SearchField'
+import { MobileFab } from '../components/MobileFab'
 
 export function InterventionsPage() {
   const { data, deleteIntervention } = useStore()
@@ -55,9 +56,9 @@ export function InterventionsPage() {
         </div>
         <Link
           to="/app/interventions/new"
-          className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+          className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
         >
-          <Plus className="h-4 w-4" /> Nouvelle fiche
+          Nouvelle fiche
         </Link>
       </div>
 
@@ -71,7 +72,7 @@ export function InterventionsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="h-10 rounded-xl border border-line bg-white px-3 text-sm"
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
         >
           <option value="tous">Tous les statuts</option>
           <option value="brouillon">Brouillons</option>
@@ -88,16 +89,19 @@ export function InterventionsPage() {
           return (
             <div
               key={i.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4"
+              className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm"
             >
-              <Link to={`/app/interventions/${i.id}`} className="min-w-0 flex-1 hover:text-accent">
-                <div className="font-display font-semibold">{label}</div>
-                <div className="text-sm text-muted">
-                  {client?.raisonSociale} · {i.dateIntervention} · {i.fluideType} · {i.status}
+              <Link to={`/app/interventions/${i.id}`} className="block min-w-0 hover:text-accent">
+                <div className="font-display text-base font-semibold">{label}</div>
+                <div className="mt-1 text-sm text-muted">
+                  {client?.raisonSociale || '—'}
+                </div>
+                <div className="mt-0.5 text-xs text-muted">
+                  {i.dateIntervention} · {i.fluideType || '—'} · {i.status}
                   {i.createdByName ? ` · par ${i.createdByName}` : ''}
                 </div>
                 {i.hasCerfaPdf && (
-                  <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-accent">
+                  <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent">
                     <FileCheck2 className="h-3.5 w-3.5" />
                     CERFA dans l’app
                     {i.cerfaPdfSavedAt
@@ -106,25 +110,27 @@ export function InterventionsPage() {
                   </div>
                 )}
               </Link>
-              <div className="flex gap-1">
+              <div className="mt-3 flex flex-wrap gap-1 border-t border-line pt-3">
                 <Link
                   to={`/app/interventions/${i.id}`}
                   title="Ouvrir / régénérer le CERFA"
-                  className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                  className="touch-target inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-4 w-4 text-accent" />
+                  Ouvrir
                 </Link>
                 <button
                   type="button"
                   title="Voir le CERFA"
-                  className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                  className="touch-target inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
                   onClick={() => void openCerfa(i.id, label)}
                 >
-                  <Eye className="h-4 w-4" />
+                  <Eye className="h-4 w-4 text-accent" />
+                  PDF
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg p-2 text-danger hover:bg-red-50"
+                  className="touch-target grid place-items-center rounded-xl text-danger hover:bg-red-50"
                   onClick={() => {
                     if (confirm('Supprimer cette fiche et son CERFA ?')) deleteIntervention(i.id)
                   }}
@@ -143,6 +149,8 @@ export function InterventionsPage() {
           </p>
         )}
       </div>
+
+      <MobileFab label="Créer CERFA" to="/app/interventions/new" />
 
       {viewer && (
         <PdfViewerModal

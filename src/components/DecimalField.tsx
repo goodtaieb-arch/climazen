@@ -62,7 +62,7 @@ export function DecimalField({
           const n = parseDecimalFr(raw)
           if (n !== null) onChange(n)
         }}
-        className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
+        className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base outline-none focus:border-accent md:h-11 md:text-sm"
       />
     </label>
   )

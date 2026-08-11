@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react'
+import { type FormEvent, useMemo, useState, type HTMLAttributes } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Building2,
@@ -19,6 +19,7 @@ import type { Client, FacturationAction } from '../lib/types'
 import { FACTURATION_PLATEFORMES } from '../lib/types'
 import { allEquipements } from '../lib/cerfaBatch'
 import { SearchField, matchesQuery } from '../components/SearchField'
+import { MobileFab } from '../components/MobileFab'
 import {
   buildMakeFacturationPayload,
   copyClientPourFacturation,
@@ -240,8 +241,18 @@ export function ClientsPage() {
             label="Téléphone"
             value={form.telephone}
             onChange={(v) => setForm({ ...form, telephone: v })}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
           />
-          <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+          <Field
+            label="Email"
+            value={form.email}
+            onChange={(v) => setForm({ ...form, email: v })}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+          />
           <Field
             label="SIRET (facturation)"
             value={form.siret || ''}
@@ -383,7 +394,7 @@ export function ClientsPage() {
                     <button
                       type="button"
                       onClick={() => nouveauSite(c)}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white shadow-sm active:translate-y-px"
+                      className="inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white shadow-sm active:translate-y-px"
                     >
                       <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                       Nouveau site
@@ -391,7 +402,7 @@ export function ClientsPage() {
                     <button
                       type="button"
                       onClick={() => voirFiche(c)}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist"
+                      className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist"
                     >
                       Voir la fiche
                     </button>
@@ -401,7 +412,7 @@ export function ClientsPage() {
                       type="button"
                       title={`Copier et ouvrir ${plateforme}`}
                       onClick={() => void copierEtOuvrir(c)}
-                      className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                      className="touch-target grid place-items-center rounded-lg text-accent hover:bg-accent-soft"
                     >
                       <Copy className={`h-4 w-4 ${copiedId === c.id ? 'opacity-40' : ''}`} />
                     </button>
@@ -411,7 +422,7 @@ export function ClientsPage() {
                         title={`Make → ${plateforme} (expert)`}
                         disabled={sendingId === c.id}
                         onClick={() => void envoyerMake(c)}
-                        className="rounded-lg p-2 text-muted hover:bg-mist disabled:opacity-50"
+                        className="touch-target grid place-items-center rounded-lg text-muted hover:bg-mist disabled:opacity-50"
                       >
                         <FileSpreadsheet className="h-4 w-4" />
                       </button>
@@ -419,7 +430,7 @@ export function ClientsPage() {
                     <button
                       type="button"
                       onClick={() => startEdit(c)}
-                      className="rounded-lg p-2 text-accent hover:bg-accent-soft"
+                      className="touch-target grid place-items-center rounded-lg text-accent hover:bg-accent-soft"
                       title="Modifier"
                     >
                       <Pencil className="h-4 w-4" />
@@ -429,7 +440,7 @@ export function ClientsPage() {
                       onClick={() => {
                         if (confirm('Supprimer ce client ?')) deleteClient(c.id)
                       }}
-                      className="rounded-lg p-2 text-danger hover:bg-red-50"
+                      className="touch-target grid place-items-center rounded-lg text-danger hover:bg-red-50"
                       title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -449,6 +460,17 @@ export function ClientsPage() {
           </div>
         )}
       </div>
+
+      <MobileFab
+        label="Ajouter"
+        hidden={open}
+        onClick={() => {
+          setEditId(null)
+          setForm(blank())
+          setOpen(true)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
     </div>
   )
 }
@@ -471,7 +493,7 @@ export function Header({
       <button
         type="button"
         onClick={onAdd}
-        className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+        className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
       >
         <Plus className="h-4 w-4" /> Ajouter
       </button>
@@ -487,6 +509,8 @@ export function Field({
   type = 'text',
   className = '',
   step,
+  inputMode,
+  autoComplete,
 }: {
   label: string
   value: string | number
@@ -495,6 +519,8 @@ export function Field({
   type?: string
   className?: string
   step?: string
+  inputMode?: HTMLAttributes<HTMLInputElement>['inputMode']
+  autoComplete?: string
 }) {
   return (
     <label className={`block text-sm ${className}`}>
@@ -503,9 +529,11 @@ export function Field({
         required={required}
         type={type}
         step={step}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-xl border border-line bg-white px-3"
+        className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
       />
     </label>
   )

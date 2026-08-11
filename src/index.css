@@ -38,3 +38,18 @@ body {
 .font-display {
   font-family: var(--font-display);
 }
+
+/* Mobile-first terrain : zones tactiles confortables */
+@media (max-width: 767px) {
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    min-height: 48px;
+    font-size: 16px; /* évite le zoom iOS */
+  }
+}
