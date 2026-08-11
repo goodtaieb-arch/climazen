@@ -246,6 +246,122 @@ export function findFluide(code: string): FluideRef | undefined {
   return FLUIDES.find((f) => normalizeFluideCode(f.code) === n)
 }
 
+/** Transport ADR / RID — cadres CERFA [12] (préremplissage stock). */
+export type FluideAdrInfo = {
+  codeUn: string
+  denominationAdr: string
+}
+
+const FLUIDE_ADR: Record<string, FluideAdrInfo> = {
+  'R-32': {
+    codeUn: '3252',
+    denominationAdr: 'UN 3252 DIFLUOROMETHANE (REFRIGERANT GAS R 32)',
+  },
+  'R-134A': {
+    codeUn: '3159',
+    denominationAdr: 'UN 3159 1,1,1,2-TETRAFLUOROETHANE (REFRIGERANT GAS R 134a)',
+  },
+  'R-407C': {
+    codeUn: '3340',
+    denominationAdr: 'UN 3340 REFRIGERANT GAS R 407C',
+  },
+  'R-410A': {
+    codeUn: '3163',
+    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-410A)',
+  },
+  'R-404A': {
+    codeUn: '3337',
+    denominationAdr: 'UN 3337 REFRIGERANT GAS R 404A',
+  },
+  'R-507A': {
+    codeUn: '1078',
+    denominationAdr: 'UN 1078 REFRIGERANT GAS, N.O.S. (R-507A)',
+  },
+  'R-1234YF': {
+    codeUn: '3161',
+    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-1234yf)',
+  },
+  'R-1234ZE': {
+    codeUn: '3163',
+    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-1234ze)',
+  },
+  'R-1233ZD': {
+    codeUn: '3163',
+    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-1233zd)',
+  },
+  'R-454C': {
+    codeUn: '3161',
+    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-454C)',
+  },
+  'R-455A': {
+    codeUn: '3161',
+    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-455A)',
+  },
+  'R-454B': {
+    codeUn: '3161',
+    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-454B)',
+  },
+  'R-448A': {
+    codeUn: '3163',
+    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-448A)',
+  },
+  'R-449A': {
+    codeUn: '3163',
+    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-449A)',
+  },
+  'R-452A': {
+    codeUn: '3163',
+    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-452A)',
+  },
+  'R-744': {
+    codeUn: '1013',
+    denominationAdr: 'UN 1013 CARBON DIOXIDE',
+  },
+  'R-717': {
+    codeUn: '1005',
+    denominationAdr: 'UN 1005 AMMONIA, ANHYDROUS',
+  },
+  'R-290': {
+    codeUn: '1978',
+    denominationAdr: 'UN 1978 PROPANE',
+  },
+  'R-600A': {
+    codeUn: '1969',
+    denominationAdr: 'UN 1969 ISOBUTANE',
+  },
+  'R-1270': {
+    codeUn: '1077',
+    denominationAdr: 'UN 1077 PROPYLENE',
+  },
+  'R-22': {
+    codeUn: '1018',
+    denominationAdr: 'UN 1018 CHLORODIFLUOROMETHANE (REFRIGERANT GAS R 22)',
+  },
+  'R-12': {
+    codeUn: '1028',
+    denominationAdr: 'UN 1028 DICHLORODIFLUOROMETHANE (REFRIGERANT GAS R 12)',
+  },
+  'R-502': {
+    codeUn: '1973',
+    denominationAdr: 'UN 1973 CHLORODIFLUOROMETHANE AND CHLOROPENTAFLUOROETHANE MIXTURE',
+  },
+  'R-408A': {
+    codeUn: '1078',
+    denominationAdr: 'UN 1078 REFRIGERANT GAS, N.O.S. (R-408A)',
+  },
+  'R-409A': {
+    codeUn: '1078',
+    denominationAdr: 'UN 1078 REFRIGERANT GAS, N.O.S. (R-409A)',
+  },
+}
+
+/** Préremplit Code UN + dénomination ADR selon le fluide (modifiable ensuite). */
+export function adrInfoForFluide(fluideCode: string): FluideAdrInfo | null {
+  if (!fluideCode.trim()) return null
+  const key = normalizeFluideCode(fluideCode)
+  return FLUIDE_ADR[key] || null
+}
+
 /** Charge (kg) × GWP / 1000 → tonnes eq. CO₂ */
 export function calcTeqCO2(chargeKg: number, gwp: number): number {
   if (!Number.isFinite(chargeKg) || !Number.isFinite(gwp) || chargeKg <= 0) return 0

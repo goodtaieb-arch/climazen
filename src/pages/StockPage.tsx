@@ -8,13 +8,15 @@ import {
   needsRetourConsigne,
   type ContenantType,
   type StockItem,
+  type StockMouvement,
 } from '../lib/types'
 import { Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
-import { findFluide, formatGwp } from '../lib/fluides'
+import { BarcodeScanButton } from '../components/BarcodeScanButton'
+import { adrInfoForFluide, findFluide, formatGwp } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { mouvementsForBottle } from '../lib/stockMouvements'
 
@@ -26,32 +28,80 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const blank = (): Omit<StockItem, 'id' | 'updatedAt'> => ({
-  fluide: 'R-32',
-  contenantType: 'vierge',
-  numeroContenant: '',
-  quantiteKg: 0,
-  quantiteInitialeKg: 0,
-  bsffReference: '',
-  codeUn: '',
-  denominationAdr: '',
-  notes: '',
-})
+const blank = (): Omit<StockItem, 'id' | 'updatedAt'> => {
+  const fluide = 'R-32'
+  const adr = adrInfoForFluide(fluide)
+  return {
+    fluide,
+    contenantType: 'vierge',
+    numeroContenant: '',
+    quantiteKg: 0,
+    quantiteInitialeKg: 0,
+    bsffReference: '',
+    codeUn: adr?.codeUn || '',
+    denominationAdr: adr?.denominationAdr || '',
+    notes: '',
+  }
+}
 
 const TYPES: { value: ContenantType; label: string }[] = [
   { value: 'vierge', label: 'Vierge (neuf)' },
-  { value: 'regenere', label: 'Régénéré' },
+  { value: 'regenere', label: 'Recyclé / régénéré' },
   { value: 'recuperation', label: 'Récupération' },
   { value: 'transfert', label: 'Transfert' },
 ]
 
+const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
+  vierge: { label: 'Vierge (neuf)', cls: 'bg-emerald-100 text-emerald-800' },
+  recuperation: { label: 'Récupération', cls: 'bg-orange-100 text-orange-800' },
+  regenere: { label: 'Recyclé', cls: 'bg-sky-100 text-sky-800' },
+  transfert: { label: 'Transfert', cls: 'bg-slate-100 text-slate-700' },
+}
+
+function applyFluideAdr(
+  form: Omit<StockItem, 'id' | 'updatedAt'>,
+  fluide: string,
+  force = false,
+): Omit<StockItem, 'id' | 'updatedAt'> {
+  const adr = adrInfoForFluide(fluide)
+  if (!adr) return { ...form, fluide }
+  const prevAdr = adrInfoForFluide(form.fluide)
+  const unWasAuto = !form.codeUn || (prevAdr && form.codeUn === prevAdr.codeUn)
+  const denomWasAuto =
+    !form.denominationAdr || (prevAdr && form.denominationAdr === prevAdr.denominationAdr)
+  return {
+    ...form,
+    fluide,
+    codeUn: force || unWasAuto ? adr.codeUn : form.codeUn,
+    denominationAdr: force || denomWasAuto ? adr.denominationAdr : form.denominationAdr,
+  }
+}
+
+function BottleLevelBar({ current, initial }: { current: number; initial: number }) {
+  const cap = initial > 0 ? initial : current > 0 ? current : 0
+  const pct = cap > 0 ? Math.max(0, Math.min(100, Math.round((current / cap) * 100))) : 0
+  const tone =
+    pct <= 15 ? 'bg-danger' : pct <= 40 ? 'bg-amber-500' : 'bg-emerald-500'
+  return (
+    <div className="mt-1.5 w-full min-w-[7rem] max-w-[11rem]">
+      <div className="h-2 overflow-hidden rounded-full bg-mist">
+        <div className={`h-full rounded-full transition-all ${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-0.5 text-[10px] font-medium text-muted">
+        {roundKg(current)} kg / {roundKg(cap)} kg
+      </div>
+    </div>
+  )
+}
+
 export function StockPage() {
   const { data, upsertStock, deleteStock, enregistrerRetourConsigneBouteille } = useStore()
   const { user } = useAuth()
-  const [form, setForm] = useState(blank())
+  const [form, setForm] = useState(blank)
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [regsOpen, setRegsOpen] = useState(false)
   const [retourId, setRetourId] = useState<string | null>(null)
   const [retourForm, setRetourForm] = useState({
     bonRetourConsigne: '',
@@ -107,6 +157,19 @@ export function StockPage() {
       .sort((a, b) => a.fluide.localeCompare(b.fluide, 'fr'))
   }, [actifStock])
 
+  const mouvementContext = (m: StockMouvement) => {
+    if (!m.interventionId) return null
+    const intervention = data.interventions.find((i) => i.id === m.interventionId)
+    if (!intervention) return { cerfa: m.cerfaLabel, client: '', site: '' }
+    const client = data.clients.find((c) => c.id === intervention.clientId)
+    const site = data.chantiers.find((c) => c.id === intervention.chantierId)
+    return {
+      cerfa: m.cerfaLabel || intervention.cerfaPdfFileName || `CERFA`,
+      client: client?.raisonSociale || '',
+      site: site?.nom || '',
+    }
+  }
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!form.numeroContenant.trim()) {
@@ -126,11 +189,13 @@ export function StockPage() {
     })
     setOpen(false)
     setEditId(null)
+    setRegsOpen(false)
   }
 
   const startEdit = (s: StockItem) => {
     setEditId(s.id)
     setForm({ ...s })
+    setRegsOpen(Boolean(s.bsffReference || s.codeUn || s.denominationAdr))
     setOpen(true)
   }
 
@@ -170,6 +235,7 @@ export function StockPage() {
         onAdd={() => {
           setEditId(null)
           setForm(blank())
+          setRegsOpen(false)
           setOpen(true)
         }}
       />
@@ -189,7 +255,7 @@ export function StockPage() {
           <FluideSelect
             label="Fluide"
             value={form.fluide}
-            onChange={(v) => setForm({ ...form, fluide: v })}
+            onChange={(v) => setForm((f) => applyFluideAdr(f, v))}
             required
           />
           <label className="block text-sm">
@@ -206,15 +272,27 @@ export function StockPage() {
               ))}
             </select>
           </label>
-          <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
-            <input
-              required
-              value={form.numeroContenant}
-              onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
-              placeholder="ex. BOT-R32-001 (gravé / distributeur)"
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </LabelHint>
+
+          <div className="sm:col-span-2">
+            <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
+              <div className="flex gap-2">
+                <input
+                  required
+                  value={form.numeroContenant}
+                  onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
+                  placeholder="ex. BOT-R32-001 (gravé / distributeur)"
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
+                />
+                <BarcodeScanButton
+                  onDetected={(value) => setForm({ ...form, numeroContenant: value })}
+                />
+              </div>
+            </LabelHint>
+            <p className="mt-1 text-xs text-muted">
+              Sur mobile : scannez le code-barres / QR fournisseur au lieu de taper le n°.
+            </p>
+          </div>
+
           <DecimalField
             label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
             value={form.quantiteKg}
@@ -227,36 +305,69 @@ export function StockPage() {
             }}
             placeholder="ex. 10,5"
           />
-          <LabelHint label="Réf. BSFF" tip={TIP_BSFF}>
-            <input
-              value={form.bsffReference || ''}
-              onChange={(e) => setForm({ ...form, bsffReference: e.target.value })}
-              placeholder={
-                form.contenantType === 'recuperation'
-                  ? 'ex. BSFF-2026-XXXXXXXX'
-                  : 'N/A si pas de récupération'
-              }
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+          {editId ? (
+            <DecimalField
+              label="Quantité d’entrée (kg)"
+              value={form.quantiteInitialeKg ?? form.quantiteKg}
+              onChange={(n) => setForm({ ...form, quantiteInitialeKg: n })}
+              placeholder="capacité / entrée"
             />
-          </LabelHint>
-          <LabelHint label="Code UN" tip={TIP_UN}>
-            <input
-              value={form.codeUn || ''}
-              onChange={(e) => setForm({ ...form, codeUn: e.target.value })}
-              placeholder="ex. 3163"
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </LabelHint>
-          <LabelHint label="Dénomination ADR/RID" tip={TIP_ADR} className="sm:col-span-2">
-            <input
-              value={form.denominationAdr || ''}
-              onChange={(e) => setForm({ ...form, denominationAdr: e.target.value })}
-              placeholder="ex. UN 3163 Gaz liquéfié, n.s.a. (R-410A)"
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </LabelHint>
+          ) : (
+            <div className="hidden sm:block" aria-hidden />
+          )}
+
+          <div className="sm:col-span-2 overflow-hidden rounded-xl border border-line">
+            <button
+              type="button"
+              onClick={() => setRegsOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 bg-mist/40 px-4 py-3 text-left text-sm font-semibold"
+            >
+              <span>Informations réglementaires (ADR / BSFF)</span>
+              {regsOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted" />
+              )}
+            </button>
+            {regsOpen && (
+              <div className="grid gap-3 border-t border-line p-4 sm:grid-cols-2">
+                <p className="text-xs text-muted sm:col-span-2">
+                  Code UN et ADR sont préremplis selon le fluide — modifiables si besoin.
+                </p>
+                <LabelHint label="Réf. BSFF" tip={TIP_BSFF}>
+                  <input
+                    value={form.bsffReference || ''}
+                    onChange={(e) => setForm({ ...form, bsffReference: e.target.value })}
+                    placeholder={
+                      form.contenantType === 'recuperation'
+                        ? 'ex. BSFF-2026-XXXXXXXX'
+                        : 'N/A si pas de récupération'
+                    }
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </LabelHint>
+                <LabelHint label="Code UN" tip={TIP_UN}>
+                  <input
+                    value={form.codeUn || ''}
+                    onChange={(e) => setForm({ ...form, codeUn: e.target.value })}
+                    placeholder="ex. 3252"
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </LabelHint>
+                <LabelHint label="Dénomination ADR/RID" tip={TIP_ADR} className="sm:col-span-2">
+                  <input
+                    value={form.denominationAdr || ''}
+                    onChange={(e) => setForm({ ...form, denominationAdr: e.target.value })}
+                    placeholder="ex. UN 3252 DIFLUOROMETHANE (REFRIGERANT GAS R 32)"
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </LabelHint>
+              </div>
+            )}
+          </div>
+
           <p className="text-xs text-muted sm:col-span-2">
-            Neuve ou récup : chaque ajout / sortie sur CERFA met à jour le reste et l'historique
+            Neuve ou récup : chaque ajout / sortie sur CERFA met à jour le reste et l&apos;historique
             (ex. 10 kg → sortie 2 kg → reste 8 kg, lié au n° CERFA).
           </p>
           <div className="flex gap-2 sm:col-span-2">
@@ -268,7 +379,10 @@ export function StockPage() {
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false)
+                setRegsOpen(false)
+              }}
               className="rounded-full border border-line px-5 py-2.5 text-sm"
             >
               Annuler
@@ -280,18 +394,15 @@ export function StockPage() {
       {retourBottle && (
         <form
           onSubmit={submitRetour}
-          className="grid gap-3 rounded-2xl border border-accent/40 bg-white p-5 sm:grid-cols-2"
+          className="grid gap-3 rounded-2xl border border-accent/40 bg-accent-soft/30 p-5 sm:grid-cols-2"
         >
           <div className="sm:col-span-2">
-            <div className="font-display text-lg font-semibold">
-              Bon de retour de consigne — {retourBottle.numeroContenant}
-            </div>
+            <h2 className="font-display text-lg font-semibold">Bon de retour de consigne</h2>
             <p className="mt-1 text-sm text-muted">
-              Bouteille neuve vide ({retourBottle.fluide}) : preuve pour crédit fournisseur et
-              contrôle d'attestation de capacité.
+              {retourBottle.numeroContenant} · {retourBottle.fluide} (bouteille neuve vide)
             </p>
           </div>
-          <LabelHint label="N° bon de retour / restitution *" tip={TIP_RETOUR_CONSIGNE}>
+          <LabelHint label="N° bon de retour *" tip={TIP_RETOUR_CONSIGNE}>
             <input
               required
               value={retourForm.bonRetourConsigne}
@@ -383,11 +494,16 @@ export function StockPage() {
 
               <ul className="divide-y divide-line">
                 {group.bottles.map((s) => {
-                  const hist = mouvementsForBottle(data, s.id)
+                  const hist = [...mouvementsForBottle(data, s.id)].sort((a, b) =>
+                    (b.date || '').localeCompare(a.date || ''),
+                  )
                   const openHist = expandedId === s.id
-                  const typeLabel =
-                    TYPES.find((t) => t.value === s.contenantType)?.label || s.contenantType
+                  const badge = TYPE_BADGE[s.contenantType] || TYPE_BADGE.transfert
                   const awaitRetour = needsRetourConsigne(s)
+                  const initial = Number(s.quantiteInitialeKg) || Number(s.quantiteKg) || 0
+                  const current = Number(s.quantiteKg) || 0
+                  const lastCerfa = hist.find((m) => m.interventionId || m.kind === 'cerfa')
+                  const lastCtx = lastCerfa ? mouvementContext(lastCerfa) : null
                   return (
                     <li key={s.id}>
                       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
@@ -402,25 +518,34 @@ export function StockPage() {
                             <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
                           )}
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-semibold text-ink">
-                              {s.numeroContenant || '—'}
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="truncate font-semibold text-ink">
+                                {s.numeroContenant || '—'}
+                              </span>
+                              <span
+                                className={[
+                                  'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                  badge.cls,
+                                ].join(' ')}
+                              >
+                                {badge.label}
+                              </span>
                             </span>
-                            <span className="block truncate text-xs text-muted">
-                              {typeLabel}
-                              {' · '}
+                            <span className="mt-0.5 block truncate text-xs text-muted">
                               {awaitRetour
                                 ? 'Vide — retour consigne'
-                                : s.quantiteInitialeKg != null
-                                  ? `entrée ${s.quantiteInitialeKg} kg`
-                                  : 'reste actuel'}
+                                : initial > 0
+                                  ? `Entrée : ${roundKg(initial)} kg`
+                                  : 'Reste actuel'}
                               {hist.length > 0
                                 ? ` · ${hist.length} mvt${hist.length > 1 ? 's' : ''}`
                                 : ''}
                             </span>
+                            <BottleLevelBar current={current} initial={initial} />
                           </span>
                           <span className="shrink-0 text-right">
                             <span className="font-display text-base font-bold text-ink">
-                              {s.quantiteKg}{' '}
+                              {roundKg(current)}{' '}
                               <span className="text-xs font-semibold text-muted">kg</span>
                             </span>
                           </span>
@@ -461,59 +586,89 @@ export function StockPage() {
 
                       {openHist && (
                         <div className="border-t border-line bg-mist/40 px-4 py-3">
+                          {lastCerfa && (
+                            <div className="mb-3 rounded-xl border border-accent/30 bg-white px-3 py-2.5 text-sm">
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                                Dernier mouvement CERFA
+                              </div>
+                              <div className="mt-1 font-semibold text-ink">
+                                {lastCerfa.sens === 'sortie' ? '−' : '+'}
+                                {lastCerfa.quantiteKg} kg
+                                {lastCtx?.cerfa ? ` · ${lastCtx.cerfa}` : ''}
+                              </div>
+                              <div className="mt-0.5 text-xs text-muted">
+                                {[lastCtx?.client, lastCtx?.site, lastCerfa.date]
+                                  .filter(Boolean)
+                                  .join(' · ') || lastCerfa.date}
+                              </div>
+                              {lastCerfa.interventionId && (
+                                <Link
+                                  to={`/app/interventions/${lastCerfa.interventionId}`}
+                                  className="mt-1 inline-block text-xs font-semibold text-accent hover:underline"
+                                >
+                                  Ouvrir la fiche →
+                                </Link>
+                              )}
+                            </div>
+                          )}
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                             Historique des mouvements
                           </div>
                           {hist.length === 0 ? (
-                            <p className="text-sm text-muted">Aucun mouvement pour l'instant.</p>
+                            <p className="text-sm text-muted">Aucun mouvement pour l&apos;instant.</p>
                           ) : (
                             <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white text-sm">
-                              {hist.map((m) => (
-                                <li
-                                  key={m.id}
-                                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
-                                >
-                                  <div>
-                                    {m.kind === 'retour_consigne' ? (
-                                      <span className="font-semibold text-accent">
-                                        Retour consigne
-                                        {m.bonRetourReference
-                                          ? ` · ${m.bonRetourReference}`
+                              {hist.map((m) => {
+                                const ctx = mouvementContext(m)
+                                return (
+                                  <li
+                                    key={m.id}
+                                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+                                  >
+                                    <div>
+                                      {m.kind === 'retour_consigne' ? (
+                                        <span className="font-semibold text-accent">
+                                          Retour consigne
+                                          {m.bonRetourReference
+                                            ? ` · ${m.bonRetourReference}`
+                                            : ''}
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className={
+                                            m.sens === 'sortie'
+                                              ? 'font-semibold text-danger'
+                                              : 'font-semibold text-accent'
+                                          }
+                                        >
+                                          {m.sens === 'sortie' ? '−' : '+'}
+                                          {m.quantiteKg} kg
+                                        </span>
+                                      )}
+                                      <span className="text-muted">
+                                        {' '}
+                                        · {m.date}
+                                        {ctx?.client ? ` · ${ctx.client}` : ''}
+                                        {ctx?.site ? ` · ${ctx.site}` : ''}
+                                        {m.note ? ` · ${m.note}` : ''}
+                                        {m.kind !== 'retour_consigne'
+                                          ? ` · ${m.quantiteAvantKg} → ${m.quantiteApresKg} kg`
                                           : ''}
                                       </span>
-                                    ) : (
-                                      <span
-                                        className={
-                                          m.sens === 'sortie'
-                                            ? 'font-semibold text-danger'
-                                            : 'font-semibold text-accent'
-                                        }
+                                    </div>
+                                    {m.interventionId ? (
+                                      <Link
+                                        to={`/app/interventions/${m.interventionId}`}
+                                        className="font-medium text-accent hover:underline"
                                       >
-                                        {m.sens === 'sortie' ? '−' : '+'}
-                                        {m.quantiteKg} kg
-                                      </span>
+                                        {m.cerfaLabel}
+                                      </Link>
+                                    ) : (
+                                      <span className="font-medium text-muted">{m.cerfaLabel}</span>
                                     )}
-                                    <span className="text-muted">
-                                      {' '}
-                                      · {m.date}
-                                      {m.note ? ` · ${m.note}` : ''}
-                                      {m.kind !== 'retour_consigne'
-                                        ? ` · ${m.quantiteAvantKg} → ${m.quantiteApresKg} kg`
-                                        : ''}
-                                    </span>
-                                  </div>
-                                  {m.interventionId ? (
-                                    <Link
-                                      to={`/app/interventions/${m.interventionId}`}
-                                      className="font-medium text-accent hover:underline"
-                                    >
-                                      {m.cerfaLabel}
-                                    </Link>
-                                  ) : (
-                                    <span className="font-medium text-muted">{m.cerfaLabel}</span>
-                                  )}
-                                </li>
-                              ))}
+                                  </li>
+                                )
+                              })}
                             </ul>
                           )}
                         </div>
