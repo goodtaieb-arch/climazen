@@ -133,14 +133,33 @@ export function ChantiersPage() {
     setSiteMenuOpen(false)
   }
 
-  // Clic menu Travaux (même page) → revenir à la liste ; Accueil peut préremplir la recherche
+  // Clic menu Sites → liste ; Accueil / Clients peuvent préremplir recherche ou ouvrir un nouveau site
   useEffect(() => {
-    const st = location.state as { travauxList?: number; search?: string } | null
+    const st = location.state as {
+      travauxList?: number
+      search?: string
+      newSiteForClientId?: string
+    } | null
     if (!st) return
     if (st.travauxList) {
       closeForm()
       setFocusSiteId(null)
       setFocusEquipId(null)
+    }
+    if (typeof st.newSiteForClientId === 'string' && st.newSiteForClientId) {
+      const clientId = st.newSiteForClientId
+      const client = data.clients.find((c) => c.id === clientId)
+      setEditId(null)
+      setEquipIdx(0)
+      setEquipFilter('')
+      setFocusSiteId(null)
+      setFocusEquipId(null)
+      setClientQuery(client?.raisonSociale || '')
+      setForm(fillAdresseFromClient(clientId, blank(clientId)))
+      setOpen(true)
+      setQ('')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
     }
     if (typeof st.search === 'string') {
       const search = st.search
