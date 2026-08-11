@@ -34,11 +34,23 @@ import {
   syncFlatFromEquipements,
 } from './cerfaBatch'
 import { detecteurForUser } from './detecteurs'
+import {
+  getPendingSync,
+  isBrowserOnline,
+  markSynced,
+  setPendingSync,
+} from './offlineSync'
 
 type Store = {
   data: AppData
   loading: boolean
   syncError: string | null
+  /** Appareil sans réseau */
+  offline: boolean
+  /** Saisies locales pas encore poussées au cloud */
+  pendingSync: boolean
+  /** Pousse maintenant les données locales vers le cloud */
+  flushPendingSync: () => Promise<void>
   clearSyncError: () => void
   setOperateur: (o: Operateur) => void
   /** Enregistre le logo société et sync cloud immédiat (affiché à côté de ClimaZEN). */
@@ -111,11 +123,75 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(() => emptyData())
   const [loading, setLoading] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [offline, setOffline] = useState(() => !isBrowserOnline())
+  const [pendingSync, setPendingSyncState] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const skipNextSave = useRef(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flushing = useRef(false)
   const dataRef = useRef(data)
   dataRef.current = data
+
+  const applyLocalLogo = (payload: AppData, organizationId: string): AppData => {
+    const localLogo = loadCompanyLogoLocal(organizationId)
+    const merged: AppData = {
+      ...payload,
+      operateur: {
+        ...payload.operateur,
+        logoImage: payload.operateur.logoImage || localLogo || undefined,
+      },
+    }
+    if (merged.operateur.logoImage) {
+      saveCompanyLogoLocal(organizationId, merged.operateur.logoImage)
+    }
+    return merged
+  }
+
+  const markPending = useCallback(
+    (pending: boolean) => {
+      setPendingSync(orgId, pending)
+      setPendingSyncState(pending)
+    },
+    [orgId],
+  )
+
+  const flushPendingSync = useCallback(async () => {
+    if (!orgId || flushing.current) return
+    if (!isBrowserOnline()) {
+      setOffline(true)
+      return
+    }
+    flushing.current = true
+    try {
+      const payload = dataRef.current
+      saveData(payload, orgId)
+      await saveOrgDataRemote(orgId, payload)
+      markSynced(orgId)
+      setPendingSyncState(false)
+      setSyncError(null)
+      setOffline(false)
+    } catch (err) {
+      console.error(err)
+      markPending(true)
+      setSyncError(err instanceof Error ? err.message : 'Sync cloud impossible')
+    } finally {
+      flushing.current = false
+    }
+  }, [orgId, markPending])
+
+  useEffect(() => {
+    const onOnline = () => {
+      setOffline(false)
+      void flushPendingSync()
+    }
+    const onOffline = () => setOffline(true)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [flushPendingSync])
 
   useEffect(() => {
     let cancelled = false
@@ -124,11 +200,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setData(emptyData())
         setHydrated(false)
         setLoading(false)
+        setPendingSyncState(false)
         return
       }
       setLoading(true)
       setSyncError(null)
+      const hadPending = getPendingSync(orgId)
+      setPendingSyncState(hadPending)
+
+      const useLocal = () => {
+        const local = applyLocalLogo(loadData(orgId), orgId)
+        skipNextSave.current = true
+        setData(local)
+        setHydrated(true)
+      }
+
+      // Hors ligne : ouvrir immédiatement avec le cache local
+      if (!isBrowserOnline()) {
+        setOffline(true)
+        useLocal()
+        setLoading(false)
+        return
+      }
+
       try {
+        // Saisies offline en attente : on pousse le local, on n’écrase pas avec le cloud
+        if (hadPending) {
+          useLocal()
+          setLoading(false)
+          await flushPendingSync()
+          return
+        }
+
         const remote = await Promise.race([
           loadOrgDataRemote(orgId),
           new Promise<never>((_, reject) =>
@@ -139,37 +242,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         ])
         if (cancelled) return
-        const localLogo = loadCompanyLogoLocal(orgId)
-        const merged: AppData = {
-          ...remote,
-          operateur: {
-            ...remote.operateur,
-            logoImage: remote.operateur.logoImage || localLogo || undefined,
-          },
-        }
-        if (merged.operateur.logoImage) {
-          saveCompanyLogoLocal(orgId, merged.operateur.logoImage)
-        }
+        const merged = applyLocalLogo(remote, orgId)
         skipNextSave.current = true
         setData(merged)
         saveData(merged, orgId)
+        markSynced(orgId)
+        setPendingSyncState(false)
         setHydrated(true)
+        setOffline(false)
       } catch (err) {
         console.error(err)
         if (!cancelled) {
-          const local = loadData(orgId)
-          const localLogo = loadCompanyLogoLocal(orgId)
-          const merged: AppData = {
-            ...local,
-            operateur: {
-              ...local.operateur,
-              logoImage: local.operateur.logoImage || localLogo || undefined,
-            },
-          }
-          skipNextSave.current = true
-          setData(merged)
-          setHydrated(true)
-          setSyncError(err instanceof Error ? err.message : 'Sync impossible')
+          useLocal()
+          setOffline(!isBrowserOnline())
+          setSyncError(err instanceof Error ? err.message : 'Sync impossible — mode local')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -178,7 +264,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [orgId])
+  }, [orgId, flushPendingSync])
 
   useEffect(() => {
     if (!orgId || !hydrated) return
@@ -186,20 +272,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       skipNextSave.current = false
       return
     }
+    // Toujours enregistrer localement d’abord (terrain / hors ligne)
     saveData(data, orgId)
+    if (!isBrowserOnline()) {
+      setOffline(true)
+      markPending(true)
+      return
+    }
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       void saveOrgDataRemote(orgId, data)
-        .then(() => setSyncError(null))
+        .then(() => {
+          markSynced(orgId)
+          setPendingSyncState(false)
+          setSyncError(null)
+          setOffline(false)
+        })
         .catch((err) => {
           console.error(err)
+          markPending(true)
           setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
         })
     }, 400)
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
-  }, [data, orgId, hydrated])
+  }, [data, orgId, hydrated, markPending])
 
   const clearSyncError = useCallback(() => setSyncError(null), [])
 
@@ -209,10 +307,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       skipNextSave.current = true
       setData(next)
       saveData(next, orgId)
-      await saveOrgDataRemote(orgId, next)
-      setSyncError(null)
+      if (!isBrowserOnline()) {
+        markPending(true)
+        setOffline(true)
+        return
+      }
+      try {
+        await saveOrgDataRemote(orgId, next)
+        markSynced(orgId)
+        setPendingSyncState(false)
+        setSyncError(null)
+      } catch (err) {
+        markPending(true)
+        setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
+      }
     },
-    [orgId],
+    [orgId, markPending],
   )
 
   const setOperateur = useCallback(
@@ -242,16 +352,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData(next)
       saveData(next, orgId)
       saveCompanyLogoLocal(orgId, logoImage || null)
+      if (!isBrowserOnline()) {
+        markPending(true)
+        setOffline(true)
+        return
+      }
       try {
         await saveOrgDataRemote(orgId, next)
+        markSynced(orgId)
+        setPendingSyncState(false)
         setSyncError(null)
       } catch (err) {
         console.error(err)
+        markPending(true)
         setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
         throw err
       }
     },
-    [orgId, user?.role],
+    [orgId, user?.role, markPending],
   )
 
   const upsertClient = useCallback(
@@ -682,6 +800,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       data,
       loading,
       syncError,
+      offline,
+      pendingSync,
+      flushPendingSync,
       clearSyncError,
       setOperateur,
       setCompanyLogo,
@@ -708,6 +829,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       data,
       loading,
       syncError,
+      offline,
+      pendingSync,
+      flushPendingSync,
       clearSyncError,
       setOperateur,
       setCompanyLogo,

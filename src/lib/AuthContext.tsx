@@ -23,6 +23,12 @@ import {
   type Organization,
   type UserAccount,
 } from './auth'
+import {
+  clearOfflineSession,
+  isBrowserOnline,
+  loadOfflineSession,
+  saveOfflineSession,
+} from './offlineSync'
 import { getSupabase, isSupabaseConfigured } from './supabase'
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -90,29 +96,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganization(null)
       return
     }
-    const sb = getSupabase()
-    const { data: sessionData } = await withTimeout(
-      sb.auth.getSession(),
-      10000,
-      'Connexion session',
-    )
-    const uid = sessionData.session?.user?.id
-    if (!uid) {
-      setUser(null)
-      setOrganization(null)
-      return
-    }
-    const u = await withTimeout(fetchProfile(uid), 10000, 'Chargement profil')
-    setUser(u)
-    if (u?.organizationId) {
-      const org = await withTimeout(
-        getOrganization(u.organizationId),
+    try {
+      const sb = getSupabase()
+      const { data: sessionData } = await withTimeout(
+        sb.auth.getSession(),
         10000,
-        'Chargement société',
+        'Connexion session',
       )
-      setOrganization(org)
-    } else {
-      setOrganization(null)
+      const uid = sessionData.session?.user?.id
+      if (!uid) {
+        setUser(null)
+        setOrganization(null)
+        clearOfflineSession()
+        return
+      }
+      const u = await withTimeout(fetchProfile(uid), 10000, 'Chargement profil')
+      setUser(u)
+      let org: Organization | null = null
+      if (u?.organizationId) {
+        org = await withTimeout(
+          getOrganization(u.organizationId),
+          10000,
+          'Chargement société',
+        )
+        setOrganization(org)
+      } else {
+        setOrganization(null)
+      }
+      if (u) {
+        saveOfflineSession({
+          user: u,
+          organization: org,
+          cachedAt: new Date().toISOString(),
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      // Hors ligne : reprendre la dernière session connue sur l’appareil
+      if (!isBrowserOnline()) {
+        const cached = loadOfflineSession()
+        if (cached?.user) {
+          setUser(cached.user as UserAccount)
+          setOrganization((cached.organization as Organization | null) || null)
+          return
+        }
+      }
+      throw err
     }
   }, [])
 
@@ -136,8 +165,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error(err)
         if (!cancelled) {
-          setUser(null)
-          setOrganization(null)
+          const cached = loadOfflineSession()
+          if (cached?.user && (!isBrowserOnline() || cached.user)) {
+            setUser(cached.user as UserAccount)
+            setOrganization((cached.organization as Organization | null) || null)
+          } else {
+            setUser(null)
+            setOrganization(null)
+          }
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -179,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await logoutAccount()
+    clearOfflineSession()
     setUser(null)
     setOrganization(null)
   }, [])

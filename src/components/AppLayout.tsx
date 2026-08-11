@@ -142,7 +142,7 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
 
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
-  const { syncError, clearSyncError, data } = useStore()
+  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync } = useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -287,19 +287,51 @@ export function AppLayout() {
         </div>
         <div className="overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <ImportLocalBanner />
-          {syncError && (
+          {offline && (
+            <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-slate">
+              <p className="font-semibold">Mode hors ligne</p>
+              <p className="mt-0.5 text-muted">
+                Vous pouvez travailler normalement. Les saisies sont enregistrées sur cet appareil
+                et seront envoyées dès que le réseau revient.
+              </p>
+            </div>
+          )}
+          {!offline && pendingSync && (
+            <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-slate">
+              <p>
+                Saisies hors ligne en attente — synchronisation avec le cloud…
+              </p>
+              <button
+                type="button"
+                onClick={() => void flushPendingSync()}
+                className="shrink-0 text-xs font-semibold text-accent hover:underline"
+              >
+                Synchroniser
+              </button>
+            </div>
+          )}
+          {syncError && !offline && (
             <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate">
               <p>
                 Connexion cloud temporairement indisponible — vos données restent sur cet appareil.
                 Réessayez plus tard ({syncError}).
               </p>
-              <button
-                type="button"
-                onClick={clearSyncError}
-                className="shrink-0 text-xs font-semibold text-muted hover:text-ink"
-              >
-                Fermer
-              </button>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void flushPendingSync()}
+                  className="text-xs font-semibold text-accent hover:underline"
+                >
+                  Réessayer
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSyncError}
+                  className="text-xs font-semibold text-muted hover:text-ink"
+                >
+                  Fermer
+                </button>
+              </div>
             </div>
           )}
           <Outlet />
