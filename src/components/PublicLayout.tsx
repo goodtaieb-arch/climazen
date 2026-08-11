@@ -25,6 +25,12 @@ export function PublicLayout() {
               Hors ligne
             </a>
             <a
+              href="/#tarifs"
+              className="rounded-full px-3 py-2 font-medium text-muted transition-colors hover:bg-mist hover:text-ink"
+            >
+              Tarifs
+            </a>
+            <a
               href="/#fonctionnalites"
               className="rounded-full px-3 py-2 font-medium text-muted transition-colors hover:bg-mist hover:text-ink"
             >
@@ -75,6 +81,9 @@ export function PublicLayout() {
             <Link to="/contact" className="hover:text-ink">
               Contact
             </Link>
+            <a href="/#tarifs" className="hover:text-ink">
+              Tarifs
+            </a>
             <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-ink">
               {CONTACT_EMAIL}
             </a>

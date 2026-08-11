@@ -11,6 +11,8 @@ import {
   Smartphone,
   Users,
   WifiOff,
+  BadgeEuro,
+  Sparkles,
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { CONTACT_EMAIL } from '../components/PublicLayout'
@@ -115,6 +117,10 @@ export function Landing() {
               <ShieldCheck className="h-3.5 w-3.5 text-accent" />
               100 % conforme F-Gas
             </p>
+            <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-full border border-accent/40 bg-white/90 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate shadow-sm">
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+              Gratuit pour auto-entrepreneurs &amp; micro-sociétés
+            </p>
 
             <h1 className="font-display mt-4 max-w-xl text-3xl font-bold leading-[1.12] tracking-tight text-ink sm:text-4xl lg:text-[2.65rem]">
               ClimaZEN — CERFA fluides, même sans réseau
@@ -138,7 +144,7 @@ export function Landing() {
                 to="/register"
                 className="inline-flex items-center justify-center rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-ink shadow-lg shadow-accent/30 transition-transform hover:scale-[1.02] hover:bg-accent-hover"
               >
-                Essayer gratuitement
+                Essayer gratuitement — AE / micro
               </Link>
               <Link
                 to="/contact"
@@ -147,6 +153,14 @@ export function Landing() {
                 Demander une démo
               </Link>
             </div>
+            <p className="mt-3 text-xs text-muted">
+              Pendant la finalisation du site, l’accès reste ouvert. La facturation des structures
+              hors AE / micro s’activera ensuite —{' '}
+              <a href="/#tarifs" className="font-semibold text-accent hover:underline">
+                voir les tarifs
+              </a>
+              .
+            </p>
           </div>
 
           {/* Capture mobile — téléphone */}
@@ -266,6 +280,94 @@ export function Landing() {
         </div>
       </section>
 
+      {/* TARIFS */}
+      <section id="tarifs" className="scroll-mt-20 bg-white px-4 py-14 text-ink sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-6xl">
+          <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-accent">
+            <BadgeEuro className="h-4 w-4" />
+            Tarifs
+          </p>
+          <h2 className="font-display mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Gratuit pour les auto-entrepreneurs et micro-sociétés
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
+            ClimaZEN reste accessible aux indépendants. Pour les structures plus larges
+            (SARL / SAS, multi-techniciens…), l’offre devient payante une fois le site finalisé.
+            Aujourd’hui : tout le monde peut s’inscrire et utiliser l’app.
+          </p>
+
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <div className="relative overflow-hidden rounded-3xl border-2 border-accent bg-accent-soft/50 p-6 shadow-sm sm:p-8">
+              <span className="absolute right-4 top-4 rounded-full bg-accent px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink">
+                Recommandé
+              </span>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Indépendants</p>
+              <h3 className="font-display mt-2 text-2xl font-bold">Auto-entrepreneur &amp; micro</h3>
+              <p className="mt-2 font-display text-4xl font-bold text-ink">
+                0 € <span className="text-base font-semibold text-muted">/ mois</span>
+              </p>
+              <p className="mt-2 text-sm text-muted">Gratuit pour toujours — usage solo / micro-société.</p>
+              <ul className="mt-5 space-y-2.5 text-sm text-slate">
+                {[
+                  'CERFA F-Gas & parc équipements',
+                  'Stock fluides & mode hors ligne',
+                  'Compte personnel / micro',
+                  'Mises à jour incluses',
+                ].map((t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/register"
+                className="mt-7 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-accent px-5 text-sm font-bold text-ink hover:bg-accent-hover sm:w-auto"
+              >
+                Créer mon compte gratuit
+              </Link>
+            </div>
+
+            <div className="rounded-3xl border border-line bg-foam p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Entreprises</p>
+              <h3 className="font-display mt-2 text-2xl font-bold">SARL, SAS &amp; équipes</h3>
+              <p className="mt-2 font-display text-4xl font-bold text-ink">
+                Payant <span className="text-base font-semibold text-muted">après finalisation</span>
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                Multi-techniciens, compte société, administration — tarification activée à la
+                mise en production finale du site.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-sm text-slate">
+                {[
+                  'Tout le plan Indépendants',
+                  'Équipe terrain + compte bureau',
+                  'Plusieurs opérateurs & signatures',
+                  'Devis / démo sur demande',
+                ].map((t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/contact"
+                className="mt-7 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-line bg-white px-5 text-sm font-semibold text-ink hover:bg-mist sm:w-auto"
+              >
+                Contacter pour une offre
+              </Link>
+            </div>
+          </div>
+
+          <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate">
+            <strong className="font-semibold text-ink">Phase actuelle :</strong> le site est en
+            finalisation — l’inscription et l’usage sont ouverts à tous. La distinction
+            gratuit (AE / micro) / payant (autres structures) s’appliquera ensuite.
+          </p>
+        </div>
+      </section>
+
       {/* POURQUOI */}
       <section id="pourquoi" className="scroll-mt-20 bg-foam px-4 py-16 text-ink sm:px-6 sm:py-20">
         <div className="mx-auto max-w-6xl">
@@ -379,18 +481,18 @@ export function Landing() {
             <BrandLogo size="md" />
           </div>
           <h2 className="font-display mt-6 text-2xl font-bold tracking-tight sm:text-3xl">
-            Convaincu ? Essayez ClimaZEN sur un chantier
+            Auto-entrepreneur ? C’est gratuit. Essayez sur un chantier.
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-sm text-muted sm:text-base">
-            Compte société, opérateurs, CERFA conforme F-Gas, mode hors ligne. Une question ?
-            On vous répond.
+            AE &amp; micro-sociétés : 0 €. SARL / équipes : payant après finalisation du site.
+            CERFA conforme F-Gas, mode hors ligne inclus.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               to="/register"
               className="inline-flex rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-ink hover:bg-accent-hover"
             >
-              Créer le compte société
+              Créer mon compte gratuit
             </Link>
             <Link
               to="/contact"
