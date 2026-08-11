@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
   ClipboardList,
+  Ellipsis,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -9,6 +11,7 @@ import {
   PenLine,
   Settings,
   Users,
+  X,
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
@@ -92,10 +95,19 @@ const tones: Record<
     borderActive: 'rgba(100, 116, 139, 0.4)',
     page: 'rgba(100, 116, 139, 0.06)',
   },
+  more: {
+    band: 'rgba(100, 116, 139, 0.12)',
+    icon: '#475569',
+    card: 'rgba(100, 116, 139, 0.05)',
+    cardActive: 'rgba(100, 116, 139, 0.12)',
+    border: 'rgba(100, 116, 139, 0.2)',
+    borderActive: 'rgba(100, 116, 139, 0.4)',
+    page: 'rgba(100, 116, 139, 0.06)',
+  },
 }
 
 const baseLinksOwner = [
-  { to: '/app', end: true, label: 'Tableau de bord', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
@@ -106,7 +118,7 @@ const baseLinksOwner = [
 ]
 
 const baseLinksOperator = [
-  { to: '/app', end: true, label: 'Tableau de bord', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
@@ -114,11 +126,10 @@ const baseLinksOperator = [
   { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
 ]
 
+/** Nav terrain : 3 actions + menu Plus (Clients / Stock / admin) */
 const mobilePrimary = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
-  { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Travaux', icon: MapPin, tone: 'sites' },
-  { to: '/app/stock', label: 'Stock', icon: Package, tone: 'stock' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
@@ -134,12 +145,14 @@ export function AppLayout() {
   const { syncError, clearSyncError, data } = useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const [moreOpen, setMoreOpen] = useState(false)
 
   const links = isOwner ? baseLinksOwner : baseLinksOperator
 
   const pageTone = toneForPath(pathname, links)
 
   const doLogout = () => {
+    setMoreOpen(false)
     void logout().then(() => navigate('/login'))
   }
 
@@ -151,11 +164,28 @@ export function AppLayout() {
 
   /** Sur Travaux, recliquer le menu ferme le formulaire et revient à la liste. */
   const goNav = (to: string) => (e: React.MouseEvent) => {
+    setMoreOpen(false)
     if (to === '/app/chantiers' && (pathname === to || pathname.startsWith(`${to}/`))) {
       e.preventDefault()
       navigate('/app/chantiers', { state: { travauxList: Date.now() }, replace: true })
     }
   }
+
+  const moreLinks = [
+    { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+    { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+    { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
+    ...(isOwner
+      ? [
+          { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+          { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
+        ]
+      : []),
+  ]
+
+  const moreActive = moreLinks.some(
+    ({ to }) => pathname === to || pathname.startsWith(`${to}/`),
+  )
 
   return (
     <div
@@ -226,7 +256,7 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-20 lg:pb-0">
+      <main className="min-w-0 pb-24 lg:pb-0">
         <div
           className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 lg:px-8"
           style={{
@@ -245,32 +275,10 @@ export function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <NavLink
-              to="/app/profil"
-              className="rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white lg:hidden"
-            >
-              Signature
-            </NavLink>
-            {isOwner && (
-              <NavLink
-                to="/app/operateur"
-                className="rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white lg:hidden"
-              >
-                Société
-              </NavLink>
-            )}
-            {isOwner && (
-              <NavLink
-                to="/app/equipe"
-                className="hidden rounded-full border border-line bg-white/80 px-3 py-2 text-xs font-semibold text-ink hover:bg-white sm:inline-flex lg:hidden"
-              >
-                Équipe
-              </NavLink>
-            )}
             <button
               type="button"
               onClick={doLogout}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white/80 px-3 py-2 text-sm font-semibold text-ink hover:bg-white sm:px-4"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white/80 px-3 py-2.5 text-sm font-semibold text-ink hover:bg-white sm:px-4"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Se déconnecter</span>
@@ -298,12 +306,75 @@ export function AppLayout() {
         </div>
       </main>
 
+      {moreOpen && (
+        <div className="fixed inset-0 z-30 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-ink/40"
+            aria-label="Fermer"
+            onClick={() => setMoreOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 rounded-t-3xl border border-line bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Plus</h2>
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                className="rounded-full p-2 text-muted hover:bg-mist"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-3 text-sm text-muted">Bureau / réglages — pas pour l’intervention.</p>
+            <ul className="space-y-2">
+              {moreLinks.map(({ to, label, icon: Icon, tone }) => {
+                const t = tones[tone] || tones.more
+                return (
+                  <li key={to}>
+                    <NavLink
+                      to={to}
+                      onClick={() => setMoreOpen(false)}
+                      className="flex min-h-14 items-center gap-3 rounded-2xl border border-line px-4 py-3 font-semibold active:bg-mist"
+                      style={({ isActive }) => ({
+                        backgroundColor: isActive ? t.cardActive : '#fff',
+                        borderColor: isActive ? t.borderActive : undefined,
+                      })}
+                    >
+                      <span
+                        className="grid h-10 w-10 place-items-center rounded-xl"
+                        style={{ backgroundColor: t.band, color: t.icon }}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      {label}
+                    </NavLink>
+                  </li>
+                )
+              })}
+              <li>
+                <button
+                  type="button"
+                  onClick={doLogout}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-line px-4 py-3 font-semibold text-ink active:bg-mist"
+                >
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-mist text-muted">
+                    <LogOut className="h-5 w-5" />
+                  </span>
+                  Se déconnecter
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+
       <nav
         className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 backdrop-blur-md lg:hidden"
         style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom))' }}
         aria-label="Navigation principale"
       >
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        <div className="mx-auto grid max-w-lg grid-cols-4">
           {mobilePrimary.map(({ to, end, label, icon: Icon, tone }) => {
             const t = tones[tone] || tones.societe
             return (
@@ -312,13 +383,13 @@ export function AppLayout() {
                 to={to}
                 end={end}
                 onClick={goNav(to)}
-                className="flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium"
+                className="flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 py-2 text-xs font-semibold"
                 style={({ isActive }) => ({ color: isActive ? t.icon : '#5a7880' })}
               >
                 {({ isActive }) => (
                   <>
                     <span
-                      className="grid h-8 w-8 place-items-center rounded-lg"
+                      className="grid h-9 w-9 place-items-center rounded-xl"
                       style={{ backgroundColor: isActive ? t.band : 'transparent' }}
                     >
                       <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
@@ -329,6 +400,22 @@ export function AppLayout() {
               </NavLink>
             )
           })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className="flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 py-2 text-xs font-semibold"
+            style={{ color: moreActive || moreOpen ? tones.more.icon : '#5a7880' }}
+          >
+            <span
+              className="grid h-9 w-9 place-items-center rounded-xl"
+              style={{
+                backgroundColor: moreActive || moreOpen ? tones.more.band : 'transparent',
+              }}
+            >
+              <Ellipsis className="h-5 w-5" strokeWidth={moreActive || moreOpen ? 2.25 : 1.75} />
+            </span>
+            <span>Plus</span>
+          </button>
         </div>
       </nav>
     </div>

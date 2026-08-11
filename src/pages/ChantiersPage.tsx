@@ -97,6 +97,7 @@ export function ChantiersPage() {
     site: Chantier
     equipementId: string
     natures: NatureIntervention[]
+    step?: 'choose' | 'cerfa'
   } | null>(null)
 
   const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -113,10 +114,15 @@ export function ChantiersPage() {
     setEquipFilter('')
   }
 
-  // Clic menu Travaux (même page) → revenir à la liste
+  // Clic menu Travaux (même page) → revenir à la liste ; Accueil peut préremplir la recherche
   useEffect(() => {
-    const st = location.state as { travauxList?: number } | null
-    if (st?.travauxList) closeForm()
+    const st = location.state as { travauxList?: number; search?: string } | null
+    if (!st) return
+    if (st.travauxList) closeForm()
+    if (typeof st.search === 'string') {
+      closeForm()
+      setQ(st.search)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
 
@@ -618,8 +624,8 @@ export function ChantiersPage() {
   return (
     <div className="space-y-6">
       <Header
-        title="Travaux / équipements"
-        subtitle="Choisissez le(s) équipement(s) déjà enregistrés — maintenance partielle ou dépannage ciblé."
+        title="Travaux"
+        subtitle="Sur le terrain : touchez un équipement → Fiche clim ou CERFA."
         onAdd={openNew}
       />
 
@@ -1014,119 +1020,82 @@ export function ChantiersPage() {
                   ) : null}
                   <div className="mt-3">
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-                      Équipements — toucher pour choisir le type d’intervention
+                      Équipements — touchez Intervenir
                     </p>
                     {eqs.length === 0 ? (
                       <p className="rounded-xl border border-dashed border-line bg-foam/50 px-3 py-2.5 text-xs text-muted">
-                        Aucun équipement encore. Ouvrez le crayon pour en ajouter.
+                        Aucun équipement encore. Ouvrez Modifier pour en ajouter.
                       </p>
                     ) : (
-                      <ul className="space-y-2">
+                      <ul className="space-y-3">
                         {eqs.map((eq) => {
                           const eqFluide = equipAvecFluideFrigorigene(eq)
                           return (
                             <li
                               key={eq.id}
-                              className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-foam/50 px-3 py-2.5"
+                              className="rounded-2xl border border-line bg-foam/50 p-3"
                             >
-                              <button
-                                type="button"
-                                disabled={!eqFluide}
-                                onClick={() => {
-                                  if (!eqFluide) return
-                                  setEquipWork({
-                                    site: c,
-                                    equipementId: eq.id,
-                                    natures: ['entretien_reparation'],
-                                  })
-                                }}
-                                className="grid h-5 w-5 shrink-0 place-items-center rounded border-2 border-slate-300 bg-white disabled:opacity-40"
-                                title={
-                                  eqFluide
-                                    ? 'Choisir le type d’intervention / CERFA'
-                                    : 'Équipement standard — pas de CERFA'
-                                }
-                                aria-label="Choisir intervention"
-                              />
-                              <button
-                                type="button"
-                                disabled={!eqFluide}
-                                onClick={() => {
-                                  if (!eqFluide) return
-                                  setEquipWork({
-                                    site: c,
-                                    equipementId: eq.id,
-                                    natures: ['entretien_reparation'],
-                                  })
-                                }}
-                                className="min-w-0 flex-1 text-left disabled:opacity-70"
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-semibold text-ink">
-                                    {eq.nom?.trim() || eq.type || 'Sans libellé'}
-                                  </span>
-                                  <span
-                                    className={[
-                                      'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                      eqFluide ? 'bg-accent-soft text-slate' : 'bg-mist text-muted',
-                                    ].join(' ')}
-                                  >
-                                    {eqFluide ? 'Fluide' : 'Standard'}
-                                  </span>
+                              <div className="flex flex-wrap items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-base font-semibold text-ink">
+                                      {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                                    </span>
+                                    <span
+                                      className={[
+                                        'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                        eqFluide
+                                          ? 'bg-accent-soft text-slate'
+                                          : 'bg-mist text-muted',
+                                      ].join(' ')}
+                                    >
+                                      {eqFluide ? 'Fluide' : 'Standard'}
+                                    </span>
+                                  </div>
+                                  <div className="mt-0.5 text-xs text-muted">
+                                    {[
+                                      eq.type && eq.nom ? eq.type : null,
+                                      eq.marque,
+                                      eq.modele,
+                                      eqFluide ? eq.fluideType : null,
+                                      eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ') || '—'}
+                                  </div>
                                 </div>
-                                <div className="text-[11px] text-muted">
-                                  {[
-                                    eq.type && eq.nom ? eq.type : null,
-                                    eq.marque,
-                                    eq.modele,
-                                    eqFluide ? eq.fluideType : null,
-                                    eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' · ') || '—'}
-                                </div>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => startEditEquip(c, eq.id)}
-                                className="rounded-full border border-accent bg-accent-soft px-3 py-1.5 text-xs font-semibold text-slate hover:bg-accent"
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeEquipement(c, eq.id)}
-                                className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-danger hover:bg-red-50"
-                              >
-                                Supprimer
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`,
-                                  )
-                                }
-                                className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-mist"
-                                title="Checklist maintenance climatisation / PAC"
-                              >
-                                Fiche clim
-                              </button>
-                              {eqFluide && (
+                              </div>
+                              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
                                 <button
                                   type="button"
                                   onClick={() =>
                                     setEquipWork({
                                       site: c,
                                       equipementId: eq.id,
-                                      natures: ['entretien_reparation'],
+                                      natures: eqFluide
+                                        ? ['entretien_reparation']
+                                        : ['entretien_reparation'],
                                     })
                                   }
-                                  className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
+                                  className="min-h-12 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-ink active:bg-accent-hover"
                                 >
-                                  Intervention
+                                  Intervenir
                                 </button>
-                              )}
+                                <button
+                                  type="button"
+                                  onClick={() => startEditEquip(c, eq.id)}
+                                  className="min-h-12 rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-ink active:bg-mist sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
+                                >
+                                  Modifier
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeEquipement(c, eq.id)}
+                                  className="min-h-12 rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-danger active:bg-red-50 sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
+                                >
+                                  Supprimer
+                                </button>
+                              </div>
                             </li>
                           )
                         })}
@@ -1458,73 +1427,116 @@ export function ChantiersPage() {
 
       {equipWork && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-white p-5 shadow-xl">
-            <h2 className="font-display text-lg font-semibold">Type d’intervention</h2>
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-white p-5 shadow-xl sm:rounded-2xl">
+            <h2 className="font-display text-xl font-semibold">
+              {(equipWork.step || 'choose') === 'choose' ? 'Que faire ?' : 'Nature CERFA'}
+            </h2>
             <p className="mt-1 text-sm text-muted">
               {equipWork.site.nom} —{' '}
               {allEquipements(equipWork.site).find((e) => e.id === equipWork.equipementId)?.nom ||
                 'équipement'}
-              . Cochez la nature des travaux (cadre CERFA [4]).
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {ALL_NATURES.map((n) => {
-                const on = equipWork.natures.includes(n)
-                return (
+
+            {(equipWork.step || 'choose') === 'choose' ? (
+              <div className="mt-5 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
+                    setEquipWork(null)
+                    navigate(url)
+                  }}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-accent bg-accent px-4 py-4 text-left font-bold text-ink active:bg-accent-hover"
+                >
+                  <ClipboardList className="h-6 w-6 shrink-0" />
+                  <span>
+                    <span className="block text-base">Fiche maintenance clim</span>
+                    <span className="block text-sm font-medium opacity-80">
+                      Checklist + PDF terrain
+                    </span>
+                  </span>
+                </button>
+                {equipAvecFluideFrigorigene(
+                  allEquipements(equipWork.site).find((e) => e.id === equipWork.equipementId) ||
+                    blankEquip(),
+                ) ? (
                   <button
-                    key={n}
                     type="button"
-                    onClick={() => {
-                      setEquipWork({
-                        ...equipWork,
-                        natures: on
-                          ? equipWork.natures.filter((x) => x !== n)
-                          : [...equipWork.natures, n],
-                      })
-                    }}
-                    className={[
-                      'rounded-full px-3 py-1.5 text-xs font-semibold',
-                      on ? 'bg-accent text-ink' : 'border border-line text-muted hover:bg-mist',
-                    ].join(' ')}
+                    onClick={() => setEquipWork({ ...equipWork, step: 'cerfa' })}
+                    className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-line bg-white px-4 py-4 text-left font-bold text-ink active:bg-mist"
                   >
-                    {NATURE_LABELS[n]}
+                    <FileCheck2 className="h-6 w-6 shrink-0 text-accent" />
+                    <span>
+                      <span className="block text-base">CERFA fluides</span>
+                      <span className="block text-sm font-medium text-muted">
+                        Obligation légale / manipulation fluide
+                      </span>
+                    </span>
                   </button>
-                )
-              })}
-            </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={equipWork.natures.length === 0}
-                onClick={() => {
-                  const natures = encodeURIComponent(equipWork.natures.join(','))
-                  const url = `/app/interventions/new?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}&natures=${natures}`
-                  setEquipWork(null)
-                  navigate(url)
-                }}
-                className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
-              >
-                Ouvrir le CERFA
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
-                  setEquipWork(null)
-                  navigate(url)
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-line px-5 py-2.5 text-sm font-semibold hover:bg-mist"
-              >
-                <ClipboardList className="h-4 w-4" />
-                Fiche maintenance clim
-              </button>
-              <button
-                type="button"
-                onClick={() => setEquipWork(null)}
-                className="rounded-full border border-line px-5 py-2.5 text-sm"
-              >
-                Annuler
-              </button>
-            </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-line bg-foam/60 px-3 py-3 text-sm text-muted">
+                    Équipement sans fluide — pas de CERFA. Utilisez la fiche maintenance.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setEquipWork(null)}
+                  className="min-h-12 w-full rounded-2xl border border-line px-4 py-3 text-sm font-semibold"
+                >
+                  Annuler
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {ALL_NATURES.map((n) => {
+                    const on = equipWork.natures.includes(n)
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => {
+                          setEquipWork({
+                            ...equipWork,
+                            natures: on
+                              ? equipWork.natures.filter((x) => x !== n)
+                              : [...equipWork.natures, n],
+                          })
+                        }}
+                        className={[
+                          'min-h-11 rounded-full px-4 py-2 text-sm font-semibold',
+                          on ? 'bg-accent text-ink' : 'border border-line text-muted active:bg-mist',
+                        ].join(' ')}
+                      >
+                        {NATURE_LABELS[n]}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="mt-5 grid gap-2">
+                  <button
+                    type="button"
+                    disabled={equipWork.natures.length === 0}
+                    onClick={() => {
+                      const natures = encodeURIComponent(equipWork.natures.join(','))
+                      const url = `/app/interventions/new?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}&natures=${natures}`
+                      setEquipWork(null)
+                      navigate(url)
+                    }}
+                    className="min-h-14 rounded-2xl bg-accent px-5 py-3 text-base font-bold text-ink active:bg-accent-hover disabled:opacity-60"
+                  >
+                    Ouvrir le CERFA
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEquipWork({ ...equipWork, step: 'choose' })}
+                    className="min-h-12 rounded-2xl border border-line px-5 py-3 text-sm font-semibold"
+                  >
+                    ← Retour
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
