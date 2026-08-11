@@ -80,6 +80,7 @@ export function ChantiersPage() {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [focusSiteId, setFocusSiteId] = useState<string | null>(null)
+  const [focusEquipId, setFocusEquipId] = useState<string | null>(null)
   const [siteMenuOpen, setSiteMenuOpen] = useState(false)
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
@@ -125,6 +126,7 @@ export function ChantiersPage() {
     if (st.travauxList) {
       closeForm()
       setFocusSiteId(null)
+      setFocusEquipId(null)
     }
     if (typeof st.search === 'string') {
       const search = st.search
@@ -140,9 +142,16 @@ export function ChantiersPage() {
         )
       })
       const exact = hits.find((c) => c.nom.trim().toLowerCase() === needle)
-      if (exact) setFocusSiteId(exact.id)
-      else if (hits.length === 1) setFocusSiteId(hits[0].id)
-      else setFocusSiteId(null)
+      if (exact) {
+        setFocusSiteId(exact.id)
+        setFocusEquipId(null)
+      } else if (hits.length === 1) {
+        setFocusSiteId(hits[0].id)
+        setFocusEquipId(null)
+      } else {
+        setFocusSiteId(null)
+        setFocusEquipId(null)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
@@ -647,15 +656,15 @@ export function ChantiersPage() {
       {!open && !focusSiteId && (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="font-display text-2xl font-bold tracking-tight">Travaux</h1>
-            <p className="text-sm text-muted">Cherchez un site, puis un équipement.</p>
+            <h1 className="font-display text-xl font-bold tracking-tight">Travaux</h1>
+            <p className="text-xs text-muted">Sites → équipements → action</p>
           </div>
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-ink active:bg-accent-hover"
+            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg bg-accent px-3 text-xs font-semibold text-ink active:bg-accent-hover"
           >
-            <Plus className="h-4 w-4" /> Ajouter
+            <Plus className="h-3.5 w-3.5" /> Ajouter
           </button>
         </div>
       )}
@@ -1037,8 +1046,8 @@ export function ChantiersPage() {
       )}
 
       {!open && !focusSiteId && (
-      <div className="grid gap-2 overflow-x-hidden">
-        {filteredChantiers.map((c) => {
+      <div className="overflow-hidden rounded-xl border border-line bg-white">
+        {filteredChantiers.map((c, idx) => {
           const client = data.clients.find((x) => x.id === c.clientId)
           const eqs = allEquipements(c)
           return (
@@ -1047,30 +1056,30 @@ export function ChantiersPage() {
               type="button"
               onClick={() => {
                 setFocusSiteId(c.id)
+                setFocusEquipId(null)
                 setSiteMenuOpen(false)
                 setEquipQ('')
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
-              className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-line bg-white px-4 py-4 text-left active:bg-mist"
+              className={[
+                'flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left active:bg-mist',
+                idx > 0 ? 'border-t border-line' : '',
+              ].join(' ')}
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-display text-base font-semibold text-ink">
-                  {c.nom}
-                </span>
-                <span className="mt-0.5 block truncate text-sm text-muted">
+                <span className="block truncate text-sm font-semibold text-ink">{c.nom}</span>
+                <span className="block truncate text-[11px] text-muted">
                   {client?.raisonSociale || '—'}
                   {c.ville ? ` · ${c.ville}` : ''}
                 </span>
               </span>
-              <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs font-semibold text-muted">
-                {eqs.length}
-              </span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+              <span className="shrink-0 text-[11px] font-medium text-muted">{eqs.length}</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
             </button>
           )
         })}
         {filteredChantiers.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-muted">
+          <div className="px-3 py-8 text-center text-sm text-muted">
             {data.chantiers.length === 0
               ? 'Aucun site. Ajoutez un client, puis un site.'
               : 'Aucun résultat pour cette recherche.'}
@@ -1081,6 +1090,7 @@ export function ChantiersPage() {
 
       {!open &&
         focusSiteId &&
+        !focusEquipId &&
         (() => {
           const c = data.chantiers.find((x) => x.id === focusSiteId)
           if (!c) return null
@@ -1101,45 +1111,34 @@ export function ChantiersPage() {
             : eqs
 
           return (
-            <div className="space-y-4 overflow-x-hidden">
+            <div className="space-y-3 overflow-x-hidden">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setFocusSiteId(null)
+                    setFocusEquipId(null)
                     setSiteMenuOpen(false)
                   }}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-white px-3 text-sm font-semibold active:bg-mist"
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold active:bg-mist"
                 >
-                  <ArrowLeft className="h-4 w-4" /> Sites
+                  <ArrowLeft className="h-3.5 w-3.5" /> Sites
                 </button>
+                <p className="min-w-0 flex-1 truncate text-xs text-muted">
+                  <span className="font-semibold text-ink">{c.nom}</span>
+                  {client?.raisonSociale ? ` · ${client.raisonSociale}` : ''}
+                </p>
                 <button
                   type="button"
                   onClick={() => setSiteMenuOpen((v) => !v)}
-                  className="ml-auto inline-flex min-h-11 items-center rounded-full border border-line bg-white px-3 text-sm font-semibold active:bg-mist"
+                  className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-2.5 text-xs font-semibold active:bg-mist"
                 >
                   Options
                 </button>
               </div>
 
-              <div className="rounded-2xl border border-line bg-white p-4">
-                <h1 className="font-display text-xl font-bold leading-tight">{c.nom}</h1>
-                <p className="mt-1 truncate text-sm text-muted">
-                  {client?.raisonSociale || '—'}
-                  {c.ville ? ` · ${c.ville}` : ''}
-                </p>
-                {c.adresse ? (
-                  <p className="mt-0.5 truncate text-xs text-muted">{c.adresse}</p>
-                ) : null}
-                {c.derniereMaintenanceDate ? (
-                  <p className="mt-2 text-xs font-medium text-accent">
-                    Dernière maintenance : {c.derniereMaintenanceDate}
-                  </p>
-                ) : null}
-              </div>
-
               {siteMenuOpen && (
-                <div className="grid gap-2 rounded-2xl border border-line bg-white p-3">
+                <div className="overflow-hidden rounded-xl border border-line bg-white">
                   {canBatch && (
                     <button
                       type="button"
@@ -1148,9 +1147,9 @@ export function ChantiersPage() {
                         setSiteMenuOpen(false)
                         openPicker(c, 'maintenance')
                       }}
-                      className="flex min-h-12 items-center gap-2 rounded-xl bg-accent-soft px-3 text-sm font-semibold text-slate active:bg-accent disabled:opacity-60"
+                      className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist disabled:opacity-60"
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      <RefreshCw className="h-3.5 w-3.5" />
                       {batchBusy === c.id ? 'Génération…' : 'Valider maintenance (lot)'}
                     </button>
                   )}
@@ -1161,9 +1160,9 @@ export function ChantiersPage() {
                         setSiteMenuOpen(false)
                         openPicker(c, 'intervention')
                       }}
-                      className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist"
+                      className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
                     >
-                      <FileCheck2 className="h-4 w-4" /> CERFA sur un équipement
+                      <FileCheck2 className="h-3.5 w-3.5" /> CERFA sur un équipement
                     </button>
                   )}
                   <button
@@ -1172,9 +1171,9 @@ export function ChantiersPage() {
                       setSiteMenuOpen(false)
                       addEquipementToSite(c)
                     }}
-                    className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist"
+                    className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
                   >
-                    <Plus className="h-4 w-4" /> Ajouter équipement
+                    <Plus className="h-3.5 w-3.5" /> Ajouter équipement
                   </button>
                   <button
                     type="button"
@@ -1182,9 +1181,9 @@ export function ChantiersPage() {
                       setSiteMenuOpen(false)
                       startEdit(c)
                     }}
-                    className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold active:bg-mist"
+                    className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
                   >
-                    <Pencil className="h-4 w-4" /> Modifier le site
+                    <Pencil className="h-3.5 w-3.5" /> Modifier le site
                   </button>
                   <button
                     type="button"
@@ -1192,110 +1191,178 @@ export function ChantiersPage() {
                       if (confirm('Supprimer ces travaux ?')) {
                         deleteChantier(c.id)
                         setFocusSiteId(null)
+                        setFocusEquipId(null)
                       }
                     }}
-                    className="flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold text-danger active:bg-red-50"
+                    className="flex min-h-10 w-full items-center gap-2 px-3 text-left text-sm font-medium text-danger active:bg-red-50"
                   >
-                    <Trash2 className="h-4 w-4" /> Supprimer le site
+                    <Trash2 className="h-3.5 w-3.5" /> Supprimer le site
                   </button>
                 </div>
               )}
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-                    Équipements ({eqFilter.length})
-                  </h2>
-                </div>
-                {eqs.length > 4 && (
-                  <div className="mb-3">
-                    <SearchField
-                      value={equipQ}
-                      onChange={setEquipQ}
-                      placeholder="Filtrer un équipement…"
-                      testId="site-equip-filter"
-                    />
-                  </div>
-                )}
+              <SearchField
+                value={equipQ}
+                onChange={setEquipQ}
+                placeholder="Chercher un équipement…"
+                testId="site-equip-filter"
+              />
+
+              <div className="overflow-hidden rounded-xl border border-line bg-white">
                 {eqFilter.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-line bg-white px-4 py-6 text-center text-sm text-muted">
+                  <p className="px-3 py-6 text-center text-sm text-muted">
                     {eqs.length === 0
-                      ? 'Aucun équipement. Options → Ajouter équipement.'
+                      ? 'Aucun équipement. Options → Ajouter.'
                       : 'Aucun équipement pour ce filtre.'}
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {eqFilter.map((eq) => {
-                      const eqFluide = equipAvecFluideFrigorigene(eq)
-                      return (
-                        <li
-                          key={eq.id}
-                          className="overflow-hidden rounded-2xl border border-line bg-white"
-                        >
-                          <div className="px-4 pt-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="truncate font-semibold text-ink">
-                                  {eq.nom?.trim() || eq.type || 'Sans libellé'}
-                                </p>
-                                <p className="mt-0.5 truncate text-xs text-muted">
-                                  {[
-                                    eq.marque,
-                                    eq.modele,
-                                    eqFluide ? eq.fluideType : null,
-                                    eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' · ') || (eqFluide ? 'Fluide' : 'Standard')}
-                                </p>
-                              </div>
-                              <span
-                                className={[
-                                  'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                  eqFluide ? 'bg-accent-soft text-slate' : 'bg-mist text-muted',
-                                ].join(' ')}
-                              >
-                                {eqFluide ? 'Fluide' : 'Std'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="mt-3 grid grid-cols-1 gap-0 border-t border-line">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEquipWork({
-                                  site: c,
-                                  equipementId: eq.id,
-                                  natures: ['entretien_reparation'],
-                                  step: 'choose',
-                                })
-                              }
-                              className="min-h-14 bg-accent px-4 text-base font-bold text-ink active:bg-accent-hover"
-                            >
-                              Intervenir
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-2 border-t border-line">
-                            <button
-                              type="button"
-                              onClick={() => startEditEquip(c, eq.id)}
-                              className="min-h-11 text-sm font-semibold text-muted active:bg-mist"
-                            >
-                              Modifier
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeEquipement(c, eq.id)}
-                              className="min-h-11 border-l border-line text-sm font-semibold text-danger active:bg-red-50"
-                            >
-                              Supprimer
-                            </button>
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
+                  eqFilter.map((eq, idx) => {
+                    const eqFluide = equipAvecFluideFrigorigene(eq)
+                    return (
+                      <button
+                        key={eq.id}
+                        type="button"
+                        onClick={() => {
+                          setFocusEquipId(eq.id)
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
+                        className={[
+                          'flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left active:bg-mist',
+                          idx > 0 ? 'border-t border-line' : '',
+                        ].join(' ')}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-ink">
+                            {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                          </span>
+                          <span className="block truncate text-[11px] text-muted">
+                            {[
+                              eq.marque,
+                              eq.modele,
+                              eqFluide ? eq.fluideType : 'Std',
+                              eq.numeroSerie ? `SN ${eq.numeroSerie}` : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                      </button>
+                    )
+                  })
                 )}
+              </div>
+              <p className="text-center text-[11px] text-muted">
+                {eqFilter.length} équipement{eqFilter.length > 1 ? 's' : ''} — touchez pour agir
+              </p>
+            </div>
+          )
+        })()}
+
+      {!open &&
+        focusSiteId &&
+        focusEquipId &&
+        (() => {
+          const c = data.chantiers.find((x) => x.id === focusSiteId)
+          if (!c) return null
+          const eq = allEquipements(c).find((e) => e.id === focusEquipId)
+          if (!eq) return null
+          const eqFluide = equipAvecFluideFrigorigene(eq)
+          return (
+            <div className="space-y-3 overflow-x-hidden">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFocusEquipId(null)}
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold active:bg-mist"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Équipements
+                </button>
+                <p className="min-w-0 flex-1 truncate text-xs text-muted">
+                  {c.nom} ›{' '}
+                  <span className="font-semibold text-ink">
+                    {eq.nom?.trim() || eq.type || 'Équipement'}
+                  </span>
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-white px-3 py-2.5">
+                <p className="truncate text-sm font-semibold">
+                  {eq.nom?.trim() || eq.type || 'Sans libellé'}
+                </p>
+                <p className="truncate text-[11px] text-muted">
+                  {[
+                    eq.type && eq.nom ? eq.type : null,
+                    eq.marque,
+                    eq.modele,
+                    eqFluide ? eq.fluideType : 'Standard',
+                    eq.chargeNominaleKg ? `${eq.chargeNominaleKg} kg` : null,
+                    eq.numeroSerie ? `SN ${eq.numeroSerie}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-line bg-white">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEquipWork({
+                      site: c,
+                      equipementId: eq.id,
+                      natures: ['entretien_reparation'],
+                      step: 'choose',
+                    })
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 border-b border-line bg-accent/15 px-3 text-left text-sm font-semibold active:bg-accent/30"
+                >
+                  <ClipboardList className="h-4 w-4" /> Intervenir (fiche / CERFA)
+                  <ChevronRight className="ml-auto h-4 w-4 text-muted" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`
+                    navigate(url)
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
+                >
+                  <ClipboardList className="h-4 w-4 text-accent" /> Fiche maintenance clim
+                </button>
+                {eqFluide && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEquipWork({
+                        site: c,
+                        equipementId: eq.id,
+                        natures: ['entretien_reparation'],
+                        step: 'cerfa',
+                      })
+                    }
+                    className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
+                  >
+                    <FileCheck2 className="h-4 w-4 text-accent" /> CERFA fluides
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => startEditEquip(c, eq.id)}
+                  className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
+                >
+                  <Pencil className="h-4 w-4" /> Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeEquipement(c, eq.id)
+                    setFocusEquipId(null)
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm font-medium text-danger active:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" /> Supprimer
+                </button>
               </div>
             </div>
           )
