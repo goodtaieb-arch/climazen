@@ -1,6 +1,7 @@
 /** Référence réglementaire : CERFA FI 15497-04 (fiche d'intervention fluides). */
 
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
+import type { OrdreTravail } from './ordreTravail'
 
 export type NatureIntervention =
   | 'mise_en_service'
@@ -357,10 +358,12 @@ export interface CerfaDraft {
   equipementId?: string
   dateIntervention: string
   /**
-   * N° d’intervention unique (signé) — format INT-YYYY-NNNN.
+   * N° d’intervention / OT unique (signé) — format OT20260001.
    * Obligatoire pour tracer toute action terrain (avec ou sans PDF CERFA).
    */
   numeroIntervention?: string
+  /** Lien vers l’ordre de travail (OT) */
+  ordreTravailId?: string
 
   /** [1] Opérateur — copie au moment de l'intervention */
   operateur: Operateur
@@ -468,6 +471,8 @@ export interface AppData {
   detecteurs?: DetecteurManuel[]
   /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
   fichesMaintenanceClim?: FicheMaintenanceClim[]
+  /** Ordres de travail (OT) — n° unique OT2026xxxx */
+  ordresTravail?: OrdreTravail[]
 }
 
 /** Libellé CERFA / intervention pour traçabilité stock */

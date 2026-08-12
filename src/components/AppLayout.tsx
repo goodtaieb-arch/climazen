@@ -112,6 +112,7 @@ const baseLinksOwner = [
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/ot', label: 'Ordres de travail', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
@@ -123,6 +124,7 @@ const baseLinksOperator = [
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/ot', label: 'Ordres de travail', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
 ]
@@ -174,6 +176,7 @@ export function AppLayout() {
   }
 
   const moreLinks = [
+    { to: '/app/ot', label: 'Ordres de travail', icon: ClipboardList, tone: 'cerfa' },
     { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
     { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
     ...(isOwner
@@ -242,6 +245,8 @@ export function AppLayout() {
                                   ? '0.1s'
                                   : to === '/app/stock'
                                     ? '0.2s'
+                                    : to === '/app/ot'
+                                      ? '0.25s'
                                     : to === '/app/clients'
                                       ? '0.3s'
                                       : to === '/app/interventions'

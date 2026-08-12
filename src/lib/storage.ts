@@ -22,6 +22,7 @@ export function emptyData(): AppData {
     interventions: [],
     detecteurs: [],
     fichesMaintenanceClim: [],
+    ordresTravail: [],
   }
 }
 
@@ -53,6 +54,7 @@ export function loadData(organizationId?: string | null): AppData {
       operateur: parsed.operateur || base.operateur,
       detecteurs: parsed.detecteurs,
       fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
+      ordresTravail: parsed.ordresTravail || [],
     })
   } catch {
     return emptyData()

@@ -174,5 +174,6 @@ export function migrateAppData(data: AppData): AppData {
     interventions,
     detecteurs,
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
+    ordresTravail: data.ordresTravail || [],
   }
 }

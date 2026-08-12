@@ -20,6 +20,7 @@ import { EquipePage } from './pages/EquipePage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { FicheMaintenanceClimPage } from './pages/FicheMaintenanceClimPage'
+import { OrdresTravailPage } from './pages/OrdresTravailPage'
 import { ContactPage } from './pages/ContactPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
 
@@ -55,6 +56,7 @@ export default function App() {
                 <Route path="stock" element={<StockPage />} />
                 <Route path="interventions" element={<InterventionsPage />} />
                 <Route path="interventions/:id" element={<InterventionFormPage />} />
+                <Route path="ot" element={<OrdresTravailPage />} />
                 <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimPage />} />
                 <Route path="equipe" element={<EquipePage />} />
                 <Route path="operateur" element={<OperateurPage />} />

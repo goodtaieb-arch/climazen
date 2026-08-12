@@ -35,6 +35,7 @@ import {
 } from './cerfaBatch'
 import { detecteurForUser } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
+import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 import {
   getPendingSync,
   isBrowserOnline,
@@ -66,6 +67,27 @@ type Store = {
     },
   ) => string
   deleteFicheMaintenanceClim: (id: string) => void
+  upsertOrdreTravail: (
+    o: Omit<import('./ordreTravail').OrdreTravail, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
+  ) => string
+  deleteOrdreTravail: (id: string) => void
+  /** Crée un OT pour une action terrain — retourne { id, numero }. */
+  createOtForAction: (opts: {
+    typeOt: import('./ordreTravail').TypeOt
+    action: string
+    clientId?: string
+    chantierId?: string
+    equipementId?: string
+    technicien?: string
+    observations?: string
+    interventionId?: string
+    ficheMaintenanceId?: string
+    signatureTechnicienImage?: string
+    signatureClientImage?: string
+    statut?: import('./ordreTravail').StatutOt
+  }) => { id: string; numero: string }
   /**
    * Valide une maintenance : crée 1 CERFA par équipement (équipements déjà sauvés sur le site).
    * Retourne les fiches créées pour génération PDF côté UI.
@@ -481,8 +503,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
+        let ordres = [...(d.ordresTravail || [])]
+        const hasOt = ordres.some(
+          (o) => o.ficheMaintenanceId === id || o.numero === numero,
+        )
+        if (!hasOt && !existing) {
+          ordres = [
+            ...ordres,
+            {
+              id: uuid(),
+              numero,
+              date: f.date || now.slice(0, 10),
+              typeOt: 'entretien' as const,
+              action: `Rapport sans CERFA — ${f.marqueModele || 'équipement'}`,
+              rapportAction: f.observations || '',
+              observations: f.observations || '',
+              clientId: f.clientId,
+              chantierId: f.chantierId,
+              equipementId: f.equipementId,
+              technicien: f.technicien || '',
+              ficheMaintenanceId: id,
+              signatureTechnicienImage: f.signatureTechnicienImage,
+              signatureClientImage: f.signatureClientImage,
+              statut: 'en_cours' as const,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ]
+        }
         return {
           ...d,
+          ordresTravail: ordres,
           fichesMaintenanceClim: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
@@ -499,6 +550,95 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fichesMaintenanceClim: (d.fichesMaintenanceClim || []).filter((f) => f.id !== id),
     }))
   }, [])
+
+  const upsertOrdreTravail = useCallback(
+    (
+      o: Omit<OrdreTravail, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+      },
+    ) => {
+      const id = o.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.ordresTravail || []
+        const existing = list.find((x) => x.id === id)
+        const numero =
+          (o.numero || '').trim() ||
+          (existing?.numero || '').trim() ||
+          nextNumeroOt(d)
+        const next: OrdreTravail = {
+          ...o,
+          numero,
+          id,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          ordresTravail: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteOrdreTravail = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      ordresTravail: (d.ordresTravail || []).filter((o) => o.id !== id),
+    }))
+  }, [])
+
+  const createOtForAction = useCallback(
+    (opts: {
+      typeOt: import('./ordreTravail').TypeOt
+      action: string
+      clientId?: string
+      chantierId?: string
+      equipementId?: string
+      technicien?: string
+      observations?: string
+      interventionId?: string
+      ficheMaintenanceId?: string
+      signatureTechnicienImage?: string
+      signatureClientImage?: string
+      statut?: import('./ordreTravail').StatutOt
+    }) => {
+      const d = dataRef.current
+      const numero = nextNumeroOt(d)
+      const id = uuid()
+      const now = new Date().toISOString()
+      const ot: OrdreTravail = {
+        id,
+        numero,
+        date: now.slice(0, 10),
+        typeOt: opts.typeOt,
+        action: opts.action,
+        rapportAction: '',
+        observations: opts.observations || '',
+        clientId: opts.clientId,
+        chantierId: opts.chantierId,
+        equipementId: opts.equipementId,
+        technicien: opts.technicien || '',
+        interventionId: opts.interventionId,
+        ficheMaintenanceId: opts.ficheMaintenanceId,
+        signatureTechnicienImage: opts.signatureTechnicienImage,
+        signatureClientImage: opts.signatureClientImage,
+        statut: opts.statut || 'en_cours',
+        createdAt: now,
+        updatedAt: now,
+      }
+      setData((prev) => ({
+        ...prev,
+        ordresTravail: [...(prev.ordresTravail || []), ot],
+      }))
+      return { id, numero }
+    },
+    [],
+  )
 
   const validateMaintenanceCerfas = useCallback(
     (opts: {
@@ -539,9 +679,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         numeroIntervention: nextNumeroIntervention(d, i),
       }))
       const now = new Date().toISOString()
+      const withOt = drafts.map((draft) => {
+        const otId = uuid()
+        const natures = draft.natures || []
+        const typeOt =
+          natures.includes('demantelement')
+            ? ('demantelement' as const)
+            : natures.some((n) => n.startsWith('controle_etancheite'))
+              ? ('controle_etancheite' as const)
+              : natures.includes('entretien_reparation')
+                ? ('entretien' as const)
+                : ('maintenance' as const)
+        const ot: OrdreTravail = {
+          id: otId,
+          numero: draft.numeroIntervention || nextNumeroOt(d),
+          date: dateIntervention,
+          typeOt,
+          action: `Intervention CERFA — ${natures.join(', ') || 'travaux'}`,
+          rapportAction: '',
+          observations: '',
+          clientId: draft.clientId,
+          chantierId: draft.chantierId,
+          equipementId: draft.equipementId,
+          technicien: opts.signataireNom || opts.userName || '',
+          interventionId: draft.id,
+          signatureTechnicienImage: opts.signatureOperateurImage,
+          statut: 'en_cours',
+          createdByUserId: opts.userId,
+          createdByName: opts.userName,
+          createdAt: now,
+          updatedAt: now,
+        }
+        return { draft: { ...draft, ordreTravailId: otId }, ot }
+      })
+      const draftsLinked = withOt.map((x) => x.draft)
+      const ots = withOt.map((x) => x.ot)
       setData((prev) => ({
         ...prev,
-        interventions: [...prev.interventions, ...drafts],
+        interventions: [...prev.interventions, ...draftsLinked],
+        ordresTravail: [...(prev.ordresTravail || []), ...ots],
         chantiers: prev.chantiers.map((s) =>
           s.id === opts.siteId
             ? {
@@ -552,7 +728,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             : s,
         ),
       }))
-      return { drafts, site, client }
+      return { drafts: draftsLinked, site, client }
     },
     [],
   )
@@ -692,15 +868,78 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           i.numeroIntervention?.trim() ||
           existing?.numeroIntervention?.trim() ||
           nextNumeroIntervention(d)
+        let ordreTravailId = i.ordreTravailId || existing?.ordreTravailId
+        let ordres = [...(d.ordresTravail || [])]
+        if (!ordreTravailId) {
+          const linked = ordres.find(
+            (o) => o.interventionId === id || o.numero === numeroIntervention,
+          )
+          if (linked) {
+            ordreTravailId = linked.id
+          } else {
+            ordreTravailId = uuid()
+            const ot: OrdreTravail = {
+              id: ordreTravailId,
+              numero: numeroIntervention,
+              date: i.dateIntervention || now.slice(0, 10),
+              typeOt: (i.natures || []).includes('demantelement')
+                ? 'demantelement'
+                : (i.natures || []).some((n) => n.startsWith('controle_etancheite'))
+                  ? 'controle_etancheite'
+                  : (i.natures || []).includes('entretien_reparation')
+                    ? 'entretien'
+                    : 'maintenance',
+              action: `Intervention CERFA — ${(i.natures || []).join(', ') || 'travaux'}`,
+              rapportAction: i.observations || '',
+              observations: i.observations || '',
+              clientId: i.clientId,
+              chantierId: i.chantierId,
+              equipementId: i.equipementId,
+              technicien: opts?.createdByName || i.signatureOperateur || '',
+              interventionId: id,
+              signatureTechnicienImage: i.signatureOperateurImage,
+              signatureClientImage: i.signatureDetenteurImage,
+              statut:
+                i.status === 'signe' || i.status === 'envoye' ? 'signe' : 'en_cours',
+              createdByUserId: i.createdByUserId,
+              createdByName: i.createdByName || opts?.createdByName,
+              createdAt: now,
+              updatedAt: now,
+            }
+            ordres = [...ordres, ot]
+          }
+        }
+        if (ordreTravailId) {
+          ordres = ordres.map((o) =>
+            o.id === ordreTravailId || o.numero === numeroIntervention
+              ? {
+                  ...o,
+                  interventionId: id,
+                  numero: o.numero || numeroIntervention,
+                  rapportAction: i.observations || o.rapportAction,
+                  observations: i.observations || o.observations,
+                  signatureTechnicienImage:
+                    i.signatureOperateurImage || o.signatureTechnicienImage,
+                  signatureClientImage:
+                    i.signatureDetenteurImage || o.signatureClientImage,
+                  statut:
+                    i.status === 'signe' || i.status === 'envoye' ? 'signe' : o.statut,
+                  updatedAt: now,
+                }
+              : o,
+          )
+        }
         const next: CerfaDraft = {
           ...i,
           id,
           numeroIntervention,
+          ordreTravailId,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
         const withIntervention: AppData = {
           ...d,
+          ordresTravail: ordres,
           interventions: existing
             ? d.interventions.map((x) => (x.id === id ? next : x))
             : [...d.interventions, next],
@@ -829,6 +1068,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteChantier,
       upsertFicheMaintenanceClim,
       deleteFicheMaintenanceClim,
+      upsertOrdreTravail,
+      deleteOrdreTravail,
+      createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
       upsertStock,
@@ -858,6 +1100,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteChantier,
       upsertFicheMaintenanceClim,
       deleteFicheMaintenanceClim,
+      upsertOrdreTravail,
+      deleteOrdreTravail,
+      createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
       upsertStock,

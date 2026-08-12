@@ -75,6 +75,8 @@ export function InterventionFormPage() {
 
   const chantierFromQuery = searchParams.get('chantier') || ''
   const equipementFromQuery = searchParams.get('equipement') || ''
+  const otFromQuery = searchParams.get('ot') || ''
+  const numeroFromQuery = searchParams.get('numero') || ''
   const naturesFromQuery = (searchParams.get('natures') || '')
     .split(',')
     .map((s) => s.trim())
@@ -169,15 +171,31 @@ export function InterventionFormPage() {
     existing?.signatureDetenteurImage || '',
   )
   const [status, setStatus] = useState<CerfaDraft['status']>(existing?.status || 'brouillon')
+  const linkedOt = useMemo(() => {
+    if (!otFromQuery && !numeroFromQuery) return null
+    const list = data.ordresTravail || []
+    return (
+      list.find((o) => o.id === otFromQuery) ||
+      list.find((o) => o.numero === otFromQuery || o.numero === numeroFromQuery) ||
+      null
+    )
+  }, [data.ordresTravail, otFromQuery, numeroFromQuery])
+
   const [numeroIntervention, setNumeroIntervention] = useState(
     () =>
       existing?.numeroIntervention?.trim() ||
+      numeroFromQuery.trim() ||
+      linkedOt?.numero ||
       (isNew
         ? nextNumeroIntervention({
             interventions: data.interventions,
             fichesMaintenanceClim: data.fichesMaintenanceClim,
+            ordresTravail: data.ordresTravail,
           })
         : ''),
+  )
+  const [ordreTravailId] = useState(
+    () => existing?.ordreTravailId || linkedOt?.id || undefined,
   )
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
@@ -374,6 +392,7 @@ export function InterventionFormPage() {
       equipementId: equipementId || equipement?.id || undefined,
       dateIntervention,
       numeroIntervention: numeroIntervention || undefined,
+      ordreTravailId: ordreTravailId || existing?.ordreTravailId,
       operateur: data.operateur,
       natures,
       detecteurIdentification,
@@ -600,7 +619,7 @@ export function InterventionFormPage() {
         </p>
         {numeroIntervention ? (
           <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
-            N° intervention {numeroIntervention}
+            OT {numeroIntervention}
           </p>
         ) : null}
       </div>
@@ -1163,12 +1182,12 @@ export function InterventionFormPage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">N° d’intervention (signé)</span>
+              <span className="mb-1 block text-muted">N° OT (ordre de travail)</span>
               <input
                 value={numeroIntervention}
                 onChange={(e) => setNumeroIntervention(e.target.value)}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold tracking-wide"
-                placeholder="INT-2026-0001"
+                placeholder="OT20260001"
               />
             </label>
             <label className="block text-sm">

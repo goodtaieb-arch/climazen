@@ -142,6 +142,7 @@ export function ChantiersPage() {
     validateMaintenanceCerfas,
     upsertIntervention,
     upsertFicheMaintenanceClim,
+    createOtForAction,
   } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -855,7 +856,7 @@ export function ChantiersPage() {
                 </span>
               </div>
               <p className="mt-1.5 text-sm text-muted">
-                Accès rapide · n° d’intervention signé (CERFA ou rapport)
+                Accès rapide · chaque action = OT unique (OT2026…) + rapport
               </p>
             </div>
           </div>
@@ -1748,7 +1749,7 @@ export function ChantiersPage() {
                   : 'Quel équipement pour ce CERFA ?'}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {picker.site.nom} — un n° d’intervention INT-… sera attribué automatiquement.
+              {picker.site.nom} — un n° OT (OT2026…) sera attribué automatiquement.
             </p>
 
             {picker.mode === 'intervention' && (
@@ -2006,7 +2007,7 @@ export function ChantiersPage() {
           <div className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-line bg-white p-5 shadow-xl sm:rounded-2xl">
             <h2 className="font-display text-xl font-semibold">Se mettre en intervention</h2>
             <p className="mt-1 text-sm text-muted">
-              {intervChoiceSite.nom} — chaque action reçoit un n° signé (INT-…).
+              {intervChoiceSite.nom} — chaque action reçoit un OT unique (OT2026…).
             </p>
             <div className="mt-5 space-y-3">
               {siteAvecFluideFrigorigene(intervChoiceSite) ? (
@@ -2040,9 +2041,9 @@ export function ChantiersPage() {
                 <ClipboardList className="h-6 w-6 shrink-0 text-emerald-700" />
                 <span>
                   <span className="block text-base">Rapport sans CERFA</span>
-                  <span className="block text-sm font-medium text-muted">
-                    Fiche d’intervention signée — même série de n°
-                  </span>
+                    <span className="block text-sm font-medium text-muted">
+                      Fiche d’intervention signée — même série OT
+                    </span>
                 </span>
               </button>
               <button
@@ -2150,8 +2151,27 @@ export function ChantiersPage() {
                     type="button"
                     disabled={equipWork.natures.length === 0}
                     onClick={() => {
-                      const natures = encodeURIComponent(equipWork.natures.join(','))
-                      const url = `/app/interventions/new?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}&natures=${natures}`
+                      const natures = equipWork.natures
+                      const typeOt = natures.includes('demantelement')
+                        ? 'demantelement'
+                        : natures.some((n) => n.startsWith('controle_etancheite'))
+                          ? 'controle_etancheite'
+                          : natures.includes('entretien_reparation')
+                            ? 'entretien'
+                            : 'maintenance'
+                      const ot = createOtForAction({
+                        typeOt,
+                        action: `Intervention CERFA — ${natures.map((n) => NATURE_LABELS[n]).join(', ')}`,
+                        clientId: equipWork.site.clientId,
+                        chantierId: equipWork.site.id,
+                        equipementId: equipWork.equipementId,
+                        technicien: user?.signataireNom || user?.fullName || user?.email || '',
+                        signatureTechnicienImage: user?.signatureImage,
+                        signatureClientImage: equipWork.site.signatureDetenteurImage,
+                        statut: 'en_cours',
+                      })
+                      const naturesQ = encodeURIComponent(natures.join(','))
+                      const url = `/app/interventions/new?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}&natures=${naturesQ}&ot=${encodeURIComponent(ot.id)}&numero=${encodeURIComponent(ot.numero)}`
                       setEquipWork(null)
                       navigate(url)
                     }}

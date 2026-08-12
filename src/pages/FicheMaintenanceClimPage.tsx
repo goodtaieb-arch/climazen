@@ -102,6 +102,7 @@ export function FicheMaintenanceClimPage() {
   const chantierId = params.get('chantier') || ''
   const equipementId = params.get('equipement') || ''
   const editId = params.get('id') || ''
+  const numeroFromQuery = params.get('numero') || ''
   const batchIds = useMemo(
     () =>
       (params.get('batch') || '')
@@ -138,10 +139,11 @@ export function FicheMaintenanceClimPage() {
         equip,
         technicien: technicienDefault,
         signatureOperateur: user?.signatureImage,
-        numero: existing?.numero || (!editId
+        numero: existing?.numero || numeroFromQuery || (!editId
           ? nextNumeroIntervention({
               interventions: data.interventions,
               fichesMaintenanceClim: data.fichesMaintenanceClim,
+              ordresTravail: data.ordresTravail,
             })
           : undefined),
       }),
@@ -149,7 +151,7 @@ export function FicheMaintenanceClimPage() {
   const hydratedKey = useRef('')
 
   useEffect(() => {
-    const key = `${editId}|${chantierId}|${equipementId}|${existing?.updatedAt || ''}|${site?.id || ''}|${equip?.id || ''}|${technicienDefault}`
+    const key = `${editId}|${chantierId}|${equipementId}|${existing?.updatedAt || ''}|${site?.id || ''}|${equip?.id || ''}|${technicienDefault}|${numeroFromQuery}`
     if (hydratedKey.current === key) return
     if (
       hydratedKey.current.startsWith(`${editId}|${chantierId}|${equipementId}|`) &&
@@ -167,10 +169,11 @@ export function FicheMaintenanceClimPage() {
         equip,
         technicien: technicienDefault,
         signatureOperateur: user?.signatureImage,
-        numero: existing?.numero || (!editId
+        numero: existing?.numero || numeroFromQuery || (!editId
           ? nextNumeroIntervention({
               interventions: data.interventions,
               fichesMaintenanceClim: data.fichesMaintenanceClim,
+              ordresTravail: data.ordresTravail,
             })
           : undefined),
       }),
@@ -185,6 +188,7 @@ export function FicheMaintenanceClimPage() {
     equip,
     technicienDefault,
     user?.signatureImage,
+    numeroFromQuery,
   ])
 
   // Signatures auto (comme CERFA) dès que le profil / site est dispo
@@ -397,12 +401,12 @@ export function FicheMaintenanceClimPage() {
       <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-line bg-white p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Intervention N°</span>
+            <span className="mb-1 block text-muted">N° OT</span>
             <input
               value={form.numero}
               onChange={(e) => setForm({ ...form, numero: e.target.value })}
               className="h-11 w-full rounded-xl border border-line px-3"
-              placeholder="INT-2026-0001"
+              placeholder="OT20260001"
             />
           </label>
           <label className="block text-sm">

@@ -114,7 +114,7 @@ export const FICHE_MAINT_SECTIONS: {
 
 export interface FicheMaintenanceClim {
   id: string
-  /** N° d’intervention (même série que CERFA : INT-YYYY-NNNN) — signé */
+  /** N° OT / intervention (OT20260001) — signé */
   numero: string
   date: string
   technicien: string

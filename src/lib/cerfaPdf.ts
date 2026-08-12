@@ -293,7 +293,7 @@ export async function buildCerfaPdf(opts: {
   // [13] [14]
   setText(form, '13_Instal', draft.installationDestination)
   const obsParts = [
-    draft.numeroIntervention?.trim() ? `N° intervention ${draft.numeroIntervention.trim()}` : '',
+    draft.numeroIntervention?.trim() ? `OT ${draft.numeroIntervention.trim()}` : '',
     draft.observations || '',
   ].filter(Boolean)
   setText(form, '14_Observations', obsParts.join(' — '))
