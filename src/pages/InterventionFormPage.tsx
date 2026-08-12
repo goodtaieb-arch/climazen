@@ -18,8 +18,8 @@ import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { loadCerfaPdf, saveCerfaPdf } from '../lib/pdfStore'
 import { Field } from './ClientsPage'
 import { PdfViewerModal } from '../components/PdfViewerModal'
-import { SignaturePad } from '../components/SignaturePad'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
+import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
@@ -1087,38 +1087,16 @@ export function InterventionFormPage() {
           <Field label="Observations" value={observations} onChange={setObservations} />
 
           <div className="mt-5 space-y-5">
-            <div className="rounded-xl border border-line bg-mist/40 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-display text-sm font-semibold">Signature opérateur *</h3>
-                <Link to="/app/profil" className="text-xs font-medium text-accent hover:underline">
-                  Enregistrer ma signature (espace perso)
-                </Link>
-              </div>
-              {!user?.signatureImage && (
-                <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-danger">
-                  Aucune signature enregistrée sur votre compte — obligatoire pour générer / valider
-                  le CERFA.
-                </p>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Nom *" value={signatureOperateur} onChange={setSignatureOperateur} required />
-                <Field
-                  label="Qualité *"
-                  value={signatureOperateurQualite}
-                  onChange={setSignatureOperateurQualite}
-                  required
-                />
-              </div>
-              <div className="mt-3">
-                <SignaturePad
-                  label="Signature manuscrite opérateur *"
-                  value={signatureOperateurImage}
-                  onChange={setSignatureOperateurImage}
-                  height={150}
-                  hint="Personnelle — préremplie depuis Ma signature."
-                />
-              </div>
-            </div>
+            <IntervenantSignature
+              label="Signature intervenant *"
+              nom={signatureOperateur}
+              qualite={signatureOperateurQualite}
+              image={signatureOperateurImage}
+              onNomChange={setSignatureOperateur}
+              onQualiteChange={setSignatureOperateurQualite}
+              onImageChange={setSignatureOperateurImage}
+              height={150}
+            />
 
             <ClientSiteSignature
               siteId={chantierId || undefined}

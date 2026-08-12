@@ -5,8 +5,8 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
-import { SignaturePad } from '../components/SignaturePad'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
+import { IntervenantSignature } from '../components/IntervenantSignature'
 import {
   MODELES_CONTRAT,
   PERIODICITE_LABELS,
@@ -405,10 +405,14 @@ export function ContratsMaintenancePage() {
           </label>
 
           <div className="space-y-4">
-            <SignaturePad
+            <IntervenantSignature
               label="Signature opérateur / société"
-              value={form.signatureOperateurImage || ''}
-              onChange={(v) => setForm({ ...form, signatureOperateurImage: v })}
+              nom={form.signatureOperateurNom || user?.signataireNom || user?.fullName || ''}
+              qualite={user?.signataireQualite || 'Opérateur'}
+              image={form.signatureOperateurImage || ''}
+              onNomChange={(v) => setForm({ ...form, signatureOperateurNom: v })}
+              onQualiteChange={() => {}}
+              onImageChange={(v) => setForm({ ...form, signatureOperateurImage: v })}
               height={140}
             />
             <ClientSiteSignature

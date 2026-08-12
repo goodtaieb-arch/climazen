@@ -14,8 +14,8 @@ import {
 import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { DecimalField } from '../components/DecimalField'
-import { SignaturePad } from '../components/SignaturePad'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
+import { IntervenantSignature } from '../components/IntervenantSignature'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 
 function today() {
@@ -667,12 +667,15 @@ export function FicheMaintenanceClimPage() {
             ))}
           </div>
           <div className="mt-4 space-y-4">
-            <SignaturePad
+            <IntervenantSignature
               label="Signature technicien"
-              value={form.signatureTechnicienImage}
-              onChange={(v) => setForm({ ...form, signatureTechnicienImage: v })}
+              nom={form.technicien}
+              qualite="Opérateur attesté"
+              image={form.signatureTechnicienImage || ''}
+              onNomChange={(v) => setForm({ ...form, technicien: v })}
+              onQualiteChange={() => {}}
+              onImageChange={(v) => setForm({ ...form, signatureTechnicienImage: v })}
               height={140}
-              hint="Automatique depuis « Ma signature » (comme le CERFA)."
             />
             <ClientSiteSignature
               siteId={site?.id || form.chantierId}

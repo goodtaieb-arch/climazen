@@ -16,8 +16,8 @@ import {
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
-import { SignaturePad } from '../components/SignaturePad'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
+import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { allEquipements, equipementsForCerfa } from '../lib/cerfaBatch'
@@ -1047,10 +1047,14 @@ export function AppelOtPage() {
           </div>
 
           <div className="space-y-4">
-            <SignaturePad
-              label="Signature technicien (tous docs)"
-              value={otForm.signatureTechnicienImage || ''}
-              onChange={(v) => setOtForm({ ...otForm, signatureTechnicienImage: v })}
+            <IntervenantSignature
+              label="Signature technicien (auto)"
+              nom={otForm.technicien}
+              qualite="Opérateur attesté"
+              image={otForm.signatureTechnicienImage || ''}
+              onNomChange={(v) => setOtForm({ ...otForm, technicien: v })}
+              onQualiteChange={() => {}}
+              onImageChange={(v) => setOtForm({ ...otForm, signatureTechnicienImage: v })}
               height={140}
             />
             <ClientSiteSignature

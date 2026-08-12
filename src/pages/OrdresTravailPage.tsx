@@ -5,8 +5,8 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
-import { SignaturePad } from '../components/SignaturePad'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
+import { IntervenantSignature } from '../components/IntervenantSignature'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import {
   TYPE_OT_LABELS,
@@ -270,10 +270,14 @@ export function OrdresTravailPage() {
           </label>
 
           <div className="space-y-4">
-            <SignaturePad
+            <IntervenantSignature
               label="Signature technicien"
-              value={form.signatureTechnicienImage || ''}
-              onChange={(v) => setForm({ ...form, signatureTechnicienImage: v })}
+              nom={form.technicien}
+              qualite="Opérateur attesté"
+              image={form.signatureTechnicienImage || ''}
+              onNomChange={(v) => setForm({ ...form, technicien: v })}
+              onQualiteChange={() => {}}
+              onImageChange={(v) => setForm({ ...form, signatureTechnicienImage: v })}
               height={140}
             />
             <ClientSiteSignature
