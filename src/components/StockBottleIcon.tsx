@@ -1,5 +1,7 @@
 /** Bouteille fluide ClimaZEN 3D — Stock fluides */
 
+import { ICON3D } from '../lib/icons3d'
+
 type Props = {
   className?: string
   size?: number
@@ -21,7 +23,7 @@ export function StockBottleIcon({
       style={float ? { animationDelay: delay } : undefined}
     >
       <img
-        src="/icons/3d/climazen-bottle.png"
+        src={ICON3D.bottle}
         alt="Bouteille ClimaZEN"
         width={size}
         height={size}

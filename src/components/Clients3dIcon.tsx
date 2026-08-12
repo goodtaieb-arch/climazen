@@ -1,5 +1,7 @@
 /** Clients / détenteurs — icône 3D poignée de main */
 
+import { ICON3D } from '../lib/icons3d'
+
 type Props = {
   className?: string
   size?: number
@@ -21,7 +23,7 @@ export function Clients3dIcon({
       style={float ? { animationDelay: delay } : undefined}
     >
       <img
-        src="/icons/3d/climazen-clients.png"
+        src={ICON3D.clients}
         alt="Clients ClimaZEN"
         width={size}
         height={size}

@@ -1,5 +1,7 @@
 /** Sites & Parc — icône 3D bâtiment + pin */
 
+import { ICON3D } from '../lib/icons3d'
+
 type Props = {
   className?: string
   size?: number
@@ -21,7 +23,7 @@ export function Sites3dIcon({
       style={float ? { animationDelay: delay } : undefined}
     >
       <img
-        src="/icons/3d/climazen-sites.png"
+        src={ICON3D.sites}
         alt="Sites & Parc ClimaZEN"
         width={size}
         height={size}

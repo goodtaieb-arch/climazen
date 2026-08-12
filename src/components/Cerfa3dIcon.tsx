@@ -1,5 +1,7 @@
 /** CERFA / Interventions — icône 3D document + signature */
 
+import { ICON3D } from '../lib/icons3d'
+
 type Props = {
   className?: string
   size?: number
@@ -21,7 +23,7 @@ export function Cerfa3dIcon({
       style={float ? { animationDelay: delay } : undefined}
     >
       <img
-        src="/icons/3d/climazen-cerfa.png"
+        src={ICON3D.cerfa}
         alt="CERFA ClimaZEN"
         width={size}
         height={size}

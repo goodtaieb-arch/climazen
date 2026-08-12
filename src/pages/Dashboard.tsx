@@ -15,6 +15,7 @@ import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
 import { APP_BUILD } from '../lib/buildStamp'
+import { ICON3D } from '../lib/icons3d'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -23,7 +24,7 @@ const QUICK_START = [
     n: 1,
     title: 'Trouver le site',
     hint: 'Recherchez le client ou l’adresse',
-    img: '/icons/3d/search.png',
+    img: ICON3D.search,
     alt: 'Recherche 3D',
     delay: '0s',
     to: '/app/chantiers',
@@ -32,7 +33,7 @@ const QUICK_START = [
     n: 2,
     title: 'Choisir la clim',
     hint: 'Sélectionnez la PAC ou le groupe',
-    img: '/icons/3d/maintenance.png',
+    img: ICON3D.maintenance,
     alt: 'Équipement 3D',
     delay: '0.5s',
     to: '/app/chantiers',
@@ -41,7 +42,7 @@ const QUICK_START = [
     n: 3,
     title: 'Remplir & Signer',
     hint: 'Générez le CERFA PDF officiel',
-    img: '/icons/3d/signature.png',
+    img: ICON3D.signature,
     alt: 'Signature 3D',
     delay: '1s',
     to: '/app/interventions',
@@ -287,7 +288,7 @@ export function Dashboard() {
           <nav className="space-y-3" aria-label="Actions terrain">
             <TerrainAction
               icon={MapPin}
-              img3d="/icons/3d/climazen-sites.png"
+              img3d={ICON3D.sites}
               title="Sites & Parc"
               subtitle={
                 actifs.length
@@ -299,7 +300,7 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={ClipboardList}
-              img3d="/icons/3d/climazen-cerfa.png"
+              img3d={ICON3D.cerfa}
               title="CERFA / Interventions"
               subtitle={
                 brouillons.length
@@ -312,7 +313,7 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={Package}
-              img3d="/icons/3d/climazen-bottle.png"
+              img3d={ICON3D.bottle}
               title="Stock fluides"
               subtitle={
                 stockCount
@@ -324,7 +325,7 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={Building2}
-              img3d="/icons/3d/climazen-clients.png"
+              img3d={ICON3D.clients}
               title="Clients"
               subtitle={
                 data.clients.length
@@ -365,7 +366,7 @@ export function Dashboard() {
                 >
                   <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
                     <img
-                      src="/icons/3d/climazen-cerfa.png"
+                      src={ICON3D.cerfa}
                       alt=""
                       width={48}
                       height={48}
@@ -498,7 +499,7 @@ export function Dashboard() {
       {/* Raccourcis stats 3D */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <Stat3d
-          img="/icons/3d/climazen-sites.png"
+          img={ICON3D.sites}
           alt="Sites"
           label="Sites & Parc"
           value={String(actifs.length)}
@@ -507,7 +508,7 @@ export function Dashboard() {
           floatDelay="0.2s"
         />
         <Stat3d
-          img="/icons/3d/climazen-bottle.png"
+          img={ICON3D.bottle}
           alt="Stock fluides ClimaZEN"
           label="Stock fluides"
           value={`${stockKg.toFixed(1)}`}
@@ -517,7 +518,7 @@ export function Dashboard() {
           floatDelay="0.5s"
         />
         <Stat3d
-          img="/icons/3d/climazen-clients.png"
+          img={ICON3D.clients}
           alt="Clients"
           label="Clients / Détenteurs"
           value={String(data.clients.length)}
@@ -526,7 +527,7 @@ export function Dashboard() {
           floatDelay="0.7s"
         />
         <Stat3d
-          img="/icons/3d/climazen-cerfa.png"
+          img={ICON3D.cerfa}
           alt="CERFA"
           label={brouillons.length > 0 ? 'CERFA brouillons' : 'CERFA validés'}
           value={String(brouillons.length > 0 ? brouillons.length : signes.length)}
