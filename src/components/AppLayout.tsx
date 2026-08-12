@@ -16,6 +16,7 @@ import {
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
 import { StockBottleIcon } from './StockBottleIcon'
+import { Clients3dIcon } from './Clients3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
@@ -231,6 +232,8 @@ export function AppLayout() {
                     >
                       {to === '/app/stock' ? (
                         <StockBottleIcon size={28} float delay="0.2s" />
+                      ) : to === '/app/clients' ? (
+                        <Clients3dIcon size={28} float delay="0.35s" />
                       ) : (
                         <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
                       )}
@@ -374,7 +377,11 @@ export function AppLayout() {
                         className="grid h-12 w-12 place-items-center rounded-xl"
                         style={{ backgroundColor: t.band, color: t.icon }}
                       >
-                        <Icon className="h-5 w-5" />
+                        {to === '/app/clients' ? (
+                          <Clients3dIcon size={32} float delay="0.2s" />
+                        ) : (
+                          <Icon className="h-5 w-5" />
+                        )}
                       </span>
                       {label}
                     </NavLink>

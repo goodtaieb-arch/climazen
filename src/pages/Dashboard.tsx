@@ -318,6 +318,7 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={Building2}
+              img3d="/icons/3d/climazen-clients.png"
               title="Clients"
               subtitle={
                 data.clients.length
@@ -506,11 +507,13 @@ export function Dashboard() {
           float
         />
         <Stat3d
-          img="/icons/3d/group.png"
+          img="/icons/3d/climazen-clients.png"
           alt="Clients"
           label="Clients / Détenteurs"
           value={String(data.clients.length)}
           to="/app/clients"
+          float
+          floatDelay="0.7s"
         />
         <Stat3d
           img="/icons/3d/contract.png"
@@ -632,6 +635,7 @@ function Stat3d({
   to,
   alert,
   float,
+  floatDelay = '0.5s',
 }: {
   img: string
   alt: string
@@ -641,6 +645,7 @@ function Stat3d({
   to: string
   alert?: boolean
   float?: boolean
+  floatDelay?: string
 }) {
   return (
     <Link
@@ -652,7 +657,10 @@ function Stat3d({
           : 'border-slate-200/80 bg-white hover:border-emerald-500',
       ].join(' ')}
     >
-      <span className={float ? 'float-3d mb-2 inline-flex' : 'mb-2 inline-flex'} style={float ? { animationDelay: '0.5s' } : undefined}>
+      <span
+        className={float ? 'float-3d mb-2 inline-flex' : 'mb-2 inline-flex'}
+        style={float ? { animationDelay: floatDelay } : undefined}
+      >
         <img
           src={img}
           alt={alt}

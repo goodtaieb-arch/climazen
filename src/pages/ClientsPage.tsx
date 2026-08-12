@@ -20,6 +20,7 @@ import { FACTURATION_PLATEFORMES } from '../lib/types'
 import { allEquipements } from '../lib/cerfaBatch'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
+import { Clients3dIcon } from '../components/Clients3dIcon'
 import {
   buildMakeFacturationPayload,
   copyClientPourFacturation,
@@ -186,15 +187,29 @@ export function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <Header
-        title="Clients / détenteurs"
-        subtitle="Partagés dans toute l’entreprise — un client créé par un employé est visible par tous, stocké sur le compte société."
-        onAdd={() => {
-          setEditId(null)
-          setForm(blank())
-          setOpen(true)
-        }}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Clients3dIcon size={56} float delay="0.2s" className="shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-bold tracking-tight">Clients / détenteurs</h1>
+            <p className="mt-1 text-muted">
+              Partagés dans toute l’entreprise — un client créé par un employé est visible par tous,
+              stocké sur le compte société.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setEditId(null)
+            setForm(blank())
+            setOpen(true)
+          }}
+          className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
+        >
+          <Plus className="h-4 w-4" /> Ajouter
+        </button>
+      </div>
 
       {webhookConfigured && (
         <p className="text-xs text-muted">
