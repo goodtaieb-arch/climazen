@@ -1,2 +1,2 @@
 /** Stamp de build — change à chaque déploiement pour forcer le cache PWA. */
-export const APP_BUILD = '2026-08-12-gps-cote-adresse'
+export const APP_BUILD = '2026-08-12-cerfa-complet'
