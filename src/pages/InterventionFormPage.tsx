@@ -19,6 +19,7 @@ import { loadCerfaPdf, saveCerfaPdf } from '../lib/pdfStore'
 import { Field } from './ClientsPage'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SignaturePad } from '../components/SignaturePad'
+import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
@@ -57,7 +58,7 @@ export function InterventionFormPage() {
   const [searchParams] = useSearchParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
-  const { data, saveInterventionWithStock, upsertChantier } = useStore()
+  const { data, saveInterventionWithStock, upsertChantier, applySiteClientSignature } = useStore()
   const { user } = useAuth()
 
   const existing = useMemo(
@@ -167,7 +168,7 @@ export function InterventionFormPage() {
   )
   const [signatureDetenteur, setSignatureDetenteur] = useState(existing?.signatureDetenteur || '')
   const [signatureDetenteurQualite, setSignatureDetenteurQualite] = useState(
-    existing?.signatureDetenteurQualite || 'Détenteur',
+    existing?.signatureDetenteurQualite || '',
   )
   const [signatureOperateurImage, setSignatureOperateurImage] = useState(
     existing?.signatureOperateurImage || linkedOt?.signatureTechnicienImage || defaultSignImage,
@@ -273,11 +274,23 @@ export function InterventionFormPage() {
     })
   }, [denominationFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Préremplir nom détenteur depuis le client du chantier
+  // Préremplir nom / signature client depuis le site (une seule signature pour tous les docs)
   useEffect(() => {
-    if (!client || existing?.signatureDetenteur) return
-    setSignatureDetenteur(client.nomContact || client.raisonSociale)
-  }, [client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!chantier) return
+    if (!signatureDetenteurImage && chantier.signatureDetenteurImage) {
+      setSignatureDetenteurImage(chantier.signatureDetenteurImage)
+    }
+    if (!signatureDetenteur.trim()) {
+      setSignatureDetenteur(
+        chantier.signatureDetenteurNom || client?.nomContact || client?.raisonSociale || '',
+      )
+    }
+    if (!signatureDetenteurQualite.trim()) {
+      setSignatureDetenteurQualite(
+        chantier.signatureDetenteurQualite || 'Représentant client',
+      )
+    }
+  }, [chantier?.id, chantier?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // teq CO₂ = Charge (kg) × GWP / 1000 — dès que fluide + charge connus
   useEffect(() => {
@@ -551,6 +564,15 @@ export function InterventionFormPage() {
       { ...fullDraft, id: previewId },
       { createdByName: user?.fullName || user?.email || user?.username },
     )
+
+    if (signatureDetenteurImage && chantierId) {
+      applySiteClientSignature({
+        siteId: chantierId,
+        signatureDetenteur: signatureDetenteur.trim() || 'Signataire site',
+        signatureDetenteurQualite: signatureDetenteurQualite.trim() || 'Représentant client',
+        signatureDetenteurImage,
+      })
+    }
 
     const blob = await buildCerfaPdf({
       draft: { ...fullDraft, id: savedId },
@@ -1098,29 +1120,16 @@ export function InterventionFormPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-accent/30 bg-accent-soft/40 p-4">
-              <h3 className="font-display mb-1 text-sm font-semibold">Signature détenteur</h3>
-              <p className="mb-3 text-xs text-muted">
-                Le client signe au doigt sur le téléphone / tablette.
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Nom" value={signatureDetenteur} onChange={setSignatureDetenteur} />
-                <Field
-                  label="Qualité"
-                  value={signatureDetenteurQualite}
-                  onChange={setSignatureDetenteurQualite}
-                />
-              </div>
-              <div className="mt-3">
-                <SignaturePad
-                  label="Signature détenteur (tactile)"
-                  value={signatureDetenteurImage}
-                  onChange={setSignatureDetenteurImage}
-                  height={180}
-                  hint="Faites signer le détenteur ici."
-                />
-              </div>
-            </div>
+            <ClientSiteSignature
+              siteId={chantierId || undefined}
+              nom={signatureDetenteur}
+              qualite={signatureDetenteurQualite}
+              image={signatureDetenteurImage}
+              onNomChange={setSignatureDetenteur}
+              onQualiteChange={setSignatureDetenteurQualite}
+              onImageChange={setSignatureDetenteurImage}
+              height={180}
+            />
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

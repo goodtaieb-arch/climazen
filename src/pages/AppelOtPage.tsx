@@ -17,6 +17,7 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { SignaturePad } from '../components/SignaturePad'
+import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { allEquipements, equipementsForCerfa } from '../lib/cerfaBatch'
@@ -145,6 +146,8 @@ export function AppelOtPage() {
 
   const [equipMode, setEquipMode] = useState<'pick' | 'new'>('pick')
   const [equipForm, setEquipForm] = useState(() => blankEquip(true))
+  const [clientSignNom, setClientSignNom] = useState('')
+  const [clientSignQualite, setClientSignQualite] = useState('Représentant client')
 
   const [msg, setMsg] = useState('')
 
@@ -160,6 +163,17 @@ export function AppelOtPage() {
   const site = data.chantiers.find((c) => c.id === otForm.chantierId)
   const eqs = site ? allEquipements(site) : []
   const selectedEq = eqs.find((e) => e.id === otForm.equipementId)
+
+  useEffect(() => {
+    if (!site) return
+    setClientSignNom((n) => n || site.signatureDetenteurNom || '')
+    setClientSignQualite((q) =>
+      q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
+    )
+    if (!otForm.signatureClientImage && site.signatureDetenteurImage) {
+      setOtForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
+    }
+  }, [site?.id, site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clientsFiltered = useMemo(
     () =>
@@ -1032,17 +1046,21 @@ export function AppelOtPage() {
             ) : null}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             <SignaturePad
               label="Signature technicien (tous docs)"
               value={otForm.signatureTechnicienImage || ''}
               onChange={(v) => setOtForm({ ...otForm, signatureTechnicienImage: v })}
               height={140}
             />
-            <SignaturePad
-              label="Signature client (tous docs)"
-              value={otForm.signatureClientImage || ''}
-              onChange={(v) => setOtForm({ ...otForm, signatureClientImage: v })}
+            <ClientSiteSignature
+              siteId={otForm.chantierId || undefined}
+              nom={clientSignNom}
+              qualite={clientSignQualite}
+              image={otForm.signatureClientImage || ''}
+              onNomChange={setClientSignNom}
+              onQualiteChange={setClientSignQualite}
+              onImageChange={(v) => setOtForm({ ...otForm, signatureClientImage: v })}
               height={140}
             />
           </div>

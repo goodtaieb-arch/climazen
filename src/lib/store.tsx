@@ -911,7 +911,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             updatedAt: now,
           }
         })
-        return { ...d, chantiers: sites, interventions }
+        const fiches = (d.fichesMaintenanceClim || []).map((f) => {
+          if (f.chantierId !== opts.siteId) return f
+          count += 1
+          return {
+            ...f,
+            signatureClientImage: opts.signatureDetenteurImage,
+            updatedAt: now,
+          }
+        })
+        const ordres = (d.ordresTravail || []).map((o) => {
+          if (o.chantierId !== opts.siteId) return o
+          count += 1
+          return {
+            ...o,
+            signatureClientImage: opts.signatureDetenteurImage,
+            updatedAt: now,
+          }
+        })
+        const contrats = (d.contratsMaintenance || []).map((c) => {
+          if (c.clientId !== site.clientId) return c
+          count += 1
+          return {
+            ...c,
+            signatureClientImage: opts.signatureDetenteurImage,
+            signatureClientNom: opts.signatureDetenteur,
+            updatedAt: now,
+          }
+        })
+        return {
+          ...d,
+          chantiers: sites,
+          interventions,
+          fichesMaintenanceClim: fiches,
+          ordresTravail: ordres,
+          contratsMaintenance: contrats,
+        }
       })
       return count
     },

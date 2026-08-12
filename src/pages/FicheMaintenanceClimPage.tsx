@@ -15,6 +15,7 @@ import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { DecimalField } from '../components/DecimalField'
 import { SignaturePad } from '../components/SignaturePad'
+import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 
 function today() {
@@ -147,6 +148,12 @@ export function FicheMaintenanceClimPage() {
             })
           : undefined),
       }),
+  )
+  const [clientSignNom, setClientSignNom] = useState(
+    () => site?.signatureDetenteurNom || client?.nomContact || client?.raisonSociale || '',
+  )
+  const [clientSignQualite, setClientSignQualite] = useState(
+    () => site?.signatureDetenteurQualite || 'Représentant client',
   )
   const hydratedKey = useRef('')
 
@@ -659,7 +666,7 @@ export function FicheMaintenanceClimPage() {
               </button>
             ))}
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 space-y-4">
             <SignaturePad
               label="Signature technicien"
               value={form.signatureTechnicienImage}
@@ -667,12 +674,15 @@ export function FicheMaintenanceClimPage() {
               height={140}
               hint="Automatique depuis « Ma signature » (comme le CERFA)."
             />
-            <SignaturePad
-              label="Signature client"
-              value={form.signatureClientImage}
-              onChange={(v) => setForm({ ...form, signatureClientImage: v })}
+            <ClientSiteSignature
+              siteId={site?.id || form.chantierId}
+              nom={clientSignNom}
+              qualite={clientSignQualite}
+              image={form.signatureClientImage || ''}
+              onNomChange={setClientSignNom}
+              onQualiteChange={setClientSignQualite}
+              onImageChange={(v) => setForm({ ...form, signatureClientImage: v })}
               height={140}
-              hint="Automatique si déjà enregistrée sur le site / CERFA."
             />
           </div>
           {!user?.signatureImage && (

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { SignaturePad } from '../components/SignaturePad'
+import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import {
   MODELES_CONTRAT,
   PERIODICITE_LABELS,
@@ -403,17 +404,21 @@ export function ContratsMaintenancePage() {
             </select>
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             <SignaturePad
               label="Signature opérateur / société"
               value={form.signatureOperateurImage || ''}
               onChange={(v) => setForm({ ...form, signatureOperateurImage: v })}
               height={140}
             />
-            <SignaturePad
-              label="Signature client"
-              value={form.signatureClientImage || ''}
-              onChange={(v) => setForm({ ...form, signatureClientImage: v })}
+            <ClientSiteSignature
+              siteId={form.chantierIds[0] || sitesForClient[0]?.id}
+              nom={form.signatureClientNom || client?.raisonSociale || ''}
+              qualite="Représentant client"
+              image={form.signatureClientImage || ''}
+              onNomChange={(v) => setForm({ ...form, signatureClientNom: v })}
+              onQualiteChange={() => {}}
+              onImageChange={(v) => setForm({ ...form, signatureClientImage: v })}
               height={140}
             />
           </div>

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { SignaturePad } from '../components/SignaturePad'
+import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import {
   TYPE_OT_LABELS,
@@ -73,6 +74,19 @@ export function OrdresTravailPage() {
 
   const site = data.chantiers.find((c) => c.id === form.chantierId)
   const eqs = site ? allEquipements(site) : []
+  const [clientSignNom, setClientSignNom] = useState('')
+  const [clientSignQualite, setClientSignQualite] = useState('Représentant client')
+
+  useEffect(() => {
+    if (!site) return
+    setClientSignNom((n) => n || site.signatureDetenteurNom || '')
+    setClientSignQualite((q) =>
+      q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
+    )
+    if (!form.signatureClientImage && site.signatureDetenteurImage) {
+      setForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
+    }
+  }, [site?.id, site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSave = (e: FormEvent) => {
     e.preventDefault()
@@ -255,17 +269,21 @@ export function OrdresTravailPage() {
             </select>
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             <SignaturePad
               label="Signature technicien"
               value={form.signatureTechnicienImage || ''}
               onChange={(v) => setForm({ ...form, signatureTechnicienImage: v })}
               height={140}
             />
-            <SignaturePad
-              label="Signature client"
-              value={form.signatureClientImage || ''}
-              onChange={(v) => setForm({ ...form, signatureClientImage: v })}
+            <ClientSiteSignature
+              siteId={form.chantierId || undefined}
+              nom={clientSignNom}
+              qualite={clientSignQualite}
+              image={form.signatureClientImage || ''}
+              onNomChange={setClientSignNom}
+              onQualiteChange={setClientSignQualite}
+              onImageChange={(v) => setForm({ ...form, signatureClientImage: v })}
               height={140}
             />
           </div>
