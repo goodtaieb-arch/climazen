@@ -17,6 +17,8 @@ import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
 import { StockBottleIcon } from './StockBottleIcon'
 import { Clients3dIcon } from './Clients3dIcon'
+import { Sites3dIcon } from './Sites3dIcon'
+import { Cerfa3dIcon } from './Cerfa3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
@@ -234,6 +236,10 @@ export function AppLayout() {
                         <StockBottleIcon size={28} float delay="0.2s" />
                       ) : to === '/app/clients' ? (
                         <Clients3dIcon size={28} float delay="0.35s" />
+                      ) : to === '/app/chantiers' ? (
+                        <Sites3dIcon size={28} float delay="0.1s" />
+                      ) : to === '/app/interventions' ? (
+                        <Cerfa3dIcon size={28} float delay="0.45s" />
                       ) : (
                         <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
                       )}
@@ -430,6 +436,10 @@ export function AppLayout() {
                     >
                       {to === '/app/stock' ? (
                         <StockBottleIcon size={26} float={isActive} delay="0s" />
+                      ) : to === '/app/chantiers' ? (
+                        <Sites3dIcon size={26} float={isActive} delay="0s" />
+                      ) : to === '/app/interventions' ? (
+                        <Cerfa3dIcon size={26} float={isActive} delay="0s" />
                       ) : (
                         <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
                       )}

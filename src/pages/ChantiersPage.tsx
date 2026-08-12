@@ -49,6 +49,7 @@ import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
+import { Sites3dIcon } from '../components/Sites3dIcon'
 
 type QuickTone = 'sites' | 'cerfa' | 'teal' | 'muted'
 
@@ -842,18 +843,21 @@ export function ChantiersPage() {
     <div className="mx-auto w-full max-w-3xl space-y-4 overflow-x-hidden lg:max-w-none">
       {!open && !focusSiteId && (
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="font-display text-[1.75rem] font-bold leading-none tracking-tight sm:text-[2rem]">
-                Sites & Parc
-              </h1>
-              <span className="rounded-full bg-mist px-2.5 py-1 text-xs font-bold text-slate">
-                {filteredChantiers.length}
-              </span>
+          <div className="flex min-w-0 items-center gap-3">
+            <Sites3dIcon size={52} float delay="0.1s" className="shrink-0" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="font-display text-[1.75rem] font-bold leading-none tracking-tight sm:text-[2rem]">
+                  Sites & Parc
+                </h1>
+                <span className="rounded-full bg-mist px-2.5 py-1 text-xs font-bold text-slate">
+                  {filteredChantiers.length}
+                </span>
+              </div>
+              <p className="mt-1.5 text-sm text-muted">
+                Accès rapide · n° d’intervention signé (CERFA ou rapport)
+              </p>
             </div>
-            <p className="mt-1.5 text-sm text-muted">
-              Accès rapide · n° d’intervention signé (CERFA ou rapport)
-            </p>
           </div>
           <button
             type="button"

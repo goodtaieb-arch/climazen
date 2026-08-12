@@ -283,6 +283,7 @@ export function Dashboard() {
           <nav className="space-y-3" aria-label="Actions terrain">
             <TerrainAction
               icon={MapPin}
+              img3d="/icons/3d/climazen-sites.png"
               title="Sites & Parc"
               subtitle={
                 actifs.length
@@ -294,6 +295,7 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={ClipboardList}
+              img3d="/icons/3d/climazen-cerfa.png"
               title="CERFA / Interventions"
               subtitle={
                 brouillons.length
@@ -359,11 +361,12 @@ export function Dashboard() {
                 >
                   <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
                     <img
-                      src="/icons/3d/contract.png"
+                      src="/icons/3d/climazen-cerfa.png"
                       alt=""
                       width={48}
                       height={48}
-                      className="h-12 w-12 shrink-0 object-contain"
+                      className="float-3d h-12 w-12 shrink-0 object-contain"
+                      style={{ animationDelay: '0.3s' }}
                       loading="lazy"
                     />
                     <div className="min-w-0">
@@ -491,11 +494,13 @@ export function Dashboard() {
       {/* Raccourcis stats 3D */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <Stat3d
-          img="/icons/3d/home.png"
+          img="/icons/3d/climazen-sites.png"
           alt="Sites"
           label="Sites & Parc"
           value={String(actifs.length)}
           to="/app/chantiers"
+          float
+          floatDelay="0.2s"
         />
         <Stat3d
           img="/icons/3d/climazen-bottle.png"
@@ -505,6 +510,7 @@ export function Dashboard() {
           unit="kg"
           to="/app/stock"
           float
+          floatDelay="0.5s"
         />
         <Stat3d
           img="/icons/3d/climazen-clients.png"
@@ -516,12 +522,14 @@ export function Dashboard() {
           floatDelay="0.7s"
         />
         <Stat3d
-          img="/icons/3d/contract.png"
+          img="/icons/3d/climazen-cerfa.png"
           alt="CERFA"
           label={brouillons.length > 0 ? 'CERFA brouillons' : 'CERFA validés'}
           value={String(brouillons.length > 0 ? brouillons.length : signes.length)}
           to="/app/interventions"
           alert={brouillons.length > 0}
+          float
+          floatDelay="0.9s"
         />
       </div>
     </div>

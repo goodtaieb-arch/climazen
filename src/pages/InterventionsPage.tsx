@@ -8,6 +8,7 @@ import { loadCerfaPdf } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
+import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import { cerfaLabelFor } from '../lib/types'
 
 export function InterventionsPage() {
@@ -58,11 +59,14 @@ export function InterventionsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">CERFA / Interventions</h1>
-          <p className="mt-1 text-muted">
-            Fiches de toute l’équipe — CERFA stockés dans ClimaZEN, visibles sur le compte société.
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          <Cerfa3dIcon size={56} float delay="0.2s" className="shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-bold tracking-tight">CERFA / Interventions</h1>
+            <p className="mt-1 text-muted">
+              Fiches de toute l’équipe — CERFA stockés dans ClimaZEN, visibles sur le compte société.
+            </p>
+          </div>
         </div>
         <Link
           to="/app/interventions/new"
