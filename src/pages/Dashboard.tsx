@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Building2,
   CheckCircle2,
   ClipboardList,
-  FileStack,
-  HardHat,
   MapPin,
   Package,
   Search,
-  Wrench,
   X,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -133,7 +130,7 @@ export function Dashboard() {
             Sur le terrain
           </h1>
           <p className="mt-1 text-sm text-muted sm:text-base">
-            Touchez une action — gros boutons, icônes claires.
+            Mêmes menus que l’app — Sites, CERFA, Fluides, Clients.
           </p>
         </div>
 
@@ -189,57 +186,52 @@ export function Dashboard() {
           </ul>
         )}
 
-        {/* Menu portable — style C’Fluide : une ligne = une action claire */}
+        {/* Menu portable — mêmes noms & couleurs que la nav ClimaZEN */}
         {!q.trim() && (
           <nav className="space-y-3" aria-label="Actions terrain">
             <TerrainAction
-              icon={<HardHat className="h-8 w-8" strokeWidth={1.75} />}
-              title="Débuter une saisie"
-              subtitle="Ouvrir un site → équipement → CERFA"
-              tone="primary"
+              icon={MapPin}
+              title="Sites & Parc"
+              subtitle={
+                actifs.length
+                  ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc & équipements`
+                  : 'Sites, équipements, créer un CERFA'
+              }
+              color="sites"
               onClick={() => goTravaux()}
             />
             <TerrainAction
-              icon={<ClipboardList className="h-8 w-8" strokeWidth={1.75} />}
-              title="Saisie en cours"
+              icon={ClipboardList}
+              title="CERFA / Interventions"
               subtitle={
                 brouillons.length
-                  ? `${brouillons.length} brouillon${brouillons.length > 1 ? 's' : ''} CERFA`
-                  : 'Aucun brouillon'
+                  ? `${brouillons.length} brouillon${brouillons.length > 1 ? 's' : ''} à terminer`
+                  : 'Fiches CERFA & historique'
               }
               badge={brouillons.length || undefined}
+              color="cerfa"
               to="/app/interventions"
             />
             <TerrainAction
-              icon={<FileStack className="h-8 w-8" strokeWidth={1.75} />}
-              title="Historique des documents"
-              subtitle="Tous les CERFA & interventions"
-              to="/app/interventions"
-            />
-            <TerrainAction
-              icon={<Package className="h-8 w-8" strokeWidth={1.75} />}
-              title="Gérer des contenants"
+              icon={Package}
+              title="Stock fluides"
               subtitle={
                 stockCount
                   ? `${stockCount} bouteille${stockCount > 1 ? 's' : ''} · ${stockKg.toFixed(1)} kg`
-                  : 'Stock fluides vide'
+                  : 'Bouteilles & mouvements'
               }
+              color="stock"
               to="/app/stock"
             />
             <TerrainAction
-              icon={<Wrench className="h-8 w-8" strokeWidth={1.75} />}
-              title="Gérer mes équipements"
+              icon={Building2}
+              title="Clients"
               subtitle={
-                actifs.length
-                  ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc sous contrat`
-                  : 'Sites & parc équipements'
+                data.clients.length
+                  ? `${data.clients.length} détenteur${data.clients.length > 1 ? 's' : ''}`
+                  : 'Clients / détenteurs'
               }
-              to="/app/chantiers"
-            />
-            <TerrainAction
-              icon={<Building2 className="h-8 w-8" strokeWidth={1.75} />}
-              title="Clients / détenteurs"
-              subtitle={`${data.clients.length} client${data.clients.length > 1 ? 's' : ''}`}
+              color="clients"
               to="/app/clients"
             />
           </nav>
@@ -347,39 +339,57 @@ export function Dashboard() {
   )
 }
 
+const MENU_COLORS = {
+  sites: {
+    band: 'rgba(249, 115, 22, 0.14)',
+    icon: '#ea580c',
+    border: 'rgba(249, 115, 22, 0.35)',
+  },
+  cerfa: {
+    band: 'rgba(34, 197, 94, 0.14)',
+    icon: '#16a34a',
+    border: 'rgba(34, 197, 94, 0.35)',
+  },
+  stock: {
+    band: 'rgba(234, 179, 8, 0.16)',
+    icon: '#ca8a04',
+    border: 'rgba(234, 179, 8, 0.4)',
+  },
+  clients: {
+    band: 'rgba(168, 85, 247, 0.14)',
+    icon: '#9333ea',
+    border: 'rgba(168, 85, 247, 0.35)',
+  },
+} as const
+
 function TerrainAction({
-  icon,
+  icon: Icon,
   title,
   subtitle,
   to,
   onClick,
   badge,
-  tone = 'default',
+  color,
 }: {
-  icon: ReactNode
+  icon: typeof Building2
   title: string
   subtitle: string
   to?: string
   onClick?: () => void
   badge?: number
-  tone?: 'default' | 'primary'
+  color: keyof typeof MENU_COLORS
 }) {
-  const className = [
-    'relative flex min-h-[4.75rem] w-full items-center gap-4 rounded-2xl border-2 px-4 py-3.5 text-left shadow-sm transition active:scale-[0.99]',
-    tone === 'primary'
-      ? 'border-accent bg-accent text-ink'
-      : 'border-line bg-white text-ink active:bg-mist',
-  ].join(' ')
+  const c = MENU_COLORS[color]
+  const className =
+    'relative flex min-h-[4.75rem] w-full items-center gap-4 rounded-2xl border-2 bg-white px-4 py-3.5 text-left text-ink shadow-sm transition active:scale-[0.99] active:bg-mist'
 
   const body = (
     <>
       <span
-        className={[
-          'relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl',
-          tone === 'primary' ? 'bg-white/85 text-ink' : 'bg-[#0b3a5c]/10 text-[#0b3a5c]',
-        ].join(' ')}
+        className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl"
+        style={{ backgroundColor: c.band, color: c.icon }}
       >
-        {icon}
+        <Icon className="h-7 w-7" strokeWidth={1.9} />
         {badge != null && badge > 0 ? (
           <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white">
             {badge > 99 ? '99+' : badge}
@@ -387,31 +397,26 @@ function TerrainAction({
         ) : null}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-display text-[15px] font-bold uppercase tracking-wide sm:text-base">
+        <span className="block font-display text-base font-bold tracking-tight sm:text-lg">
           {title}
         </span>
-        <span
-          className={[
-            'mt-0.5 block text-sm',
-            tone === 'primary' ? 'text-ink/75' : 'text-muted',
-          ].join(' ')}
-        >
-          {subtitle}
-        </span>
+        <span className="mt-0.5 block text-sm text-muted">{subtitle}</span>
       </span>
     </>
   )
 
+  const style = { borderColor: c.border }
+
   if (to) {
     return (
-      <Link to={to} className={className}>
+      <Link to={to} className={className} style={style}>
         {body}
       </Link>
     )
   }
 
   return (
-    <button type="button" onClick={onClick} className={className}>
+    <button type="button" onClick={onClick} className={className} style={style}>
       {body}
     </button>
   )
