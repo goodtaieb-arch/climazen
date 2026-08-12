@@ -356,6 +356,11 @@ export interface CerfaDraft {
   /** Équipement du site concerné par ce CERFA (1 CERFA = 1 équipement) */
   equipementId?: string
   dateIntervention: string
+  /**
+   * N° d’intervention unique (signé) — format INT-YYYY-NNNN.
+   * Obligatoire pour tracer toute action terrain (avec ou sans PDF CERFA).
+   */
+  numeroIntervention?: string
 
   /** [1] Opérateur — copie au moment de l'intervention */
   operateur: Operateur
@@ -465,8 +470,16 @@ export interface AppData {
   fichesMaintenanceClim?: FicheMaintenanceClim[]
 }
 
-/** Libellé CERFA pour traçabilité stock */
-export function cerfaLabelFor(intervention: Pick<CerfaDraft, 'id' | 'dateIntervention' | 'cerfaPdfFileName'>) {
+/** Libellé CERFA / intervention pour traçabilité stock */
+export function cerfaLabelFor(
+  intervention: Pick<
+    CerfaDraft,
+    'id' | 'dateIntervention' | 'cerfaPdfFileName' | 'numeroIntervention'
+  >,
+) {
+  if (intervention.numeroIntervention?.trim()) {
+    return intervention.numeroIntervention.trim()
+  }
   if (intervention.cerfaPdfFileName) {
     return intervention.cerfaPdfFileName.replace(/\.pdf$/i, '')
   }

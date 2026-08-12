@@ -28,6 +28,7 @@ import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser } from '../lib/detecteurs'
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
+import { nextNumeroIntervention } from '../lib/numeroIntervention'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
@@ -168,6 +169,16 @@ export function InterventionFormPage() {
     existing?.signatureDetenteurImage || '',
   )
   const [status, setStatus] = useState<CerfaDraft['status']>(existing?.status || 'brouillon')
+  const [numeroIntervention, setNumeroIntervention] = useState(
+    () =>
+      existing?.numeroIntervention?.trim() ||
+      (isNew
+        ? nextNumeroIntervention({
+            interventions: data.interventions,
+            fichesMaintenanceClim: data.fichesMaintenanceClim,
+          })
+        : ''),
+  )
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
   const [savedMsg, setSavedMsg] = useState('')
@@ -362,6 +373,7 @@ export function InterventionFormPage() {
       chantierId,
       equipementId: equipementId || equipement?.id || undefined,
       dateIntervention,
+      numeroIntervention: numeroIntervention || undefined,
       operateur: data.operateur,
       natures,
       detecteurIdentification,
@@ -586,6 +598,11 @@ export function InterventionFormPage() {
           L’enregistrement reste <strong>dans ClimaZEN</strong> (avec le PDF officiel). Rien n’est
           envoyé dans le dossier Téléchargements.
         </p>
+        {numeroIntervention ? (
+          <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
+            N° intervention {numeroIntervention}
+          </p>
+        ) : null}
       </div>
 
       {savedMsg && (
@@ -1144,18 +1161,29 @@ export function InterventionFormPage() {
             </div>
           </div>
 
-          <label className="mt-4 block text-sm">
-            <span className="mb-1 block text-muted">Statut</span>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as CerfaDraft['status'])}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="brouillon">Brouillon</option>
-              <option value="signe">Signé</option>
-              <option value="envoye">Envoyé</option>
-            </select>
-          </label>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">N° d’intervention (signé)</span>
+              <input
+                value={numeroIntervention}
+                onChange={(e) => setNumeroIntervention(e.target.value)}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold tracking-wide"
+                placeholder="INT-2026-0001"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Statut</span>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as CerfaDraft['status'])}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="brouillon">Brouillon</option>
+                <option value="signe">Signé</option>
+                <option value="envoye">Envoyé</option>
+              </select>
+            </label>
+          </div>
         </Section>
 
         {step === 4 && (

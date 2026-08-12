@@ -1,6 +1,20 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ClipboardList, FileCheck2, Plus, Pencil, RefreshCw, Trash2, ChevronRight, ArrowLeft, Building2 } from 'lucide-react'
+import {
+  ClipboardList,
+  FileCheck2,
+  Plus,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  ChevronRight,
+  ArrowLeft,
+  Building2,
+  Cpu,
+  Layers,
+  FileSignature,
+  type LucideIcon,
+} from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, ModeGestion, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -34,6 +48,48 @@ import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFro
 import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
+import { nextNumeroIntervention } from '../lib/numeroIntervention'
+
+type QuickTone = 'sites' | 'cerfa' | 'teal' | 'muted'
+
+function QuickIconBtn({
+  icon: Icon,
+  label,
+  tone,
+  onClick,
+  title,
+}: {
+  icon: LucideIcon
+  label: string
+  tone: QuickTone
+  onClick: () => void
+  title?: string
+}) {
+  const tones: Record<QuickTone, { wrap: string; icon: string }> = {
+    sites: { wrap: 'bg-orange-50 border-orange-200', icon: 'text-orange-600' },
+    cerfa: { wrap: 'bg-emerald-50 border-emerald-200', icon: 'text-emerald-700' },
+    teal: { wrap: 'bg-teal-50 border-teal-200', icon: 'text-teal-700' },
+    muted: { wrap: 'bg-white border-line', icon: 'text-slate' },
+  }
+  const t = tones[tone]
+  return (
+    <button
+      type="button"
+      title={title || label}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className={[
+        'inline-flex min-h-12 min-w-[4.5rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-1.5 active:translate-y-px sm:flex-none sm:min-w-[5rem]',
+        t.wrap,
+      ].join(' ')}
+    >
+      <Icon className={['h-5 w-5', t.icon].join(' ')} strokeWidth={2.25} />
+      <span className="text-[10px] font-bold leading-tight text-ink">{label}</span>
+    </button>
+  )
+}
 
 const blankEquip = (avecFluide = true): Equipement => ({
   id: crypto.randomUUID(),
@@ -107,11 +163,12 @@ export function ChantiersPage() {
   const [batchBusy, setBatchBusy] = useState<string | null>(null)
   const [picker, setPicker] = useState<{
     site: Chantier
-    mode: 'maintenance' | 'intervention'
+    mode: 'maintenance' | 'intervention' | 'rapport'
     selected: string[]
     nature: 'maintenance' | 'depanage' | 'controle'
     filter: string
   } | null>(null)
+  const [intervChoiceSite, setIntervChoiceSite] = useState<Chantier | null>(null)
   const [equipWork, setEquipWork] = useState<{
     site: Chantier
     equipementId: string
@@ -255,8 +312,8 @@ export function ChantiersPage() {
       .map(({ i }) => i)
   }, [equipements, equipFilter])
 
-  const openPicker = (site: Chantier, mode: 'maintenance' | 'intervention') => {
-    const eqs = equipementsForCerfa(site)
+  const openPicker = (site: Chantier, mode: 'maintenance' | 'intervention' | 'rapport') => {
+    const eqs = mode === 'rapport' ? allEquipements(site) : equipementsForCerfa(site)
     setPicker({
       site,
       mode,
@@ -271,34 +328,42 @@ export function ChantiersPage() {
     })
   }
 
+  const openSiteParc = (site: Chantier) => {
+    setFocusSiteId(site.id)
+    setFocusEquipId(null)
+    setSiteMenuOpen(false)
+    setEquipQ('')
+    setIntervChoiceSite(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const naturesForPicker = (nature: 'maintenance' | 'depanage' | 'controle'): NatureIntervention[] => {
     if (nature === 'depanage') return ['entretien_reparation']
     if (nature === 'controle') return ['controle_etancheite_periodique']
     return ['entretien_reparation', 'controle_etancheite_periodique']
   }
 
-  const openFichesMaintenanceFromPicker = (equipementIds?: string[]) => {
-    if (!picker) return
-    const eqs = equipementsForCerfa(picker.site)
-    const selected = (equipementIds || picker.selected).filter((id) => eqs.some((e) => e.id === id))
+  const createFichesRapport = (site: Chantier, equipementIds: string[]) => {
+    const eqs = allEquipements(site)
+    const selected = equipementIds.filter((id) => eqs.some((e) => e.id === id))
     if (selected.length === 0) {
       alert('Cochez au moins un équipement.')
       return
     }
-    const client = data.clients.find((c) => c.id === picker.site.clientId)
-    const site = picker.site
+    const client = data.clients.find((c) => c.id === site.clientId)
     const adresse =
       [site.adresse, site.codePostal, site.ville].filter(Boolean).join(', ') ||
       [client?.adresse, client?.codePostal, client?.ville].filter(Boolean).join(', ')
     const technicien = user?.signataireNom || user?.fullName || user?.email || ''
     const createdIds: string[] = []
-    for (const eqId of selected) {
+    selected.forEach((eqId, offset) => {
       const eq = eqs.find((e) => e.id === eqId)
-      if (!eq) continue
+      if (!eq) return
       const base = blankFicheMaintenanceClim()
       const marqueModele = [eq.marque, eq.modele].filter(Boolean).join(' / ')
       const id = upsertFicheMaintenanceClim({
         ...base,
+        numero: nextNumeroIntervention(data, offset),
         date: today(),
         technicien,
         clientId: client?.id || site.clientId,
@@ -315,7 +380,62 @@ export function ChantiersPage() {
         signatureClientImage: site.signatureDetenteurImage || '',
       })
       createdIds.push(id)
+    })
+    setPicker(null)
+    setIntervChoiceSite(null)
+    if (createdIds.length === 0) return
+    const first = createdIds[0]
+    const q =
+      createdIds.length > 1
+        ? `id=${encodeURIComponent(first)}&batch=${encodeURIComponent(createdIds.join(','))}`
+        : `id=${encodeURIComponent(first)}`
+    navigate(`/app/fiche-maintenance-clim?${q}`)
+  }
+
+  const openFichesMaintenanceFromPicker = (equipementIds?: string[]) => {
+    if (!picker) return
+    if (picker.mode === 'rapport') {
+      createFichesRapport(picker.site, equipementIds || picker.selected)
+      return
     }
+    const eqs = equipementsForCerfa(picker.site)
+    const selected = (equipementIds || picker.selected).filter((id) => eqs.some((e) => e.id === id))
+    if (selected.length === 0) {
+      alert('Cochez au moins un équipement.')
+      return
+    }
+    const client = data.clients.find((c) => c.id === picker.site.clientId)
+    const site = picker.site
+    const adresse =
+      [site.adresse, site.codePostal, site.ville].filter(Boolean).join(', ') ||
+      [client?.adresse, client?.codePostal, client?.ville].filter(Boolean).join(', ')
+    const technicien = user?.signataireNom || user?.fullName || user?.email || ''
+    const createdIds: string[] = []
+    selected.forEach((eqId, offset) => {
+      const eq = eqs.find((e) => e.id === eqId)
+      if (!eq) return
+      const base = blankFicheMaintenanceClim()
+      const marqueModele = [eq.marque, eq.modele].filter(Boolean).join(' / ')
+      const id = upsertFicheMaintenanceClim({
+        ...base,
+        numero: nextNumeroIntervention(data, offset),
+        date: today(),
+        technicien,
+        clientId: client?.id || site.clientId,
+        chantierId: site.id,
+        equipementId: eq.id,
+        clientNom: client?.raisonSociale || '',
+        adresse,
+        marqueModele: marqueModele || eq.type || '',
+        numeroSerie: eq.numeroSerie || '',
+        fluide: eq.fluideType || '',
+        quantiteFluideKg:
+          eq.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
+        signatureTechnicienImage: user?.signatureImage || '',
+        signatureClientImage: site.signatureDetenteurImage || '',
+      })
+      createdIds.push(id)
+    })
     setPicker(null)
     if (createdIds.length === 0) return
     const first = createdIds[0]
@@ -326,9 +446,23 @@ export function ChantiersPage() {
     navigate(`/app/fiche-maintenance-clim?${q}`)
   }
 
+  const startRapportFromSite = (site: Chantier) => {
+    const eqs = allEquipements(site)
+    if (eqs.length === 0) {
+      alert('Ajoutez d’abord un équipement sur ce site.')
+      return
+    }
+    if (eqs.length === 1) {
+      createFichesRapport(site, [eqs[0].id])
+      return
+    }
+    openPicker(site, 'rapport')
+  }
+
   const onConfirmPicker = async () => {
     if (!picker || !user) return
-    const eqs = equipementsForCerfa(picker.site)
+    const eqs =
+      picker.mode === 'rapport' ? allEquipements(picker.site) : equipementsForCerfa(picker.site)
     const selected = picker.selected.filter((id) => eqs.some((e) => e.id === id))
     if (selected.length === 0) {
       alert('Cochez au moins un équipement.')
@@ -338,11 +472,17 @@ export function ChantiersPage() {
     if (picker.mode === 'intervention') {
       const eqId = selected[0]
       setPicker(null)
+      setIntervChoiceSite(null)
       setEquipWork({
         site: picker.site,
         equipementId: eqId,
         natures: naturesForPicker(picker.nature),
       })
+      return
+    }
+
+    if (picker.mode === 'rapport') {
+      createFichesRapport(picker.site, selected)
       return
     }
 
@@ -712,7 +852,7 @@ export function ChantiersPage() {
               </span>
             </div>
             <p className="mt-1.5 text-sm text-muted">
-              Inventaire sous contrat — interventions via CERFA
+              Accès rapide · n° d’intervention signé (CERFA ou rapport)
             </p>
           </div>
           <button
@@ -1257,31 +1397,28 @@ export function ChantiersPage() {
                   <ChevronRight className="h-4 w-4 text-muted" />
                 </span>
               </button>
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-                {fluide ? (
-                  <button
-                    type="button"
-                    onClick={() => openPicker(c, 'intervention')}
-                    className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white shadow-sm active:translate-y-px sm:flex-none"
-                  >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-                    Créer CERFA
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFocusSiteId(c.id)
-                    setFocusEquipId(null)
-                    setSiteMenuOpen(false)
-                    setEquipQ('')
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
-                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
-                >
-                  Ouvrir le parc
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+                <QuickIconBtn
+                  icon={Cpu}
+                  label="+ Équip."
+                  tone="sites"
+                  title="Ajouter un équipement"
+                  onClick={() => addEquipementToSite(c)}
+                />
+                <QuickIconBtn
+                  icon={FileSignature}
+                  label="Interv."
+                  tone="cerfa"
+                  title="Se mettre en intervention (CERFA ou rapport)"
+                  onClick={() => setIntervChoiceSite(c)}
+                />
+                <QuickIconBtn
+                  icon={Layers}
+                  label="Parc"
+                  tone="teal"
+                  title="Ouvrir le parc"
+                  onClick={() => openSiteParc(c)}
+                />
               </div>
             </div>
           )
@@ -1336,20 +1473,30 @@ export function ChantiersPage() {
                   <span className="font-semibold text-ink">{c.nom}</span>
                   {client?.raisonSociale ? ` · ${client.raisonSociale}` : ''}
                 </p>
-                {fluide ? (
-                  <button
-                    type="button"
-                    onClick={() => openPicker(c, 'intervention')}
-                    className="inline-flex h-9 items-center gap-1 rounded-lg bg-[#0f766e] px-2.5 text-xs font-bold text-white"
-                  >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-                    CERFA
-                  </button>
-                ) : null}
+                <QuickIconBtn
+                  icon={Cpu}
+                  label="+ Équip."
+                  tone="sites"
+                  title="Ajouter un équipement"
+                  onClick={() => {
+                    setSiteMenuOpen(false)
+                    addEquipementToSite(c)
+                  }}
+                />
+                <QuickIconBtn
+                  icon={FileSignature}
+                  label="Interv."
+                  tone="cerfa"
+                  title="Se mettre en intervention"
+                  onClick={() => {
+                    setSiteMenuOpen(false)
+                    setIntervChoiceSite(c)
+                  }}
+                />
                 <button
                   type="button"
                   onClick={() => setSiteMenuOpen((v) => !v)}
-                  className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-2.5 text-xs font-semibold active:bg-mist"
+                  className="inline-flex h-12 items-center rounded-xl border border-line bg-white px-2.5 text-xs font-semibold active:bg-mist"
                 >
                   Options
                 </button>
@@ -1592,10 +1739,12 @@ export function ChantiersPage() {
             <h2 className="font-display text-lg font-semibold">
               {picker.mode === 'maintenance'
                 ? 'Quels équipements avez-vous traités ?'
-                : 'Quel équipement pour ce CERFA ?'}
+                : picker.mode === 'rapport'
+                  ? 'Rapport d’intervention — quel équipement ?'
+                  : 'Quel équipement pour ce CERFA ?'}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {picker.site.nom} — équipements déjà enregistrés, sans resaisie.
+              {picker.site.nom} — un n° d’intervention INT-… sera attribué automatiquement.
             </p>
 
             {picker.mode === 'intervention' && (
@@ -1656,7 +1805,10 @@ export function ChantiersPage() {
               </div>
             )}
 
-            {equipementsForCerfa(picker.site).length > 5 && (
+            {(picker.mode === 'rapport'
+              ? allEquipements(picker.site)
+              : equipementsForCerfa(picker.site)
+            ).length > 5 && (
               <div className="mt-3">
                 <SearchField
                   value={picker.filter}
@@ -1668,7 +1820,10 @@ export function ChantiersPage() {
             )}
 
             <ul className="mt-4 space-y-2">
-              {equipementsForCerfa(picker.site)
+              {(picker.mode === 'rapport'
+                ? allEquipements(picker.site)
+                : equipementsForCerfa(picker.site)
+              )
                 .filter((eq) =>
                   matchesQuery(
                     [eq.nom, eq.type, eq.marque, eq.modele, eq.fluideType, eq.numeroSerie]
@@ -1740,15 +1895,15 @@ export function ChantiersPage() {
                         </span>
                       </button>
                       <div className="flex shrink-0 flex-col gap-1">
-                        {picker.mode === 'maintenance' && (
+                        {(picker.mode === 'maintenance' || picker.mode === 'rapport') && (
                           <button
                             type="button"
                             onClick={() => openFichesMaintenanceFromPicker([eq.id])}
                             className="inline-flex items-center justify-center gap-1 rounded-full border border-accent bg-accent-soft px-2.5 py-1 text-[11px] font-semibold text-slate hover:bg-accent"
-                            title="Générer fiche de maintenance"
+                            title="Générer rapport / fiche"
                           >
                             <ClipboardList className="h-3.5 w-3.5" />
-                            Fiche
+                            Rapport
                           </button>
                         )}
                         <button
@@ -1772,7 +1927,7 @@ export function ChantiersPage() {
               })}
             </ul>
 
-            {picker.mode === 'maintenance' && (
+            {(picker.mode === 'maintenance' || picker.mode === 'rapport') && (
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <button
                   type="button"
@@ -1780,7 +1935,10 @@ export function ChantiersPage() {
                   onClick={() =>
                     setPicker({
                       ...picker,
-                      selected: equipementsForCerfa(picker.site).map((e) => e.id),
+                      selected: (picker.mode === 'rapport'
+                        ? allEquipements(picker.site)
+                        : equipementsForCerfa(picker.site)
+                      ).map((e) => e.id),
                     })
                   }
                 >
@@ -1803,10 +1961,16 @@ export function ChantiersPage() {
                 onClick={() => void onConfirmPicker()}
                 className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
-                <FileCheck2 className="h-4 w-4" />
+                {picker.mode === 'rapport' ? (
+                  <ClipboardList className="h-4 w-4" />
+                ) : (
+                  <FileCheck2 className="h-4 w-4" />
+                )}
                 {picker.mode === 'maintenance'
                   ? `Générer ${picker.selected.length || 0} CERFA`
-                  : 'Choisir le type d’intervention'}
+                  : picker.mode === 'rapport'
+                    ? `Rapport (${picker.selected.length || 0})`
+                    : 'Choisir le type d’intervention'}
               </button>
               {picker.mode === 'maintenance' && (
                 <button
@@ -1825,6 +1989,62 @@ export function ChantiersPage() {
                 type="button"
                 onClick={() => setPicker(null)}
                 className="rounded-full border border-line px-5 py-2.5 text-sm"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {intervChoiceSite && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
+          <div className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-line bg-white p-5 shadow-xl sm:rounded-2xl">
+            <h2 className="font-display text-xl font-semibold">Se mettre en intervention</h2>
+            <p className="mt-1 text-sm text-muted">
+              {intervChoiceSite.nom} — chaque action reçoit un n° signé (INT-…).
+            </p>
+            <div className="mt-5 space-y-3">
+              {siteAvecFluideFrigorigene(intervChoiceSite) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const site = intervChoiceSite
+                    setIntervChoiceSite(null)
+                    openPicker(site, 'intervention')
+                  }}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 py-4 text-left font-bold text-ink active:bg-emerald-100"
+                >
+                  <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
+                  <span>
+                    <span className="block text-base">Avec CERFA</span>
+                    <span className="block text-sm font-medium text-muted">
+                      Fluide / obligation légale — n° + signatures
+                    </span>
+                  </span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  const site = intervChoiceSite
+                  setIntervChoiceSite(null)
+                  startRapportFromSite(site)
+                }}
+                className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-line bg-white px-4 py-4 text-left font-bold text-ink active:bg-mist"
+              >
+                <ClipboardList className="h-6 w-6 shrink-0 text-emerald-700" />
+                <span>
+                  <span className="block text-base">Rapport sans CERFA</span>
+                  <span className="block text-sm font-medium text-muted">
+                    Fiche d’intervention signée — même série de n°
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIntervChoiceSite(null)}
+                className="min-h-12 w-full rounded-2xl border border-line px-4 py-3 text-sm font-semibold"
               >
                 Annuler
               </button>

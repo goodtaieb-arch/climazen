@@ -8,6 +8,7 @@ import { loadCerfaPdf } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
+import { cerfaLabelFor } from '../lib/types'
 
 export function InterventionsPage() {
   const { data, deleteIntervention } = useStore()
@@ -23,7 +24,16 @@ export function InterventionsPage() {
         const client = data.clients.find((c) => c.id === i.clientId)
         const chantier = data.chantiers.find((c) => c.id === i.chantierId)
         return matchesQuery(
-          [chantier?.nom, client?.raisonSociale, i.fluideType, i.dateIntervention, i.status, i.createdByName]
+          [
+            chantier?.nom,
+            client?.raisonSociale,
+            i.fluideType,
+            i.dateIntervention,
+            i.status,
+            i.createdByName,
+            i.numeroIntervention,
+            cerfaLabelFor(i),
+          ]
             .filter(Boolean)
             .join(' '),
           q,
@@ -92,7 +102,14 @@ export function InterventionsPage() {
               className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm"
             >
               <Link to={`/app/interventions/${i.id}`} className="block min-w-0 hover:text-accent">
-                <div className="font-display text-base font-semibold">{label}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-display text-base font-semibold">{label}</div>
+                  {i.numeroIntervention ? (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                      {i.numeroIntervention}
+                    </span>
+                  ) : null}
+                </div>
                 <div className="mt-1 text-sm text-muted">
                   {client?.raisonSociale || '—'}
                 </div>

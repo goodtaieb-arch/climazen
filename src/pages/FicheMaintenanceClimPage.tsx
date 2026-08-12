@@ -12,6 +12,7 @@ import {
   type FicheMaintenanceClim,
 } from '../lib/ficheMaintenanceClim'
 import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
+import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { DecimalField } from '../components/DecimalField'
 import { SignaturePad } from '../components/SignaturePad'
 import { PdfViewerModal } from '../components/PdfViewerModal'
@@ -48,6 +49,7 @@ function buildPrefill(opts: {
   }
   technicien: string
   signatureOperateur?: string
+  numero?: string
 }): Omit<FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'> {
   if (opts.existing) {
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = opts.existing
@@ -70,6 +72,7 @@ function buildPrefill(opts: {
   const marqueModele = [equip?.marque, equip?.modele].filter(Boolean).join(' / ')
   return {
     ...base,
+    numero: opts.numero || base.numero,
     date: today(),
     technicien: opts.technicien,
     clientId: client?.id || site?.clientId,
@@ -135,6 +138,12 @@ export function FicheMaintenanceClimPage() {
         equip,
         technicien: technicienDefault,
         signatureOperateur: user?.signatureImage,
+        numero: existing?.numero || (!editId
+          ? nextNumeroIntervention({
+              interventions: data.interventions,
+              fichesMaintenanceClim: data.fichesMaintenanceClim,
+            })
+          : undefined),
       }),
   )
   const hydratedKey = useRef('')
@@ -158,6 +167,12 @@ export function FicheMaintenanceClimPage() {
         equip,
         technicien: technicienDefault,
         signatureOperateur: user?.signatureImage,
+        numero: existing?.numero || (!editId
+          ? nextNumeroIntervention({
+              interventions: data.interventions,
+              fichesMaintenanceClim: data.fichesMaintenanceClim,
+            })
+          : undefined),
       }),
     )
   }, [
@@ -387,7 +402,7 @@ export function FicheMaintenanceClimPage() {
               value={form.numero}
               onChange={(e) => setForm({ ...form, numero: e.target.value })}
               className="h-11 w-full rounded-xl border border-line px-3"
-              placeholder="ex. M-2026-014"
+              placeholder="INT-2026-0001"
             />
           </label>
           <label className="block text-sm">

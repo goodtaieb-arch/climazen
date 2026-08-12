@@ -34,6 +34,7 @@ import {
   syncFlatFromEquipements,
 } from './cerfaBatch'
 import { detecteurForUser } from './detecteurs'
+import { nextNumeroIntervention } from './numeroIntervention'
 import {
   getPendingSync,
   isBrowserOnline,
@@ -469,8 +470,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData((d) => {
         const list = d.fichesMaintenanceClim || []
         const existing = list.find((x) => x.id === id)
+        const numero =
+          (f.numero || '').trim() ||
+          (existing?.numero || '').trim() ||
+          nextNumeroIntervention(d)
         const next = {
           ...f,
+          numero,
           id,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
@@ -528,7 +534,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         detecteurControleDate: det?.controleDate,
         equipementIds: opts.equipementIds,
         natures: opts.natures,
-      })
+      }).map((draft, i) => ({
+        ...draft,
+        numeroIntervention: nextNumeroIntervention(d, i),
+      }))
       const now = new Date().toISOString()
       setData((prev) => ({
         ...prev,
@@ -679,9 +688,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       setData((d) => {
         const existing = d.interventions.find((x) => x.id === id)
+        const numeroIntervention =
+          i.numeroIntervention?.trim() ||
+          existing?.numeroIntervention?.trim() ||
+          nextNumeroIntervention(d)
         const next: CerfaDraft = {
           ...i,
           id,
+          numeroIntervention,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }

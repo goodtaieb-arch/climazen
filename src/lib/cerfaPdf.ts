@@ -292,7 +292,11 @@ export async function buildCerfaPdf(opts: {
 
   // [13] [14]
   setText(form, '13_Instal', draft.installationDestination)
-  setText(form, '14_Observations', draft.observations || '')
+  const obsParts = [
+    draft.numeroIntervention?.trim() ? `N° intervention ${draft.numeroIntervention.trim()}` : '',
+    draft.observations || '',
+  ].filter(Boolean)
+  setText(form, '14_Observations', obsParts.join(' — '))
 
   // Signatures — noms / qualités / dates (case « Date et signature »)
   const opNom = draft.signatureOperateur || ''
