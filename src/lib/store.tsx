@@ -36,6 +36,7 @@ import {
 import { detecteurForUser } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
 import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
+import type { ContratMaintenance } from './contratMaintenance'
 import {
   getPendingSync,
   isBrowserOnline,
@@ -73,6 +74,10 @@ type Store = {
     },
   ) => string
   deleteOrdreTravail: (id: string) => void
+  upsertContratMaintenance: (
+    c: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  deleteContratMaintenance: (id: string) => void
   /** Crée un OT pour une action terrain — retourne { id, numero }. */
   createOtForAction: (opts: {
     typeOt: import('./ordreTravail').TypeOt
@@ -592,6 +597,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const upsertContratMaintenance = useCallback(
+    (
+      c: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+      },
+    ) => {
+      const id = c.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.contratsMaintenance || []
+        const existing = list.find((x) => x.id === id)
+        const next: ContratMaintenance = {
+          ...c,
+          id,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        let chantiers = d.chantiers
+        if (next.statut === 'signe' && next.clientId) {
+          const coverAll = !next.chantierIds || next.chantierIds.length === 0
+          chantiers = d.chantiers.map((s) => {
+            if (s.clientId !== next.clientId) return s
+            if (!coverAll && !next.chantierIds.includes(s.id)) return s
+            return { ...s, modeGestion: 'contrat' as const }
+          })
+        }
+        return {
+          ...d,
+          chantiers,
+          contratsMaintenance: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteContratMaintenance = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      contratsMaintenance: (d.contratsMaintenance || []).filter((c) => c.id !== id),
+    }))
+  }, [])
+
   const createOtForAction = useCallback(
     (opts: {
       typeOt: import('./ordreTravail').TypeOt
@@ -1070,6 +1121,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteFicheMaintenanceClim,
       upsertOrdreTravail,
       deleteOrdreTravail,
+      upsertContratMaintenance,
+      deleteContratMaintenance,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
@@ -1102,6 +1155,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteFicheMaintenanceClim,
       upsertOrdreTravail,
       deleteOrdreTravail,
+      upsertContratMaintenance,
+      deleteContratMaintenance,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,

@@ -1,5 +1,5 @@
 import { type FormEvent, useMemo, useState, type HTMLAttributes } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Building2,
   Copy,
@@ -29,6 +29,7 @@ import {
   openPlateformeFacturation,
   sendClientToMake,
 } from '../lib/makeFacturation'
+import { contratsActifsForClient } from '../lib/contratMaintenance'
 
 const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   raisonSociale: '',
@@ -306,6 +307,7 @@ export function ClientsPage() {
         {filtered.map((c) => {
           const parc = parcByClient.get(c.id) || { sites: 0, equipements: 0 }
           const siret = formatSiret(c.siret)
+          const contratsActifs = contratsActifsForClient(data.contratsMaintenance, c.id)
           return (
             <article
               key={c.id}
@@ -313,8 +315,28 @@ export function ClientsPage() {
             >
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_auto] lg:items-start lg:gap-3">
                 <div className="min-w-0">
-                  <div className="truncate font-display text-base font-semibold text-ink">
-                    {c.raisonSociale}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="truncate font-display text-base font-semibold text-ink">
+                      {c.raisonSociale}
+                    </div>
+                    {contratsActifs.length > 0 ? (
+                      <Link
+                        to={`/app/contrats?id=${encodeURIComponent(contratsActifs[0].id)}`}
+                        className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-900"
+                        title={contratsActifs.map((x) => x.numero).join(', ')}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Contrat{contratsActifs.length > 1 ? ` ×${contratsActifs.length}` : ''}
+                      </Link>
+                    ) : (
+                      <Link
+                        to={`/app/contrats?new=1&client=${encodeURIComponent(c.id)}`}
+                        className="shrink-0 rounded-full border border-dashed border-line px-2 py-0.5 text-[10px] font-semibold text-muted"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        + Contrat
+                      </Link>
+                    )}
                   </div>
                   {siret ? (
                     <div className="mt-0.5 text-xs text-muted">SIRET : {siret}</div>

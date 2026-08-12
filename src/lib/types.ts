@@ -2,6 +2,7 @@
 
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
 import type { OrdreTravail } from './ordreTravail'
+import type { ContratMaintenance } from './contratMaintenance'
 
 export type NatureIntervention =
   | 'mise_en_service'
@@ -473,6 +474,8 @@ export interface AppData {
   fichesMaintenanceClim?: FicheMaintenanceClim[]
   /** Ordres de travail (OT) — n° unique OT2026xxxx */
   ordresTravail?: OrdreTravail[]
+  /** Contrats de maintenance (documents signables) */
+  contratsMaintenance?: ContratMaintenance[]
 }
 
 /** Libellé CERFA / intervention pour traçabilité stock */

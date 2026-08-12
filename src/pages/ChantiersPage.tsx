@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { openAddressInGps, formatAddressQuery } from '../lib/mapsNav'
+import { contratsActifsForSite } from '../lib/contratMaintenance'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, ModeGestion, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -1321,6 +1322,8 @@ export function ChantiersPage() {
           const fluides = siteFluidesSummary(c)
           const nextCtrl = resolveProchaineControle(c)
           const cerfaPending = siteHasCerfaASigner(c.id, data.interventions)
+          const contratsSite = contratsActifsForSite(data.contratsMaintenance, c)
+          const clientSitesCount = data.chantiers.filter((s) => s.clientId === c.clientId).length
           return (
             <div
               key={c.id}
@@ -1345,16 +1348,25 @@ export function ChantiersPage() {
                     <span className="truncate text-[15px] font-semibold text-ink">
                       {client?.raisonSociale || c.nom}
                     </span>
-                    <span
-                      className={[
-                        'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                        mode === 'contrat'
-                          ? 'bg-slate-100 text-slate-700'
-                          : 'bg-orange-100 text-orange-800',
-                      ].join(' ')}
-                    >
-                      {modeGestionLabel(c)}
-                    </span>
+                    {contratsSite.length > 0 ? (
+                      <span
+                        className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-900"
+                        title={contratsSite.map((x) => x.numero).join(', ')}
+                      >
+                        {clientSitesCount > 1 ? `Contrat · ${c.nom}` : 'Sous contrat'}
+                      </span>
+                    ) : (
+                      <span
+                        className={[
+                          'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                          mode === 'contrat'
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'bg-orange-100 text-orange-800',
+                        ].join(' ')}
+                      >
+                        {modeGestionLabel(c)}
+                      </span>
+                    )}
                   </span>
                   <span className="mt-1 block truncate text-xs text-muted">
                     {client?.raisonSociale
@@ -1446,6 +1458,20 @@ export function ChantiersPage() {
                     }}
                   />
                 ) : null}
+                <QuickIconBtn
+                  icon={FileSignature}
+                  label="Contrat"
+                  tone="sites"
+                  title="Contrat de maintenance"
+                  onClick={() => {
+                    const contrats = contratsActifsForSite(data.contratsMaintenance, c)
+                    if (contrats[0]) {
+                      navigate(`/app/contrats?id=${encodeURIComponent(contrats[0].id)}`)
+                    } else {
+                      navigate(`/app/contrats?new=1&client=${encodeURIComponent(c.clientId)}`)
+                    }
+                  }}
+                />
               </div>
             </div>
           )
