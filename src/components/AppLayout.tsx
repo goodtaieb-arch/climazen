@@ -456,15 +456,24 @@ export function AppLayout() {
                 {({ isActive }) => (
                   <>
                     <span
-                      className="grid h-10 w-10 place-items-center rounded-xl"
-                      style={{ backgroundColor: isActive ? t.band : 'transparent' }}
+                      className={[
+                        'grid h-11 w-11 place-items-center rounded-full border transition',
+                        isActive ? 'border-current bg-white shadow-sm' : 'border-line bg-white',
+                      ].join(' ')}
+                      style={
+                        isActive
+                          ? { borderColor: t.icon, boxShadow: `0 0 0 3px ${t.band}` }
+                          : undefined
+                      }
                     >
                       {(() => {
                         const threeD = (
                           <Nav3dIcon to={to} size={26} float={isActive} delay="0s" />
                         )
-                        return threeD || (
-                          <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
+                        return (
+                          threeD || (
+                            <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
+                          )
                         )
                       })()}
                     </span>

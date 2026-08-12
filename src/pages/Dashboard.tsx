@@ -195,9 +195,9 @@ export function Dashboard() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Accueil terrain
+              Accueil
             </h1>
-            <p className="mt-1 text-sm font-medium text-muted sm:text-base">
+            <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
               Suivez le guide 3D pour gérer vos interventions rapidement.
             </p>
             <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
@@ -227,13 +227,13 @@ export function Dashboard() {
         {!q.trim() && (
           <nav
             aria-label="Mode d’emploi rapide"
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-600 to-slate-800 p-5 text-white shadow-xl sm:p-6"
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-600 to-slate-800 p-4 text-white shadow-xl sm:p-6"
           >
             <div
               className="pointer-events-none absolute -bottom-10 -right-10 h-60 w-60 rounded-full bg-white/5 blur-2xl"
               aria-hidden
             />
-            <div className="relative mb-5 flex items-center justify-between gap-3">
+            <div className="relative mb-3 hidden items-center justify-between gap-3 sm:mb-5 sm:flex">
               <span className="rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-md">
                 Mode d’emploi rapide
               </span>
@@ -241,7 +241,7 @@ export function Dashboard() {
                 Appel client → OT → site → docs
               </span>
             </div>
-            <div className="relative mb-4">
+            <div className="relative mb-0 md:mb-4">
               <Link
                 to="/app/appel"
                 className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-bold text-emerald-800 shadow-md transition hover:bg-emerald-50 active:scale-[0.99]"
@@ -249,7 +249,7 @@ export function Dashboard() {
                 <Phone className="h-5 w-5" /> Client appelle — créer l’OT
               </Link>
             </div>
-            <ol className="relative grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
+            <ol className="relative mt-4 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3 md:gap-4">
               {QUICK_START.map((step) => (
                 <li key={step.n}>
                   <Link
@@ -318,72 +318,131 @@ export function Dashboard() {
           </ul>
         )}
 
-        {/* Menu portable — mêmes noms & couleurs que la nav ClimaZEN */}
+        {/* Menu portable — cercles (mobile) / liste (desktop) */}
         {!q.trim() && (
-          <nav className="space-y-3" aria-label="Actions terrain">
-            <TerrainAction
-              icon={MapPin}
-              img3d={ICON3D.sites}
-              title="Sites & Parc"
-              subtitle={
-                actifs.length
-                  ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc & équipements`
-                  : 'Sites, équipements, créer un CERFA'
-              }
-              color="sites"
-              onClick={() => goTravaux()}
-            />
-            <TerrainAction
-              icon={ClipboardList}
-              img3d={ICON3D.search}
-              title="Agenda"
-              subtitle={
-                agendaAContacter.length
-                  ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
-                  : 'Rappels maintenance & RDV'
-              }
-              color="sites"
-              to="/app/agenda"
-              badge={agendaAContacter.length || undefined}
-            />
-            <TerrainAction
-              icon={ClipboardList}
-              img3d={ICON3D.cerfa}
-              title="CERFA / Interventions"
-              subtitle={
-                brouillons.length
-                  ? `${brouillons.length} brouillon${brouillons.length > 1 ? 's' : ''} à terminer`
-                  : 'Fiches CERFA & historique'
-              }
-              badge={brouillons.length || undefined}
-              color="cerfa"
-              to="/app/interventions"
-            />
-            <TerrainAction
-              icon={Package}
-              img3d={ICON3D.bottle}
-              title="Stock fluides"
-              subtitle={
-                stockCount
-                  ? `${stockCount} bouteille${stockCount > 1 ? 's' : ''} · ${stockKg.toFixed(1)} kg`
-                  : 'Bouteilles & mouvements'
-              }
-              color="stock"
-              to="/app/stock"
-            />
-            <TerrainAction
-              icon={Building2}
-              img3d={ICON3D.clients}
-              title="Clients"
-              subtitle={
-                data.clients.length
-                  ? `${data.clients.length} détenteur${data.clients.length > 1 ? 's' : ''}`
-                  : 'Clients / détenteurs'
-              }
-              color="clients"
-              to="/app/clients"
-            />
-          </nav>
+          <>
+            <nav
+              className="grid grid-cols-2 gap-x-4 gap-y-6 px-2 py-2 md:hidden"
+              aria-label="Actions terrain"
+            >
+              <CircleHomeTile
+                title="Sites & Parc"
+                img={ICON3D.sites}
+                onClick={() => goTravaux()}
+                delay="0s"
+              />
+              <CircleHomeTile
+                title="Agenda"
+                img={ICON3D.search}
+                to="/app/agenda"
+                badge={agendaAContacter.length || undefined}
+                delay="0.15s"
+              />
+              <CircleHomeTile
+                title="CERFA"
+                img={ICON3D.cerfa}
+                to="/app/interventions"
+                badge={brouillons.length || undefined}
+                delay="0.3s"
+              />
+              <CircleHomeTile
+                title="Stock fluides"
+                img={ICON3D.bottle}
+                to="/app/stock"
+                delay="0.45s"
+              />
+              <CircleHomeTile
+                title="Clients"
+                img={ICON3D.clients}
+                to="/app/clients"
+                delay="0.6s"
+              />
+              <CircleHomeTile
+                title="Ordres de travail"
+                img={ICON3D.maintenance}
+                to="/app/ot"
+                badge={otAReprendre.length || undefined}
+                delay="0.75s"
+              />
+              <CircleHomeTile
+                title="Client appelle"
+                img={ICON3D.accueil}
+                to="/app/appel"
+                delay="0.9s"
+              />
+              <CircleHomeTile
+                title="Ma signature"
+                img={ICON3D.signaturePad}
+                to="/app/profil"
+                delay="1.05s"
+              />
+            </nav>
+
+            <nav className="hidden space-y-3 md:block" aria-label="Actions terrain">
+              <TerrainAction
+                icon={MapPin}
+                img3d={ICON3D.sites}
+                title="Sites & Parc"
+                subtitle={
+                  actifs.length
+                    ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc & équipements`
+                    : 'Sites, équipements, créer un CERFA'
+                }
+                color="sites"
+                onClick={() => goTravaux()}
+              />
+              <TerrainAction
+                icon={ClipboardList}
+                img3d={ICON3D.search}
+                title="Agenda"
+                subtitle={
+                  agendaAContacter.length
+                    ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
+                    : 'Rappels maintenance & RDV'
+                }
+                color="sites"
+                to="/app/agenda"
+                badge={agendaAContacter.length || undefined}
+              />
+              <TerrainAction
+                icon={ClipboardList}
+                img3d={ICON3D.cerfa}
+                title="CERFA / Interventions"
+                subtitle={
+                  brouillons.length
+                    ? `${brouillons.length} brouillon${brouillons.length > 1 ? 's' : ''} à terminer`
+                    : 'Fiches CERFA & historique'
+                }
+                badge={brouillons.length || undefined}
+                color="cerfa"
+                to="/app/interventions"
+              />
+              <TerrainAction
+                icon={Package}
+                img3d={ICON3D.bottle}
+                title="Stock fluides"
+                subtitle={
+                  stockCount
+                    ? `${stockCount} bouteille${stockCount > 1 ? 's' : ''} · ${stockKg.toFixed(1)} kg`
+                    : 'Bouteilles & mouvements'
+                }
+                color="stock"
+                to="/app/stock"
+              />
+              <TerrainAction
+                icon={Building2}
+                img3d={ICON3D.clients}
+                title="Clients"
+                subtitle={
+                  data.clients.length
+                    ? `${data.clients.length} détenteur${data.clients.length > 1 ? 's' : ''}`
+                    : 'Clients / détenteurs'
+                }
+                color="clients"
+                to="/app/clients"
+              />
+            </nav>
+          </>
         )}
       </section>
 
@@ -646,8 +705,8 @@ export function Dashboard() {
         </section>
       )}
 
-      {/* Raccourcis stats 3D */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+      {/* Raccourcis stats 3D — desktop / tablette (mobile = grille cercles) */}
+      <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-4 md:gap-4">
         <Stat3d
           img={ICON3D.sites}
           alt="Sites"
@@ -688,6 +747,67 @@ export function Dashboard() {
         />
       </div>
     </div>
+  )
+}
+
+/** Tuile circulaire mobile — icônes 3D ClimaZEN dans un cercle fin (style grille terrain). */
+function CircleHomeTile({
+  title,
+  img,
+  to,
+  onClick,
+  badge,
+  delay = '0s',
+}: {
+  title: string
+  img: string
+  to?: string
+  onClick?: () => void
+  badge?: number
+  delay?: string
+}) {
+  const inner = (
+    <>
+      <span className="relative mx-auto grid h-[7.25rem] w-[7.25rem] place-items-center rounded-full border-[1.5px] border-ink/85 bg-white transition active:scale-[0.97] active:bg-mist sm:h-32 sm:w-32">
+        <span className="float-3d" style={{ animationDelay: delay }}>
+          <img
+            src={img}
+            alt=""
+            width={72}
+            height={72}
+            className="h-[4.25rem] w-[4.25rem] object-contain drop-shadow-md sm:h-20 sm:w-20"
+            draggable={false}
+            loading="eager"
+            decoding="async"
+          />
+        </span>
+        {badge != null && badge > 0 ? (
+          <span className="absolute right-1 top-1 grid h-6 min-w-6 place-items-center rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        ) : null}
+      </span>
+      <span className="mt-2.5 block px-1 text-center text-[13px] font-semibold leading-tight text-ink">
+        {title}
+      </span>
+    </>
+  )
+
+  const className =
+    'flex flex-col items-center justify-start outline-none focus-visible:ring-2 focus-visible:ring-accent/40'
+
+  if (to) {
+    return (
+      <Link to={to} className={className}>
+        {inner}
+      </Link>
+    )
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {inner}
+    </button>
   )
 }
 
