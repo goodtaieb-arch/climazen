@@ -5,8 +5,6 @@ import {
   Building2,
   CheckCircle2,
   ClipboardList,
-  Cpu,
-  FileSignature,
   MapPin,
   Package,
   PenLine,
@@ -17,6 +15,11 @@ import { useStore } from '../lib/store'
 import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
+import {
+  IlluCerfaSign,
+  IlluClimUnit,
+  IlluSiteMap,
+} from '../components/QuickStartIllustrations'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -25,23 +28,23 @@ const QUICK_START = [
     n: 1,
     label: 'Sélectionner le site',
     short: 'Site',
-    icon: MapPin,
+    Illu: IlluSiteMap,
     tone: 'sites' as const,
     to: '/app/chantiers',
   },
   {
     n: 2,
-    label: 'Choisir l’équipement',
-    short: 'Équipement',
-    icon: Cpu,
-    tone: 'sites' as const,
+    label: 'Choisir la clim',
+    short: 'Clim',
+    Illu: IlluClimUnit,
+    tone: 'teal' as const,
     to: '/app/chantiers',
   },
   {
     n: 3,
     label: 'Remplir & signer le CERFA',
     short: 'Signer',
-    icon: FileSignature,
+    Illu: IlluCerfaSign,
     tone: 'cerfa' as const,
     to: '/app/interventions',
   },
@@ -181,19 +184,19 @@ export function Dashboard() {
           </p>
           <ol className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-0">
             {QUICK_START.map((step, idx) => {
-              const Icon = step.icon
-              const c = MENU_COLORS[step.tone]
+              const Illu = step.Illu
+              const c = QUICK_TONES[step.tone]
               return (
                 <li key={step.n} className="flex min-w-0 flex-1 items-stretch gap-2 sm:gap-0">
                   <Link
                     to={step.to}
-                    className="flex min-h-14 flex-1 items-center gap-3 rounded-xl border border-white/80 bg-white/90 px-3 py-2.5 shadow-sm transition active:scale-[0.99] active:bg-mist sm:px-3.5"
+                    className="flex min-h-[4.25rem] flex-1 items-center gap-3 rounded-xl border border-white/80 bg-white/90 px-3 py-2.5 shadow-sm transition active:scale-[0.99] active:bg-mist sm:min-h-[4.5rem] sm:px-3.5"
                   >
                     <span
-                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl"
-                      style={{ backgroundColor: c.band, color: c.icon }}
+                      className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl sm:h-16 sm:w-16"
+                      style={{ backgroundColor: c.band }}
                     >
-                      <Icon className="h-5 w-5" strokeWidth={2} />
+                      <Illu className="h-12 w-12 sm:h-14 sm:w-14" />
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
@@ -500,6 +503,12 @@ export function Dashboard() {
     </div>
   )
 }
+
+const QUICK_TONES = {
+  sites: { band: 'rgba(249, 115, 22, 0.12)' },
+  teal: { band: 'rgba(15, 118, 110, 0.1)' },
+  cerfa: { band: 'rgba(34, 197, 94, 0.12)' },
+} as const
 
 const MENU_COLORS = {
   sites: {

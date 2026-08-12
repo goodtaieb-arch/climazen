@@ -53,3 +53,33 @@ body {
     font-size: 16px; /* évite le zoom iOS */
   }
 }
+
+/* Quick Start — micro-mouvements style illustration */
+@keyframes qs-pin {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes qs-fan {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes qs-pen {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(1px, -1px) rotate(-4deg);
+  }
+}
