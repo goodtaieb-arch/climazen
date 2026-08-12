@@ -1,5 +1,10 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/((?!assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|robots\\.txt|sitemap\\.xml|landing-mobile-terrain\\.png).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/index.html",
@@ -30,6 +35,12 @@
       "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, must-revalidate" }
       ]
     }
   ]
