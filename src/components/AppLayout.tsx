@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
+import { StockBottleIcon } from './StockBottleIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
@@ -228,7 +229,11 @@ export function AppLayout() {
                         color: t.icon,
                       }}
                     >
-                      <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
+                      {to === '/app/stock' ? (
+                        <StockBottleIcon size={28} float delay="0.2s" />
+                      ) : (
+                        <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
+                      )}
                     </span>
                     <span className="flex-1 truncate">{label}</span>
                   </>
@@ -416,7 +421,11 @@ export function AppLayout() {
                       className="grid h-10 w-10 place-items-center rounded-xl"
                       style={{ backgroundColor: isActive ? t.band : 'transparent' }}
                     >
-                      <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
+                      {to === '/app/stock' ? (
+                        <StockBottleIcon size={26} float={isActive} delay="0s" />
+                      ) : (
+                        <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
+                      )}
                     </span>
                     <span className="truncate px-0.5">{label}</span>
                   </>

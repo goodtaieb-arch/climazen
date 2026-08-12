@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, FileCheck2, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -10,7 +10,6 @@ import {
   type StockItem,
   type StockMouvement,
 } from '../lib/types'
-import { Header } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
@@ -20,6 +19,7 @@ import { adrInfoForFluide, findFluide, formatGwp } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { mouvementsForBottle } from '../lib/stockMouvements'
 import { MobileFab } from '../components/MobileFab'
+import { StockBottleIcon } from '../components/StockBottleIcon'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -230,16 +230,29 @@ export function StockPage() {
 
   return (
     <div className="space-y-6">
-      <Header
-        title="Stock fluides"
-        subtitle="Bouteilles, mouvements CERFA, et bons de retour de consigne (bouteilles neuves vides)."
-        onAdd={() => {
-          setEditId(null)
-          setForm(blank())
-          setRegsOpen(false)
-          setOpen(true)
-        }}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <StockBottleIcon size={56} float delay="0.15s" className="shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-bold tracking-tight">Stock fluides</h1>
+            <p className="mt-1 text-muted">
+              Bouteilles, mouvements CERFA, et bons de retour de consigne (bouteilles neuves vides).
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setEditId(null)
+            setForm(blank())
+            setRegsOpen(false)
+            setOpen(true)
+          }}
+          className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
+        >
+          <Plus className="h-4 w-4" /> Ajouter
+        </button>
+      </div>
 
       <SearchField
         value={q}

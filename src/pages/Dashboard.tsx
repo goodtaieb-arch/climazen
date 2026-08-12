@@ -306,6 +306,7 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={Package}
+              img3d="/icons/3d/climazen-bottle.png"
               title="Stock fluides"
               subtitle={
                 stockCount
@@ -496,12 +497,13 @@ export function Dashboard() {
           to="/app/chantiers"
         />
         <Stat3d
-          img="/icons/3d/gas.png"
-          alt="Stock"
+          img="/icons/3d/climazen-bottle.png"
+          alt="Stock fluides ClimaZEN"
           label="Stock fluides"
           value={`${stockKg.toFixed(1)}`}
           unit="kg"
           to="/app/stock"
+          float
         />
         <Stat3d
           img="/icons/3d/group.png"
@@ -548,6 +550,7 @@ const MENU_COLORS = {
 
 function TerrainAction({
   icon: Icon,
+  img3d,
   title,
   subtitle,
   to,
@@ -556,6 +559,7 @@ function TerrainAction({
   color,
 }: {
   icon: typeof Building2
+  img3d?: string
   title: string
   subtitle: string
   to?: string
@@ -573,7 +577,20 @@ function TerrainAction({
         className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl"
         style={{ backgroundColor: c.band, color: c.icon }}
       >
-        <Icon className="h-7 w-7" strokeWidth={1.9} />
+        {img3d ? (
+          <span className="float-3d" style={{ animationDelay: '0.35s' }}>
+            <img
+              src={img3d}
+              alt=""
+              width={48}
+              height={48}
+              className="h-12 w-12 object-contain drop-shadow-md"
+              draggable={false}
+            />
+          </span>
+        ) : (
+          <Icon className="h-7 w-7" strokeWidth={1.9} />
+        )}
         {badge != null && badge > 0 ? (
           <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white">
             {badge > 99 ? '99+' : badge}
@@ -614,6 +631,7 @@ function Stat3d({
   unit,
   to,
   alert,
+  float,
 }: {
   img: string
   alt: string
@@ -622,6 +640,7 @@ function Stat3d({
   unit?: string
   to: string
   alert?: boolean
+  float?: boolean
 }) {
   return (
     <Link
@@ -633,15 +652,17 @@ function Stat3d({
           : 'border-slate-200/80 bg-white hover:border-emerald-500',
       ].join(' ')}
     >
-      <img
-        src={img}
-        alt={alt}
-        width={40}
-        height={40}
-        className="mb-2 h-10 w-10 object-contain transition-transform group-hover:scale-110"
-        loading="lazy"
-        decoding="async"
-      />
+      <span className={float ? 'float-3d mb-2 inline-flex' : 'mb-2 inline-flex'} style={float ? { animationDelay: '0.5s' } : undefined}>
+        <img
+          src={img}
+          alt={alt}
+          width={40}
+          height={40}
+          className="h-10 w-10 object-contain transition-transform group-hover:scale-110"
+          loading="lazy"
+          decoding="async"
+        />
+      </span>
       <p className="font-display text-2xl font-black text-ink">
         {value}
         {unit ? <span className="ml-1 text-xs font-normal text-muted">{unit}</span> : null}
