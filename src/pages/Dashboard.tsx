@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  ArrowRight,
   Building2,
   CheckCircle2,
   ClipboardList,
@@ -15,40 +14,38 @@ import { useStore } from '../lib/store'
 import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
-import {
-  IlluCerfaSign,
-  IlluClimUnit,
-  IlluSiteMap,
-} from '../components/QuickStartIllustrations'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
 const QUICK_START = [
   {
     n: 1,
-    label: 'Sélectionner le site',
-    short: 'Site',
-    Illu: IlluSiteMap,
-    tone: 'sites' as const,
+    title: 'Trouver le site',
+    hint: 'Recherchez le client ou l’adresse',
+    img: '/icons/3d/search.png',
+    alt: 'Recherche 3D',
+    delay: '0s',
     to: '/app/chantiers',
   },
   {
     n: 2,
-    label: 'Choisir la clim',
-    short: 'Clim',
-    Illu: IlluClimUnit,
-    tone: 'teal' as const,
+    title: 'Choisir la clim',
+    hint: 'Sélectionnez la PAC ou le groupe',
+    img: '/icons/3d/maintenance.png',
+    alt: 'Équipement 3D',
+    delay: '0.5s',
     to: '/app/chantiers',
   },
   {
     n: 3,
-    label: 'Remplir & signer le CERFA',
-    short: 'Signer',
-    Illu: IlluCerfaSign,
-    tone: 'cerfa' as const,
+    title: 'Remplir & Signer',
+    hint: 'Générez le CERFA PDF officiel',
+    img: '/icons/3d/signature.png',
+    alt: 'Signature 3D',
+    delay: '1s',
     to: '/app/interventions',
   },
-]
+] as const
 
 export function Dashboard() {
   const { data } = useStore()
@@ -57,6 +54,7 @@ export function Dashboard() {
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   const brouillons = data.interventions.filter((i) => i.status === 'brouillon')
+  const signes = data.interventions.filter((i) => i.status === 'signe' || i.status === 'envoye')
   const actifs = data.chantiers.filter((c) => c.statut === 'actif')
   const stockKg = data.stock.reduce((s, i) => s + i.quantiteKg, 0)
   const stockCount = data.stock.filter((s) => !isBouteilleRetournee(s)).length
@@ -165,80 +163,86 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 lg:max-w-none lg:space-y-8">
       <section className="space-y-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            Accueil terrain
-          </h1>
-          <p className="mt-1 text-sm text-muted sm:text-base">
-            Suivez les 3 étapes — site, équipement, CERFA signé.
-          </p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Accueil terrain
+            </h1>
+            <p className="mt-1 text-sm font-medium text-muted sm:text-base">
+              Suivez le guide 3D pour gérer vos interventions rapidement.
+            </p>
+          </div>
+          <label className="relative block w-full md:w-80">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  goTravaux(q)
+                }
+              }}
+              placeholder="Rechercher un site, client…"
+              className="h-12 w-full rounded-2xl border border-line bg-white py-3 pl-10 pr-4 text-sm font-medium shadow-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30 md:h-12"
+              autoComplete="off"
+              inputMode="search"
+            />
+          </label>
         </div>
 
-        {/* Bandeau Quick Start — 3 étapes illustrées */}
-        <nav
-          aria-label="Démarrage rapide"
-          className="overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-white to-emerald-50/60 p-3 sm:p-4"
-        >
-          <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-sky-800/70">
-            Quick start
-          </p>
-          <ol className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-0">
-            {QUICK_START.map((step, idx) => {
-              const Illu = step.Illu
-              const c = QUICK_TONES[step.tone]
-              return (
-                <li key={step.n} className="flex min-w-0 flex-1 items-stretch gap-2 sm:gap-0">
+        {/* Bandeau guide 3D — Quick Start */}
+        {!q.trim() && (
+          <nav
+            aria-label="Mode d’emploi rapide"
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-600 to-slate-800 p-5 text-white shadow-xl sm:p-6"
+          >
+            <div
+              className="pointer-events-none absolute -bottom-10 -right-10 h-60 w-60 rounded-full bg-white/5 blur-2xl"
+              aria-hidden
+            />
+            <div className="relative mb-5 flex items-center justify-between gap-3">
+              <span className="rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-md">
+                Mode d’emploi rapide
+              </span>
+              <span className="hidden text-xs font-medium text-emerald-100 sm:inline">
+                3 étapes simples sur le terrain
+              </span>
+            </div>
+            <ol className="relative grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
+              {QUICK_START.map((step) => (
+                <li key={step.n}>
                   <Link
                     to={step.to}
-                    className="flex min-h-[4.25rem] flex-1 items-center gap-3 rounded-xl border border-white/80 bg-white/90 px-3 py-2.5 shadow-sm transition active:scale-[0.99] active:bg-mist sm:min-h-[4.5rem] sm:px-3.5"
+                    className="group flex items-center gap-4 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.99]"
                   >
                     <span
-                      className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl sm:h-16 sm:w-16"
-                      style={{ backgroundColor: c.band }}
+                      className="float-3d flex h-16 w-16 shrink-0 items-center justify-center"
+                      style={{ animationDelay: step.delay }}
                     >
-                      <Illu className="h-12 w-12 sm:h-14 sm:w-14" />
+                      <img
+                        src={step.img}
+                        alt={step.alt}
+                        width={56}
+                        height={56}
+                        className="h-14 w-14 object-contain drop-shadow-md transition-transform group-hover:scale-110"
+                        loading="eager"
+                        decoding="async"
+                      />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
+                      <span className="block text-[10px] font-extrabold uppercase tracking-widest text-emerald-200">
                         Étape {step.n}
                       </span>
-                      <span className="block truncate text-sm font-bold text-ink sm:whitespace-normal">
-                        <span className="sm:hidden">{step.short}</span>
-                        <span className="hidden sm:inline">{step.label}</span>
-                      </span>
+                      <span className="mt-0.5 block text-base font-bold text-white">{step.title}</span>
+                      <span className="mt-0.5 block text-xs text-emerald-100/80">{step.hint}</span>
                     </span>
                   </Link>
-                  {idx < QUICK_START.length - 1 ? (
-                    <span
-                      className="hidden shrink-0 items-center justify-center px-1.5 text-sky-400 sm:flex"
-                      aria-hidden
-                    >
-                      <ArrowRight className="h-4 w-4" />
-                    </span>
-                  ) : null}
                 </li>
-              )
-            })}
-          </ol>
-        </nav>
-
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                goTravaux(q)
-              }
-            }}
-            placeholder="Client, site, équipement…"
-            className="h-14 w-full rounded-2xl border-2 border-line bg-white pl-12 pr-4 text-base font-medium outline-none focus:border-accent"
-            autoComplete="off"
-            inputMode="search"
-          />
-        </label>
+              ))}
+            </ol>
+          </nav>
+        )}
 
         {q.trim() && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -349,12 +353,20 @@ export function Dashboard() {
               return (
                 <li
                   key={i.id}
-                  className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-3.5 sm:p-4"
+                  className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-amber-200/80 bg-amber-50 p-4 shadow-sm sm:flex-row sm:items-center sm:p-5"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+                    <img
+                      src="/icons/3d/contract.png"
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="h-12 w-12 shrink-0 object-contain"
+                      loading="lazy"
+                    />
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-display text-base font-semibold text-ink">
+                        <span className="font-display text-base font-bold text-ink">
                           {chantier?.nom || 'Intervention'}
                         </span>
                         {i.numeroIntervention ? (
@@ -362,24 +374,25 @@ export function Dashboard() {
                             {i.numeroIntervention}
                           </span>
                         ) : null}
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
-                          Brouillon
+                        <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-900">
+                          Brouillon en attente
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-muted">
+                      <p className="mt-1 text-xs text-slate-600 sm:text-sm">
                         {client?.raisonSociale || '—'}
+                        {i.fluideType ? ` · Fluide ${i.fluideType}` : ''}
                         {i.dateIntervention ? ` · ${i.dateIntervention}` : ''}
-                        {i.fluideType ? ` · ${i.fluideType}` : ''}
                       </p>
                     </div>
-                    <Link
-                      to={`/app/interventions/${i.id}`}
-                      className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#0f766e] px-3.5 text-sm font-bold text-white shadow-sm active:translate-y-px"
-                    >
-                      <ActionIcon className="h-4 w-4" strokeWidth={2.25} />
-                      {actionLabel}
-                    </Link>
                   </div>
+                  <Link
+                    to={`/app/interventions/${i.id}`}
+                    className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-xs font-bold text-white shadow-md transition active:scale-95 hover:bg-amber-600 sm:w-auto sm:text-sm"
+                  >
+                    <ActionIcon className="h-4 w-4" strokeWidth={2.25} />
+                    {actionLabel}
+                    <span aria-hidden>→</span>
+                  </Link>
                 </li>
               )
             })}
@@ -473,29 +486,35 @@ export function Dashboard() {
         </section>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <Stat
-          icon={Building2}
-          label="Clients"
-          value={String(data.clients.length)}
-          to="/app/clients"
-        />
-        <Stat
-          icon={MapPin}
-          label="Sites actifs"
+      {/* Raccourcis stats 3D */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <Stat3d
+          img="/icons/3d/home.png"
+          alt="Sites"
+          label="Sites & Parc"
           value={String(actifs.length)}
           to="/app/chantiers"
         />
-        <Stat
-          icon={Package}
+        <Stat3d
+          img="/icons/3d/gas.png"
+          alt="Stock"
           label="Stock fluides"
-          value={`${stockKg.toFixed(1)} kg`}
+          value={`${stockKg.toFixed(1)}`}
+          unit="kg"
           to="/app/stock"
         />
-        <Stat
-          icon={ClipboardList}
-          label="CERFA brouillons"
-          value={String(brouillons.length)}
+        <Stat3d
+          img="/icons/3d/group.png"
+          alt="Clients"
+          label="Clients / Détenteurs"
+          value={String(data.clients.length)}
+          to="/app/clients"
+        />
+        <Stat3d
+          img="/icons/3d/contract.png"
+          alt="CERFA"
+          label={brouillons.length > 0 ? 'CERFA brouillons' : 'CERFA validés'}
+          value={String(brouillons.length > 0 ? brouillons.length : signes.length)}
           to="/app/interventions"
           alert={brouillons.length > 0}
         />
@@ -503,12 +522,6 @@ export function Dashboard() {
     </div>
   )
 }
-
-const QUICK_TONES = {
-  sites: { band: 'rgba(249, 115, 22, 0.12)' },
-  teal: { band: 'rgba(15, 118, 110, 0.1)' },
-  cerfa: { band: 'rgba(34, 197, 94, 0.12)' },
-} as const
 
 const MENU_COLORS = {
   sites: {
@@ -593,16 +606,20 @@ function TerrainAction({
   )
 }
 
-function Stat({
-  icon: Icon,
+function Stat3d({
+  img,
+  alt,
   label,
   value,
+  unit,
   to,
   alert,
 }: {
-  icon: typeof Building2
+  img: string
+  alt: string
   label: string
   value: string
+  unit?: string
   to: string
   alert?: boolean
 }) {
@@ -610,25 +627,26 @@ function Stat({
     <Link
       to={to}
       className={[
-        'rounded-2xl border p-4 transition-colors sm:p-5',
+        'group rounded-2xl border p-4 shadow-sm transition-all hover:shadow-md sm:p-5',
         alert
           ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
-          : 'border-line bg-white hover:border-accent/40',
+          : 'border-slate-200/80 bg-white hover:border-emerald-500',
       ].join(' ')}
     >
-      <div className={['flex items-center gap-2', alert ? 'text-amber-900' : 'text-muted'].join(' ')}>
-        <Icon className="h-4 w-4" />
-        <span className="text-sm font-medium">{label}</span>
-      </div>
-      <div
-        className={[
-          'mt-2 font-display text-2xl font-bold sm:text-3xl',
-          alert ? 'text-amber-950' : 'text-ink',
-        ].join(' ')}
-      >
+      <img
+        src={img}
+        alt={alt}
+        width={40}
+        height={40}
+        className="mb-2 h-10 w-10 object-contain transition-transform group-hover:scale-110"
+        loading="lazy"
+        decoding="async"
+      />
+      <p className="font-display text-2xl font-black text-ink">
         {value}
-      </div>
-      <span className="mt-1.5 block text-xs font-semibold text-accent">Ouvrir →</span>
+        {unit ? <span className="ml-1 text-xs font-normal text-muted">{unit}</span> : null}
+      </p>
+      <p className="mt-0.5 text-xs font-semibold text-muted">{label}</p>
     </Link>
   )
 }

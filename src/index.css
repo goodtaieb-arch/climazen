@@ -54,32 +54,23 @@ body {
   }
 }
 
-/* Quick Start — micro-mouvements style illustration */
-@keyframes qs-pin {
+/* Quick Start — flottement 3D */
+@keyframes float-3d {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-2px);
+    transform: translateY(-6px);
   }
 }
 
-@keyframes qs-fan {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.float-3d {
+  animation: float-3d 3s ease-in-out infinite;
 }
 
-@keyframes qs-pen {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  50% {
-    transform: translate(1px, -1px) rotate(-4deg);
+@media (prefers-reduced-motion: reduce) {
+  .float-3d {
+    animation: none;
   }
 }
