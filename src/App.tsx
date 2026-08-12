@@ -21,6 +21,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { FicheMaintenanceClimPage } from './pages/FicheMaintenanceClimPage'
 import { OrdresTravailPage } from './pages/OrdresTravailPage'
+import { AppelOtPage } from './pages/AppelOtPage'
 import { ContactPage } from './pages/ContactPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
 
@@ -57,6 +58,7 @@ export default function App() {
                 <Route path="interventions" element={<InterventionsPage />} />
                 <Route path="interventions/:id" element={<InterventionFormPage />} />
                 <Route path="ot" element={<OrdresTravailPage />} />
+                <Route path="appel" element={<AppelOtPage />} />
                 <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimPage />} />
                 <Route path="equipe" element={<EquipePage />} />
                 <Route path="operateur" element={<OperateurPage />} />

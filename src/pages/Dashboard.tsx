@@ -7,6 +7,7 @@ import {
   MapPin,
   Package,
   PenLine,
+  Phone,
   Search,
   X,
 } from 'lucide-react'
@@ -22,30 +23,30 @@ const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 const QUICK_START = [
   {
     n: 1,
-    title: 'Trouver le site',
-    hint: 'Recherchez le client ou l’adresse',
-    img: ICON3D.search,
-    alt: 'Recherche 3D',
+    title: 'Créer l’OT',
+    hint: 'Dès l’appel client — décrire la panne',
+    img: ICON3D.cerfa,
+    alt: 'OT 3D',
     delay: '0s',
-    to: '/app/chantiers',
+    to: '/app/appel',
   },
   {
     n: 2,
-    title: 'Choisir la clim',
-    hint: 'Sélectionnez la PAC ou le groupe',
-    img: ICON3D.maintenance,
-    alt: 'Équipement 3D',
+    title: 'Client & site',
+    hint: 'Puis équipements sur place',
+    img: ICON3D.sites,
+    alt: 'Site 3D',
     delay: '0.5s',
-    to: '/app/chantiers',
+    to: '/app/appel',
   },
   {
     n: 3,
-    title: 'Remplir & Signer',
-    hint: 'Générez le CERFA PDF officiel',
+    title: 'CERFA ou fiche',
+    hint: 'Signer technicien + client',
     img: ICON3D.signature,
     alt: 'Signature 3D',
     delay: '1s',
-    to: '/app/interventions',
+    to: '/app/appel',
   },
 ] as const
 
@@ -66,6 +67,13 @@ export function Dashboard() {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, 5)
   }, [brouillons])
+
+  const otAReprendre = useMemo(() => {
+    return [...(data.ordresTravail || [])]
+      .filter((o) => o.statut === 'brouillon' || o.statut === 'en_cours')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 5)
+  }, [data.ordresTravail])
 
   const steps = [
     {
@@ -211,8 +219,16 @@ export function Dashboard() {
                 Mode d’emploi rapide
               </span>
               <span className="hidden text-xs font-medium text-emerald-100 sm:inline">
-                3 étapes simples sur le terrain
+                Appel client → OT → site → docs
               </span>
+            </div>
+            <div className="relative mb-4">
+              <Link
+                to="/app/appel"
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-bold text-emerald-800 shadow-md transition hover:bg-emerald-50 active:scale-[0.99]"
+              >
+                <Phone className="h-5 w-5" /> Client appelle — créer l’OT
+              </Link>
             </div>
             <ol className="relative grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
               {QUICK_START.map((step) => (
@@ -338,6 +354,52 @@ export function Dashboard() {
           </nav>
         )}
       </section>
+
+      {/* À reprendre — OT en cours */}
+      {!q.trim() && otAReprendre.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">OT à reprendre</h2>
+            <Link to="/app/ot" className="text-sm font-semibold text-accent hover:underline">
+              Voir tout
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {otAReprendre.map((o) => {
+              const client = data.clients.find((c) => c.id === o.clientId)
+              const chantier = data.chantiers.find((c) => c.id === o.chantierId)
+              return (
+                <li
+                  key={o.id}
+                  className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-teal-200/80 bg-teal-50 p-4 shadow-sm sm:flex-row sm:items-center"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                        {o.numero}
+                      </span>
+                      <span className="font-display text-base font-bold text-ink">
+                        {o.action || 'OT en cours'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                      {client?.raisonSociale || 'Client à renseigner'}
+                      {chantier?.nom ? ` · ${chantier.nom}` : ''}
+                      {o.date ? ` · ${o.date}` : ''}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
+                    className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 text-xs font-bold text-white shadow-md sm:w-auto sm:text-sm"
+                  >
+                    <Phone className="h-4 w-4" /> Reprendre
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* À reprendre — brouillons CERFA */}
       {!q.trim() && aReprendre.length > 0 && (

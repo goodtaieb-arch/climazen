@@ -6,6 +6,7 @@ export type TypeOt =
   | 'depanage'
   | 'demantelement'
   | 'entretien'
+  | 'installation'
 
 export const TYPE_OT_LABELS: Record<TypeOt, string> = {
   controle_etancheite: 'Contrôle d’étanchéité',
@@ -13,6 +14,7 @@ export const TYPE_OT_LABELS: Record<TypeOt, string> = {
   depanage: 'Dépannage',
   demantelement: 'Démantèlement',
   entretien: 'Entretien',
+  installation: 'Installation',
 }
 
 export type StatutOt = 'brouillon' | 'en_cours' | 'termine' | 'signe'
@@ -24,13 +26,24 @@ export const STATUT_OT_LABELS: Record<StatutOt, string> = {
   signe: 'Signé',
 }
 
+/** Étapes du parcours appel client → intervention. */
+export const PARCOURS_APPEL_STEPS = [
+  { id: 'ot', label: 'Appel / OT', hint: 'Décrire la demande' },
+  { id: 'client', label: 'Client', hint: 'Qui appelle' },
+  { id: 'site', label: 'Site', hint: 'Où intervenir' },
+  { id: 'equipement', label: 'Équipement', hint: 'Sur place' },
+  { id: 'docs', label: 'Intervention', hint: 'CERFA / fiche' },
+] as const
+
+export type ParcoursAppelStepId = (typeof PARCOURS_APPEL_STEPS)[number]['id']
+
 export interface OrdreTravail {
   id: string
   /** Format OTYYYYNNNN — ex. OT20260001 */
   numero: string
   date: string
   typeOt: TypeOt
-  /** Description de l’action / mission */
+  /** Description de l’action / mission (panne, installation…) */
   action: string
   /** Rapport d’action (ce qui a été fait) */
   rapportAction: string
@@ -46,6 +59,8 @@ export interface OrdreTravail {
   signatureTechnicienImage?: string
   signatureClientImage?: string
   statut: StatutOt
+  /** Étape parcours guidé (reprise) */
+  parcoursStep?: ParcoursAppelStepId
   createdByUserId?: string
   createdByName?: string
   createdAt: string
@@ -56,13 +71,22 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
   return {
     numero: '',
     date: new Date().toISOString().slice(0, 10),
-    typeOt: 'entretien',
+    typeOt: 'depanage',
     action: '',
     rapportAction: '',
     observations: '',
     technicien: '',
     statut: 'brouillon',
+    parcoursStep: 'ot',
   }
+}
+
+/** Natures CERFA suggérées selon le type d’OT. */
+export function naturesCerfaPourTypeOt(typeOt: TypeOt): string[] {
+  if (typeOt === 'demantelement') return ['demantelement']
+  if (typeOt === 'controle_etancheite') return ['controle_etancheite_periodique']
+  if (typeOt === 'maintenance') return ['entretien_reparation', 'controle_etancheite_periodique']
+  return ['entretien_reparation']
 }
 
 /** Extrait le max séquentiel OTYYYYNNNN (ou ancien INT-YYYY-NNNN). */
@@ -103,4 +127,14 @@ export function nextNumeroOt(
   ]
   const next = maxSeqOt(year, values) + 1 + Math.max(0, offset)
   return `OT${year}${String(next).padStart(4, '0')}`
+}
+
+/** Déduit l’étape à reprendre selon ce qui est déjà renseigné. */
+export function inferParcoursStep(ot: OrdreTravail): ParcoursAppelStepId {
+  if (ot.parcoursStep === 'docs') return 'docs'
+  if (!ot.action?.trim()) return 'ot'
+  if (!ot.clientId) return 'client'
+  if (!ot.chantierId) return 'site'
+  if (!ot.equipementId) return 'equipement'
+  return 'docs'
 }

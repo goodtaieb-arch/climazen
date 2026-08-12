@@ -77,6 +77,7 @@ export function InterventionFormPage() {
   const equipementFromQuery = searchParams.get('equipement') || ''
   const otFromQuery = searchParams.get('ot') || ''
   const numeroFromQuery = searchParams.get('numero') || ''
+  const dateFromQuery = searchParams.get('date') || ''
   const naturesFromQuery = (searchParams.get('natures') || '')
     .split(',')
     .map((s) => s.trim())
@@ -91,6 +92,16 @@ export function InterventionFormPage() {
   const defaultSignImage = user?.signatureImage || ''
   const monDetecteur = detecteurForUser(data, user?.id)
 
+  const linkedOt = useMemo(() => {
+    if (!otFromQuery && !numeroFromQuery) return null
+    const list = data.ordresTravail || []
+    return (
+      list.find((o) => o.id === otFromQuery) ||
+      list.find((o) => o.numero === otFromQuery || o.numero === numeroFromQuery) ||
+      null
+    )
+  }, [data.ordresTravail, otFromQuery, numeroFromQuery])
+
   const [chantierId, setChantierId] = useState(
     existing?.chantierId ||
       (chantierQueryOk ? chantierFromQuery : '') ||
@@ -104,7 +115,9 @@ export function InterventionFormPage() {
     existing?.natures ||
       (naturesFromQuery.length > 0 ? naturesFromQuery : ['entretien_reparation']),
   )
-  const [dateIntervention, setDateIntervention] = useState(existing?.dateIntervention || today())
+  const [dateIntervention, setDateIntervention] = useState(
+    existing?.dateIntervention || dateFromQuery || today(),
+  )
   const [detectionPermanente, setDetectionPermanente] = useState(
     existing?.detectionPermanente ?? false,
   )
@@ -165,22 +178,12 @@ export function InterventionFormPage() {
     existing?.signatureDetenteurQualite || 'Détenteur',
   )
   const [signatureOperateurImage, setSignatureOperateurImage] = useState(
-    existing?.signatureOperateurImage || defaultSignImage,
+    existing?.signatureOperateurImage || linkedOt?.signatureTechnicienImage || defaultSignImage,
   )
   const [signatureDetenteurImage, setSignatureDetenteurImage] = useState(
-    existing?.signatureDetenteurImage || '',
+    existing?.signatureDetenteurImage || linkedOt?.signatureClientImage || '',
   )
   const [status, setStatus] = useState<CerfaDraft['status']>(existing?.status || 'brouillon')
-  const linkedOt = useMemo(() => {
-    if (!otFromQuery && !numeroFromQuery) return null
-    const list = data.ordresTravail || []
-    return (
-      list.find((o) => o.id === otFromQuery) ||
-      list.find((o) => o.numero === otFromQuery || o.numero === numeroFromQuery) ||
-      null
-    )
-  }, [data.ordresTravail, otFromQuery, numeroFromQuery])
-
   const [numeroIntervention, setNumeroIntervention] = useState(
     () =>
       existing?.numeroIntervention?.trim() ||

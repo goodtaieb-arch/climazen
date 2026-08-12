@@ -93,13 +93,7 @@ export function OrdresTravailPage() {
   }
 
   const openNew = () => {
-    navigate('/app/ot?new=1')
-    setForm({
-      ...blankOrdreTravail(),
-      numero: nextNumeroOt(data),
-      technicien: user?.signataireNom || user?.fullName || user?.email || '',
-      signatureTechnicienImage: user?.signatureImage || '',
-    })
+    navigate('/app/appel')
   }
 
   const showForm = !!editId || params.get('new') === '1'
@@ -330,7 +324,7 @@ export function OrdresTravailPage() {
           onClick={openNew}
           className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
         >
-          <Plus className="h-4 w-4" /> Nouvel OT
+          <Plus className="h-4 w-4" /> Client appelle
         </button>
       </div>
 
@@ -384,10 +378,16 @@ export function OrdresTravailPage() {
               </Link>
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
                 <Link
+                  to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900 sm:flex-none"
+                >
+                  <ClipboardList className="h-4 w-4" /> Reprendre parcours
+                </Link>
+                <Link
                   to={`/app/ot?id=${encodeURIComponent(o.id)}`}
                   className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line px-3 text-xs font-semibold sm:flex-none"
                 >
-                  <ClipboardList className="h-4 w-4" /> Ouvrir
+                  Ouvrir
                 </Link>
                 <button
                   type="button"
@@ -409,7 +409,7 @@ export function OrdresTravailPage() {
         )}
       </div>
 
-      <MobileFab label="Nouvel OT" onClick={openNew} />
+      <MobileFab label="Client appelle" onClick={openNew} />
     </div>
   )
 }
