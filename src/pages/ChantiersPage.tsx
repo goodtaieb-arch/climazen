@@ -13,8 +13,10 @@ import {
   Cpu,
   Layers,
   FileSignature,
+  Navigation,
   type LucideIcon,
 } from 'lucide-react'
+import { openAddressInGps, formatAddressQuery } from '../lib/mapsNav'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, ModeGestion, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -1424,6 +1426,26 @@ export function ChantiersPage() {
                   title="Ouvrir le parc"
                   onClick={() => openSiteParc(c)}
                 />
+                {formatAddressQuery(c) || formatAddressQuery(client || {}) ? (
+                  <QuickIconBtn
+                    icon={Navigation}
+                    label="GPS"
+                    tone="teal"
+                    title="Ouvrir l’adresse dans le GPS (Waze, Maps…)"
+                    onClick={() => {
+                      const ok = openAddressInGps(
+                        formatAddressQuery(c)
+                          ? c
+                          : {
+                              adresse: client?.adresse,
+                              codePostal: client?.codePostal,
+                              ville: client?.ville,
+                            },
+                      )
+                      if (!ok) alert('Adresse incomplète pour le GPS.')
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
           )
@@ -1498,6 +1520,27 @@ export function ChantiersPage() {
                     setIntervChoiceSite(c)
                   }}
                 />
+                {(formatAddressQuery(c) || formatAddressQuery(client || {})) && (
+                  <QuickIconBtn
+                    icon={Navigation}
+                    label="GPS"
+                    tone="teal"
+                    title="Ouvrir l’adresse dans le GPS (Waze, Maps…)"
+                    onClick={() => {
+                      setSiteMenuOpen(false)
+                      const ok = openAddressInGps(
+                        formatAddressQuery(c)
+                          ? c
+                          : {
+                              adresse: client?.adresse,
+                              codePostal: client?.codePostal,
+                              ville: client?.ville,
+                            },
+                      )
+                      if (!ok) alert('Adresse incomplète pour le GPS.')
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => setSiteMenuOpen((v) => !v)}
