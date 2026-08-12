@@ -1458,20 +1458,17 @@ export function ChantiersPage() {
                     }}
                   />
                 ) : null}
-                <QuickIconBtn
-                  icon={FileSignature}
-                  label="Contrat"
-                  tone="sites"
-                  title="Contrat de maintenance"
-                  onClick={() => {
-                    const contrats = contratsActifsForSite(data.contratsMaintenance, c)
-                    if (contrats[0]) {
-                      navigate(`/app/contrats?id=${encodeURIComponent(contrats[0].id)}`)
-                    } else {
-                      navigate(`/app/contrats?new=1&client=${encodeURIComponent(c.clientId)}`)
-                    }
-                  }}
-                />
+                {contratsSite.length > 0 ? (
+                  <QuickIconBtn
+                    icon={FileSignature}
+                    label="Contrat"
+                    tone="sites"
+                    title="Voir le contrat de maintenance"
+                    onClick={() => {
+                      navigate(`/app/contrats?id=${encodeURIComponent(contratsSite[0].id)}`)
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
           )

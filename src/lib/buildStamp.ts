@@ -1,2 +1,2 @@
 /** Stamp de build — change à chaque déploiement pour forcer le cache PWA. */
-export const APP_BUILD = '2026-08-12-signature-intervenant-auto'
+export const APP_BUILD = '2026-08-12-icone-contrat-si-existe'
