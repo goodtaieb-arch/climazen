@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  FileStack,
+  HardHat,
   MapPin,
   Package,
   Search,
@@ -13,6 +15,7 @@ import {
 import { useStore } from '../lib/store'
 import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
+import { isBouteilleRetournee } from '../lib/types'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -25,6 +28,7 @@ export function Dashboard() {
   const brouillons = data.interventions.filter((i) => i.status === 'brouillon')
   const actifs = data.chantiers.filter((c) => c.statut === 'actif')
   const stockKg = data.stock.reduce((s, i) => s + i.quantiteKg, 0)
+  const stockCount = data.stock.filter((s) => !isBouteilleRetournee(s)).length
 
   const steps = [
     {
@@ -123,12 +127,13 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 lg:max-w-none lg:space-y-8">
-      {/* Terrain-first (mobile + desktop) */}
       <section className="space-y-4">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">Sur le terrain</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+            Sur le terrain
+          </h1>
           <p className="mt-1 text-sm text-muted sm:text-base">
-            Cherchez le site → touchez l’équipement → fiche clim ou CERFA.
+            Touchez une action — gros boutons, icônes claires.
           </p>
         </div>
 
@@ -143,7 +148,7 @@ export function Dashboard() {
                 goTravaux(q)
               }
             }}
-            placeholder="Client, site, équipement, n° série…"
+            placeholder="Client, site, équipement…"
             className="h-14 w-full rounded-2xl border-2 border-line bg-white pl-12 pr-4 text-base font-medium outline-none focus:border-accent"
             autoComplete="off"
             inputMode="search"
@@ -160,7 +165,7 @@ export function Dashboard() {
                   <button
                     type="button"
                     onClick={() => goTravaux(c.nom)}
-                    className="flex w-full flex-col gap-0.5 px-4 py-4 text-left active:bg-mist"
+                    className="flex min-h-14 w-full flex-col gap-0.5 px-4 py-3.5 text-left active:bg-mist"
                   >
                     <span className="font-semibold text-ink">{c.nom}</span>
                     <span className="text-sm text-muted">
@@ -176,7 +181,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => goTravaux(q)}
-                className="w-full px-4 py-3 text-left text-sm font-semibold text-accent active:bg-mist"
+                className="min-h-12 w-full px-4 py-3 text-left text-sm font-semibold text-accent active:bg-mist"
               >
                 Voir tous les résultats dans Sites →
               </button>
@@ -184,42 +189,75 @@ export function Dashboard() {
           </ul>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => goTravaux()}
-            className="flex min-h-[4.5rem] items-center gap-4 rounded-2xl border-2 border-accent bg-accent px-4 py-4 text-left text-ink active:bg-accent-hover"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/80">
-              <Wrench className="h-6 w-6" />
-            </span>
-            <span>
-              <span className="block font-display text-lg font-bold">Intervenir</span>
-              <span className="block text-sm opacity-80">Ouvrir la liste des sites</span>
-            </span>
-          </button>
-          <Link
-            to="/app/interventions"
-            className="flex min-h-[4.5rem] items-center gap-4 rounded-2xl border-2 border-line bg-white px-4 py-4 text-left active:bg-mist"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-accent-soft">
-              <ClipboardList className="h-6 w-6 text-accent" />
-            </span>
-            <span>
-              <span className="block font-display text-lg font-bold">Brouillons CERFA</span>
-              <span className="block text-sm text-muted">
-                {brouillons.length
-                  ? `${brouillons.length} à terminer`
-                  : 'Aucun brouillon'}
-              </span>
-            </span>
-          </Link>
-        </div>
+        {/* Menu portable — style C’Fluide : une ligne = une action claire */}
+        {!q.trim() && (
+          <nav className="space-y-3" aria-label="Actions terrain">
+            <TerrainAction
+              icon={<HardHat className="h-8 w-8" strokeWidth={1.75} />}
+              title="Débuter une saisie"
+              subtitle="Ouvrir un site → équipement → CERFA"
+              tone="primary"
+              onClick={() => goTravaux()}
+            />
+            <TerrainAction
+              icon={<ClipboardList className="h-8 w-8" strokeWidth={1.75} />}
+              title="Saisie en cours"
+              subtitle={
+                brouillons.length
+                  ? `${brouillons.length} brouillon${brouillons.length > 1 ? 's' : ''} CERFA`
+                  : 'Aucun brouillon'
+              }
+              badge={brouillons.length || undefined}
+              to="/app/interventions"
+            />
+            <TerrainAction
+              icon={<FileStack className="h-8 w-8" strokeWidth={1.75} />}
+              title="Historique des documents"
+              subtitle="Tous les CERFA & interventions"
+              to="/app/interventions"
+            />
+            <TerrainAction
+              icon={<Package className="h-8 w-8" strokeWidth={1.75} />}
+              title="Gérer des contenants"
+              subtitle={
+                stockCount
+                  ? `${stockCount} bouteille${stockCount > 1 ? 's' : ''} · ${stockKg.toFixed(1)} kg`
+                  : 'Stock fluides vide'
+              }
+              to="/app/stock"
+            />
+            <TerrainAction
+              icon={<Wrench className="h-8 w-8" strokeWidth={1.75} />}
+              title="Gérer mes équipements"
+              subtitle={
+                actifs.length
+                  ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc sous contrat`
+                  : 'Sites & parc équipements'
+              }
+              to="/app/chantiers"
+            />
+            <TerrainAction
+              icon={<Building2 className="h-8 w-8" strokeWidth={1.75} />}
+              title="Clients / détenteurs"
+              subtitle={`${data.clients.length} client${data.clients.length > 1 ? 's' : ''}`}
+              to="/app/clients"
+            />
+          </nav>
+        )}
       </section>
 
       {!q.trim() && recentSites.length > 0 && (
-        <section>
-          <h2 className="font-display text-lg font-semibold">Sites récents</h2>
+        <section className="hidden md:block">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">Sites récents</h2>
+            <button
+              type="button"
+              onClick={() => goTravaux()}
+              className="text-sm font-semibold text-accent hover:underline"
+            >
+              Voir tout
+            </button>
+          </div>
           <ul className="mt-2 space-y-2">
             {recentSites.map((c) => {
               const client = data.clients.find((cl) => cl.id === c.clientId)
@@ -229,7 +267,7 @@ export function Dashboard() {
                   <button
                     type="button"
                     onClick={() => goTravaux(c.nom)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-4 text-left active:bg-mist"
+                    className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3.5 text-left active:bg-mist"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{c.nom}</span>
@@ -249,42 +287,6 @@ export function Dashboard() {
         </section>
       )}
 
-      {brouillons.length > 0 && (
-        <section>
-          <h2 className="font-display text-lg font-semibold">À reprendre</h2>
-          <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
-            {brouillons
-              .slice()
-              .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-              .slice(0, 4)
-              .map((i) => {
-                const client = data.clients.find((c) => c.id === i.clientId)
-                const chantier = data.chantiers.find((c) => c.id === i.chantierId)
-                return (
-                  <li key={i.id}>
-                    <Link
-                      to={`/app/interventions/${i.id}`}
-                      className="flex items-center justify-between gap-2 px-4 py-4 active:bg-mist"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                          {chantier?.nom || 'Chantier'}
-                        </span>
-                        <span className="block truncate text-sm text-muted">
-                          {client?.raisonSociale} · {i.dateIntervention}
-                        </span>
-                      </span>
-                      <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                        brouillon
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
-          </ul>
-        </section>
-      )}
-
       {showOnboarding && (
         <section className="rounded-2xl border border-accent/30 bg-accent-soft/50 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
@@ -293,13 +295,13 @@ export function Dashboard() {
                 Premiers pas ({progress}/{steps.length})
               </h2>
               <p className="mt-1 text-sm text-muted">
-                Une fois → Client + site. Sur le terrain → Accueil ou Sites.
+                Une fois → Client + site. Sur le terrain → Accueil.
               </p>
             </div>
             <button
               type="button"
               onClick={dismissOnboarding}
-              className="rounded-lg p-2 text-muted hover:bg-white/70"
+              className="touch-target grid place-items-center rounded-lg text-muted hover:bg-white/70"
               aria-label="Masquer"
             >
               <X className="h-4 w-4" />
@@ -330,7 +332,6 @@ export function Dashboard() {
         </section>
       )}
 
-      {/* Bureau : stats (desktop) */}
       <div className="hidden gap-4 lg:grid lg:grid-cols-4">
         <Stat icon={Building2} label="Clients" value={String(data.clients.length)} to="/app/clients" />
         <Stat icon={MapPin} label="Sites actifs" value={String(actifs.length)} to="/app/chantiers" />
@@ -343,6 +344,76 @@ export function Dashboard() {
         />
       </div>
     </div>
+  )
+}
+
+function TerrainAction({
+  icon,
+  title,
+  subtitle,
+  to,
+  onClick,
+  badge,
+  tone = 'default',
+}: {
+  icon: ReactNode
+  title: string
+  subtitle: string
+  to?: string
+  onClick?: () => void
+  badge?: number
+  tone?: 'default' | 'primary'
+}) {
+  const className = [
+    'relative flex min-h-[4.75rem] w-full items-center gap-4 rounded-2xl border-2 px-4 py-3.5 text-left shadow-sm transition active:scale-[0.99]',
+    tone === 'primary'
+      ? 'border-accent bg-accent text-ink'
+      : 'border-line bg-white text-ink active:bg-mist',
+  ].join(' ')
+
+  const body = (
+    <>
+      <span
+        className={[
+          'relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl',
+          tone === 'primary' ? 'bg-white/85 text-ink' : 'bg-[#0b3a5c]/10 text-[#0b3a5c]',
+        ].join(' ')}
+      >
+        {icon}
+        {badge != null && badge > 0 ? (
+          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        ) : null}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-[15px] font-bold uppercase tracking-wide sm:text-base">
+          {title}
+        </span>
+        <span
+          className={[
+            'mt-0.5 block text-sm',
+            tone === 'primary' ? 'text-ink/75' : 'text-muted',
+          ].join(' ')}
+        >
+          {subtitle}
+        </span>
+      </span>
+    </>
+  )
+
+  if (to) {
+    return (
+      <Link to={to} className={className}>
+        {body}
+      </Link>
+    )
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {body}
+    </button>
   )
 }
 
