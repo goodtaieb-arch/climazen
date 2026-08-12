@@ -9,7 +9,16 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['logo.png', 'logo-original.png', 'favicon.svg', 'icons.svg'],
+      includeAssets: [
+        'logo.png',
+        'logo-original.png',
+        'favicon.svg',
+        'icons.svg',
+        'icons/3d/climazen-bottle.png',
+        'icons/3d/climazen-clients.png',
+        'icons/3d/climazen-sites.png',
+        'icons/3d/climazen-cerfa.png',
+      ],
       manifest: {
         name: 'ClimaZEN by TAIEB',
         short_name: 'ClimaZEN',

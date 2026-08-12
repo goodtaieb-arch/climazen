@@ -14,6 +14,7 @@ import { useStore } from '../lib/store'
 import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
+import { APP_BUILD } from '../lib/buildStamp'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -170,6 +171,9 @@ export function Dashboard() {
             </h1>
             <p className="mt-1 text-sm font-medium text-muted sm:text-base">
               Suivez le guide 3D pour gérer vos interventions rapidement.
+            </p>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+              Build {APP_BUILD}
             </p>
           </div>
           <label className="relative block w-full md:w-80">
