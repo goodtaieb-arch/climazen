@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
+  ArrowRight,
   Building2,
   CheckCircle2,
   ClipboardList,
+  Cpu,
+  FileSignature,
   MapPin,
   Package,
+  PenLine,
   Search,
   X,
 } from 'lucide-react'
@@ -15,6 +19,33 @@ import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
+
+const QUICK_START = [
+  {
+    n: 1,
+    label: 'Sélectionner le site',
+    short: 'Site',
+    icon: MapPin,
+    tone: 'sites' as const,
+    to: '/app/chantiers',
+  },
+  {
+    n: 2,
+    label: 'Choisir l’équipement',
+    short: 'Équipement',
+    icon: Cpu,
+    tone: 'sites' as const,
+    to: '/app/chantiers',
+  },
+  {
+    n: 3,
+    label: 'Remplir & signer le CERFA',
+    short: 'Signer',
+    icon: FileSignature,
+    tone: 'cerfa' as const,
+    to: '/app/interventions',
+  },
+]
 
 export function Dashboard() {
   const { data } = useStore()
@@ -26,6 +57,12 @@ export function Dashboard() {
   const actifs = data.chantiers.filter((c) => c.statut === 'actif')
   const stockKg = data.stock.reduce((s, i) => s + i.quantiteKg, 0)
   const stockCount = data.stock.filter((s) => !isBouteilleRetournee(s)).length
+
+  const aReprendre = useMemo(() => {
+    return [...brouillons]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 5)
+  }, [brouillons])
 
   const steps = [
     {
@@ -127,12 +164,60 @@ export function Dashboard() {
       <section className="space-y-4">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            Sur le terrain
+            Accueil terrain
           </h1>
           <p className="mt-1 text-sm text-muted sm:text-base">
-            Mêmes menus que l’app — Sites, CERFA, Fluides, Clients.
+            Suivez les 3 étapes — site, équipement, CERFA signé.
           </p>
         </div>
+
+        {/* Bandeau Quick Start — 3 étapes illustrées */}
+        <nav
+          aria-label="Démarrage rapide"
+          className="overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-white to-emerald-50/60 p-3 sm:p-4"
+        >
+          <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-sky-800/70">
+            Quick start
+          </p>
+          <ol className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-0">
+            {QUICK_START.map((step, idx) => {
+              const Icon = step.icon
+              const c = MENU_COLORS[step.tone]
+              return (
+                <li key={step.n} className="flex min-w-0 flex-1 items-stretch gap-2 sm:gap-0">
+                  <Link
+                    to={step.to}
+                    className="flex min-h-14 flex-1 items-center gap-3 rounded-xl border border-white/80 bg-white/90 px-3 py-2.5 shadow-sm transition active:scale-[0.99] active:bg-mist sm:px-3.5"
+                  >
+                    <span
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+                      style={{ backgroundColor: c.band, color: c.icon }}
+                    >
+                      <Icon className="h-5 w-5" strokeWidth={2} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
+                        Étape {step.n}
+                      </span>
+                      <span className="block truncate text-sm font-bold text-ink sm:whitespace-normal">
+                        <span className="sm:hidden">{step.short}</span>
+                        <span className="hidden sm:inline">{step.label}</span>
+                      </span>
+                    </span>
+                  </Link>
+                  {idx < QUICK_START.length - 1 ? (
+                    <span
+                      className="hidden shrink-0 items-center justify-center px-1.5 text-sky-400 sm:flex"
+                      aria-hidden
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ol>
+        </nav>
 
         <label className="relative block">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
@@ -238,6 +323,67 @@ export function Dashboard() {
         )}
       </section>
 
+      {/* À reprendre — brouillons CERFA */}
+      {!q.trim() && aReprendre.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">À reprendre</h2>
+            <Link
+              to="/app/interventions"
+              className="text-sm font-semibold text-accent hover:underline"
+            >
+              Voir tout
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {aReprendre.map((i) => {
+              const client = data.clients.find((c) => c.id === i.clientId)
+              const chantier = data.chantiers.find((c) => c.id === i.chantierId)
+              const readyToSign =
+                !!i.signatureOperateurImage && !i.signatureDetenteurImage
+              const actionLabel = readyToSign ? 'Signer' : 'Reprendre la saisie'
+              const ActionIcon = readyToSign ? PenLine : ClipboardList
+              return (
+                <li
+                  key={i.id}
+                  className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-3.5 sm:p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-base font-semibold text-ink">
+                          {chantier?.nom || 'Intervention'}
+                        </span>
+                        {i.numeroIntervention ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                            {i.numeroIntervention}
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                          Brouillon
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-muted">
+                        {client?.raisonSociale || '—'}
+                        {i.dateIntervention ? ` · ${i.dateIntervention}` : ''}
+                        {i.fluideType ? ` · ${i.fluideType}` : ''}
+                      </p>
+                    </div>
+                    <Link
+                      to={`/app/interventions/${i.id}`}
+                      className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#0f766e] px-3.5 text-sm font-bold text-white shadow-sm active:translate-y-px"
+                    >
+                      <ActionIcon className="h-4 w-4" strokeWidth={2.25} />
+                      {actionLabel}
+                    </Link>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
       {!q.trim() && recentSites.length > 0 && (
         <section className="hidden md:block">
           <div className="flex items-center justify-between gap-2">
@@ -324,15 +470,31 @@ export function Dashboard() {
         </section>
       )}
 
-      <div className="hidden gap-4 lg:grid lg:grid-cols-4">
-        <Stat icon={Building2} label="Clients" value={String(data.clients.length)} to="/app/clients" />
-        <Stat icon={MapPin} label="Sites actifs" value={String(actifs.length)} to="/app/chantiers" />
-        <Stat icon={Package} label="Stock fluides" value={`${stockKg.toFixed(1)} kg`} to="/app/stock" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <Stat
+          icon={Building2}
+          label="Clients"
+          value={String(data.clients.length)}
+          to="/app/clients"
+        />
+        <Stat
+          icon={MapPin}
+          label="Sites actifs"
+          value={String(actifs.length)}
+          to="/app/chantiers"
+        />
+        <Stat
+          icon={Package}
+          label="Stock fluides"
+          value={`${stockKg.toFixed(1)} kg`}
+          to="/app/stock"
+        />
         <Stat
           icon={ClipboardList}
           label="CERFA brouillons"
           value={String(brouillons.length)}
           to="/app/interventions"
+          alert={brouillons.length > 0}
         />
       </div>
     </div>
@@ -427,22 +589,37 @@ function Stat({
   label,
   value,
   to,
+  alert,
 }: {
   icon: typeof Building2
   label: string
   value: string
   to: string
+  alert?: boolean
 }) {
   return (
     <Link
       to={to}
-      className="rounded-2xl border border-line bg-white p-5 transition-colors hover:border-accent/40"
+      className={[
+        'rounded-2xl border p-4 transition-colors sm:p-5',
+        alert
+          ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
+          : 'border-line bg-white hover:border-accent/40',
+      ].join(' ')}
     >
-      <div className="flex items-center gap-2 text-muted">
+      <div className={['flex items-center gap-2', alert ? 'text-amber-900' : 'text-muted'].join(' ')}>
         <Icon className="h-4 w-4" />
-        <span className="text-sm">{label}</span>
+        <span className="text-sm font-medium">{label}</span>
       </div>
-      <div className="mt-2 font-display text-3xl font-bold">{value}</div>
+      <div
+        className={[
+          'mt-2 font-display text-2xl font-bold sm:text-3xl',
+          alert ? 'text-amber-950' : 'text-ink',
+        ].join(' ')}
+      >
+        {value}
+      </div>
+      <span className="mt-1.5 block text-xs font-semibold text-accent">Ouvrir →</span>
     </Link>
   )
 }
