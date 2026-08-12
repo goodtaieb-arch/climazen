@@ -693,16 +693,23 @@ export function ChantiersPage() {
   const fluideMeta = findFluide(form.fluideType)
 
   const applyPlaque = (fields: PlaqueFields) => {
+    const fluideType = fields.fluideType || currentEquip.fluideType
+    const chargeNominaleKg =
+      fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0
+        ? fields.chargeNominaleKg
+        : currentEquip.chargeNominaleKg
+    const type = fields.equipementType || currentEquip.type
     patchCurrentEquip({
-      type: fields.equipementType || currentEquip.type,
+      type,
       marque: fields.equipementMarque || currentEquip.marque,
       modele: fields.equipementModele || currentEquip.modele,
       numeroSerie: fields.equipementNumeroSerie || currentEquip.numeroSerie,
-      nom: fields.equipementType || currentEquip.nom,
-      ...(fields.fluideType ? { fluideType: fields.fluideType } : {}),
+      nom: currentEquip.nom.trim() || type || currentEquip.nom,
+      ...(fields.fluideType ? { fluideType, avecFluideFrigorigene: true } : {}),
       ...(fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0
-        ? { chargeNominaleKg: fields.chargeNominaleKg }
+        ? { chargeNominaleKg }
         : {}),
+      teqCO2: calcTeqCO2FromFluide(chargeNominaleKg || 0, fluideType) ?? currentEquip.teqCO2,
     })
   }
 
@@ -741,7 +748,11 @@ export function ChantiersPage() {
     setEquipIdx(idx)
     setPicker(null)
     setOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.setTimeout(() => {
+      document
+        .getElementById('equipement-photo-plaque')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 120)
   }
 
   const removeEquipement = (site: Chantier, equipementId: string) => {
@@ -840,7 +851,11 @@ export function ChantiersPage() {
     setEquipIdx(list.length - 1)
     setPicker(null)
     setOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.setTimeout(() => {
+      document
+        .getElementById('equipement-photo-plaque')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 120)
   }
 
   return (
@@ -1086,6 +1101,11 @@ export function ChantiersPage() {
                   setForm({ ...form, equipements: list, avecFluideFrigorigene: true })
                   setEquipIdx(list.length - 1)
                   setEquipFilter('')
+                  window.setTimeout(() => {
+                    document
+                      .getElementById('equipement-photo-plaque')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }, 80)
                 }}
                 className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:bg-mist"
               >
@@ -1141,7 +1161,7 @@ export function ChantiersPage() {
                 )}
               </div>
             )}
-            <PlaquePhotoButton onParsed={applyPlaque} />
+            <PlaquePhotoButton className="mb-1" onParsed={applyPlaque} />
           </div>
 
           <label className="flex items-center gap-3 sm:col-span-2">

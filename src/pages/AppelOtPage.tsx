@@ -20,6 +20,8 @@ import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
+import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
+import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, equipementsForCerfa } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
@@ -874,6 +876,36 @@ export function AppelOtPage() {
             </ul>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <PlaquePhotoButton
+                  onParsed={(fields: PlaqueFields) => {
+                    setEquipForm((prev) => {
+                      const fluideType = fields.fluideType || prev.fluideType
+                      const chargeNominaleKg =
+                        fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0
+                          ? fields.chargeNominaleKg
+                          : prev.chargeNominaleKg
+                      const type = fields.equipementType || prev.type
+                      return {
+                        ...prev,
+                        type,
+                        nom: prev.nom.trim() || type || prev.nom,
+                        marque: fields.equipementMarque || prev.marque,
+                        modele: fields.equipementModele || prev.modele,
+                        numeroSerie: fields.equipementNumeroSerie || prev.numeroSerie,
+                        ...(fields.fluideType
+                          ? { fluideType, avecFluideFrigorigene: true as const }
+                          : {}),
+                        ...(fields.chargeNominaleKg != null && fields.chargeNominaleKg > 0
+                          ? { chargeNominaleKg }
+                          : {}),
+                        teqCO2:
+                          calcTeqCO2FromFluide(chargeNominaleKg || 0, fluideType) || prev.teqCO2,
+                      }
+                    })
+                  }}
+                />
+              </div>
               <label className="block text-sm sm:col-span-2">
                 <span className="mb-1 block text-muted">Nom / repère</span>
                 <input
