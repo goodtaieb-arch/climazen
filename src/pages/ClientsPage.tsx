@@ -375,9 +375,25 @@ export function ClientsPage() {
                 <div className="min-w-0 text-sm text-slate">
                   <div className="flex items-start gap-1.5">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-ink">
-                        {c.ville || '—'}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-ink">{c.ville || '—'}</span>
+                        {formatAddressQuery(c) ? (
+                          <button
+                            type="button"
+                            title="Ouvrir dans le GPS (Waze, Maps…)"
+                            aria-label="Ouvrir l’adresse dans le GPS"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!openAddressInGps(c)) {
+                                alert('Adresse incomplète pour le GPS.')
+                              }
+                            }}
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 active:bg-emerald-100"
+                          >
+                            <Navigation className="h-3.5 w-3.5" strokeWidth={2.25} />
+                          </button>
+                        ) : null}
                       </div>
                       {(c.codePostal || c.adresse) && (
                         <div className="mt-0.5 text-xs text-muted">
@@ -385,22 +401,6 @@ export function ClientsPage() {
                         </div>
                       )}
                     </div>
-                    {formatAddressQuery(c) ? (
-                      <button
-                        type="button"
-                        title="Ouvrir dans le GPS (Waze, Maps…)"
-                        aria-label="Ouvrir dans le GPS"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (!openAddressInGps(c)) {
-                            alert('Adresse incomplète pour le GPS.')
-                          }
-                        }}
-                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 active:bg-emerald-100"
-                      >
-                        <Navigation className="h-4 w-4" strokeWidth={2.25} />
-                      </button>
-                    ) : null}
                   </div>
                 </div>
 
