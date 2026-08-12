@@ -7,6 +7,7 @@ import { useAuth } from '../lib/AuthContext'
 import { FACTURATION_PLATEFORMES } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
+import { Nav3dIcon } from '../components/Nav3dIcon'
 
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
@@ -64,12 +65,15 @@ export function OperateurPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Mon entreprise</h1>
-        <p className="mt-1 text-muted">
-          Compte administrateur · {organization?.name || 'Société'} — cadre [1], logo, facturation.
-          Les signatures personnelles sont hors de cette page (chaque opérateur a la sienne).
-        </p>
+      <div className="flex items-center gap-3">
+        <Nav3dIcon to="/app/operateur" size={52} float delay="0.2s" className="shrink-0" />
+        <div>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Mon entreprise</h1>
+          <p className="mt-1 text-muted">
+            Compte administrateur · {organization?.name || 'Société'} — cadre [1], logo, facturation.
+            Les signatures personnelles sont hors de cette page (chaque opérateur a la sienne).
+          </p>
+        </div>
       </div>
 
       <form

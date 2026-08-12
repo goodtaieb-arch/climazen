@@ -15,10 +15,7 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
-import { StockBottleIcon } from './StockBottleIcon'
-import { Clients3dIcon } from './Clients3dIcon'
-import { Sites3dIcon } from './Sites3dIcon'
-import { Cerfa3dIcon } from './Cerfa3dIcon'
+import { Nav3dIcon } from './Nav3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
@@ -232,17 +229,35 @@ export function AppLayout() {
                         color: t.icon,
                       }}
                     >
-                      {to === '/app/stock' ? (
-                        <StockBottleIcon size={28} float delay="0.2s" />
-                      ) : to === '/app/clients' ? (
-                        <Clients3dIcon size={28} float delay="0.35s" />
-                      ) : to === '/app/chantiers' ? (
-                        <Sites3dIcon size={28} float delay="0.1s" />
-                      ) : to === '/app/interventions' ? (
-                        <Cerfa3dIcon size={28} float delay="0.45s" />
-                      ) : (
-                        <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
-                      )}
+                      {(() => {
+                        const threeD = (
+                          <Nav3dIcon
+                            to={to}
+                            size={28}
+                            float
+                            delay={
+                              to === '/app'
+                                ? '0s'
+                                : to === '/app/chantiers'
+                                  ? '0.1s'
+                                  : to === '/app/stock'
+                                    ? '0.2s'
+                                    : to === '/app/clients'
+                                      ? '0.3s'
+                                      : to === '/app/interventions'
+                                        ? '0.4s'
+                                        : to === '/app/equipe'
+                                          ? '0.5s'
+                                          : to === '/app/operateur'
+                                            ? '0.6s'
+                                            : '0.7s'
+                            }
+                          />
+                        )
+                        return threeD || (
+                          <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
+                        )
+                      })()}
                     </span>
                     <span className="flex-1 truncate">{label}</span>
                   </>
@@ -383,11 +398,10 @@ export function AppLayout() {
                         className="grid h-12 w-12 place-items-center rounded-xl"
                         style={{ backgroundColor: t.band, color: t.icon }}
                       >
-                        {to === '/app/clients' ? (
-                          <Clients3dIcon size={32} float delay="0.2s" />
-                        ) : (
-                          <Icon className="h-5 w-5" />
-                        )}
+                        {(() => {
+                          const threeD = <Nav3dIcon to={to} size={32} float delay="0.2s" />
+                          return threeD || <Icon className="h-5 w-5" />
+                        })()}
                       </span>
                       {label}
                     </NavLink>
@@ -434,15 +448,14 @@ export function AppLayout() {
                       className="grid h-10 w-10 place-items-center rounded-xl"
                       style={{ backgroundColor: isActive ? t.band : 'transparent' }}
                     >
-                      {to === '/app/stock' ? (
-                        <StockBottleIcon size={26} float={isActive} delay="0s" />
-                      ) : to === '/app/chantiers' ? (
-                        <Sites3dIcon size={26} float={isActive} delay="0s" />
-                      ) : to === '/app/interventions' ? (
-                        <Cerfa3dIcon size={26} float={isActive} delay="0s" />
-                      ) : (
-                        <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
-                      )}
+                      {(() => {
+                        const threeD = (
+                          <Nav3dIcon to={to} size={26} float={isActive} delay="0s" />
+                        )
+                        return threeD || (
+                          <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
+                        )
+                      })()}
                     </span>
                     <span className="truncate px-0.5">{label}</span>
                   </>

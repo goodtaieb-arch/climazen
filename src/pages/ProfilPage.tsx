@@ -5,6 +5,7 @@ import { SignaturePad } from '../components/SignaturePad'
 import { PasswordField } from '../components/PasswordField'
 import { DetecteursParc } from '../components/DetecteursParc'
 import { useAuth } from '../lib/AuthContext'
+import { Nav3dIcon } from '../components/Nav3dIcon'
 
 /**
  * Espace personnel opérateur : signature (obligatoire pour CERFA) + MDP.
@@ -83,13 +84,16 @@ export function ProfilPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Ma signature</h1>
-        <p className="mt-1 text-muted">
-          {organization?.name || data.operateur.raisonSociale || 'Société'} — signature{' '}
-          <strong>personnelle</strong>, visible seulement par vous. Sans elle, le CERFA ne peut pas
-          être validé.
-        </p>
+      <div className="flex items-center gap-3">
+        <Nav3dIcon to="/app/profil" size={52} float delay="0.2s" className="shrink-0" />
+        <div>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Ma signature</h1>
+          <p className="mt-1 text-muted">
+            {organization?.name || data.operateur.raisonSociale || 'Société'} — signature{' '}
+            <strong>personnelle</strong>, visible seulement par vous. Sans elle, le CERFA ne peut pas
+            être validé.
+          </p>
+        </div>
       </div>
 
       {!isOwner && (

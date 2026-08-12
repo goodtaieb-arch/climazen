@@ -4,6 +4,7 @@ import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
+import { Nav3dIcon } from '../components/Nav3dIcon'
 import { useStore } from '../lib/store'
 
 export function EquipePage() {
@@ -85,11 +86,14 @@ export function EquipePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Équipe / Opérateurs</h1>
-        <p className="mt-1 text-muted">
-          Société <strong>{organization?.name}</strong> — l’administrateur crée les accès employés.
-        </p>
+      <div className="flex items-center gap-3">
+        <Nav3dIcon to="/app/equipe" size={52} float delay="0.15s" className="shrink-0" />
+        <div>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Équipe / Opérateurs</h1>
+          <p className="mt-1 text-muted">
+            Société <strong>{organization?.name}</strong> — l’administrateur crée les accès employés.
+          </p>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5 text-sm text-slate">
