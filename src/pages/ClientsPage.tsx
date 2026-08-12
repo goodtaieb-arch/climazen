@@ -7,7 +7,6 @@ import {
   FileSpreadsheet,
   Mail,
   MapPin,
-  Navigation,
   Pencil,
   Phone,
   Plus,
@@ -373,35 +372,46 @@ export function ClientsPage() {
                 </div>
 
                 <div className="min-w-0 text-sm text-slate">
-                  <div className="flex items-start gap-1.5">
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-ink">{c.ville || '—'}</span>
-                        {formatAddressQuery(c) ? (
-                          <button
-                            type="button"
-                            title="Ouvrir dans le GPS (Waze, Maps…)"
-                            aria-label="Ouvrir l’adresse dans le GPS"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (!openAddressInGps(c)) {
-                                alert('Adresse incomplète pour le GPS.')
-                              }
-                            }}
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 active:bg-emerald-100"
-                          >
-                            <Navigation className="h-3.5 w-3.5" strokeWidth={2.25} />
-                          </button>
-                        ) : null}
+                  {formatAddressQuery(c) ? (
+                    <button
+                      type="button"
+                      title="Ouvrir dans le GPS (Waze, Maps…)"
+                      aria-label="Ouvrir l’adresse dans le GPS"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!openAddressInGps(c)) {
+                          alert('Adresse incomplète pour le GPS.')
+                        }
+                      }}
+                      className="flex w-full min-w-0 items-start gap-2 rounded-xl text-left active:bg-mist"
+                    >
+                      <MapPin
+                        className="mt-0.5 h-5 w-5 shrink-0 text-red-600"
+                        fill="currentColor"
+                        strokeWidth={1.5}
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium text-ink">{c.ville || '—'}</span>
+                        {(c.codePostal || c.adresse) && (
+                          <span className="mt-0.5 block text-xs text-muted">
+                            {[c.codePostal, c.adresse].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-muted" strokeWidth={1.75} />
+                      <div className="min-w-0">
+                        <div className="font-medium text-ink">{c.ville || '—'}</div>
+                        {(c.codePostal || c.adresse) && (
+                          <div className="mt-0.5 text-xs text-muted">
+                            {[c.codePostal, c.adresse].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
                       </div>
-                      {(c.codePostal || c.adresse) && (
-                        <div className="mt-0.5 text-xs text-muted">
-                          {[c.codePostal, c.adresse].filter(Boolean).join(' · ')}
-                        </div>
-                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="min-w-0 space-y-1 text-sm">
