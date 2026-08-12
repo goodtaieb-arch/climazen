@@ -1784,7 +1784,7 @@ export function ChantiersPage() {
                   }}
                   className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
                 >
-                  <ClipboardList className="h-4 w-4 text-accent" /> Fiche maintenance clim
+                  <ClipboardList className="h-4 w-4 text-accent" /> Fiche checklist (optionnel)
                 </button>
                 {eqFluide && (
                   <button
@@ -1836,6 +1836,9 @@ export function ChantiersPage() {
             </h2>
             <p className="mt-1 text-sm text-muted">
               {picker.site.nom} — un n° OT (OT2026…) sera attribué automatiquement.
+              {picker.mode === 'maintenance'
+                ? ' Le CERFA suffit pour la maintenance fluide ; la fiche checklist est optionnelle.'
+                : ''}
             </p>
 
             {picker.mode === 'intervention' && (
@@ -2067,13 +2070,13 @@ export function ChantiersPage() {
                 <button
                   type="button"
                   onClick={() => openFichesMaintenanceFromPicker()}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-5 py-2.5 text-sm font-semibold text-slate hover:bg-accent"
-                  title="Checklist maintenance clim / PAC (PDF)"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-muted hover:bg-mist"
+                  title="Optionnel — checklist clim / PAC si besoin"
                 >
                   <ClipboardList className="h-4 w-4" />
                   {picker.selected.length > 1
-                    ? `Générer ${picker.selected.length} fiches maintenance`
-                    : 'Générer fiche de maintenance'}
+                    ? `Fiches checklist (optionnel) · ${picker.selected.length}`
+                    : 'Fiche checklist (optionnel)'}
                 </button>
               )}
               <button
@@ -2158,23 +2161,6 @@ export function ChantiersPage() {
 
             {(equipWork.step || 'choose') === 'choose' ? (
               <div className="mt-5 space-y-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const url = `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
-                    setEquipWork(null)
-                    navigate(url)
-                  }}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-accent bg-accent px-4 py-4 text-left font-bold text-ink active:bg-accent-hover"
-                >
-                  <ClipboardList className="h-6 w-6 shrink-0" />
-                  <span>
-                    <span className="block text-base">Fiche maintenance clim</span>
-                    <span className="block text-sm font-medium opacity-80">
-                      Checklist + PDF terrain
-                    </span>
-                  </span>
-                </button>
                 {equipAvecFluideFrigorigene(
                   allEquipements(equipWork.site).find((e) => e.id === equipWork.equipementId) ||
                     blankEquip(),
@@ -2182,21 +2168,39 @@ export function ChantiersPage() {
                   <button
                     type="button"
                     onClick={() => setEquipWork({ ...equipWork, step: 'cerfa' })}
-                    className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-line bg-white px-4 py-4 text-left font-bold text-ink active:bg-mist"
+                    className="flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 py-4 text-left font-bold text-ink active:bg-emerald-100"
                   >
-                    <FileCheck2 className="h-6 w-6 shrink-0 text-accent" />
+                    <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
                     <span>
                       <span className="block text-base">CERFA fluides</span>
                       <span className="block text-sm font-medium text-muted">
-                        Obligation légale / manipulation fluide
+                        Document utile pour la maintenance / fluide
                       </span>
                     </span>
                   </button>
                 ) : (
                   <p className="rounded-xl border border-dashed border-line bg-foam/60 px-3 py-3 text-sm text-muted">
-                    Équipement sans fluide — pas de CERFA. Utilisez la fiche maintenance.
+                    Équipement sans fluide — pas de CERFA. Un rapport sur l’OT suffit ; la fiche
+                    checklist reste optionnelle.
                   </p>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-clim?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
+                    setEquipWork(null)
+                    navigate(url)
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left font-semibold text-ink active:bg-mist"
+                >
+                  <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
+                  <span>
+                    <span className="block text-sm">Fiche checklist (optionnel)</span>
+                    <span className="block text-xs font-medium text-muted">
+                      Pas obligatoire pour une maintenance — utile si vous voulez un PDF détaillé
+                    </span>
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setEquipWork(null)}

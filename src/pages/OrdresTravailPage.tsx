@@ -320,7 +320,7 @@ export function OrdresTravailPage() {
                 }&numero=${encodeURIComponent(form.numero)}`}
                 className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold"
               >
-                + Rapport sans CERFA
+                + Fiche checklist (optionnel)
               </Link>
             )}
           </div>

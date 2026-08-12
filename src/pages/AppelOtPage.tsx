@@ -323,7 +323,7 @@ export function AppelOtPage() {
     }
     persistOt({ equipementId, parcoursStep: 'docs' }, otId)
     setStep('docs')
-    setMsg('Équipement lié — choisissez le document d’intervention.')
+    setMsg('Équipement lié — CERFA si fluide, sinon rapport OT. Fiche checklist optionnelle.')
   }
 
   const skipEquipForNow = () => {
@@ -1074,25 +1074,31 @@ export function AppelOtPage() {
                 <span>
                   <span className="block">CERFA (fluide / gaz)</span>
                   <span className="block text-sm font-medium text-muted">
-                    Obligation légale — n° {otForm.numero}, date reprise
+                    Document utile — n° {otForm.numero}, date reprise
                   </span>
                 </span>
               </button>
             ) : null}
-            {isMaint || !hasFluide ? (
-              <button
-                type="button"
-                onClick={openFicheMaint}
-                className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-line bg-white px-4 text-left font-bold active:bg-mist"
-              >
-                <ClipboardList className="h-6 w-6 shrink-0 text-teal-700" />
-                <span>
-                  <span className="block">Fiche maintenance / rapport</span>
-                  <span className="block text-sm font-medium text-muted">
-                    Sans CERFA — même n° OT et date
-                  </span>
+            <button
+              type="button"
+              onClick={openFicheMaint}
+              className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-line bg-white px-4 py-3 text-left font-semibold active:bg-mist"
+            >
+              <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
+              <span>
+                <span className="block text-sm">Fiche checklist (optionnel)</span>
+                <span className="block text-xs font-medium text-muted">
+                  {isMaint
+                    ? 'Pas obligatoire en maintenance — le CERFA ou le rapport OT suffisent'
+                    : 'Si vous voulez un PDF détaillé hors CERFA'}
                 </span>
-              </button>
+              </span>
+            </button>
+            {!hasFluide ? (
+              <p className="text-xs text-muted">
+                Pas de fluide : notez l’intervention dans le rapport d’action ci-dessus, puis
+                clôturez l’OT. La fiche checklist n’est pas exigée.
+              </p>
             ) : null}
           </div>
 
@@ -1152,8 +1158,8 @@ export function AppelOtPage() {
           </div>
 
           <p className="text-xs text-muted">
-            Les signatures technicien + client doivent figurer sur l’OT, le CERFA et la fiche. La
-            date est reprise automatiquement (modifiable si l’OT est rédigé hors site).
+            Signatures technicien + client sur l’OT (reprises sur le CERFA si besoin). La fiche
+            checklist n’est pas exigée pour clôturer une maintenance.
           </p>
         </section>
       )}
