@@ -476,6 +476,8 @@ export interface AppData {
   ordresTravail?: OrdreTravail[]
   /** Contrats de maintenance (documents signables) */
   contratsMaintenance?: ContratMaintenance[]
+  /** Agenda / rappels RDV maintenance */
+  agendaEvents?: import('./agenda').AgendaEvent[]
 }
 
 /** Libellé CERFA / intervention pour traçabilité stock */

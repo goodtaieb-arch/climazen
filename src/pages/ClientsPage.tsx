@@ -413,19 +413,19 @@ export function ClientsPage() {
                   ) : null}
                   {c.telephone ? (
                     <a
-                      href={`tel:${c.telephone.replace(/\s/g, '')}`}
-                      className="flex items-center gap-1.5 text-muted hover:text-accent"
+                      href={`tel:${c.telephone.replace(/[\s.()/-]/g, '')}`}
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 active:bg-emerald-100"
                     >
-                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      <Phone className="h-4 w-4 shrink-0" />
                       <span className="truncate">{c.telephone}</span>
                     </a>
                   ) : null}
                   {c.email ? (
                     <a
                       href={`mailto:${c.email}`}
-                      className="flex items-center gap-1.5 text-muted hover:text-accent"
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white px-3 text-sm font-semibold text-ink active:bg-mist"
                     >
-                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <Mail className="h-4 w-4 shrink-0" />
                       <span className="truncate">{c.email}</span>
                     </a>
                   ) : null}

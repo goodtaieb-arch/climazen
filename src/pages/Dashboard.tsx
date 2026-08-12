@@ -4,6 +4,7 @@ import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  Mail,
   MapPin,
   Package,
   PenLine,
@@ -17,6 +18,13 @@ import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
 import { APP_BUILD } from '../lib/buildStamp'
 import { ICON3D } from '../lib/icons3d'
+import {
+  agendaSortDate,
+  isAgendaDueSoon,
+  isAgendaOverdue,
+  telHref,
+  mailtoHref,
+} from '../lib/agenda'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -74,6 +82,17 @@ export function Dashboard() {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, 5)
   }, [data.ordresTravail])
+
+  const agendaAContacter = useMemo(() => {
+    return [...(data.agendaEvents || [])]
+      .filter(
+        (e) =>
+          (e.statut === 'a_faire' || e.statut === 'contacte') &&
+          (isAgendaOverdue(e) || isAgendaDueSoon(e, 14)),
+      )
+      .sort((a, b) => agendaSortDate(a).localeCompare(agendaSortDate(b)))
+      .slice(0, 5)
+  }, [data.agendaEvents])
 
   const steps = [
     {
@@ -316,6 +335,19 @@ export function Dashboard() {
             />
             <TerrainAction
               icon={ClipboardList}
+              img3d={ICON3D.search}
+              title="Agenda"
+              subtitle={
+                agendaAContacter.length
+                  ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
+                  : 'Rappels maintenance & RDV'
+              }
+              color="sites"
+              to="/app/agenda"
+              badge={agendaAContacter.length || undefined}
+            />
+            <TerrainAction
+              icon={ClipboardList}
               img3d={ICON3D.cerfa}
               title="CERFA / Interventions"
               subtitle={
@@ -354,6 +386,62 @@ export function Dashboard() {
           </nav>
         )}
       </section>
+
+      {/* Rappels agenda — à contacter */}
+      {!q.trim() && agendaAContacter.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">À contacter (agenda)</h2>
+            <Link to="/app/agenda" className="text-sm font-semibold text-accent hover:underline">
+              Voir l’agenda
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {agendaAContacter.map((ev) => {
+              const client = data.clients.find((c) => c.id === ev.clientId)
+              const tel = telHref(client?.telephone)
+              const mail = mailtoHref(client?.email, `RDV maintenance`)
+              return (
+                <li
+                  key={ev.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-teal-200/80 bg-teal-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="font-display text-base font-bold text-ink">{ev.title}</p>
+                    <p className="text-sm text-muted">
+                      {client?.raisonSociale || '—'} · rappel {ev.dateRappel || ev.date}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {tel ? (
+                      <a
+                        href={tel}
+                        className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white"
+                      >
+                        <Phone className="h-4 w-4" /> Appeler
+                      </a>
+                    ) : null}
+                    {mail ? (
+                      <a
+                        href={mail}
+                        className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-bold"
+                      >
+                        <Mail className="h-4 w-4" /> Mail
+                      </a>
+                    ) : null}
+                    <Link
+                      to="/app/agenda"
+                      className="inline-flex min-h-12 items-center rounded-xl border border-line bg-white px-4 text-sm font-semibold"
+                    >
+                      Agenda
+                    </Link>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* À reprendre — OT en cours */}
       {!q.trim() && otAReprendre.length > 0 && (

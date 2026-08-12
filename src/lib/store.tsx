@@ -37,6 +37,8 @@ import { detecteurForUser } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
 import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
+import type { AgendaEvent } from './agenda'
+import { buildAutoAgendaEvents } from './agenda'
 import {
   getPendingSync,
   isBrowserOnline,
@@ -78,6 +80,12 @@ type Store = {
     c: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deleteContratMaintenance: (id: string) => void
+  upsertAgendaEvent: (
+    e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  deleteAgendaEvent: (id: string) => void
+  /** Synchronise les rappels depuis contrats signés + contrôles sites. */
+  syncAgendaFromSources: () => number
   /** Crée un OT pour une action terrain — retourne { id, numero }. */
   createOtForAction: (opts: {
     typeOt: import('./ordreTravail').TypeOt
@@ -643,6 +651,91 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const upsertAgendaEvent = useCallback(
+    (e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+      const id = e.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.agendaEvents || []
+        const existing =
+          list.find((x) => x.id === id) ||
+          (e.autoKey ? list.find((x) => x.autoKey === e.autoKey) : undefined)
+        const next: AgendaEvent = {
+          ...e,
+          id: existing?.id ?? id,
+          // Ne pas écraser un statut déjà traité lors d’une sync auto
+          statut: existing && e.autoKey ? existing.statut : e.statut,
+          notes: e.notes ?? existing?.notes,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          agendaEvents: existing
+            ? list.map((x) => (x.id === next.id ? { ...existing, ...next, statut: existing.statut } : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteAgendaEvent = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      agendaEvents: (d.agendaEvents || []).filter((e) => e.id !== id),
+    }))
+  }, [])
+
+  const syncAgendaFromSources = useCallback(() => {
+    const d = dataRef.current
+    const generated = buildAutoAgendaEvents({
+      contrats: d.contratsMaintenance || [],
+      sites: d.chantiers,
+    })
+    let added = 0
+    setData((prev) => {
+      const list = [...(prev.agendaEvents || [])]
+      const byKey = new Map(list.filter((e) => e.autoKey).map((e) => [e.autoKey!, e]))
+      const now = new Date().toISOString()
+      for (const g of generated) {
+        const key = g.autoKey!
+        const existing = byKey.get(key)
+        if (existing) {
+          // Met à jour titre/dates mais conserve statut manuel
+          const idx = list.findIndex((x) => x.id === existing.id)
+          if (idx >= 0) {
+            list[idx] = {
+              ...existing,
+              title: g.title,
+              date: g.date,
+              dateRappel: g.dateRappel,
+              notes: g.notes,
+              type: g.type,
+              clientId: g.clientId,
+              chantierId: g.chantierId,
+              contratId: g.contratId,
+              updatedAt: now,
+            }
+          }
+        } else {
+          const ev: AgendaEvent = {
+            ...g,
+            id: uuid(),
+            createdAt: now,
+            updatedAt: now,
+          }
+          list.push(ev)
+          byKey.set(key, ev)
+          added += 1
+        }
+      }
+      return { ...prev, agendaEvents: list }
+    })
+    return added
+  }, [])
+
   const createOtForAction = useCallback(
     (opts: {
       typeOt: import('./ordreTravail').TypeOt
@@ -1123,6 +1216,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteOrdreTravail,
       upsertContratMaintenance,
       deleteContratMaintenance,
+      upsertAgendaEvent,
+      deleteAgendaEvent,
+      syncAgendaFromSources,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
@@ -1157,6 +1253,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteOrdreTravail,
       upsertContratMaintenance,
       deleteContratMaintenance,
+      upsertAgendaEvent,
+      deleteAgendaEvent,
+      syncAgendaFromSources,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,

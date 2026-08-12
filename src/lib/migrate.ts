@@ -176,5 +176,6 @@ export function migrateAppData(data: AppData): AppData {
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
     ordresTravail: data.ordresTravail || [],
     contratsMaintenance: data.contratsMaintenance || [],
+    agendaEvents: data.agendaEvents || [],
   }
 }

@@ -20,7 +20,8 @@ import {
 } from '../lib/contratMaintenance'
 
 export function ContratsMaintenancePage() {
-  const { data, upsertContratMaintenance, deleteContratMaintenance } = useStore()
+  const { data, upsertContratMaintenance, deleteContratMaintenance, syncAgendaFromSources } =
+    useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -150,7 +151,12 @@ export function ContratsMaintenancePage() {
     })
     setForm({ ...form, statut: 'signe', signeAt: new Date().toISOString() })
     navigate(`/app/contrats?id=${encodeURIComponent(id)}`, { replace: true })
-    alert(`Contrat ${form.numero} signé — visible sur le client / les sites.`)
+    const n = syncAgendaFromSources()
+    alert(
+      `Contrat ${form.numero} signé — visible sur le client / les sites.${
+        n > 0 ? `\n${n} rappel(s) agenda créé(s).` : ''
+      }`,
+    )
   }
 
   const showForm = !!form || pickModele
