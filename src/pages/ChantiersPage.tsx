@@ -2238,6 +2238,17 @@ export function ChantiersPage() {
                     disabled={equipWork.natures.length === 0}
                     onClick={() => {
                       const natures = equipWork.natures
+                      const existingDraft = data.interventions.find(
+                        (i) =>
+                          i.status === 'brouillon' &&
+                          i.chantierId === equipWork.site.id &&
+                          i.equipementId === equipWork.equipementId,
+                      )
+                      if (existingDraft) {
+                        setEquipWork(null)
+                        navigate(`/app/interventions/${existingDraft.id}`)
+                        return
+                      }
                       const typeOt = natures.includes('demantelement')
                         ? 'demantelement'
                         : natures.some((n) => n.startsWith('controle_etancheite'))

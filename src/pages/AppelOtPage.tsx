@@ -337,6 +337,24 @@ export function AppelOtPage() {
       alert('Site requis pour le CERFA.')
       return
     }
+    const existingDraft =
+      data.interventions.find(
+        (i) =>
+          (otId && i.ordreTravailId === otId) ||
+          (otForm.numero && i.numeroIntervention === otForm.numero),
+      ) ||
+      (otForm.equipementId
+        ? data.interventions.find(
+            (i) =>
+              i.status === 'brouillon' &&
+              i.chantierId === otForm.chantierId &&
+              i.equipementId === otForm.equipementId,
+          )
+        : undefined)
+    if (existingDraft) {
+      navigate(`/app/interventions/${existingDraft.id}`)
+      return
+    }
     const natures = naturesCerfaPourTypeOt(otForm.typeOt).join(',')
     const id = persistOt(
       {

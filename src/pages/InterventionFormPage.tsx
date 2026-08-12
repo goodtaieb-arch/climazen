@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Eye, FileCheck2, Plus, Save, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -58,7 +58,8 @@ export function InterventionFormPage() {
   const [searchParams] = useSearchParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
-  const { data, saveInterventionWithStock, upsertChantier, applySiteClientSignature } = useStore()
+  const { data, saveInterventionWithStock, upsertIntervention, upsertChantier, applySiteClientSignature } =
+    useStore()
   const { user } = useAuth()
 
   const existing = useMemo(
@@ -195,9 +196,14 @@ export function InterventionFormPage() {
   )
   const [busy, setBusy] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
+  const [draftId, setDraftId] = useState<string | null>(existing?.id || null)
+  const [draftHint, setDraftHint] = useState('')
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [hasPdf, setHasPdf] = useState(!!existing?.hasCerfaPdf)
   const [fullscreen, setFullscreen] = useState(false)
+  const skipAutosaveRef = useRef(true)
+  const lastDraftJsonRef = useRef('')
+  const saveDraftRef = useRef<() => string | null>(() => null)
 
   const chantier = data.chantiers.find((c) => c.id === chantierId)
   const client = data.clients.find((c) => c.id === chantier?.clientId)
@@ -236,6 +242,28 @@ export function InterventionFormPage() {
       if (revoked) URL.revokeObjectURL(revoked)
     }
   }, [existing?.id, existing?.cerfaPdfSavedAt, user?.organizationId])
+
+  // Reprendre un brouillon déjà lié au même OT / n° (évite une fiche vide)
+  useEffect(() => {
+    if (!isNew) return
+    if (!otFromQuery && !numeroFromQuery) return
+    const found = data.interventions.find(
+      (i) =>
+        (otFromQuery && (i.ordreTravailId === otFromQuery || i.id === otFromQuery)) ||
+        (numeroFromQuery.trim() !== '' && i.numeroIntervention === numeroFromQuery.trim()),
+    )
+    if (found) {
+      navigate(`/app/interventions/${found.id}`, { replace: true })
+    }
+  }, [isNew, otFromQuery, numeroFromQuery, data.interventions, navigate])
+
+  // Laisser le préremplissage initial se faire avant l’autosave
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      skipAutosaveRef.current = false
+    }, 900)
+    return () => window.clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     if (!chantier || existing) return
@@ -376,15 +404,19 @@ export function InterventionFormPage() {
     setNatures((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
   }
 
-  const buildDraft = (): Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } => {
+  const buildDraft = (
+    opts?: { keepEmptyManips?: boolean },
+  ): Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } => {
+    const keepEmptyManips = opts?.keepEmptyManips === true
     const manipulations = manips
       .map((m) => {
         const item = data.stock.find((s) => s.id === m.stockItemId)
-        if (!item || !(m.quantiteKg > 0)) return null
+        if (!item) return null
+        if (!keepEmptyManips && !(m.quantiteKg > 0)) return null
         return {
           type: item.contenantType as ContenantType,
           stockItemId: item.id,
-          quantiteKg: roundKg(m.quantiteKg),
+          quantiteKg: roundKg(m.quantiteKg || 0),
           numeroContenant: item.numeroContenant,
           bsffReference: item.bsffReference,
           sens: m.sens,
@@ -393,7 +425,7 @@ export function InterventionFormPage() {
       .filter((x): x is NonNullable<typeof x> => !!x)
 
     return {
-      id: existing?.id,
+      id: draftId || existing?.id,
       clientId: client?.id || '',
       chantierId,
       equipementId: equipementId || equipement?.id || undefined,
@@ -440,6 +472,152 @@ export function InterventionFormPage() {
       status,
     }
   }
+
+  /** Enregistre sans contrôles stricts ni mouvement stock — pour ne rien perdre en quittant. */
+  const saveDraftQuiet = useCallback(
+    (opts?: { navigateToDraft?: boolean }) => {
+      if (!chantierId) return null
+      const site = data.chantiers.find((c) => c.id === chantierId)
+      const clientId = client?.id || site?.clientId || ''
+      if (!clientId) return null
+
+      const draft = buildDraft({ keepEmptyManips: true })
+      let statusToSave = draft.status || 'brouillon'
+      if (
+        statusToSave !== 'brouillon' &&
+        (!draft.signatureOperateurImage || !draft.signatureDetenteurImage)
+      ) {
+        statusToSave = 'brouillon'
+      }
+
+      const snapshot = JSON.stringify({
+        ...draft,
+        id: draftId || existing?.id || '',
+        clientId,
+        status: statusToSave,
+      })
+      if (snapshot === lastDraftJsonRef.current) return draftId || existing?.id || null
+
+      const savedId = upsertIntervention({
+        ...draft,
+        id: draftId || existing?.id,
+        clientId,
+        status: statusToSave,
+        hasCerfaPdf: existing?.hasCerfaPdf,
+        cerfaPdfFileName: existing?.cerfaPdfFileName,
+        cerfaPdfSavedAt: existing?.cerfaPdfSavedAt,
+      })
+      lastDraftJsonRef.current = JSON.stringify({
+        ...draft,
+        id: savedId,
+        clientId,
+        status: statusToSave,
+      })
+      setDraftId(savedId)
+      setDraftHint(
+        `Brouillon enregistré · ${new Date().toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`,
+      )
+      if (opts?.navigateToDraft !== false && (isNew || !existing?.id)) {
+        navigate(`/app/interventions/${savedId}`, { replace: true })
+      }
+      return savedId
+    },
+    // buildDraft lit l’état courant du rendu — deps volontairement larges via effet autosave
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      chantierId,
+      client?.id,
+      data.chantiers,
+      draftId,
+      existing?.id,
+      existing?.hasCerfaPdf,
+      existing?.cerfaPdfFileName,
+      existing?.cerfaPdfSavedAt,
+      isNew,
+      navigate,
+      upsertIntervention,
+      // form fields that affect draft:
+      equipementId,
+      dateIntervention,
+      numeroIntervention,
+      ordreTravailId,
+      natures,
+      detecteurIdentification,
+      detecteurControleDate,
+      detectionPermanente,
+      fluideType,
+      quantiteTotaleKg,
+      quantiteHfoKg,
+      teqCO2,
+      periodiciteControle,
+      fuiteConstatee,
+      fuiteDescription,
+      fuiteReparee,
+      fuiteLocalisation2,
+      fuite2Reparee,
+      fuiteLocalisation3,
+      fuite3Reparee,
+      manips,
+      codeUn,
+      denominationAdr,
+      installationDestination,
+      observations,
+      signatureOperateur,
+      signatureOperateurQualite,
+      signatureDetenteur,
+      signatureDetenteurQualite,
+      signatureOperateurImage,
+      signatureDetenteurImage,
+      status,
+      data.operateur,
+      data.stock,
+      equipement?.id,
+      user?.id,
+      user?.fullName,
+      user?.email,
+      user?.username,
+    ],
+  )
+
+  saveDraftRef.current = () => saveDraftQuiet({ navigateToDraft: false })
+
+  // Autosave pendant la saisie
+  useEffect(() => {
+    if (skipAutosaveRef.current) return
+    if (!chantierId) return
+    const t = window.setTimeout(() => {
+      try {
+        saveDraftQuiet({ navigateToDraft: true })
+      } catch {
+        /* ignore autosave errors */
+      }
+    }, 1000)
+    return () => window.clearTimeout(t)
+  }, [saveDraftQuiet, chantierId])
+
+  // Flush à la sortie de page / onglet
+  useEffect(() => {
+    const flush = () => {
+      try {
+        saveDraftRef.current()
+      } catch {
+        /* ignore */
+      }
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      flush()
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
 
   const persistInApp = async () => {
     if (!client || !chantier) throw new Error('Choisissez un chantier lié à un client.')
@@ -549,7 +727,7 @@ export function InterventionFormPage() {
 
     const draft = buildDraft()
     const fileName = `CERFA-15497-04-${dateIntervention}.pdf`
-    const previewId = draft.id || crypto.randomUUID()
+    const previewId = draft.id || draftId || crypto.randomUUID()
     const fullDraft: CerfaDraft = {
       ...draft,
       id: previewId,
@@ -564,6 +742,8 @@ export function InterventionFormPage() {
       { ...fullDraft, id: previewId },
       { createdByName: user?.fullName || user?.email || user?.username },
     )
+    setDraftId(savedId)
+    lastDraftJsonRef.current = ''
 
     if (signatureDetenteurImage && chantierId) {
       applySiteClientSignature({
@@ -611,9 +791,20 @@ export function InterventionFormPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link to="/app/interventions" className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink">
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              saveDraftQuiet({ navigateToDraft: false })
+            } catch {
+              /* ignore */
+            }
+            navigate('/app/interventions')
+          }}
+          className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink"
+        >
           <ArrowLeft className="h-4 w-4" /> Interventions
-        </Link>
+        </button>
         {hasPdf && pdfUrl && (
           <button
             type="button"
@@ -627,17 +818,24 @@ export function InterventionFormPage() {
 
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">
-          {isNew ? 'Nouvelle intervention' : 'Fiche CERFA 15497-04'}
+          {isNew && !draftId ? 'Nouvelle intervention' : 'Fiche CERFA 15497-04'}
         </h1>
         <p className="mt-1 text-muted">
-          L’enregistrement reste <strong>dans ClimaZEN</strong> (avec le PDF officiel). Rien n’est
-          envoyé dans le dossier Téléchargements.
+          Brouillon enregistré automatiquement — vous pouvez quitter et reprendre plus tard. Le PDF
+          officiel se génère avec le bouton en bas.
         </p>
-        {numeroIntervention ? (
-          <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
-            OT {numeroIntervention}
-          </p>
-        ) : null}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {numeroIntervention ? (
+            <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
+              OT {numeroIntervention}
+            </p>
+          ) : null}
+          {(status === 'brouillon' || draftHint) && (
+            <p className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+              {draftHint || 'Brouillon'}
+            </p>
+          )}
+        </div>
       </div>
 
       {savedMsg && (
@@ -1136,21 +1334,43 @@ export function InterventionFormPage() {
         </Section>
 
         <div className="space-y-2">
-          <button
-            type="submit"
-            disabled={busy}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
-          >
-            <Save className="h-4 w-4" />
-            {busy
-              ? 'Génération…'
-              : hasPdf
-                ? 'Régénérer le CERFA'
-                : 'Enregistrer & générer le CERFA'}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              disabled={busy || !chantierId}
+              onClick={() => {
+                try {
+                  const id = saveDraftQuiet({ navigateToDraft: true })
+                  if (id) {
+                    setSavedMsg('Brouillon enregistré — vous pouvez quitter et reprendre cette fiche.')
+                  } else {
+                    alert('Choisissez d’abord un site / chantier pour enregistrer le brouillon.')
+                  }
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : 'Erreur brouillon')
+                }
+              }}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-white px-6 py-3 text-sm font-bold text-ink hover:bg-mist disabled:opacity-60 sm:w-auto"
+            >
+              <Save className="h-4 w-4" />
+              Enregistrer brouillon
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-bold text-ink hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
+            >
+              <Save className="h-4 w-4" />
+              {busy
+                ? 'Génération…'
+                : hasPdf
+                  ? 'Régénérer le CERFA'
+                  : 'Enregistrer & générer le CERFA'}
+            </button>
+          </div>
           <p className="text-xs text-muted">
-            Remplissez tout le formulaire, vérifiez les signatures, puis générez le PDF officiel dans
-            ClimaZEN.
+            Le brouillon se sauve aussi tout seul pendant la saisie. Pour le PDF officiel et le stock
+            bouteilles, utilisez « Enregistrer & générer le CERFA ».
           </p>
         </div>
       </form>

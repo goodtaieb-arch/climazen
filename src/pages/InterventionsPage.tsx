@@ -117,9 +117,27 @@ export function InterventionsPage() {
                 <div className="mt-1 text-sm text-muted">
                   {client?.raisonSociale || '—'}
                 </div>
-                <div className="mt-0.5 text-xs text-muted">
-                  {i.dateIntervention} · {i.fluideType || '—'} · {i.status}
-                  {i.createdByName ? ` · par ${i.createdByName}` : ''}
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  <span>
+                    {i.dateIntervention} · {i.fluideType || '—'}
+                    {i.createdByName ? ` · par ${i.createdByName}` : ''}
+                  </span>
+                  <span
+                    className={[
+                      'rounded-full px-2 py-0.5 text-[11px] font-bold',
+                      i.status === 'brouillon'
+                        ? 'bg-amber-50 text-amber-900'
+                        : i.status === 'signe'
+                          ? 'bg-emerald-50 text-emerald-800'
+                          : 'bg-mist text-slate',
+                    ].join(' ')}
+                  >
+                    {i.status === 'brouillon'
+                      ? 'Brouillon — à reprendre'
+                      : i.status === 'signe'
+                        ? 'Signé'
+                        : 'Envoyé'}
+                  </span>
                 </div>
                 {i.hasCerfaPdf && (
                   <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent">

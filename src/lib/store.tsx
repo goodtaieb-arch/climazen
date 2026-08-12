@@ -1014,14 +1014,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const now = new Date().toISOString()
       setData((d) => {
         const existing = d.interventions.find((x) => x.id === id)
+        const numeroIntervention =
+          i.numeroIntervention?.trim() ||
+          existing?.numeroIntervention?.trim() ||
+          nextNumeroIntervention(d)
+        let ordreTravailId = i.ordreTravailId || existing?.ordreTravailId
+        let ordres = [...(d.ordresTravail || [])]
+        if (ordreTravailId) {
+          ordres = ordres.map((o) =>
+            o.id === ordreTravailId || o.numero === numeroIntervention
+              ? {
+                  ...o,
+                  interventionId: id,
+                  numero: o.numero || numeroIntervention,
+                  rapportAction: i.observations || o.rapportAction,
+                  observations: i.observations || o.observations,
+                  signatureTechnicienImage:
+                    i.signatureOperateurImage || o.signatureTechnicienImage,
+                  signatureClientImage:
+                    i.signatureDetenteurImage || o.signatureClientImage,
+                  statut: o.statut === 'signe' ? o.statut : 'en_cours',
+                  updatedAt: now,
+                }
+              : o,
+          )
+        } else {
+          const linked = ordres.find(
+            (o) => o.interventionId === id || o.numero === numeroIntervention,
+          )
+          if (linked) ordreTravailId = linked.id
+        }
         const next: CerfaDraft = {
           ...i,
           id,
+          numeroIntervention,
+          ordreTravailId,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
         return {
           ...d,
+          ordresTravail: ordres,
           interventions: existing
             ? d.interventions.map((x) => (x.id === id ? next : x))
             : [...d.interventions, next],
