@@ -207,7 +207,9 @@ export function buildMaintenanceCerfaDrafts(input: MaintenanceCerfaInput): Cerfa
       signatureOperateurQualite: input.signataireQualite,
       signatureOperateurImage: input.signatureOperateurImage,
       signatureDetenteur:
-        input.site.signatureDetenteurNom || input.client.nomContact || input.client.raisonSociale,
+        input.site.signatureDetenteurNom?.trim() ||
+        input.client.nomContact?.trim() ||
+        '',
       signatureDetenteurQualite: input.site.signatureDetenteurQualite || 'Détenteur',
       signatureDetenteurImage: input.site.signatureDetenteurImage,
       createdByUserId: input.userId,

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Check, PenLine } from 'lucide-react'
 import { SignaturePad } from './SignaturePad'
 import { useStore } from '../lib/store'
+import { nomSignataireClient } from '../lib/signataireClient'
 
 type Props = {
   siteId?: string
@@ -40,7 +41,17 @@ export function ClientSiteSignature({
   useEffect(() => {
     if (!site?.signatureDetenteurImage) return
     if (!image) onImageChange(site.signatureDetenteurImage)
-    if (!nom.trim() && site.signatureDetenteurNom) onNomChange(site.signatureDetenteurNom)
+    const nextNom = nomSignataireClient({
+      signatureNom: nom || site.signatureDetenteurNom,
+      nomContact: undefined,
+      raisonSociale: undefined,
+    })
+    // Toujours préférer le nom enregistré sur le site s’il n’est pas vide
+    if (!nom.trim() && site.signatureDetenteurNom?.trim()) {
+      onNomChange(site.signatureDetenteurNom.trim())
+    } else if (nextNom && !nom.trim()) {
+      onNomChange(nextNom)
+    }
     if ((!qualite.trim() || qualite === 'Détenteur') && site.signatureDetenteurQualite) {
       onQualiteChange(site.signatureDetenteurQualite)
     }
@@ -49,9 +60,10 @@ export function ClientSiteSignature({
 
   const persistToSite = (next: { nom: string; qualite: string; image: string }) => {
     if (!autosaveSite || !siteId || !next.image) return
+    const personName = next.nom.trim()
     applySiteClientSignature({
       siteId,
-      signatureDetenteur: next.nom.trim() || 'Signataire site',
+      signatureDetenteur: personName || 'Signataire site',
       signatureDetenteurQualite: next.qualite.trim() || 'Représentant client',
       signatureDetenteurImage: next.image,
     })
@@ -59,7 +71,7 @@ export function ClientSiteSignature({
 
   const reuseSite = () => {
     if (!site?.signatureDetenteurImage) return
-    const nextNom = nom.trim() || site.signatureDetenteurNom || ''
+    const nextNom = nom.trim() || site.signatureDetenteurNom?.trim() || ''
     const nextQual = qualite.trim() || site.signatureDetenteurQualite || 'Représentant client'
     onImageChange(site.signatureDetenteurImage)
     if (nextNom) onNomChange(nextNom)
@@ -71,8 +83,9 @@ export function ClientSiteSignature({
       <div>
         <h3 className="font-display text-sm font-semibold">Signature client / site</h3>
         <p className="mt-0.5 text-xs text-muted">
-          Une seule signature pour tous les documents de ce site. Le signataire peut être un
-          technicien de site, le responsable, ou toute personne habilitée — indiquez son nom.
+          Une seule signature pour tous les documents de ce site. Indiquez le{' '}
+          <strong className="font-semibold text-ink">nom de la personne qui signe</strong> (pas la
+          raison sociale).
         </p>
       </div>
 
@@ -108,7 +121,7 @@ export function ClientSiteSignature({
               }
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            placeholder="Ex. Dupont — technicien de site"
+            placeholder="Nom de la personne qui signe (pas la société)"
           />
         </label>
         <label className="block text-sm">

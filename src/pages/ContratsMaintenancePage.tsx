@@ -417,7 +417,11 @@ export function ContratsMaintenancePage() {
             />
             <ClientSiteSignature
               siteId={form.chantierIds[0] || sitesForClient[0]?.id}
-              nom={form.signatureClientNom || client?.raisonSociale || ''}
+              nom={
+                form.signatureClientNom ||
+                client?.nomContact ||
+                ''
+              }
               qualite="Représentant client"
               image={form.signatureClientImage || ''}
               onNomChange={(v) => setForm({ ...form, signatureClientNom: v })}

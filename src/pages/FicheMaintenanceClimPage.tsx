@@ -150,7 +150,7 @@ export function FicheMaintenanceClimPage() {
       }),
   )
   const [clientSignNom, setClientSignNom] = useState(
-    () => site?.signatureDetenteurNom || client?.nomContact || client?.raisonSociale || '',
+    () => site?.signatureDetenteurNom || client?.nomContact || '',
   )
   const [clientSignQualite, setClientSignQualite] = useState(
     () => site?.signatureDetenteurQualite || 'Représentant client',

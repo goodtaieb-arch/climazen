@@ -168,14 +168,18 @@ export function AppelOtPage() {
 
   useEffect(() => {
     if (!site) return
-    setClientSignNom((n) => n || site.signatureDetenteurNom || '')
+    setClientSignNom((n) => {
+      const company = client?.raisonSociale?.trim().toLowerCase() || ''
+      if (n.trim() && (!company || n.trim().toLowerCase() !== company)) return n
+      return site.signatureDetenteurNom?.trim() || client?.nomContact?.trim() || ''
+    })
     setClientSignQualite((q) =>
       q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
     )
     if (!otForm.signatureClientImage && site.signatureDetenteurImage) {
       setOtForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
     }
-  }, [site?.id, site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [site?.id, site?.signatureDetenteurAt, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clientsFiltered = useMemo(
     () =>

@@ -30,6 +30,7 @@ import { detecteurForUser } from '../lib/detecteurs'
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
+import { nomSignataireClient } from '../lib/signataireClient'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
@@ -302,23 +303,30 @@ export function InterventionFormPage() {
     })
   }, [denominationFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Préremplir nom / signature client depuis le site (une seule signature pour tous les docs)
+  // Préremplir nom / signature client depuis le site (personne qui signe, pas la société)
   useEffect(() => {
     if (!chantier) return
     if (!signatureDetenteurImage && chantier.signatureDetenteurImage) {
       setSignatureDetenteurImage(chantier.signatureDetenteurImage)
     }
-    if (!signatureDetenteur.trim()) {
-      setSignatureDetenteur(
-        chantier.signatureDetenteurNom || client?.nomContact || client?.raisonSociale || '',
-      )
+    const person = nomSignataireClient({
+      signatureNom: signatureDetenteur || chantier.signatureDetenteurNom,
+      nomContact: client?.nomContact,
+      raisonSociale: client?.raisonSociale,
+    })
+    if (
+      !signatureDetenteur.trim() ||
+      (client?.raisonSociale &&
+        signatureDetenteur.trim().toLowerCase() === client.raisonSociale.trim().toLowerCase())
+    ) {
+      if (person) setSignatureDetenteur(person)
     }
     if (!signatureDetenteurQualite.trim()) {
       setSignatureDetenteurQualite(
         chantier.signatureDetenteurQualite || 'Représentant client',
       )
     }
-  }, [chantier?.id, chantier?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chantier?.id, chantier?.signatureDetenteurAt, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // teq CO₂ = Charge (kg) × GWP / 1000 — dès que fluide + charge connus
   useEffect(() => {

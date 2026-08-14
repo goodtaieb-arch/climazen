@@ -79,7 +79,12 @@ export function OrdresTravailPage() {
 
   useEffect(() => {
     if (!site) return
-    setClientSignNom((n) => n || site.signatureDetenteurNom || '')
+    const client = data.clients.find((c) => c.id === site.clientId)
+    setClientSignNom((n) => {
+      const company = client?.raisonSociale?.trim().toLowerCase() || ''
+      if (n.trim() && (!company || n.trim().toLowerCase() !== company)) return n
+      return site.signatureDetenteurNom?.trim() || client?.nomContact?.trim() || ''
+    })
     setClientSignQualite((q) =>
       q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
     )

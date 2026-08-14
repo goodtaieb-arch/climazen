@@ -301,7 +301,10 @@ export async function buildCerfaPdf(opts: {
   // Signatures — noms / qualités / dates (case « Date et signature »)
   const opNom = draft.signatureOperateur || ''
   const opQual = draft.signatureOperateurQualite || 'Opérateur attesté'
-  const detNom = draft.signatureDetenteur || client.nomContact || client.raisonSociale
+  const detNom =
+    draft.signatureDetenteur?.trim() ||
+    client.nomContact?.trim() ||
+    ''
   const detQual = draft.signatureDetenteurQualite || 'Détenteur'
   const dateFr = formatDateFr(draft.dateIntervention)
 
