@@ -36,6 +36,23 @@ const LANDING_PHONE_NAV = [
   { label: 'CERFA', img: ICON3D.cerfa, active: false },
 ] as const
 
+/** Aperçu Sites & Parc (données fictives) — mockup desktop landing. */
+const LANDING_SITES_MOCK = [
+  {
+    client: 'Client A — Collectivité',
+    open: true,
+    sites: [
+      { nom: 'Site Nord', eqs: '3 équipements · R-32' },
+      { nom: 'Site Sud', eqs: '1 équipement · R-410A' },
+    ],
+  },
+  {
+    client: 'Client B — Tertiaire',
+    open: false,
+    sites: [{ nom: 'Siège', eqs: '2 équipements' }],
+  },
+] as const
+
 const heroPoints = [
   '100 % conforme F-Gas & attestation de capacité (CERFA FI 15497-04)',
   'Mode hors ligne — local technique, sous-sol, chambre froide : ça continue',
@@ -186,139 +203,272 @@ export function Landing() {
             </p>
           </div>
 
-          {/* Capture mobile — téléphone */}
-          <div className="relative mx-auto w-full max-w-[300px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[320px]">
+          {/* Composition : téléphone + aperçu site (navigateur) */}
+          <div className="relative mx-auto w-full max-w-[420px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[480px] lg:max-w-none lg:justify-self-end">
             <div
-              className="pointer-events-none absolute -inset-10 rounded-[50%] bg-gradient-to-br from-accent/35 via-sky-300/25 to-transparent blur-3xl"
+              className="pointer-events-none absolute -inset-8 rounded-[50%] bg-gradient-to-br from-accent/35 via-sky-300/25 to-transparent blur-3xl sm:-inset-12"
               aria-hidden
             />
-            {/* Cadre téléphone */}
-            <div className="relative mx-auto rounded-[2.75rem] bg-gradient-to-b from-slate-800 via-ink to-slate-950 p-[11px] shadow-[0_28px_60px_-12px_rgba(7,24,32,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset]">
-              {/* Boutons latéraux (décoratifs) */}
-              <span
-                className="pointer-events-none absolute -left-[3px] top-28 h-8 w-[3px] rounded-l-sm bg-slate-700"
-                aria-hidden
-              />
-              <span
-                className="pointer-events-none absolute -left-[3px] top-40 h-12 w-[3px] rounded-l-sm bg-slate-700"
-                aria-hidden
-              />
-              <span
-                className="pointer-events-none absolute -right-[3px] top-36 h-16 w-[3px] rounded-r-sm bg-slate-700"
-                aria-hidden
-              />
-              <div className="relative overflow-hidden rounded-[2.15rem] bg-white ring-1 ring-white/20">
-                <div className="absolute left-1/2 top-2.5 z-10 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-ink shadow-inner" />
-                {/* Mockup Accueil — vraies icônes 3D smartphone */}
-                <div
-                  className="flex aspect-[9/16] w-full flex-col bg-gradient-to-b from-mist via-white to-white"
-                  role="img"
-                  aria-label="ClimaZEN sur smartphone — accueil terrain avec icônes 3D"
-                >
-                  <div className="shrink-0 px-3.5 pb-2 pt-9">
-                    <p className="text-center font-display text-[11px] font-extrabold tracking-[0.12em] text-accent">
-                      ClimaZEN
-                    </p>
-                    <h3 className="mt-0.5 text-center font-display text-base font-extrabold tracking-tight text-ink">
-                      Sur le terrain
-                    </h3>
-                    <p className="mt-0.5 text-center text-[10px] font-medium text-muted">
-                      Gérez vos interventions et vos sites
-                    </p>
-                    <div className="relative mt-3">
-                      <Search
-                        className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
-                        aria-hidden
-                      />
-                      <div className="h-9 w-full rounded-xl border border-line bg-white py-2 pl-8 pr-3 text-[11px] font-medium text-muted shadow-sm">
-                        Rechercher un site, une intervention…
+
+            <div className="relative flex flex-col items-center gap-6 sm:block sm:min-h-[520px] lg:min-h-[560px]">
+              {/* Navigateur — Sites & Parc (derrière / à côté) */}
+              <div className="relative order-2 w-full max-w-[340px] sm:absolute sm:left-0 sm:top-6 sm:order-none sm:w-[72%] sm:max-w-none lg:left-0 lg:top-4 lg:w-[78%]">
+                <div className="overflow-hidden rounded-2xl border border-slate-700/40 bg-gradient-to-b from-slate-700 to-slate-900 p-[7px] shadow-[0_22px_50px_-18px_rgba(7,24,32,0.5)] sm:rotate-[-2.5deg]">
+                  {/* Barre fenêtre */}
+                  <div className="flex items-center gap-2 rounded-t-xl bg-slate-800/90 px-3 py-2">
+                    <span className="flex gap-1.5" aria-hidden>
+                      <span className="h-2 w-2 rounded-full bg-rose-400/90" />
+                      <span className="h-2 w-2 rounded-full bg-amber-300/90" />
+                      <span className="h-2 w-2 rounded-full bg-emerald-400/90" />
+                    </span>
+                    <div className="ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-slate-950/50 px-2 py-1">
+                      <span className="float-3d shrink-0" style={{ animationDelay: '0.4s' }}>
+                        <img
+                          src={ICON3D.sites}
+                          alt=""
+                          width={14}
+                          height={14}
+                          className="h-3.5 w-3.5 object-contain"
+                          draggable={false}
+                        />
+                      </span>
+                      <span className="truncate text-[9px] font-medium text-slate-300">
+                        climazen.fr/app/chantiers
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    className="overflow-hidden rounded-b-[0.65rem] bg-mist"
+                    role="img"
+                    aria-label="ClimaZEN sur ordinateur — Sites & Parc, clients et équipements"
+                  >
+                    <div className="border-b border-line bg-white px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="float-3d" style={{ animationDelay: '0.2s' }}>
+                          <img
+                            src={ICON3D.sites}
+                            alt=""
+                            width={28}
+                            height={28}
+                            className="h-7 w-7 object-contain drop-shadow-md"
+                            draggable={false}
+                          />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-display text-sm font-extrabold tracking-tight text-ink">
+                            Sites &amp; Parc
+                          </p>
+                          <p className="text-[9px] font-medium text-muted">
+                            Client → site → équipements
+                          </p>
+                        </div>
+                      </div>
+                      <div className="relative mt-2">
+                        <Search
+                          className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted"
+                          aria-hidden
+                        />
+                        <div className="h-7 w-full rounded-lg border border-line bg-white py-1.5 pl-7 pr-2 text-[10px] text-muted">
+                          Rechercher un client ou un site…
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="min-h-0 flex-1 overflow-hidden px-2.5 pb-1">
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-3">
-                      {LANDING_PHONE_TILES.map((tile) => (
-                        <div key={tile.title} className="flex flex-col items-center">
-                          <span className="relative grid h-[4.35rem] w-[4.35rem] place-items-center rounded-full border-[1.5px] border-ink/85 bg-white shadow-sm">
-                            <span className="float-3d" style={{ animationDelay: tile.delay }}>
-                              <img
-                                src={tile.img}
-                                alt=""
-                                width={48}
-                                height={48}
-                                className="h-11 w-11 object-contain drop-shadow-md"
-                                draggable={false}
-                                loading="eager"
-                                decoding="async"
-                              />
-                            </span>
-                          </span>
-                          <span className="mt-1.5 block px-0.5 text-center text-[10px] font-semibold leading-tight text-ink">
-                            {tile.title}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mx-2.5 mb-1.5 flex items-start gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-[9px] font-semibold leading-snug text-orange-900">
-                    <SignalZero className="mt-0.5 h-3 w-3 shrink-0 text-orange-600" aria-hidden />
-                    <span>
-                      Mode hors ligne. Certaines actions seront synchronisées dès votre retour en
-                      ligne.
-                    </span>
-                  </div>
-
-                  <div className="shrink-0 border-t border-line bg-white/95 px-1 pb-2 pt-1.5">
-                    <div className="grid grid-cols-4">
-                      {LANDING_PHONE_NAV.map((item) => (
+                    <div className="space-y-2 px-2.5 py-2.5">
+                      {LANDING_SITES_MOCK.map((row) => (
                         <div
-                          key={item.label}
-                          className="flex flex-col items-center justify-center gap-0.5 py-1"
-                          style={{ color: item.active ? '#0d9488' : '#5a7880' }}
+                          key={row.client}
+                          className="overflow-hidden rounded-xl border border-line bg-white shadow-sm"
                         >
-                          <span
-                            className={[
-                              'grid h-9 w-9 place-items-center rounded-full border bg-white',
-                              item.active ? 'border-teal-600 shadow-sm' : 'border-line',
-                            ].join(' ')}
-                            style={
-                              item.active
-                                ? { boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.18)' }
-                                : undefined
-                            }
-                          >
-                            <span
-                              className={item.active ? 'float-3d' : undefined}
-                              style={item.active ? { animationDelay: '0s' } : undefined}
-                            >
+                          <div className="flex items-center gap-2 px-2.5 py-2">
+                            <span className="float-3d shrink-0" style={{ animationDelay: '0.55s' }}>
                               <img
-                                src={item.img}
+                                src={ICON3D.clients}
                                 alt=""
                                 width={22}
                                 height={22}
-                                className="h-[22px] w-[22px] object-contain drop-shadow-md"
+                                className="h-5 w-5 object-contain"
                                 draggable={false}
-                                loading="eager"
-                                decoding="async"
                               />
                             </span>
-                          </span>
-                          <span className="truncate text-[9px] font-semibold">{item.label}</span>
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-ink">
+                              {row.client}
+                            </span>
+                            <span className="text-[10px] font-bold text-muted">
+                              {row.open ? '▾' : '▸'}
+                            </span>
+                          </div>
+                          {row.open ? (
+                            <ul className="border-t border-line bg-mist/40 px-2 py-1.5">
+                              {row.sites.map((s) => (
+                                <li
+                                  key={s.nom}
+                                  className="flex items-center gap-2 rounded-lg px-1.5 py-1.5"
+                                >
+                                  <MapPin className="h-3 w-3 shrink-0 text-accent" aria-hidden />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block text-[10px] font-semibold text-ink">
+                                      {s.nom}
+                                    </span>
+                                    <span className="block text-[9px] text-muted">{s.eqs}</span>
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
                         </div>
                       ))}
+                      <div className="flex items-center gap-2 rounded-xl border border-dashed border-line bg-white/70 px-2.5 py-2">
+                        <span className="float-3d" style={{ animationDelay: '0.7s' }}>
+                          <img
+                            src={ICON3D.cerfa}
+                            alt=""
+                            width={20}
+                            height={20}
+                            className="h-5 w-5 object-contain"
+                            draggable={false}
+                          />
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate">
+                          CERFA lié au site · 1 clic
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Téléphone — Accueil 3D (premier plan) */}
+              <div className="relative z-10 w-full max-w-[260px] sm:absolute sm:bottom-0 sm:right-0 sm:w-[48%] sm:max-w-[280px] lg:right-[-4%] lg:w-[46%]">
+                <div className="relative mx-auto rounded-[2.75rem] bg-gradient-to-b from-slate-800 via-ink to-slate-950 p-[11px] shadow-[0_28px_60px_-12px_rgba(7,24,32,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset] sm:rotate-[3deg]">
+                  <span
+                    className="pointer-events-none absolute -left-[3px] top-28 h-8 w-[3px] rounded-l-sm bg-slate-700"
+                    aria-hidden
+                  />
+                  <span
+                    className="pointer-events-none absolute -left-[3px] top-40 h-12 w-[3px] rounded-l-sm bg-slate-700"
+                    aria-hidden
+                  />
+                  <span
+                    className="pointer-events-none absolute -right-[3px] top-36 h-16 w-[3px] rounded-r-sm bg-slate-700"
+                    aria-hidden
+                  />
+                  <div className="relative overflow-hidden rounded-[2.15rem] bg-white ring-1 ring-white/20">
+                    <div className="absolute left-1/2 top-2.5 z-10 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-ink shadow-inner" />
+                    <div
+                      className="flex aspect-[9/16] w-full flex-col bg-gradient-to-b from-mist via-white to-white"
+                      role="img"
+                      aria-label="ClimaZEN sur smartphone — accueil terrain avec icônes 3D"
+                    >
+                      <div className="shrink-0 px-3.5 pb-2 pt-9">
+                        <p className="text-center font-display text-[11px] font-extrabold tracking-[0.12em] text-accent">
+                          ClimaZEN
+                        </p>
+                        <h3 className="mt-0.5 text-center font-display text-base font-extrabold tracking-tight text-ink">
+                          Sur le terrain
+                        </h3>
+                        <p className="mt-0.5 text-center text-[10px] font-medium text-muted">
+                          Gérez vos interventions et vos sites
+                        </p>
+                        <div className="relative mt-3">
+                          <Search
+                            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
+                            aria-hidden
+                          />
+                          <div className="h-9 w-full rounded-xl border border-line bg-white py-2 pl-8 pr-3 text-[11px] font-medium text-muted shadow-sm">
+                            Rechercher un site, une intervention…
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="min-h-0 flex-1 overflow-hidden px-2.5 pb-1">
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-3">
+                          {LANDING_PHONE_TILES.map((tile) => (
+                            <div key={tile.title} className="flex flex-col items-center">
+                              <span className="relative grid h-[4.35rem] w-[4.35rem] place-items-center rounded-full border-[1.5px] border-ink/85 bg-white shadow-sm">
+                                <span className="float-3d" style={{ animationDelay: tile.delay }}>
+                                  <img
+                                    src={tile.img}
+                                    alt=""
+                                    width={48}
+                                    height={48}
+                                    className="h-11 w-11 object-contain drop-shadow-md"
+                                    draggable={false}
+                                    loading="eager"
+                                    decoding="async"
+                                  />
+                                </span>
+                              </span>
+                              <span className="mt-1.5 block px-0.5 text-center text-[10px] font-semibold leading-tight text-ink">
+                                {tile.title}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mx-2.5 mb-1.5 flex items-start gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-[9px] font-semibold leading-snug text-orange-900">
+                        <SignalZero
+                          className="mt-0.5 h-3 w-3 shrink-0 text-orange-600"
+                          aria-hidden
+                        />
+                        <span>
+                          Mode hors ligne. Certaines actions seront synchronisées dès votre retour
+                          en ligne.
+                        </span>
+                      </div>
+
+                      <div className="shrink-0 border-t border-line bg-white/95 px-1 pb-2 pt-1.5">
+                        <div className="grid grid-cols-4">
+                          {LANDING_PHONE_NAV.map((item) => (
+                            <div
+                              key={item.label}
+                              className="flex flex-col items-center justify-center gap-0.5 py-1"
+                              style={{ color: item.active ? '#0d9488' : '#5a7880' }}
+                            >
+                              <span
+                                className={[
+                                  'grid h-9 w-9 place-items-center rounded-full border bg-white',
+                                  item.active ? 'border-teal-600 shadow-sm' : 'border-line',
+                                ].join(' ')}
+                                style={
+                                  item.active
+                                    ? { boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.18)' }
+                                    : undefined
+                                }
+                              >
+                                <span
+                                  className={item.active ? 'float-3d' : undefined}
+                                  style={item.active ? { animationDelay: '0s' } : undefined}
+                                >
+                                  <img
+                                    src={item.img}
+                                    alt=""
+                                    width={22}
+                                    height={22}
+                                    className="h-[22px] w-[22px] object-contain drop-shadow-md"
+                                    draggable={false}
+                                    loading="eager"
+                                    decoding="async"
+                                  />
+                                </span>
+                              </span>
+                              <span className="truncate text-[9px] font-semibold">{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="mt-5 flex flex-col items-center gap-1.5">
+
+            <div className="relative z-10 mt-5 flex flex-col items-center gap-1.5 sm:mt-8">
               <p className="rounded-full border border-line/80 bg-white/90 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate shadow-sm">
-                Accueil · icônes 3D
+                Smartphone · Sites &amp; Parc
               </p>
-              <p className="max-w-[240px] text-center text-xs text-muted">
-                Même menu smartphone que sur le terrain — cercles 3D Sites, CERFA, Stock…
+              <p className="max-w-[280px] text-center text-xs text-muted">
+                Accueil terrain 3D + parc clients / sites — sans données réelles.
               </p>
             </div>
           </div>
