@@ -13,6 +13,7 @@ import {
   Plus,
   User,
 } from 'lucide-react'
+import { DocsPackPanel } from '../components/DocsPackPanel'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -1337,6 +1338,17 @@ export function AppelOtPage() {
               </p>
             ) : null}
           </div>
+
+          {otId ? (
+            <DocsPackPanel
+              ot={{
+                ...otForm,
+                id: otId,
+                createdAt: existing?.createdAt || new Date().toISOString(),
+                updatedAt: existing?.updatedAt || new Date().toISOString(),
+              }}
+            />
+          ) : null}
 
           <div className="space-y-4">
             <IntervenantSignature

@@ -8,6 +8,7 @@ import { MobileFab } from '../components/MobileFab'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
+import { DocsPackButton, DocsPackPanel } from '../components/DocsPackPanel'
 import {
   TYPE_OT_LABELS,
   STATUT_OT_LABELS,
@@ -153,7 +154,7 @@ export function OrdresTravailPage() {
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
                 className="h-11 w-full rounded-xl border border-line px-3 font-bold tracking-wide"
-                placeholder="OT20260001"
+                placeholder="26081501"
               />
             </label>
             <label className="block text-sm">
@@ -341,6 +342,12 @@ export function OrdresTravailPage() {
               </Link>
             )}
           </div>
+
+          {existing ? (
+            <div className="pt-2">
+              <DocsPackPanel ot={existing} />
+            </div>
+          ) : null}
         </form>
       </div>
     )
@@ -354,7 +361,7 @@ export function OrdresTravailPage() {
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold tracking-tight">Ordres de travail</h1>
             <p className="mt-1 text-muted">
-              Chaque action terrain = un OT unique (OT2026xxxx) + rapport d’action.
+              Chaque action terrain = un OT unique + docs groupés (ZIP / envoi client).
             </p>
           </div>
         </div>
@@ -450,6 +457,7 @@ export function OrdresTravailPage() {
                     <ClipboardList className="h-4 w-4" /> Reprendre parcours
                   </Link>
                 )}
+                <DocsPackButton ot={o} className="flex-1 sm:flex-none" />
                 <Link
                   to={`/app/ot?id=${encodeURIComponent(o.id)}`}
                   className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line px-3 text-xs font-semibold sm:flex-none"
