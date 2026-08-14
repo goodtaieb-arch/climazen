@@ -30,7 +30,7 @@ import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecte
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
-import { otBaseNumero } from '../lib/ordreTravail'
+import { otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
 import { nomSignataireClient } from '../lib/signataireClient'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -283,9 +283,7 @@ export function InterventionFormPage() {
     const siblings = data.interventions.filter(
       (i) =>
         (otBatchId && i.ordreTravailId === otBatchId) ||
-        (numeroIntervention &&
-          (i.numeroIntervention === numeroIntervention ||
-            (i.numeroIntervention || '').startsWith(`${numeroIntervention}-`))),
+        sameOtNumero(i.numeroIntervention, numeroIntervention),
     )
     const ids = [
       ...new Set(
@@ -303,16 +301,15 @@ export function InterventionFormPage() {
 
   const batchItems = useMemo(() => {
     if (!chantier || batchEquipIds.length < 2) return []
+    const currentId = existing?.id || draftId || ''
     return batchEquipIds.map((eqId) => {
       const eq = findEquipement(chantier, eqId)
       const draft = data.interventions.find(
         (i) =>
           i.equipementId === eqId &&
           ((otBatchId && i.ordreTravailId === otBatchId) ||
-            (numeroIntervention &&
-              (i.numeroIntervention === numeroIntervention ||
-                (i.numeroIntervention || '').startsWith(`${numeroIntervention}-`))) ||
-            i.id === existing?.id),
+            sameOtNumero(i.numeroIntervention, numeroIntervention) ||
+            i.id === currentId),
       )
       return {
         equipementId: eqId,
@@ -322,8 +319,8 @@ export function InterventionFormPage() {
         draftId: draft?.id as string | undefined,
         hasPdf: Boolean(draft?.hasCerfaPdf),
         isCurrent:
-          eqId === (equipementId || existing?.equipementId || '') ||
-          draft?.id === (existing?.id || draftId || ''),
+          Boolean(currentId && draft?.id === currentId) ||
+          (!currentId && eqId === (equipementId || existing?.equipementId || '')),
       }
     })
   }, [
@@ -918,7 +915,11 @@ export function InterventionFormPage() {
 
   const goToEquipPage = (eqId: string) => {
     if (!chantier) return
-    if (eqId === (equipementId || existing?.equipementId)) return
+    const currentId = draftId || existing?.id || ''
+    const currentEq = equipementId || existing?.equipementId || ''
+    if (eqId === currentEq && batchItems.some((b) => b.equipementId === eqId && b.isCurrent)) {
+      return
+    }
     try {
       saveDraftQuiet({ navigateToDraft: false })
     } catch {
@@ -927,15 +928,24 @@ export function InterventionFormPage() {
     const sibling = data.interventions.find(
       (i) =>
         i.equipementId === eqId &&
+        i.id !== currentId &&
         ((otBatchId && i.ordreTravailId === otBatchId) ||
-          (numeroIntervention &&
-            (i.numeroIntervention === numeroIntervention ||
-              (i.numeroIntervention || '').startsWith(`${numeroIntervention}-`)))),
+          sameOtNumero(i.numeroIntervention, numeroIntervention)),
     )
     if (sibling) {
       navigate(`/app/interventions/${sibling.id}`)
       return
     }
+    // Déjà un brouillon pour cet équipement (même id courant) → rester
+    const samePage = data.interventions.find(
+      (i) =>
+        i.id === currentId &&
+        i.equipementId === eqId &&
+        ((otBatchId && i.ordreTravailId === otBatchId) ||
+          sameOtNumero(i.numeroIntervention, numeroIntervention)),
+    )
+    if (samePage) return
+
     const eq = findEquipement(chantier, eqId)
     const charge = Number(eq?.chargeNominaleKg) || 0
     const baseNum = otBaseNumero(numeroIntervention) || numeroIntervention

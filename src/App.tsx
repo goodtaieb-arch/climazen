@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthContext'
 import { StoreProvider } from './lib/store'
 import { RequireAuth } from './components/RequireAuth'
@@ -26,6 +26,12 @@ import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
 import { AgendaPage } from './pages/AgendaPage'
 import { ContactPage } from './pages/ContactPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
+
+/** Remonte le formulaire à chaque CERFA (Page 1/2 ↔ 2/2) pour recharger les données. */
+function InterventionFormRoute() {
+  const { id } = useParams()
+  return <InterventionFormPage key={id || 'new'} />
+}
 
 export default function App() {
   return (
@@ -58,7 +64,7 @@ export default function App() {
                 <Route path="chantiers" element={<ChantiersPage />} />
                 <Route path="stock" element={<StockPage />} />
                 <Route path="interventions" element={<InterventionsPage />} />
-                <Route path="interventions/:id" element={<InterventionFormPage />} />
+                <Route path="interventions/:id" element={<InterventionFormRoute />} />
                 <Route path="ot" element={<OrdresTravailPage />} />
                 <Route path="appel" element={<AppelOtPage />} />
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
