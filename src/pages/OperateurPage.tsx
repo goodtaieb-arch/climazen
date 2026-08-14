@@ -4,26 +4,35 @@ import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { DetecteursParc } from '../components/DetecteursParc'
 import { useAuth } from '../lib/AuthContext'
-import { FACTURATION_PLATEFORMES } from '../lib/types'
+import { FACTURATION_PLATEFORMES, type Operateur } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 
+function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
+  if (operateur.raisonSociale?.trim() || !orgName?.trim()) return operateur
+  return { ...operateur, raisonSociale: orgName.trim() }
+}
+
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
-  const { data, setOperateur, setCompanyLogo, resetDemo } = useStore()
-  const { user, organization, isOwner, listTeam } = useAuth()
+  const { data, setOperateur, setCompanyLogo, resetDemo, loading } = useStore()
+  const { user, organization, isOwner, listTeam, refreshUser } = useAuth()
 
-  const [form, setForm] = useState(data.operateur)
+  const [form, setForm] = useState(() => withOrgDefaults(data.operateur, organization?.name))
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
   const [logoBusy, setLogoBusy] = useState(false)
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   const [team, setTeam] = useState<UserAccount[]>([])
 
+  // Attendre la sync avant d’écraser le formulaire avec un operateur vide
   useEffect(() => {
-    setForm(data.operateur)
+    if (loading) return
+    setForm(withOrgDefaults(data.operateur, organization?.name))
     setExpertMake(Boolean(data.operateur.facturationWebhookUrl?.trim()))
-  }, [data.operateur])
+  }, [data.operateur, organization?.name, loading])
 
   useEffect(() => {
     if (!isOwner) return
@@ -36,18 +45,28 @@ export function OperateurPage() {
     return <Navigate to="/app/profil" replace />
   }
 
-  const onSubmitCompany = (e: FormEvent) => {
+  const onSubmitCompany = async (e: FormEvent) => {
     e.preventDefault()
-    setOperateur({
-      ...form,
-      facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
-    })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setFormError('')
+    setSaving(true)
+    try {
+      await setOperateur({
+        ...form,
+        facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
+      })
+      void refreshUser().catch(() => undefined)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const persistLogo = async (logoImage: string | undefined) => {
     setLogoBusy(true)
+    setFormError('')
     try {
       await setCompanyLogo(logoImage)
       setForm((f) => {
@@ -59,7 +78,7 @@ export function OperateurPage() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Impossible d’enregistrer le logo')
+      setFormError(err instanceof Error ? err.message : 'Impossible d’enregistrer le logo')
     } finally {
       setLogoBusy(false)
     }
@@ -78,8 +97,14 @@ export function OperateurPage() {
         </div>
       </div>
 
+      {loading && (
+        <p className="rounded-xl border border-line bg-mist px-4 py-3 text-sm text-muted">
+          Chargement des données société…
+        </p>
+      )}
+
       <form
-        onSubmit={onSubmitCompany}
+        onSubmit={(e) => void onSubmitCompany(e)}
         className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
       >
         <h2 className="font-display text-lg font-semibold sm:col-span-2">
@@ -145,7 +170,7 @@ export function OperateurPage() {
                     void fileToCompanyLogoDataUrl(file)
                       .then((logoImage) => persistLogo(logoImage))
                       .catch((err) =>
-                        alert(err instanceof Error ? err.message : 'Import impossible'),
+                        setFormError(err instanceof Error ? err.message : 'Import impossible'),
                       )
                   }}
                 />
@@ -162,11 +187,6 @@ export function OperateurPage() {
               )}
             </div>
           </div>
-          {saved && (
-            <p className="mt-2 text-sm text-accent">
-              Logo enregistré — visible à côté de ClimaZEN dans le menu.
-            </p>
-          )}
         </div>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
@@ -251,14 +271,21 @@ export function OperateurPage() {
           )}
         </div>
 
+        {formError && (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger sm:col-span-2">
+            {formError}
+          </p>
+        )}
+
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
           <button
             type="submit"
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+            disabled={saving || loading}
+            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
           >
-            Enregistrer la société
+            {saving ? 'Enregistrement…' : 'Enregistrer la société'}
           </button>
-          {saved && <span className="text-sm text-accent">Enregistré</span>}
+          {saved && <span className="text-sm text-accent">Enregistré dans le cloud</span>}
         </div>
       </form>
 

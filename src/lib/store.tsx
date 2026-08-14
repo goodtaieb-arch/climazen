@@ -22,7 +22,9 @@ import type {
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
 import {
   loadOrgDataRemote,
+  resolveRemoteVsLocal,
   saveOrgDataRemote,
+  updateOrganizationName,
 } from './auth'
 import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
 import { deleteCerfaPdf } from './pdfStore'
@@ -57,7 +59,8 @@ type Store = {
   /** Pousse maintenant les données locales vers le cloud */
   flushPendingSync: () => Promise<void>
   clearSyncError: () => void
-  setOperateur: (o: Operateur) => void
+  /** Enregistre le cadre société + sync cloud immédiat (comme le logo). */
+  setOperateur: (o: Operateur) => Promise<void>
   /** Enregistre le logo société et sync cloud immédiat (affiché à côté de ClimaZEN). */
   setCompanyLogo: (logoImage: string | undefined) => Promise<void>
   upsertClient: (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => string
@@ -247,6 +250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const useLocal = () => {
         const local = applyLocalLogo(loadData(orgId), orgId)
         skipNextSave.current = true
+        dataRef.current = local
         setData(local)
         setHydrated(true)
       }
@@ -278,14 +282,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         ])
         if (cancelled) return
-        const merged = applyLocalLogo(remote, orgId)
+        const local = loadData(orgId)
+        const { data: resolved, shouldPushLocal } = resolveRemoteVsLocal(remote, local)
+        const merged = applyLocalLogo(resolved, orgId)
         skipNextSave.current = true
+        dataRef.current = merged
         setData(merged)
         saveData(merged, orgId)
-        markSynced(orgId)
-        setPendingSyncState(false)
         setHydrated(true)
         setOffline(false)
+        if (shouldPushLocal) {
+          // Cloud plus pauvre / société manquante → ne pas écraser le cache, re-pousser
+          markPending(true)
+          setPendingSyncState(true)
+          setLoading(false)
+          await flushPendingSync()
+          return
+        }
+        markSynced(orgId)
+        setPendingSyncState(false)
       } catch (err) {
         console.error(err)
         if (!cancelled) {
@@ -300,7 +315,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [orgId, flushPendingSync])
+    // flushPendingSync volontairement omis : éviter de recharger le cloud à chaque identity change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId])
 
   useEffect(() => {
     if (!orgId || !hydrated) return
@@ -310,9 +327,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     // Toujours enregistrer localement d’abord (terrain / hors ligne)
     saveData(data, orgId)
+    // Marquer pending avant le cloud : un reload PWA ne doit pas écraser avec un cloud vide
+    markPending(true)
     if (!isBrowserOnline()) {
       setOffline(true)
-      markPending(true)
       return
     }
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -362,15 +380,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const setOperateur = useCallback(
-    (o: Operateur) => {
+    async (o: Operateur) => {
       if (user?.role !== 'owner') {
-        console.warn('ClimaZEN: seul l’administrateur peut modifier les infos société.')
+        throw new Error('Seul l’administrateur peut modifier les infos société.')
+      }
+      if (!orgId) throw new Error('Organisation introuvable.')
+      const prev = dataRef.current
+      const next: AppData = { ...prev, operateur: o }
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      skipNextSave.current = true
+      dataRef.current = next
+      setData(next)
+      saveData(next, orgId)
+      saveCompanyLogoLocal(orgId, o.logoImage || null)
+      // Aligner le nom d’organisation Auth avec la raison sociale (affiché partout)
+      if (o.raisonSociale.trim() && user) {
+        try {
+          await updateOrganizationName(orgId, o.raisonSociale.trim(), user)
+        } catch (err) {
+          console.warn('ClimaZEN: maj nom organisation', err)
+        }
+      }
+      if (!isBrowserOnline()) {
+        markPending(true)
+        setOffline(true)
         return
       }
-      if (orgId) saveCompanyLogoLocal(orgId, o.logoImage || null)
-      setData((d) => ({ ...d, operateur: o }))
+      try {
+        await saveOrgDataRemote(orgId, next)
+        markSynced(orgId)
+        setPendingSyncState(false)
+        setSyncError(null)
+      } catch (err) {
+        console.error(err)
+        markPending(true)
+        setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
+        throw err
+      }
     },
-    [user?.role, orgId],
+    [user, orgId, markPending],
   )
 
   const setCompanyLogo = useCallback(

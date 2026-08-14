@@ -518,6 +518,106 @@ export function isAppDataEmpty(data: AppData): boolean {
   )
 }
 
+/** Poids approximatif pour comparer cache local vs cloud (évite d’écraser des saisies). */
+export function appDataWeight(data: AppData): number {
+  const o = data.operateur
+  return (
+    (data.clients?.length || 0) * 10 +
+    (data.chantiers?.length || 0) * 10 +
+    (data.interventions?.length || 0) * 5 +
+    (data.stock?.length || 0) * 2 +
+    (data.detecteurs?.length || 0) * 2 +
+    (data.fichesMaintenanceClim?.length || 0) * 2 +
+    (data.ordresTravail?.length || 0) * 2 +
+    (o?.raisonSociale?.trim() ? 25 : 0) +
+    (o?.adresse?.trim() ? 5 : 0) +
+    (o?.siret?.trim() ? 5 : 0) +
+    (o?.attestationNumero?.trim() ? 5 : 0) +
+    (o?.telephone?.trim() ? 3 : 0) +
+    (o?.email?.trim() ? 3 : 0) +
+    (o?.logoImage ? 5 : 0)
+  )
+}
+
+function pickNonEmpty(remote: string | undefined, local: string | undefined): string {
+  const r = (remote || '').trim()
+  if (r) return remote || ''
+  return local || ''
+}
+
+/** Fusionne le cadre société : ne jamais perdre une raison sociale / SIRET saisis localement. */
+export function mergeOperateurPreferFilled(
+  remote: AppData['operateur'],
+  local: AppData['operateur'],
+): AppData['operateur'] {
+  return {
+    ...remote,
+    id: remote?.id || local?.id || remote.id,
+    raisonSociale: pickNonEmpty(remote?.raisonSociale, local?.raisonSociale),
+    adresse: pickNonEmpty(remote?.adresse, local?.adresse),
+    siret: pickNonEmpty(remote?.siret, local?.siret),
+    attestationNumero: pickNonEmpty(remote?.attestationNumero, local?.attestationNumero),
+    telephone: pickNonEmpty(remote?.telephone, local?.telephone),
+    email: pickNonEmpty(remote?.email, local?.email),
+    detecteurIdentification: pickNonEmpty(
+      remote?.detecteurIdentification,
+      local?.detecteurIdentification,
+    ),
+    detecteurControleDate: pickNonEmpty(remote?.detecteurControleDate, local?.detecteurControleDate),
+    logoImage: remote?.logoImage || local?.logoImage,
+    facturationPlateforme: remote?.facturationPlateforme || local?.facturationPlateforme,
+    facturationWebhookUrl: pickNonEmpty(remote?.facturationWebhookUrl, local?.facturationWebhookUrl),
+    facturationActionDefaut: remote?.facturationActionDefaut || local?.facturationActionDefaut,
+  }
+}
+
+/**
+ * Au chargement : si le cloud est vide/plus pauvre que le cache appareil,
+ * on garde le local et on le re-poussera (évite de tout ressaisir Entreprise).
+ */
+export function resolveRemoteVsLocal(
+  remote: AppData,
+  local: AppData,
+): { data: AppData; shouldPushLocal: boolean } {
+  const localW = appDataWeight(local)
+  const remoteW = appDataWeight(remote)
+
+  if (isAppDataEmpty(remote) && localW > 0) {
+    return { data: local, shouldPushLocal: true }
+  }
+
+  if (localW > remoteW + 5) {
+    // Local clairement plus riche (ex. société remplie + cloud encore vide)
+    const merged: AppData = {
+      ...local,
+      operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
+    }
+    // Collections : prendre le jeu le plus fourni
+    if ((remote.clients?.length || 0) > (local.clients?.length || 0)) merged.clients = remote.clients
+    if ((remote.chantiers?.length || 0) > (local.chantiers?.length || 0)) {
+      merged.chantiers = remote.chantiers
+    }
+    if ((remote.interventions?.length || 0) > (local.interventions?.length || 0)) {
+      merged.interventions = remote.interventions
+    }
+    if ((remote.stock?.length || 0) > (local.stock?.length || 0)) merged.stock = remote.stock
+    if ((remote.detecteurs?.length || 0) > (local.detecteurs?.length || 0)) {
+      merged.detecteurs = remote.detecteurs
+    }
+    return { data: merged, shouldPushLocal: true }
+  }
+
+  // Cloud OK : compléter quand même les champs société vides côté remote
+  const operateur = mergeOperateurPreferFilled(remote.operateur, local.operateur)
+  const enriched =
+    appDataWeight({ ...remote, operateur }) > remoteW ||
+    Boolean(operateur.raisonSociale && !remote.operateur?.raisonSociale?.trim())
+  return {
+    data: { ...remote, operateur },
+    shouldPushLocal: enriched,
+  }
+}
+
 const IMPORT_FLAG = 'climazen_import_done_v1'
 
 export function wasLocalImportDone(organizationId: string) {
