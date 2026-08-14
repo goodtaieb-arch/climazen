@@ -4,8 +4,7 @@ import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 
 /**
  * Prochain n° d’intervention / OT unique.
- * Format unifié : OT20260001
- * (conserve la compat lecture des anciens INT-YYYY-NNNN)
+ * Format unifié : aammjjxx (ex. 26081501)
  */
 export function nextNumeroIntervention(
   data: {
