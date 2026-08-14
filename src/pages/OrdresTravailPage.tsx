@@ -153,7 +153,7 @@ export function OrdresTravailPage() {
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
                 className="h-11 w-full rounded-xl border border-line px-3 font-bold tracking-wide"
-                placeholder="OT20260001"
+                placeholder="26081501"
               />
             </label>
             <label className="block text-sm">
@@ -354,7 +354,7 @@ export function OrdresTravailPage() {
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold tracking-tight">Ordres de travail</h1>
             <p className="mt-1 text-muted">
-              Chaque action terrain = un OT unique (OT2026xxxx) + rapport d’action.
+              Chaque action terrain = un OT unique (aammjjxx, ex. 26081501) + rapport d’action.
             </p>
           </div>
         </div>

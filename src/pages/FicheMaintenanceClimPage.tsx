@@ -413,7 +413,7 @@ export function FicheMaintenanceClimPage() {
               value={form.numero}
               onChange={(e) => setForm({ ...form, numero: e.target.value })}
               className="h-11 w-full rounded-xl border border-line px-3"
-              placeholder="OT20260001"
+              placeholder="26081501"
             />
           </label>
           <label className="block text-sm">

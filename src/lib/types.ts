@@ -359,7 +359,7 @@ export interface CerfaDraft {
   equipementId?: string
   dateIntervention: string
   /**
-   * N° d’intervention / OT unique (signé) — format OT20260001.
+   * N° d’intervention / OT unique (signé) — format aammjjxx (ex. 26081501).
    * Obligatoire pour tracer toute action terrain (avec ou sans PDF CERFA).
    */
   numeroIntervention?: string
@@ -472,7 +472,7 @@ export interface AppData {
   detecteurs?: DetecteurManuel[]
   /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
   fichesMaintenanceClim?: FicheMaintenanceClim[]
-  /** Ordres de travail (OT) — n° unique OT2026xxxx */
+  /** Ordres de travail (OT) — n° unique aammjjxx */
   ordresTravail?: OrdreTravail[]
   /** Contrats de maintenance (documents signables) */
   contratsMaintenance?: ContratMaintenance[]

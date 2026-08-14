@@ -943,7 +943,7 @@ export function ChantiersPage() {
                 </span>
               </div>
               <p className="mt-1.5 text-sm text-muted">
-                Accès rapide · chaque action = OT unique (OT2026…) + rapport
+                Accès rapide · chaque action = OT unique (aammjjxx) + rapport
               </p>
             </div>
           </div>
@@ -1843,7 +1843,7 @@ export function ChantiersPage() {
                   : 'Quels équipements pour cette intervention ?'}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {picker.site.nom} — un n° OT (OT2026…) sera attribué automatiquement.
+              {picker.site.nom} — un n° OT (aammjjxx) sera attribué automatiquement.
               {picker.mode === 'maintenance'
                 ? ' Le CERFA suffit pour la maintenance fluide ; la fiche checklist est optionnelle.'
                 : picker.mode === 'intervention'
@@ -2100,7 +2100,7 @@ export function ChantiersPage() {
           <div className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-line bg-white p-5 shadow-xl sm:rounded-2xl">
             <h2 className="font-display text-xl font-semibold">Se mettre en intervention</h2>
             <p className="mt-1 text-sm text-muted">
-              {intervChoiceSite.nom} — chaque action reçoit un OT unique (OT2026…).
+              {intervChoiceSite.nom} — chaque action reçoit un OT unique (aammjjxx).
             </p>
             <div className="mt-5 space-y-3">
               {siteAvecFluideFrigorigene(intervChoiceSite) ? (

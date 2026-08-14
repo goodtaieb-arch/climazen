@@ -114,7 +114,7 @@ export const FICHE_MAINT_SECTIONS: {
 
 export interface FicheMaintenanceClim {
   id: string
-  /** N° OT / intervention (OT20260001) — signé */
+  /** N° OT / intervention (aammjjxx, ex. 26081501) — signé */
   numero: string
   date: string
   technicien: string

@@ -1647,7 +1647,7 @@ export function InterventionFormPage() {
                 value={numeroIntervention}
                 onChange={(e) => setNumeroIntervention(e.target.value)}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold tracking-wide"
-                placeholder="OT20260001"
+                placeholder="26081501"
               />
             </label>
             <label className="block text-sm">
