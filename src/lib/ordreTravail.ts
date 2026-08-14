@@ -1,4 +1,4 @@
-/** Ordre de travail (OT) — n° unique OTYYYYNNNN pour chaque action terrain. */
+/** Ordre de travail (OT) — n° unique aammjjxx (ex. 26081501), un seul par intervention. */
 
 export type TypeOt =
   | 'controle_etancheite'
@@ -43,7 +43,7 @@ export type ParcoursAppelStepId = (typeof PARCOURS_APPEL_STEPS)[number]['id']
 
 export interface OrdreTravail {
   id: string
-  /** Format OTYYYYNNNN — ex. OT20260001 */
+  /** Format aammjjxx — ex. 26081501. Unique pour toute l’intervention (multi-équipements / multi-jours). */
   numero: string
   date: string
   typeOt: TypeOt
@@ -96,27 +96,57 @@ export function naturesCerfaPourTypeOt(typeOt: TypeOt): string[] {
   return ['entretien_reparation']
 }
 
-/** Extrait le max séquentiel OTYYYYNNNN (ou ancien INT-YYYY-NNNN). */
-function maxSeqOt(year: number, values: (string | undefined)[]): number {
-  const reOt = new RegExp(`^OT${year}(\\d{4})$`, 'i')
-  const reInt = new RegExp(`^INT-${year}-(\\d+)$`, 'i')
+/**
+ * N° OT « de base » : enlève un suffixe historique -1, -2…
+ * (anciens CERFA multi-équipements). Le n° OT reste unique par intervention.
+ */
+export function otBaseNumero(raw?: string | null): string {
+  const v = (raw || '').trim()
+  if (!v) return ''
+  return v.replace(/-\d+$/, '')
+}
+
+/** True si deux n° désignent la même intervention OT (avec ou sans suffixe -N). */
+export function sameOtNumero(a?: string | null, b?: string | null): boolean {
+  const ba = otBaseNumero(a)
+  const bb = otBaseNumero(b)
+  if (!ba || !bb) return false
+  return ba === bb
+}
+
+/** Clé jour aammjj (ex. 260815) — fuseau Europe/Paris (terrain FR). */
+export function otDayKey(d = new Date()): string {
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d)
+  const yy = parts.find((p) => p.type === 'year')?.value ?? '00'
+  const mm = parts.find((p) => p.type === 'month')?.value ?? '01'
+  const jj = parts.find((p) => p.type === 'day')?.value ?? '01'
+  return `${yy}${mm}${jj}`
+}
+
+/**
+ * Max séquentiel xx du jour pour aammjjxx
+ * (ignore suffixe -N ; ignore anciens OT2026xxxx / INT-YYYY-NNNN).
+ */
+function maxSeqDay(dayKey: string, values: (string | undefined)[]): number {
+  const re = new RegExp(`^${dayKey}(\\d{2,})(?:-\\d+)?$`)
   let max = 0
   for (const raw of values) {
-    const v = (raw || '').trim()
-    const mOt = reOt.exec(v)
-    if (mOt) {
-      max = Math.max(max, Number(mOt[1]) || 0)
-      continue
-    }
-    const mInt = reInt.exec(v)
-    if (mInt) max = Math.max(max, Number(mInt[1]) || 0)
+    const v = otBaseNumero(raw)
+    const m = re.exec(v)
+    if (m) max = Math.max(max, Number(m[1]) || 0)
   }
   return max
 }
 
 /**
  * Prochain n° OT unique.
- * Format : OT20260001
+ * Format : aammjjxx — ex. 26081501 (année, mois, jour, séquence du jour).
+ * Un seul n° par intervention, même multi-équipements / multi-jours.
  */
 export function nextNumeroOt(
   data: {
@@ -126,14 +156,16 @@ export function nextNumeroOt(
   },
   offset = 0,
 ): string {
-  const year = new Date().getFullYear()
+  const dayKey = otDayKey()
   const values = [
     ...(data.ordresTravail || []).map((o) => o.numero),
     ...(data.interventions || []).map((i) => i.numeroIntervention),
     ...(data.fichesMaintenanceClim || []).map((f) => f.numero),
   ]
-  const next = maxSeqOt(year, values) + 1 + Math.max(0, offset)
-  return `OT${year}${String(next).padStart(4, '0')}`
+  // Dédupliquer par n° de base pour ne pas compter 2× le même OT (multi-CERFA)
+  const unique = [...new Set(values.map((v) => otBaseNumero(v)).filter(Boolean))]
+  const next = maxSeqDay(dayKey, unique) + 1 + Math.max(0, offset)
+  return `${dayKey}${String(next).padStart(2, '0')}`
 }
 
 /** Déduit l’étape à reprendre selon ce qui est déjà renseigné. */

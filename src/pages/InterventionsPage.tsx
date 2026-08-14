@@ -10,7 +10,8 @@ import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import { cerfaLabelFor } from '../lib/types'
-import { isOtCloture } from '../lib/ordreTravail'
+import { isOtCloture, otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
+import { findEquipement } from '../lib/migrate'
 
 export function InterventionsPage() {
   const { data, deleteIntervention } = useStore()
@@ -26,9 +27,7 @@ export function InterventionsPage() {
     const ot = (data.ordresTravail || []).find(
       (o) =>
         o.id === i.ordreTravailId ||
-        (i.numeroIntervention &&
-          (o.numero === i.numeroIntervention ||
-            i.numeroIntervention.startsWith(`${o.numero}-`))),
+        sameOtNumero(o.numero, i.numeroIntervention),
     )
     if (ot && isOtCloture(ot.statut) && (i.hasCerfaPdf || i.signatureOperateurImage)) {
       return 'signe' as const
@@ -119,6 +118,9 @@ export function InterventionsPage() {
           const chantier = data.chantiers.find((c) => c.id === i.chantierId)
           const label = chantier?.nom || 'Intervention'
           const st = effectiveStatus(i)
+          const otNum = otBaseNumero(i.numeroIntervention)
+          const eq = findEquipement(chantier, i.equipementId)
+          const eqLabel = eq?.nom || eq?.type || eq?.numeroSerie || ''
           return (
             <div
               key={i.id}
@@ -127,14 +129,15 @@ export function InterventionsPage() {
               <Link to={`/app/interventions/${i.id}`} className="block min-w-0 hover:text-accent">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="font-display text-base font-semibold">{label}</div>
-                  {i.numeroIntervention ? (
+                  {otNum ? (
                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                      {i.numeroIntervention}
+                      {otNum}
                     </span>
                   ) : null}
                 </div>
                 <div className="mt-1 text-sm text-muted">
                   {client?.raisonSociale || '—'}
+                  {eqLabel ? ` · ${eqLabel}` : ''}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                   <span>

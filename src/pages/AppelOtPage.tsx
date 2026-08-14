@@ -448,6 +448,17 @@ export function AppelOtPage() {
             interv.equipementId === eqId,
         )
       if (existingDraft) {
+        // Harmoniser le n° sur celui de l’OT (unique, sans -1/-2)
+        if (
+          otForm.numero &&
+          existingDraft.numeroIntervention !== otForm.numero
+        ) {
+          upsertIntervention({
+            ...existingDraft,
+            numeroIntervention: otForm.numero,
+            ordreTravailId: existingDraft.ordreTravailId || id,
+          })
+        }
         draftIds.push(existingDraft.id)
         continue
       }
@@ -457,8 +468,7 @@ export function AppelOtPage() {
         chantierId: otForm.chantierId,
         equipementId: eqId,
         dateIntervention: otForm.date,
-        numeroIntervention:
-          withFluide.length === 1 ? otForm.numero : `${otForm.numero}-${i + 1}`,
+        numeroIntervention: otForm.numero,
         ordreTravailId: id,
         operateur: data.operateur,
         natures: natures as import('../lib/types').NatureIntervention[],
@@ -550,6 +560,8 @@ export function AppelOtPage() {
     for (const draft of linked) {
       upsertIntervention({
         ...draft,
+        // Même n° OT pour tous les CERFA de l’intervention (plus de -1/-2)
+        numeroIntervention: otForm.numero || draft.numeroIntervention,
         status: 'signe',
         signatureOperateurImage:
           draft.signatureOperateurImage || otForm.signatureTechnicienImage || undefined,

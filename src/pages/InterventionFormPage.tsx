@@ -30,6 +30,7 @@ import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecte
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
+import { otBaseNumero } from '../lib/ordreTravail'
 import { nomSignataireClient } from '../lib/signataireClient'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
@@ -181,9 +182,9 @@ export function InterventionFormPage() {
   const [status, setStatus] = useState<CerfaDraft['status']>(existing?.status || 'brouillon')
   const [numeroIntervention, setNumeroIntervention] = useState(
     () =>
-      existing?.numeroIntervention?.trim() ||
-      numeroFromQuery.trim() ||
-      linkedOt?.numero ||
+      otBaseNumero(linkedOt?.numero) ||
+      otBaseNumero(numeroFromQuery) ||
+      otBaseNumero(existing?.numeroIntervention) ||
       (isNew
         ? nextNumeroIntervention({
             interventions: data.interventions,
@@ -553,7 +554,7 @@ export function InterventionFormPage() {
       chantierId,
       equipementId: equipementId || equipement?.id || undefined,
       dateIntervention,
-      numeroIntervention: numeroIntervention || undefined,
+      numeroIntervention: otBaseNumero(numeroIntervention) || undefined,
       ordreTravailId: ordreTravailId || existing?.ordreTravailId,
       operateur: data.operateur,
       natures,
@@ -937,15 +938,13 @@ export function InterventionFormPage() {
     }
     const eq = findEquipement(chantier, eqId)
     const charge = Number(eq?.chargeNominaleKg) || 0
-    const idx = Math.max(0, batchEquipIds.indexOf(eqId))
-    const baseNum = (numeroIntervention || '').replace(/-\d+$/, '') || numeroIntervention
+    const baseNum = otBaseNumero(numeroIntervention) || numeroIntervention
     const newId = upsertIntervention({
       clientId: client?.id || chantier.clientId || '',
       chantierId: chantier.id,
       equipementId: eqId,
       dateIntervention,
-      numeroIntervention:
-        batchEquipIds.length > 1 && baseNum ? `${baseNum}-${idx + 1}` : baseNum || undefined,
+      numeroIntervention: baseNum || undefined,
       ordreTravailId: otBatchId || undefined,
       operateur: data.operateur,
       natures,
