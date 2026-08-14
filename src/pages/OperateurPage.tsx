@@ -27,7 +27,9 @@ export function OperateurPage() {
 
   useEffect(() => {
     if (!isOwner) return
-    void listTeam().then(setTeam)
+    void listTeam()
+      .then(setTeam)
+      .catch(() => setTeam([]))
   }, [isOwner, listTeam, user?.organizationId])
 
   if (!isOwner) {

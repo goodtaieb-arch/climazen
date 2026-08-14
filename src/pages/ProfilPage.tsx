@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { SignaturePad } from '../components/SignaturePad'
@@ -108,7 +109,21 @@ export function ProfilPage() {
         </div>
       )}
 
-      {!isOwner && <DetecteursParc team={[]} />}
+      {/* Détecteur : opérateur = le sien ; gérant = rappel vers Mon entreprise */}
+      {!isOwner ? (
+        <DetecteursParc />
+      ) : (
+        <div className="rounded-2xl border border-line bg-white p-5 text-sm">
+          <h2 className="font-display text-base font-semibold text-ink">Parc détecteurs</h2>
+          <p className="mt-1 text-muted">
+            Ajoutez et affectez les détecteurs dans{' '}
+            <Link to="/app/operateur" className="font-semibold text-accent underline">
+              Mon entreprise
+            </Link>
+            .
+          </p>
+        </div>
+      )}
 
       <form
         onSubmit={onSubmitSignature}

@@ -1,81 +1,207 @@
-import { type FormEvent, useEffect, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { Plus, Trash2, UserPlus } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { detecteurForUser } from '../lib/detecteurs'
-import type { DetecteurManuel } from '../lib/types'
+import { isDetecteurControleExpire, type DetecteurManuel } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
 
 type Props = {
-  /** Liste équipe (owner) pour le sélecteur d’attribution */
+  /** Liste équipe (owner) pour le sélecteur d’attribution — sinon chargée ici */
   team?: UserAccount[]
 }
 
-export function DetecteursParc({ team = [] }: Props) {
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+export function DetecteursParc({ team: teamProp }: Props) {
   const { data, upsertDetecteur, deleteDetecteur } = useStore()
-  const { user, isOwner } = useAuth()
+  const { user, isOwner, listTeam } = useAuth()
   const detecteurs = data.detecteurs || []
   const mine = detecteurForUser(data, user?.id)
 
+  const [teamLocal, setTeamLocal] = useState<UserAccount[]>([])
+  const [teamError, setTeamError] = useState('')
+  const [teamLoading, setTeamLoading] = useState(false)
+
   const [editId, setEditId] = useState<string | null>(null)
   const [identification, setIdentification] = useState('')
-  const [controleDate, setControleDate] = useState('')
+  const [controleDate, setControleDate] = useState(today)
   const [assigneeUserId, setAssigneeUserId] = useState('')
   const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  // Charger l’équipe si non fournie (owner)
+  useEffect(() => {
+    if (!isOwner) return
+    if (teamProp && teamProp.length > 0) return
+    setTeamLoading(true)
+    setTeamError('')
+    void listTeam()
+      .then((t) => setTeamLocal(t))
+      .catch((err) => {
+        setTeamError(err instanceof Error ? err.message : 'Impossible de charger l’équipe')
+        setTeamLocal([])
+      })
+      .finally(() => setTeamLoading(false))
+  }, [isOwner, listTeam, teamProp, user?.organizationId])
+
+  const team = useMemo(() => {
+    const base = (teamProp && teamProp.length > 0 ? teamProp : teamLocal).filter(
+      (m) => m.active !== false,
+    )
+    // Toujours pouvoir s’affecter soi-même (même si listTeam échoue)
+    if (user && !base.some((m) => m.id === user.id)) {
+      return [
+        {
+          id: user.id,
+          organizationId: user.organizationId,
+          email: user.email,
+          username: user.username,
+          fullName: user.fullName || user.email || 'Moi',
+          role: user.role,
+          active: true,
+          createdAt: user.createdAt,
+        } as UserAccount,
+        ...base,
+      ]
+    }
+    return base
+  }, [teamProp, teamLocal, user])
 
   const resetForm = () => {
     setEditId(null)
     setIdentification('')
-    setControleDate('')
+    setControleDate(today())
     setAssigneeUserId('')
     setNotes('')
+    setFormError('')
   }
 
   const startEdit = (d: DetecteurManuel) => {
     setEditId(d.id)
     setIdentification(d.identification)
-    setControleDate(d.controleDate || '')
+    setControleDate(d.controleDate || today())
     setAssigneeUserId(d.assigneeUserId || '')
     setNotes(d.notes || '')
+    setFormError('')
+    window.setTimeout(() => {
+      document.getElementById('detecteur-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+  }
+
+  const resolveAssigneeName = (uid: string) => {
+    if (!uid) return undefined
+    const member = team.find((m) => m.id === uid)
+    if (member?.fullName) return member.fullName
+    if (uid === user?.id) return user.fullName || user.email || 'Moi'
+    const existing = detecteurs.find((d) => d.assigneeUserId === uid)
+    return existing?.assigneeName
   }
 
   const onSave = (e: FormEvent) => {
     e.preventDefault()
-    if (!identification.trim()) return
-    const member = team.find((m) => m.id === assigneeUserId)
-    upsertDetecteur({
-      id: editId || undefined,
-      identification: identification.trim(),
-      controleDate,
-      assigneeUserId: assigneeUserId || undefined,
-      assigneeName: member?.fullName || undefined,
-      notes: notes.trim() || undefined,
-    })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-    resetForm()
+    e.stopPropagation()
+    setFormError('')
+    const idTrim = identification.trim()
+    if (!idTrim) {
+      setFormError('Indiquez l’identification / réf. du détecteur.')
+      return
+    }
+    if (!controleDate.trim()) {
+      setFormError('Indiquez la date de contrôle (obligatoire, < 1 an pour le CERFA).')
+      return
+    }
+    if (isDetecteurControleExpire(controleDate)) {
+      setFormError(
+        'Cette date de contrôle a plus d’un an — le CERFA sera refusé. Mettez une date de contrôle récente.',
+      )
+      return
+    }
+    try {
+      upsertDetecteur({
+        id: editId || undefined,
+        identification: idTrim,
+        controleDate: controleDate.trim(),
+        assigneeUserId: assigneeUserId || undefined,
+        assigneeName: resolveAssigneeName(assigneeUserId),
+        notes: notes.trim() || undefined,
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      resetForm()
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
+    }
+  }
+
+  const assignToMe = () => {
+    if (user?.id) setAssigneeUserId(user.id)
   }
 
   const onUpdateMyControle = (e: FormEvent) => {
     e.preventDefault()
     if (!mine || mine.id === 'company-default') return
+    if (!controleDate.trim()) {
+      setFormError('Date de contrôle requise.')
+      return
+    }
+    if (isDetecteurControleExpire(controleDate)) {
+      setFormError('Date de contrôle > 1 an — mettez à jour après le contrôle annuel.')
+      return
+    }
     upsertDetecteur({
       id: mine.id,
       identification: mine.identification,
-      controleDate,
+      controleDate: controleDate.trim(),
       assigneeUserId: mine.assigneeUserId,
       assigneeName: mine.assigneeName,
       notes: mine.notes,
     })
+    setFormError('')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
+  /** Opérateur sans détecteur : peut s’en créer un (auto-affecté). */
+  const onCreateMine = (e: FormEvent) => {
+    e.preventDefault()
+    setFormError('')
+    const idTrim = identification.trim()
+    if (!idTrim) {
+      setFormError('Indiquez l’identification / réf. du détecteur.')
+      return
+    }
+    if (!controleDate.trim()) {
+      setFormError('Indiquez la date de contrôle.')
+      return
+    }
+    if (isDetecteurControleExpire(controleDate)) {
+      setFormError('Date de contrôle > 1 an — utilisez la date du dernier contrôle.')
+      return
+    }
+    if (!user?.id) {
+      setFormError('Session expirée — reconnectez-vous.')
+      return
+    }
+    upsertDetecteur({
+      identification: idTrim,
+      controleDate: controleDate.trim(),
+      assigneeUserId: user.id,
+      assigneeName: user.fullName || user.email || 'Moi',
+    })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+    setIdentification('')
+    setControleDate(today())
+  }
+
   useEffect(() => {
     if (!isOwner && mine && mine.id !== 'company-default') {
-      setControleDate(mine.controleDate || '')
+      setControleDate(mine.controleDate || today())
     }
   }, [isOwner, mine?.id, mine?.controleDate])
 
@@ -84,46 +210,62 @@ export function DetecteursParc({ team = [] }: Props) {
       <div className="rounded-2xl border border-line bg-white p-5">
         <h2 className="font-display mb-1 text-lg font-semibold">Mon détecteur manuel [5]</h2>
         <p className="mb-4 text-sm text-muted">
-          Détecteur qui vous est attribué — prérempli automatiquement sur vos CERFA d’étanchéité.
+          Prérempli automatiquement sur vos CERFA. Contrôle annuel obligatoire (&lt; 1 an).
         </p>
-        {mine ? (
+        {mine && mine.id !== 'company-default' ? (
           <form onSubmit={onUpdateMyControle} className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2 rounded-xl bg-mist px-3 py-2 text-sm">
               <span className="text-muted">Identification / réf. : </span>
               <strong>{mine.identification}</strong>
-              {mine.id === 'company-default' && (
-                <span className="ml-2 text-xs text-muted">(détecteur société — non nominatif)</span>
-              )}
             </div>
-            {mine.id !== 'company-default' ? (
-              <>
-                <Field
-                  label="Contrôlé le"
-                  type="date"
-                  value={controleDate}
-                  onChange={setControleDate}
-                />
-                <div className="flex items-end">
-                  <button
-                    type="submit"
-                    className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
-                  >
-                    Mettre à jour le contrôle
-                  </button>
-                </div>
-              </>
-            ) : (
-              <p className="sm:col-span-2 text-sm text-muted">
-                Demandez au gérant de vous attribuer un détecteur dans le parc (Mon entreprise).
-              </p>
-            )}
+            <Field
+              label="Contrôlé le *"
+              type="date"
+              value={controleDate}
+              onChange={setControleDate}
+              required
+            />
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="min-h-11 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
+              >
+                Mettre à jour le contrôle
+              </button>
+            </div>
+            {formError && <p className="sm:col-span-2 text-sm text-danger">{formError}</p>}
             {saved && <p className="sm:col-span-2 text-sm text-accent">Enregistré.</p>}
           </form>
         ) : (
-          <p className="text-sm text-danger">
-            Aucun détecteur attribué. Le gérant doit vous en attribuer un dans Mon entreprise → Parc
-            détecteurs.
-          </p>
+          <form onSubmit={onCreateMine} className="grid gap-3 sm:grid-cols-2">
+            <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              Aucun détecteur nominatif. Ajoutez le vôtre ici (ou demandez au gérant de vous en
+              attribuer un dans Mon entreprise).
+            </p>
+            <Field
+              label="Identification / réf. *"
+              value={identification}
+              onChange={setIdentification}
+              required
+            />
+            <Field
+              label="Contrôlé le *"
+              type="date"
+              value={controleDate}
+              onChange={setControleDate}
+              required
+            />
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <button
+                type="submit"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
+              >
+                <Plus className="h-4 w-4" /> Enregistrer mon détecteur
+              </button>
+            </div>
+            {formError && <p className="sm:col-span-2 text-sm text-danger">{formError}</p>}
+            {saved && <p className="sm:col-span-2 text-sm text-accent">Détecteur enregistré et vous est attribué.</p>}
+          </form>
         )}
       </div>
     )
@@ -134,50 +276,60 @@ export function DetecteursParc({ team = [] }: Props) {
       <div>
         <h2 className="font-display mb-1 text-lg font-semibold">Parc détecteurs manuels [5]</h2>
         <p className="text-sm text-muted">
-          Si plusieurs détecteurs : attribuez-en un à chaque technicien. Le CERFA reprend celui de
-          l’opérateur connecté.
+          Ajoutez chaque détecteur avec sa date de contrôle, puis affectez-le à un technicien. Le
+          CERFA reprend automatiquement le détecteur de l’opérateur connecté.
         </p>
       </div>
 
       <ul className="divide-y divide-line rounded-xl border border-line">
         {detecteurs.length === 0 && (
-          <li className="px-4 py-3 text-sm text-muted">Aucun détecteur enregistré.</li>
+          <li className="px-4 py-3 text-sm text-muted">Aucun détecteur enregistré — ajoutez-en un ci-dessous.</li>
         )}
-        {detecteurs.map((d) => (
-          <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <div>
-              <div className="font-medium">{d.identification}</div>
-              <div className="text-xs text-muted">
-                Contrôlé le {d.controleDate || '—'}
-                {' · '}
-                {d.assigneeName
-                  ? `Attribué à ${d.assigneeName}`
-                  : 'Non attribué (fallback société)'}
+        {detecteurs.map((d) => {
+          const expired = isDetecteurControleExpire(d.controleDate)
+          return (
+            <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div className="min-w-0">
+                <div className="font-medium">{d.identification}</div>
+                <div className="text-xs text-muted">
+                  Contrôlé le {d.controleDate || '—'}
+                  {expired ? (
+                    <span className="ml-1 font-semibold text-danger">(expiré)</span>
+                  ) : null}
+                  {' · '}
+                  {d.assigneeName
+                    ? `Attribué à ${d.assigneeName}`
+                    : 'Non attribué (fallback société)'}
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => startEdit(d)}
-                className="rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-mist"
-              >
-                Modifier
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(`Supprimer le détecteur ${d.identification} ?`)) deleteDetecteur(d.id)
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-danger hover:bg-red-50"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-          </li>
-        ))}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => startEdit(d)}
+                  className="min-h-10 rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-mist"
+                >
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Supprimer le détecteur ${d.identification} ?`)) deleteDetecteur(d.id)
+                  }}
+                  className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-danger hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </li>
+          )
+        })}
       </ul>
 
-      <form onSubmit={onSave} className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+      <form
+        id="detecteur-form"
+        onSubmit={onSave}
+        className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2"
+      >
         <h3 className="font-display text-sm font-semibold sm:col-span-2">
           {editId ? 'Modifier le détecteur' : 'Ajouter un détecteur'}
         </h3>
@@ -187,23 +339,45 @@ export function DetecteursParc({ team = [] }: Props) {
           onChange={setIdentification}
           required
         />
-        <Field label="Contrôlé le" type="date" value={controleDate} onChange={setControleDate} />
+        <Field
+          label="Contrôlé le *"
+          type="date"
+          value={controleDate}
+          onChange={setControleDate}
+          required
+        />
         <label className="block text-sm sm:col-span-2">
           <span className="mb-1 block text-muted">Attribué au technicien</span>
           <select
-            className="w-full rounded-xl border border-line bg-white px-3 py-2"
+            className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
             value={assigneeUserId}
             onChange={(e) => setAssigneeUserId(e.target.value)}
           >
             <option value="">— Non attribué (fallback société) —</option>
-            {team
-              .filter((m) => m.active !== false)
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.fullName} ({m.role === 'owner' ? 'gérant' : 'opérateur'})
-                </option>
-              ))}
+            {team.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.fullName || m.email}
+                {m.id === user?.id ? ' (moi)' : ''}
+                {m.role === 'owner' ? ' · gérant' : ' · opérateur'}
+              </option>
+            ))}
           </select>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={assignToMe}
+              className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-white px-3 text-xs font-semibold active:bg-mist"
+            >
+              <UserPlus className="h-3.5 w-3.5" /> M’affecter ce détecteur
+            </button>
+            {teamLoading && <span className="text-xs text-muted">Chargement équipe…</span>}
+            {teamError && <span className="text-xs text-danger">{teamError}</span>}
+            {!teamLoading && team.length <= 1 && (
+              <span className="text-xs text-muted">
+                Ajoutez des opérateurs dans « Équipe » pour les affecter ici.
+              </span>
+            )}
+          </div>
         </label>
         <Field
           label="Notes (optionnel)"
@@ -211,24 +385,29 @@ export function DetecteursParc({ team = [] }: Props) {
           onChange={setNotes}
           className="sm:col-span-2"
         />
+        {formError && (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger sm:col-span-2">
+            {formError}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 sm:col-span-2">
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
           >
             <Plus className="h-4 w-4" />
-            {editId ? 'Enregistrer' : 'Ajouter'}
+            {editId ? 'Enregistrer' : 'Ajouter le détecteur'}
           </button>
           {editId && (
             <button
               type="button"
               onClick={resetForm}
-              className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist"
+              className="min-h-11 rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist"
             >
               Annuler
             </button>
           )}
-          {saved && <span className="self-center text-sm text-accent">Enregistré.</span>}
+          {saved && <span className="self-center text-sm font-semibold text-accent">Enregistré.</span>}
         </div>
       </form>
     </div>

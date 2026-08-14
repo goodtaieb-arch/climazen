@@ -1,2 +1,2 @@
 /** Stamp de build — change à chaque déploiement pour forcer le cache PWA. */
-export const APP_BUILD = '2026-08-14-cerfa-detecteur-obligatoire'
+export const APP_BUILD = '2026-08-14-fix-detecteurs-affectation'
