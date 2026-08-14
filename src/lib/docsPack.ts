@@ -10,7 +10,7 @@ import { TYPE_OT_LABELS, type OrdreTravail } from './ordreTravail'
 import type { AppData, CerfaDraft, Client, Chantier } from './types'
 import { mailtoHref } from './agenda'
 
-export type PackDocKind = 'cerfa' | 'fiche' | 'rapport_ot'
+export type PackDocKind = 'cerfa' | 'fiche' | 'rapport_ot' | 'rapport_annuel'
 
 export type PackDoc = {
   id: string
@@ -332,6 +332,135 @@ export function clientMailtoForPack(opts: {
     `Bonjour,`,
     ``,
     `Veuillez trouver ci-joint les documents de l’intervention ${opts.otNumero} (${opts.docCount} fichier${opts.docCount > 1 ? 's' : ''} : ${opts.zipName}).`,
+    ``,
+    `Cordialement,`,
+  ].join('\n')
+  return mailtoHref(opts.email, subject, body)
+}
+
+export function packAnnuelZipFileName(year: number, orgName?: string): string {
+  const parts = ['ClimaZEN', 'CERFA', String(year)]
+  if (orgName?.trim()) parts.push(safeName(orgName))
+  return `${parts.join('-')}-lot-annuel.zip`
+}
+
+/**
+ * Lot annuel pour bureau de contrôle : CERFA sélectionnés (+ rapport fluides optionnel).
+ */
+export async function collectCerfaAnnuelPack(opts: {
+  drafts: CerfaDraft[]
+  data: AppData
+  organizationId?: string | null
+  year: number
+  includeRapportAnnuel?: boolean
+}): Promise<PackDoc[]> {
+  const { drafts, data, organizationId, year, includeRapportAnnuel = true } = opts
+  const out: PackDoc[] = []
+  const usedNames = new Set<string>()
+
+  const uniqueName = (base: string) => {
+    let name = base
+    let n = 2
+    while (usedNames.has(name.toLowerCase())) {
+      name = base.replace(/\.pdf$/i, `-${n}.pdf`)
+      n += 1
+    }
+    usedNames.add(name.toLowerCase())
+    return name
+  }
+
+  for (const draft of drafts) {
+    const client = data.clients.find((c) => c.id === draft.clientId)
+    const site = data.chantiers.find((c) => c.id === draft.chantierId)
+    let blob: Blob | null = null
+    let fileName = `CERFA-${safeName(draft.numeroIntervention || draft.dateIntervention || draft.id.slice(0, 8))}.pdf`
+    const stored = await loadCerfaPdf(draft.id, organizationId)
+    if (stored?.blob) {
+      blob = stored.blob
+      if (stored.fileName) fileName = stored.fileName
+    } else {
+      try {
+        blob = await buildCerfaPdf({
+          draft,
+          client: (client || {
+            id: '',
+            raisonSociale: '',
+            nomContact: '',
+            adresse: '',
+            codePostal: '',
+            ville: '',
+            telephone: '',
+            email: '',
+            createdAt: '',
+          }) as Client,
+          chantier: (site || {
+            id: '',
+            clientId: '',
+            nom: '',
+            adresse: '',
+            codePostal: '',
+            ville: '',
+            statut: 'actif',
+            createdAt: '',
+            equipementType: '',
+            equipementMarque: '',
+            equipementModele: '',
+            equipementNumeroSerie: '',
+            fluideType: '',
+            chargeNominaleKg: 0,
+            detectionPermanente: false,
+          }) as Chantier,
+        })
+        fileName = `CERFA-15497-04-${safeName(draft.dateIntervention || String(year))}-${safeName(draft.numeroIntervention || draft.id.slice(0, 8))}.pdf`
+      } catch (err) {
+        console.error('ClimaZEN: pack annuel CERFA', draft.id, err)
+      }
+    }
+    if (!blob) continue
+    const siteLabel = site?.nom || client?.raisonSociale || ''
+    out.push({
+      id: `cerfa-${draft.id}`,
+      kind: 'cerfa',
+      label: `CERFA ${draft.numeroIntervention || ''} · ${draft.dateIntervention || ''}${siteLabel ? ` · ${siteLabel}` : ''}`.trim(),
+      fileName: uniqueName(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`),
+      blob,
+    })
+  }
+
+  if (includeRapportAnnuel) {
+    try {
+      const { buildRapportAnnuelGaz } = await import('./rapportAnnuelGaz')
+      const { buildRapportAnnuelGazPdf, rapportAnnuelFilename } = await import('./rapportAnnuelGazPdf')
+      const rapport = buildRapportAnnuelGaz(data, year)
+      const blob = await buildRapportAnnuelGazPdf(rapport)
+      out.push({
+        id: `rapport-annuel-${year}`,
+        kind: 'rapport_annuel',
+        label: `Rapport annuel fluides ${year}`,
+        fileName: uniqueName(rapportAnnuelFilename(year)),
+        blob,
+      })
+    } catch (err) {
+      console.error('ClimaZEN: pack rapport annuel', err)
+    }
+  }
+
+  return out
+}
+
+export function annuelMailtoForPack(opts: {
+  email?: string
+  year: number
+  docCount: number
+  zipName: string
+  orgName?: string
+}): string | null {
+  const subject = `Lot annuel CERFA ${opts.year}${opts.orgName ? ` — ${opts.orgName}` : ''} (contrôle / attestation)`
+  const body = [
+    `Bonjour,`,
+    ``,
+    `Veuillez trouver ci-joint le lot annuel ${opts.year} pour contrôle / rapport d’attestation de capacité.`,
+    `Contenu : ${opts.docCount} fichier${opts.docCount > 1 ? 's' : ''} (${opts.zipName}).`,
     ``,
     `Cordialement,`,
   ].join('\n')

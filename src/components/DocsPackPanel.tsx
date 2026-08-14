@@ -34,6 +34,7 @@ const KIND_LABEL: Record<PackDoc['kind'], string> = {
   cerfa: 'CERFA',
   fiche: 'Fiche',
   rapport_ot: 'Rapport',
+  rapport_annuel: 'Annuel',
 }
 
 /**
