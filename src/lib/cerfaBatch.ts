@@ -242,4 +242,45 @@ export function equipmentLabel(eq: Equipement) {
   return [eq.nom || eq.type, eq.marque, eq.modele].filter(Boolean).join(' · ') || 'Équipement'
 }
 
+/** Normalise un libellé équipement pour comparaison d’unicité. */
+export function normalizeEquipNom(nom: string): string {
+  return nom.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+/** Libellé utilisé pour l’unicité (nom, sinon type). */
+export function equipNomKey(eq: Pick<Equipement, 'nom' | 'type'>): string {
+  return normalizeEquipNom(eq.nom || eq.type || '')
+}
+
+/**
+ * Cherche un doublon de nom sur le même site (hors `excludeId`).
+ * Comparaison insensible à la casse / espaces.
+ */
+export function findDuplicateEquipNom(
+  equipements: Pick<Equipement, 'id' | 'nom' | 'type'>[],
+  nom: string,
+  excludeId?: string,
+): Pick<Equipement, 'id' | 'nom' | 'type'> | undefined {
+  const key = normalizeEquipNom(nom)
+  if (!key) return undefined
+  return equipements.find((e) => e.id !== excludeId && equipNomKey(e) === key)
+}
+
+/** Vérifie qu’aucun nom n’est dupliqué dans la liste — renvoie le premier conflit. */
+export function findFirstDuplicateEquipNom(
+  equipements: Pick<Equipement, 'id' | 'nom' | 'type'>[],
+): { a: string; b: string; nom: string } | null {
+  const seen = new Map<string, string>()
+  for (const eq of equipements) {
+    const key = equipNomKey(eq)
+    if (!key) continue
+    const prev = seen.get(key)
+    if (prev) {
+      return { a: prev, b: eq.id, nom: (eq.nom || eq.type || '').trim() }
+    }
+    seen.set(key, eq.id)
+  }
+  return null
+}
+
 export { findEquipement }

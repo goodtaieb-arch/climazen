@@ -22,7 +22,7 @@ import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import type { PlaqueFields } from '../lib/plaqueOcr'
-import { allEquipements, equipementsForCerfa } from '../lib/cerfaBatch'
+import { allEquipements, equipementsForCerfa, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import type { Client, Equipement, Site } from '../lib/types'
@@ -304,6 +304,15 @@ export function AppelOtPage() {
         alert('Indiquez au moins un nom ou type d’équipement.')
         return
       }
+      const nom = equipForm.nom.trim() || equipForm.type.trim()
+      const existing = allEquipements(site)
+      const clash = findDuplicateEquipNom(existing, nom)
+      if (clash) {
+        alert(
+          `Un équipement « ${nom} » existe déjà sur ce site. Changez le nom — chaque équipement doit avoir un libellé unique.`,
+        )
+        return
+      }
       const teq =
         equipForm.avecFluideFrigorigene !== false && equipForm.fluideType
           ? calcTeqCO2FromFluide(equipForm.chargeNominaleKg || 0, equipForm.fluideType) || 0
@@ -311,10 +320,10 @@ export function AppelOtPage() {
       const eq: Equipement = {
         ...equipForm,
         id: equipForm.id || crypto.randomUUID(),
-        nom: equipForm.nom.trim() || equipForm.type || 'Équipement',
+        nom,
         teqCO2: teq,
       }
-      const list = [...allEquipements(site), eq]
+      const list = [...existing, eq]
       upsertChantier({
         ...site,
         equipements: list,
@@ -929,13 +938,27 @@ export function AppelOtPage() {
                 />
               </div>
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Nom / repère</span>
+                <span className="mb-1 block text-muted">Nom / repère *</span>
                 <input
                   value={equipForm.nom}
                   onChange={(e) => setEquipForm({ ...equipForm, nom: e.target.value })}
                   className="h-11 w-full rounded-xl border border-line px-3"
                   placeholder="Chambre froide 1, PAC bureau…"
+                  required
                 />
+                {site &&
+                findDuplicateEquipNom(
+                  allEquipements(site),
+                  equipForm.nom.trim() || equipForm.type.trim(),
+                ) ? (
+                  <span className="mt-1 block text-xs font-semibold text-danger">
+                    Ce nom existe déjà sur le site — changez-le.
+                  </span>
+                ) : (
+                  <span className="mt-1 block text-xs text-muted">
+                    Nom unique obligatoire sur le site.
+                  </span>
+                )}
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-muted">Type</span>

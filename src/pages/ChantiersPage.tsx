@@ -47,7 +47,7 @@ import { SmartSuggestField, type SmartSuggestion } from '../components/SmartSugg
 import { MobileFab } from '../components/MobileFab'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
-import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat } from '../lib/cerfaBatch'
+import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat, findDuplicateEquipNom, findFirstDuplicateEquipNom } from '../lib/cerfaBatch'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
@@ -644,6 +644,7 @@ export function ChantiersPage() {
         const fluide = equipAvecFluideFrigorigene(eq)
         return {
           ...eq,
+          nom: (eq.nom || eq.type || '').trim(),
           avecFluideFrigorigene: fluide,
           fluideType: fluide ? eq.fluideType || form.fluideType || 'R-448A' : '',
           chargeNominaleKg: fluide ? Number(eq.chargeNominaleKg) || 0 : 0,
@@ -658,6 +659,18 @@ export function ChantiersPage() {
     )
     if (list.length === 0) {
       alert('Ajoutez au moins un équipement.')
+      return
+    }
+    const withoutName = list.find((eq) => !(eq.nom || '').trim())
+    if (withoutName) {
+      alert('Chaque équipement doit avoir un nom / libellé.')
+      return
+    }
+    const dup = findFirstDuplicateEquipNom(list)
+    if (dup) {
+      alert(
+        `Deux équipements ont le même nom « ${dup.nom} ». Changez le libellé — chaque équipement du site doit avoir un nom unique.`,
+      )
       return
     }
     const siteFluide = list.some((e) => equipAvecFluideFrigorigene(e))
@@ -1215,6 +1228,14 @@ export function ChantiersPage() {
               const [siteId, eqId] = s.id.split(':')
               const site = data.chantiers.find((c) => c.id === siteId)
               const src = site ? allEquipements(site).find((e) => e.id === eqId) : undefined
+              const wantedNom = (src?.nom || s.label || '').trim()
+              const clash = findDuplicateEquipNom(equipements, wantedNom, currentEquip.id)
+              if (clash) {
+                alert(
+                  `Le nom « ${wantedNom} » existe déjà sur ce site. Choisissez un autre libellé.`,
+                )
+                return
+              }
               if (!src) {
                 patchCurrentEquip({ nom: s.label, type: currentEquip.type || s.label })
                 return
@@ -1239,9 +1260,23 @@ export function ChantiersPage() {
             inputMode="search"
             limit={12}
           />
+          {(() => {
+            const clash = findDuplicateEquipNom(
+              equipements,
+              currentEquip.nom || currentEquip.type || '',
+              currentEquip.id,
+            )
+            if (!clash) return null
+            return (
+              <p className="-mt-1 text-xs font-semibold text-danger sm:col-span-2">
+                Ce nom est déjà utilisé sur ce site — changez-le (chaque équipement doit avoir un
+                libellé unique).
+              </p>
+            )
+          })()}
           <p className="-mt-1 text-xs text-muted sm:col-span-2">
             Tapez pour suggérer des libellés déjà utilisés. Ex. « Chambre froide rayon frais », « Clim
-            bureau 2 ».
+            bureau 2 ». Noms uniques obligatoires sur le site.
           </p>
           <Field
             label={currentAvecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
