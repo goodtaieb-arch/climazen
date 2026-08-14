@@ -6,6 +6,7 @@ import {
   FileCheck2,
   MapPin,
   Package,
+  Search,
   ShieldCheck,
   SignalZero,
   Smartphone,
@@ -16,6 +17,24 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { CONTACT_EMAIL } from '../components/PublicLayout'
+import { ICON3D } from '../lib/icons3d'
+
+/** Tuiles Accueil mobile (icônes 3D) — mockup marketing landing. */
+const LANDING_PHONE_TILES = [
+  { title: 'Sites & Parc', img: ICON3D.sites, delay: '0s' },
+  { title: 'Agenda', img: ICON3D.search, delay: '0.15s' },
+  { title: 'CERFA', img: ICON3D.cerfa, delay: '0.3s' },
+  { title: 'Stock fluides', img: ICON3D.bottle, delay: '0.45s' },
+  { title: 'Clients', img: ICON3D.clients, delay: '0.6s' },
+  { title: 'Ordres de travail', img: ICON3D.maintenance, delay: '0.75s' },
+] as const
+
+const LANDING_PHONE_NAV = [
+  { label: 'Accueil', img: ICON3D.accueil, active: true },
+  { label: 'Sites', img: ICON3D.sites, active: false },
+  { label: 'Fluides', img: ICON3D.bottle, active: false },
+  { label: 'CERFA', img: ICON3D.cerfa, active: false },
+] as const
 
 const heroPoints = [
   '100 % conforme F-Gas & attestation de capacité (CERFA FI 15497-04)',
@@ -190,22 +209,116 @@ export function Landing() {
               />
               <div className="relative overflow-hidden rounded-[2.15rem] bg-white ring-1 ring-white/20">
                 <div className="absolute left-1/2 top-2.5 z-10 h-[22px] w-[92px] -translate-x-1/2 rounded-full bg-ink shadow-inner" />
-                <img
-                  src="/landing-mobile-terrain.png"
-                  alt="ClimaZEN sur smartphone — accueil terrain, sites génériques et mode hors ligne"
-                  className="block aspect-[9/16] w-full bg-white object-contain object-top"
-                  width={720}
-                  height={1280}
-                  loading="eager"
-                />
+                {/* Mockup Accueil — vraies icônes 3D smartphone */}
+                <div
+                  className="flex aspect-[9/16] w-full flex-col bg-gradient-to-b from-mist via-white to-white"
+                  role="img"
+                  aria-label="ClimaZEN sur smartphone — accueil terrain avec icônes 3D"
+                >
+                  <div className="shrink-0 px-3.5 pb-2 pt-9">
+                    <p className="text-center font-display text-[11px] font-extrabold tracking-[0.12em] text-accent">
+                      ClimaZEN
+                    </p>
+                    <h3 className="mt-0.5 text-center font-display text-base font-extrabold tracking-tight text-ink">
+                      Sur le terrain
+                    </h3>
+                    <p className="mt-0.5 text-center text-[10px] font-medium text-muted">
+                      Gérez vos interventions et vos sites
+                    </p>
+                    <div className="relative mt-3">
+                      <Search
+                        className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
+                        aria-hidden
+                      />
+                      <div className="h-9 w-full rounded-xl border border-line bg-white py-2 pl-8 pr-3 text-[11px] font-medium text-muted shadow-sm">
+                        Rechercher un site, une intervention…
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-hidden px-2.5 pb-1">
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-3">
+                      {LANDING_PHONE_TILES.map((tile) => (
+                        <div key={tile.title} className="flex flex-col items-center">
+                          <span className="relative grid h-[4.35rem] w-[4.35rem] place-items-center rounded-full border-[1.5px] border-ink/85 bg-white shadow-sm">
+                            <span className="float-3d" style={{ animationDelay: tile.delay }}>
+                              <img
+                                src={tile.img}
+                                alt=""
+                                width={48}
+                                height={48}
+                                className="h-11 w-11 object-contain drop-shadow-md"
+                                draggable={false}
+                                loading="eager"
+                                decoding="async"
+                              />
+                            </span>
+                          </span>
+                          <span className="mt-1.5 block px-0.5 text-center text-[10px] font-semibold leading-tight text-ink">
+                            {tile.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mx-2.5 mb-1.5 flex items-start gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-[9px] font-semibold leading-snug text-orange-900">
+                    <SignalZero className="mt-0.5 h-3 w-3 shrink-0 text-orange-600" aria-hidden />
+                    <span>
+                      Mode hors ligne. Certaines actions seront synchronisées dès votre retour en
+                      ligne.
+                    </span>
+                  </div>
+
+                  <div className="shrink-0 border-t border-line bg-white/95 px-1 pb-2 pt-1.5">
+                    <div className="grid grid-cols-4">
+                      {LANDING_PHONE_NAV.map((item) => (
+                        <div
+                          key={item.label}
+                          className="flex flex-col items-center justify-center gap-0.5 py-1"
+                          style={{ color: item.active ? '#0d9488' : '#5a7880' }}
+                        >
+                          <span
+                            className={[
+                              'grid h-9 w-9 place-items-center rounded-full border bg-white',
+                              item.active ? 'border-teal-600 shadow-sm' : 'border-line',
+                            ].join(' ')}
+                            style={
+                              item.active
+                                ? { boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.18)' }
+                                : undefined
+                            }
+                          >
+                            <span
+                              className={item.active ? 'float-3d' : undefined}
+                              style={item.active ? { animationDelay: '0s' } : undefined}
+                            >
+                              <img
+                                src={item.img}
+                                alt=""
+                                width={22}
+                                height={22}
+                                className="h-[22px] w-[22px] object-contain drop-shadow-md"
+                                draggable={false}
+                                loading="eager"
+                                decoding="async"
+                              />
+                            </span>
+                          </span>
+                          <span className="truncate text-[9px] font-semibold">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="mt-5 flex flex-col items-center gap-1.5">
               <p className="rounded-full border border-line/80 bg-white/90 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate shadow-sm">
-                Rendu smartphone · chantier
+                Accueil · icônes 3D
               </p>
               <p className="max-w-[240px] text-center text-xs text-muted">
-                Accueil terrain, recherche et mode hors ligne — sans données clients réelles.
+                Même menu smartphone que sur le terrain — cercles 3D Sites, CERFA, Stock…
               </p>
             </div>
           </div>
