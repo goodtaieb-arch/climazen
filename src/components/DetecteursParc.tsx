@@ -72,11 +72,20 @@ export function DetecteursParc({ team: teamProp }: Props) {
     return base
   }, [teamProp, teamLocal, user])
 
+  /** Une seule personne = tout est au nom du gérant, pas besoin d’Équipe. */
+  const isSolo = team.length <= 1
+
+  // Nouveau détecteur : pré-affecté au gérant connecté (surtout entreprise solo)
+  useEffect(() => {
+    if (!isOwner || editId || !user?.id) return
+    if (!assigneeUserId) setAssigneeUserId(user.id)
+  }, [isOwner, editId, user?.id, assigneeUserId, teamLoading])
+
   const resetForm = () => {
     setEditId(null)
     setIdentification('')
     setControleDate(today())
-    setAssigneeUserId('')
+    setAssigneeUserId(user?.id || '')
     setNotes('')
     setFormError('')
   }
@@ -122,12 +131,14 @@ export function DetecteursParc({ team: teamProp }: Props) {
       return
     }
     try {
+      // Solo / non choisi → affecté au gérant (personne qui a la société)
+      const finalAssigneeId = assigneeUserId || user?.id || ''
       upsertDetecteur({
         id: editId || undefined,
         identification: idTrim,
         controleDate: controleDate.trim(),
-        assigneeUserId: assigneeUserId || undefined,
-        assigneeName: resolveAssigneeName(assigneeUserId),
+        assigneeUserId: finalAssigneeId || undefined,
+        assigneeName: resolveAssigneeName(finalAssigneeId),
         notes: notes.trim() || undefined,
       })
       setSaved(true)
@@ -353,7 +364,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
             value={assigneeUserId}
             onChange={(e) => setAssigneeUserId(e.target.value)}
           >
-            <option value="">— Non attribué (fallback société) —</option>
+            {!isSolo && <option value="">— Non attribué (fallback société) —</option>}
             {team.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.fullName || m.email}
@@ -363,18 +374,20 @@ export function DetecteursParc({ team: teamProp }: Props) {
             ))}
           </select>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={assignToMe}
-              className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-white px-3 text-xs font-semibold active:bg-mist"
-            >
-              <UserPlus className="h-3.5 w-3.5" /> M’affecter ce détecteur
-            </button>
+            {!isSolo && (
+              <button
+                type="button"
+                onClick={assignToMe}
+                className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-white px-3 text-xs font-semibold active:bg-mist"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> M’affecter ce détecteur
+              </button>
+            )}
             {teamLoading && <span className="text-xs text-muted">Chargement équipe…</span>}
             {teamError && <span className="text-xs text-danger">{teamError}</span>}
-            {!teamLoading && team.length <= 1 && (
+            {!teamLoading && isSolo && (
               <span className="text-xs text-muted">
-                Ajoutez des opérateurs dans « Équipe » pour les affecter ici.
+                Entreprise solo — détecteur attribué à vous (gérant). Pas besoin d’activer Équipe.
               </span>
             )}
           </div>

@@ -287,7 +287,7 @@ export async function listOrgUsers(organizationId: string): Promise<UserAccount[
   const { data, error } = await sb
     .from('profiles')
     .select(
-      'id, organization_id, email, username, full_name, role, active, signataire_nom, signataire_qualite, created_at',
+      'id, organization_id, email, full_name, role, active, signataire_nom, signataire_qualite, created_at',
     )
     .eq('organization_id', organizationId)
     .order('role', { ascending: true })
