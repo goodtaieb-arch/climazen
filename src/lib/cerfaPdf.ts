@@ -118,25 +118,16 @@ export async function buildCerfaPdf(opts: {
       .join('\n'),
   )
 
-  // [3] Équipement
+  // [3] Équipement — Identification = nom + n° série (sans adresse du site)
   const equip = findEquipement(chantier, draft.equipementId)
+  const equipNom =
+    (equip?.nom || equip?.type || chantier.equipementType || chantier.nom || '').trim()
+  const serie =
+    (equip?.numeroSerie || chantier.equipementNumeroSerie || '').trim()
   setText(
     form,
     'Equipement_ID',
-    [
-      chantier.nom,
-      `${chantier.adresse}, ${chantier.codePostal} ${chantier.ville}`,
-      equip
-        ? `${equip.nom || equip.type} ${equip.marque} ${equip.modele}`.trim()
-        : `${chantier.equipementType} ${chantier.equipementMarque} ${chantier.equipementModele}`.trim(),
-      equip?.numeroSerie
-        ? `N° série ${equip.numeroSerie}`
-        : chantier.equipementNumeroSerie
-          ? `N° série ${chantier.equipementNumeroSerie}`
-          : '',
-    ]
-      .filter(Boolean)
-      .join('\n'),
+    [equipNom, serie ? `N° série ${serie}` : ''].filter(Boolean).join('\n'),
   )
   setText(form, 'Equipement_Fluide', draft.fluideType || equip?.fluideType || chantier.fluideType)
   {
