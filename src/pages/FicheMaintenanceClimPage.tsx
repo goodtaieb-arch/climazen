@@ -1,9 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { FileText } from 'lucide-react'
+import { Check, Circle, FileText } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import { allEquipements } from '../lib/cerfaBatch'
+import { allEquipements, equipmentLabel } from '../lib/cerfaBatch'
 import {
   blankFicheMaintenanceClim,
   FICHE_MAINT_SECTIONS,
@@ -112,7 +112,6 @@ export function FicheMaintenanceClimPage() {
         .filter(Boolean),
     [params],
   )
-  const batchIndex = batchIds.length ? batchIds.indexOf(editId) : -1
   const batchQuery = batchIds.length
     ? `&batch=${encodeURIComponent(batchIds.join(','))}`
     : ''
@@ -244,6 +243,75 @@ export function FicheMaintenanceClimPage() {
 
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [savedMsg, setSavedMsg] = useState('')
+
+  const batchItems = useMemo(() => {
+    if (batchIds.length < 2) return [] as {
+      id: string
+      label: string
+      hasPdf: boolean
+      isCurrent: boolean
+      equipementId?: string
+    }[]
+    const list = data.fichesMaintenanceClim || []
+    return batchIds.map((fid) => {
+      const f = list.find((x) => x.id === fid)
+      const eq =
+        site && f?.equipementId
+          ? allEquipements(site).find((e) => e.id === f.equipementId)
+          : undefined
+      const label = eq
+        ? `${equipmentLabel(eq)}${eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}`
+        : [f?.marqueModele, f?.numeroSerie].filter(Boolean).join(' · ') || 'Équipement'
+      return {
+        id: fid,
+        label,
+        hasPdf: Boolean(f?.hasPdf),
+        isCurrent: fid === editId,
+        equipementId: f?.equipementId,
+      }
+    })
+  }, [batchIds, data.fichesMaintenanceClim, site, editId])
+
+  const batchStorageKey = batchIds.length > 1 ? `climazen_fiche_ok_${batchIds.join('_')}` : ''
+  const [markedOk, setMarkedOk] = useState<string[]>(() => {
+    if (!batchStorageKey) return []
+    try {
+      const raw = sessionStorage.getItem(batchStorageKey)
+      if (!raw) return []
+      const parsed = JSON.parse(raw) as string[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    if (!batchStorageKey) return
+    try {
+      sessionStorage.setItem(batchStorageKey, JSON.stringify(markedOk))
+    } catch {
+      /* ignore */
+    }
+  }, [markedOk, batchStorageKey])
+
+  const toggleMarkedOk = (ficheId: string) => {
+    setMarkedOk((prev) =>
+      prev.includes(ficheId) ? prev.filter((x) => x !== ficheId) : [...prev, ficheId],
+    )
+  }
+
+  const goToBatchPage = (ficheId: string) => {
+    if (ficheId === editId) return
+    try {
+      persist()
+    } catch {
+      /* ignore */
+    }
+    navigate(
+      `/app/fiche-maintenance-clim?id=${encodeURIComponent(ficheId)}${batchQuery}`,
+    )
+  }
 
   const setCheck = (id: FicheMaintCheckId, v: boolean) => {
     setForm((f) => ({ ...f, checks: { ...f.checks, [id]: v } }))
@@ -326,8 +394,117 @@ export function FicheMaintenanceClimPage() {
         hasPdf: true,
         pdfFileName: `fiche-maint-clim-${form.date || today()}.pdf`,
       })
+      if (id) {
+        setMarkedOk((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      }
+      setSavedMsg('PDF généré pour cette fiche.')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'PDF impossible')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Régénère les PDF pour toutes les fiches cochées ✓ (ensemble). */
+  const regenerateAllFiches = async () => {
+    if (batchItems.length < 2) return
+    const techSig = form.signatureTechnicienImage || user?.signatureImage || ''
+    if (!techSig) {
+      alert(
+        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Ma signature », comme pour le CERFA.',
+      )
+      return
+    }
+    setBusy(true)
+    setSavedMsg('')
+    try {
+      try {
+        const currentId = persist()
+        if (currentId) {
+          setMarkedOk((prev) => (prev.includes(currentId) ? prev : [...prev, currentId]))
+        }
+      } catch (err) {
+        console.warn(err)
+      }
+
+      const okIds = new Set(
+        markedOk.length > 0
+          ? markedOk
+          : batchItems.filter((b) => b.hasPdf).map((b) => b.id),
+      )
+      if (editId) okIds.add(editId)
+
+      const targets = batchItems.filter((b) => okIds.has(b.id))
+      if (targets.length === 0) {
+        alert(
+          'Cochez l’icône ✓ sur chaque fiche équipement quand elle est OK, puis régénérez l’ensemble.',
+        )
+        return
+      }
+
+      const op = data.operateur
+      let done = 0
+      for (const item of targets) {
+        const fiche = (data.fichesMaintenanceClim || []).find((f) => f.id === item.id)
+        if (!fiche) {
+          throw new Error(`Fiche manquante pour « ${item.label} » — ouvrez-la, complétez, cochez ✓.`)
+        }
+        const withSig: FicheMaintenanceClim = {
+          ...fiche,
+          signatureTechnicienImage:
+            fiche.signatureTechnicienImage || techSig || user?.signatureImage || '',
+          signatureClientImage:
+            fiche.signatureClientImage || site?.signatureDetenteurImage || '',
+        }
+        if (!withSig.signatureTechnicienImage) {
+          throw new Error(`Signature manquante sur « ${item.label} ».`)
+        }
+        const blob = await buildFicheMaintenanceClimPdf(withSig, {
+          raisonSociale: op.raisonSociale,
+          adresse: op.adresse,
+          telephone: op.telephone,
+          email: op.email,
+          siret: op.siret,
+          logoImage: op.logoImage,
+        })
+        // blob used to validate generation; PDF is client-side only for fiche
+        void blob
+        upsertFicheMaintenanceClim({
+          ...withSig,
+          id: withSig.id,
+          hasPdf: true,
+          pdfFileName: `fiche-maint-clim-${withSig.date || today()}-${withSig.id.slice(0, 8)}.pdf`,
+        })
+        done += 1
+      }
+
+      setSavedMsg(`${done} fiche${done > 1 ? 's' : ''} PDF régénérée${done > 1 ? 's' : ''}.`)
+      // Recharger l’aperçu de la page courante
+      if (editId) {
+        const cur = (data.fichesMaintenanceClim || []).find((f) => f.id === editId)
+        if (cur) {
+          const blob = await buildFicheMaintenanceClimPdf(
+            {
+              ...cur,
+              ...form,
+              signatureTechnicienImage:
+                form.signatureTechnicienImage || techSig || cur.signatureTechnicienImage,
+            },
+            {
+              raisonSociale: op.raisonSociale,
+              adresse: op.adresse,
+              telephone: op.telephone,
+              email: op.email,
+              siret: op.siret,
+              logoImage: op.logoImage,
+            },
+          )
+          if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+          setPdfUrl(URL.createObjectURL(blob))
+        }
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Régénération impossible')
     } finally {
       setBusy(false)
     }
@@ -352,39 +529,69 @@ export function FicheMaintenanceClimPage() {
             Checklist terrain (hors CERFA). Toutes les tâches sont cochées : décochez seulement ce
             qui n’a pas été fait. Signatures reprises automatiquement (comme le CERFA).
           </p>
+          {savedMsg ? (
+            <p className="mt-1 text-xs font-semibold text-emerald-800">{savedMsg}</p>
+          ) : null}
         </div>
       </div>
 
-      {batchIds.length > 1 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-accent-soft/40 px-4 py-3 text-sm">
-          <span className="font-semibold text-ink">
-            Fiche maintenance {batchIndex >= 0 ? batchIndex + 1 : '—'} / {batchIds.length}
-            {form.marqueModele || form.numeroSerie
-              ? ` — ${[form.marqueModele, form.numeroSerie].filter(Boolean).join(' · ')}`
-              : ''}
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {batchIndex > 0 && (
-              <Link
-                to={`/app/fiche-maintenance-clim?id=${encodeURIComponent(batchIds[batchIndex - 1])}${batchQuery}`}
-                className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold hover:bg-mist"
-              >
-                ← Précédente
-              </Link>
-            )}
-            {batchIndex >= 0 && batchIndex < batchIds.length - 1 && (
-              <Link
-                to={`/app/fiche-maintenance-clim?id=${encodeURIComponent(batchIds[batchIndex + 1])}${batchQuery}`}
-                className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover"
-              >
-                Suivante →
-              </Link>
-            )}
-          </div>
+      {batchItems.length > 1 && (
+        <div className="space-y-2 rounded-2xl border border-accent/40 bg-accent-soft/30 p-4">
+          <p className="text-sm font-semibold text-ink">Équipements de l’intervention</p>
+          <p className="text-xs text-muted">
+            Ouvrez chaque page, cochez ✓ quand tout est bon, puis régénérez l’ensemble des fiches.
+          </p>
+          <ul className="space-y-1.5">
+            {batchItems.map((item, idx) => {
+              const ok = markedOk.includes(item.id) || item.hasPdf
+              return (
+                <li key={item.id}>
+                  <div
+                    className={[
+                      'flex items-center gap-2 rounded-xl border px-2 py-2',
+                      item.isCurrent
+                        ? 'border-emerald-400 bg-emerald-50'
+                        : 'border-line bg-white',
+                    ].join(' ')}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleMarkedOk(item.id)}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full"
+                      title={ok ? 'Page OK (cochée)' : 'Marquer cette page comme OK'}
+                      aria-pressed={ok}
+                    >
+                      {ok ? (
+                        <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-600 text-white">
+                          <Check className="h-4 w-4" strokeWidth={3} />
+                        </span>
+                      ) : (
+                        <Circle className="h-8 w-8 text-slate-300" strokeWidth={1.5} />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => goToBatchPage(item.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <span className="block text-xs font-bold text-muted">
+                        Page {idx + 1}/{batchItems.length}
+                        {item.isCurrent ? ' · en cours' : ''}
+                        {item.hasPdf ? ' · PDF' : ''}
+                      </span>
+                      <span className="block truncate text-sm font-semibold text-ink">
+                        {item.label}
+                      </span>
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
 
-      {relatedFiches.length > 0 && (
+      {relatedFiches.length > 0 && batchItems.length < 2 && (
         <div className="rounded-2xl border border-line bg-white p-4">
           <h2 className="text-sm font-semibold text-ink">Fiches précédentes</h2>
           <ul className="mt-2 space-y-1.5">
@@ -413,7 +620,7 @@ export function FicheMaintenanceClimPage() {
               value={form.numero}
               onChange={(e) => setForm({ ...form, numero: e.target.value })}
               className="h-11 w-full rounded-xl border border-line px-3"
-              placeholder="OT20260001"
+              placeholder="26081501"
             />
           </label>
           <label className="block text-sm">
@@ -712,6 +919,19 @@ export function FicheMaintenanceClimPage() {
             <FileText className="h-4 w-4" />
             {busy ? 'PDF…' : 'Générer le PDF'}
           </button>
+          {batchItems.length > 1 ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void regenerateAllFiches()}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#0f766e] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60 sm:flex-none"
+            >
+              <FileText className="h-4 w-4" />
+              {busy
+                ? 'Régénération…'
+                : `Régénérer l’ensemble (${Math.max(markedOk.length, batchItems.filter((b) => b.hasPdf).length) || batchItems.length} fiches)`}
+            </button>
+          ) : null}
         </div>
       </form>
 

@@ -500,38 +500,95 @@ export function AppelOtPage() {
     }
     const c = client
     const s = site
-    const eq = selectedEq
+    const eqIds =
+      selectedEquipIds.length > 0
+        ? selectedEquipIds
+        : otForm.equipementId
+          ? [otForm.equipementId]
+          : ([] as string[])
+    if (eqIds.length === 0) {
+      alert('Sélectionnez au moins un équipement pour la fiche checklist.')
+      return
+    }
+
     const adresse =
       [s?.adresse, s?.codePostal, s?.ville].filter(Boolean).join(', ') ||
       [c?.adresse, c?.codePostal, c?.ville].filter(Boolean).join(', ')
-    const base = blankFicheMaintenanceClim()
-    const ficheId = upsertFicheMaintenanceClim({
-      ...base,
-      numero: otForm.numero,
-      date: otForm.date || today(),
-      technicien: otForm.technicien,
-      clientId: otForm.clientId,
-      chantierId: otForm.chantierId,
-      equipementId: otForm.equipementId,
-      clientNom: c?.raisonSociale || '',
-      adresse,
-      marqueModele: eq ? [eq.marque, eq.modele].filter(Boolean).join(' / ') || eq.nom : '',
-      numeroSerie: eq?.numeroSerie || '',
-      fluide: eq?.fluideType || '',
-      quantiteFluideKg:
-        eq?.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
-      signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
-      signatureClientImage: otForm.signatureClientImage || s?.signatureDetenteurImage || '',
-      observations: otForm.observations || '',
-    })
-    persistOt(
+
+    const id = persistOt(
       {
-        ficheMaintenanceId: ficheId,
         parcoursStep: 'docs',
+        equipementIds: eqIds,
+        equipementId: eqIds[0],
       },
       otId,
     )
-    navigate(`/app/fiche-maintenance-clim?id=${encodeURIComponent(ficheId)}`)
+
+    const ficheIds: string[] = []
+    for (const eqId of eqIds) {
+      const eq = eqs.find((e) => e.id === eqId)
+      const existingFiche =
+        (data.fichesMaintenanceClim || []).find(
+          (f) =>
+            f.chantierId === otForm.chantierId &&
+            f.equipementId === eqId &&
+            (f.numero === otForm.numero ||
+              (otForm.numero && (f.numero || '').startsWith(`${otForm.numero}-`))),
+        ) ||
+        (data.fichesMaintenanceClim || []).find(
+          (f) =>
+            f.chantierId === otForm.chantierId &&
+            f.equipementId === eqId &&
+            !f.hasPdf &&
+            (!f.numero || f.numero === otForm.numero),
+        )
+      if (existingFiche) {
+        if (otForm.numero && existingFiche.numero !== otForm.numero) {
+          upsertFicheMaintenanceClim({
+            ...existingFiche,
+            numero: otForm.numero,
+          })
+        }
+        ficheIds.push(existingFiche.id)
+        continue
+      }
+      const base = blankFicheMaintenanceClim()
+      const ficheId = upsertFicheMaintenanceClim({
+        ...base,
+        numero: otForm.numero,
+        date: otForm.date || today(),
+        technicien: otForm.technicien,
+        clientId: otForm.clientId,
+        chantierId: otForm.chantierId,
+        equipementId: eqId,
+        clientNom: c?.raisonSociale || '',
+        adresse,
+        marqueModele: eq
+          ? [eq.marque, eq.modele].filter(Boolean).join(' / ') || eq.nom || eq.type || ''
+          : '',
+        numeroSerie: eq?.numeroSerie || '',
+        fluide: eq?.fluideType || '',
+        quantiteFluideKg:
+          eq?.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
+        signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
+        signatureClientImage: otForm.signatureClientImage || s?.signatureDetenteurImage || '',
+        observations: otForm.observations || '',
+      })
+      ficheIds.push(ficheId)
+    }
+
+    if (ficheIds.length === 0) return
+    persistOt({ ficheMaintenanceId: ficheIds[0], parcoursStep: 'docs' }, id)
+    if (ficheIds.length > 1) {
+      setMsg(
+        `${ficheIds.length} fiches checklist créées (une par équipement). Remplissez-les une par une.`,
+      )
+    }
+    const q =
+      ficheIds.length > 1
+        ? `id=${encodeURIComponent(ficheIds[0])}&batch=${encodeURIComponent(ficheIds.join(','))}`
+        : `id=${encodeURIComponent(ficheIds[0])}`
+    navigate(`/app/fiche-maintenance-clim?${q}`)
   }
 
   const finishWithSignatures = () => {
@@ -1337,9 +1394,11 @@ export function AppelOtPage() {
               <span>
                 <span className="block text-sm">Fiche checklist (optionnel)</span>
                 <span className="block text-xs font-medium text-muted">
-                  {isMaint
-                    ? 'Pas obligatoire en maintenance — le CERFA ou le rapport OT suffisent'
-                    : 'Si vous voulez un PDF détaillé hors CERFA'}
+                  {selectedEquipIds.length > 1
+                    ? `${selectedEquipIds.length} équipements → 1 fiche chacun`
+                    : isMaint
+                      ? 'Pas obligatoire en maintenance — le CERFA ou le rapport OT suffisent'
+                      : 'Si vous voulez un PDF détaillé hors CERFA'}
                 </span>
               </span>
             </button>

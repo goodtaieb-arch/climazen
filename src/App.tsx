@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthContext'
 import { StoreProvider } from './lib/store'
 import { RequireAuth } from './components/RequireAuth'
@@ -31,6 +31,13 @@ import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/Legal
 function InterventionFormRoute() {
   const { id } = useParams()
   return <InterventionFormPage key={id || 'new'} />
+}
+
+/** Remonte la fiche maintenance à chaque id (multi-équipements). */
+function FicheMaintenanceClimRoute() {
+  const [params] = useSearchParams()
+  const id = params.get('id') || 'new'
+  return <FicheMaintenanceClimPage key={id} />
 }
 
 export default function App() {
@@ -69,7 +76,7 @@ export default function App() {
                 <Route path="appel" element={<AppelOtPage />} />
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
                 <Route path="agenda" element={<AgendaPage />} />
-                <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimPage />} />
+                <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimRoute />} />
                 <Route path="equipe" element={<EquipePage />} />
                 <Route path="operateur" element={<OperateurPage />} />
                 <Route path="profil" element={<ProfilPage />} />

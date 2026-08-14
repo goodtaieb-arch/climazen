@@ -348,15 +348,16 @@ export function ChantiersPage() {
       [site.adresse, site.codePostal, site.ville].filter(Boolean).join(', ') ||
       [client?.adresse, client?.codePostal, client?.ville].filter(Boolean).join(', ')
     const technicien = user?.signataireNom || user?.fullName || user?.email || ''
+    const sharedNumero = nextNumeroIntervention(data)
     const createdIds: string[] = []
-    selected.forEach((eqId, offset) => {
+    selected.forEach((eqId) => {
       const eq = eqs.find((e) => e.id === eqId)
       if (!eq) return
       const base = blankFicheMaintenanceClim()
       const marqueModele = [eq.marque, eq.modele].filter(Boolean).join(' / ')
       const id = upsertFicheMaintenanceClim({
         ...base,
-        numero: nextNumeroIntervention(data, offset),
+        numero: sharedNumero,
         date: today(),
         technicien,
         clientId: client?.id || site.clientId,
@@ -403,15 +404,16 @@ export function ChantiersPage() {
       [site.adresse, site.codePostal, site.ville].filter(Boolean).join(', ') ||
       [client?.adresse, client?.codePostal, client?.ville].filter(Boolean).join(', ')
     const technicien = user?.signataireNom || user?.fullName || user?.email || ''
+    const sharedNumero = nextNumeroIntervention(data)
     const createdIds: string[] = []
-    selected.forEach((eqId, offset) => {
+    selected.forEach((eqId) => {
       const eq = eqs.find((e) => e.id === eqId)
       if (!eq) return
       const base = blankFicheMaintenanceClim()
       const marqueModele = [eq.marque, eq.modele].filter(Boolean).join(' / ')
       const id = upsertFicheMaintenanceClim({
         ...base,
-        numero: nextNumeroIntervention(data, offset),
+        numero: sharedNumero,
         date: today(),
         technicien,
         clientId: client?.id || site.clientId,
