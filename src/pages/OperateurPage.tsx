@@ -20,6 +20,7 @@ export function OperateurPage() {
   const { user, organization, isOwner, listTeam, refreshUser } = useAuth()
 
   const [form, setForm] = useState(() => withOrgDefaults(data.operateur, organization?.name))
+  const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -27,12 +28,17 @@ export function OperateurPage() {
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   const [team, setTeam] = useState<UserAccount[]>([])
 
-  // Attendre la sync avant d’écraser le formulaire avec un operateur vide
+  const patchForm = (patch: Partial<Operateur> | ((prev: Operateur) => Operateur)) => {
+    setDirty(true)
+    setForm((prev) => (typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }))
+  }
+
+  // Ne pas écraser la saisie en cours (ex. après ajout d’un détecteur qui touche operateur)
   useEffect(() => {
-    if (loading) return
+    if (loading || dirty) return
     setForm(withOrgDefaults(data.operateur, organization?.name))
     setExpertMake(Boolean(data.operateur.facturationWebhookUrl?.trim()))
-  }, [data.operateur, organization?.name, loading])
+  }, [data.operateur, organization?.name, loading, dirty])
 
   useEffect(() => {
     if (!isOwner) return
@@ -54,6 +60,7 @@ export function OperateurPage() {
         ...form,
         facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
       })
+      setDirty(false)
       void refreshUser().catch(() => undefined)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -113,28 +120,28 @@ export function OperateurPage() {
         <Field
           label="Raison sociale *"
           value={form.raisonSociale}
-          onChange={(v) => setForm({ ...form, raisonSociale: v })}
+          onChange={(v) => patchForm({ raisonSociale: v })}
           required
           className="sm:col-span-2"
         />
         <Field
           label="Adresse"
           value={form.adresse}
-          onChange={(v) => setForm({ ...form, adresse: v })}
+          onChange={(v) => patchForm({ adresse: v })}
           className="sm:col-span-2"
         />
-        <Field label="SIRET" value={form.siret} onChange={(v) => setForm({ ...form, siret: v })} />
+        <Field label="SIRET" value={form.siret} onChange={(v) => patchForm({ siret: v })} />
         <Field
           label="N° attestation capacité"
           value={form.attestationNumero}
-          onChange={(v) => setForm({ ...form, attestationNumero: v })}
+          onChange={(v) => patchForm({ attestationNumero: v })}
         />
         <Field
           label="Téléphone"
           value={form.telephone}
-          onChange={(v) => setForm({ ...form, telephone: v })}
+          onChange={(v) => patchForm({ telephone: v })}
         />
-        <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+        <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Logo de la société</h2>
@@ -201,8 +208,7 @@ export function OperateurPage() {
           <select
             value={form.facturationPlateforme || 'tiime'}
             onChange={(e) =>
-              setForm({
-                ...form,
+              patchForm({
                 facturationPlateforme: e.target.value as typeof form.facturationPlateforme,
               })
             }
@@ -222,7 +228,10 @@ export function OperateurPage() {
               type="checkbox"
               className="mt-1"
               checked={expertMake}
-              onChange={(e) => setExpertMake(e.target.checked)}
+              onChange={(e) => {
+                setDirty(true)
+                setExpertMake(e.target.checked)
+              }}
             />
             <span>
               <span className="font-semibold text-ink">Mode expert — Make.com</span>
@@ -245,7 +254,7 @@ export function OperateurPage() {
                   type="url"
                   placeholder="https://hook.eu1.make.com/…"
                   value={form.facturationWebhookUrl || ''}
-                  onChange={(e) => setForm({ ...form, facturationWebhookUrl: e.target.value })}
+                  onChange={(e) => patchForm({ facturationWebhookUrl: e.target.value })}
                   className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
                 />
               </label>
@@ -254,8 +263,7 @@ export function OperateurPage() {
                 <select
                   value={form.facturationActionDefaut || 'create_devis'}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
+                    patchForm({
                       facturationActionDefaut: e.target
                         .value as typeof form.facturationActionDefaut,
                     })
@@ -285,7 +293,14 @@ export function OperateurPage() {
           >
             {saving ? 'Enregistrement…' : 'Enregistrer la société'}
           </button>
-          {saved && <span className="text-sm text-accent">Enregistré dans le cloud</span>}
+          {saved && (
+            <span className="text-sm text-accent">
+              {dirty ? 'Modifications non enregistrées' : 'Enregistré dans le cloud'}
+            </span>
+          )}
+          {dirty && !saved && (
+            <span className="text-sm text-amber-700">Pensez à enregistrer la société</span>
+          )}
         </div>
       </form>
 

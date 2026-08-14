@@ -146,8 +146,8 @@ type Store = {
   deleteIntervention: (id: string) => void
   upsertDetecteur: (
     d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
-  ) => string
-  deleteDetecteur: (id: string) => void
+  ) => Promise<string>
+  deleteDetecteur: (id: string) => Promise<void>
   resetDemo: () => void
   /** Remplace les données cloud par un payload (import local). */
   replaceData: (next: AppData) => Promise<void>
@@ -236,7 +236,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     ;(async () => {
       if (!orgId) {
-        setData(emptyData())
+        // Ne pas vider le store en mémoire pendant un refresh auth (évite flash vide)
         setHydrated(false)
         setLoading(false)
         setPendingSyncState(false)
@@ -379,28 +379,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [orgId, markPending],
   )
 
-  const setOperateur = useCallback(
-    async (o: Operateur) => {
-      if (user?.role !== 'owner') {
-        throw new Error('Seul l’administrateur peut modifier les infos société.')
-      }
-      if (!orgId) throw new Error('Organisation introuvable.')
-      const prev = dataRef.current
-      const next: AppData = { ...prev, operateur: o }
+  const persistNow = useCallback(
+    async (next: AppData) => {
+      if (!orgId) return
       if (saveTimer.current) clearTimeout(saveTimer.current)
       skipNextSave.current = true
       dataRef.current = next
       setData(next)
       saveData(next, orgId)
-      saveCompanyLogoLocal(orgId, o.logoImage || null)
-      // Aligner le nom d’organisation Auth avec la raison sociale (affiché partout)
-      if (o.raisonSociale.trim() && user) {
-        try {
-          await updateOrganizationName(orgId, o.raisonSociale.trim(), user)
-        } catch (err) {
-          console.warn('ClimaZEN: maj nom organisation', err)
-        }
-      }
       if (!isBrowserOnline()) {
         markPending(true)
         setOffline(true)
@@ -411,6 +397,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         markSynced(orgId)
         setPendingSyncState(false)
         setSyncError(null)
+        setOffline(false)
       } catch (err) {
         console.error(err)
         markPending(true)
@@ -418,7 +405,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         throw err
       }
     },
-    [user, orgId, markPending],
+    [orgId, markPending],
+  )
+
+  const setOperateur = useCallback(
+    async (o: Operateur) => {
+      if (user?.role !== 'owner') {
+        throw new Error('Seul l’administrateur peut modifier les infos société.')
+      }
+      if (!orgId) throw new Error('Organisation introuvable.')
+      const prev = dataRef.current
+      const next: AppData = { ...prev, operateur: o }
+      saveCompanyLogoLocal(orgId, o.logoImage || null)
+      if (o.raisonSociale.trim() && user) {
+        try {
+          await updateOrganizationName(orgId, o.raisonSociale.trim(), user)
+        } catch (err) {
+          console.warn('ClimaZEN: maj nom organisation', err)
+        }
+      }
+      await persistNow(next)
+    },
+    [user, orgId, persistNow],
   )
 
   const setCompanyLogo = useCallback(
@@ -430,30 +438,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (logoImage) operateur.logoImage = logoImage
       else delete operateur.logoImage
       const next: AppData = { ...prev, operateur }
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      skipNextSave.current = true
-      dataRef.current = next
-      setData(next)
-      saveData(next, orgId)
       saveCompanyLogoLocal(orgId, logoImage || null)
-      if (!isBrowserOnline()) {
-        markPending(true)
-        setOffline(true)
-        return
-      }
-      try {
-        await saveOrgDataRemote(orgId, next)
-        markSynced(orgId)
-        setPendingSyncState(false)
-        setSyncError(null)
-      } catch (err) {
-        console.error(err)
-        markPending(true)
-        setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
-        throw err
-      }
+      await persistNow(next)
     },
-    [orgId, user?.role, markPending],
+    [orgId, user?.role, persistNow],
   )
 
   const upsertClient = useCallback(
@@ -1233,64 +1221,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const upsertDetecteur = useCallback(
-    (d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string }) => {
+    async (d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string }) => {
       const id = d.id ?? uuid()
       const now = new Date().toISOString()
-      setData((prev) => {
-        const list = prev.detecteurs || []
-        const existing = list.find((x) => x.id === id)
-        let nextList: DetecteurManuel[]
-        const next: DetecteurManuel = {
-          id,
-          identification: d.identification.trim(),
-          controleDate: d.controleDate || '',
-          assigneeUserId: d.assigneeUserId || undefined,
-          assigneeName: d.assigneeName || undefined,
-          notes: d.notes || undefined,
-          updatedAt: now,
-        }
-        // Un technicien = un détecteur max
-        if (next.assigneeUserId) {
-          nextList = list.map((x) =>
-            x.assigneeUserId === next.assigneeUserId && x.id !== id
-              ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
-              : x,
-          )
-        } else {
-          nextList = [...list]
-        }
-        if (existing) {
-          nextList = nextList.map((x) => (x.id === id ? next : x))
-        } else {
-          nextList = [...nextList.filter((x) => x.id !== id), next]
-        }
-        const unassigned = nextList.find((x) => !x.assigneeUserId)
-        return {
-          ...prev,
-          detecteurs: nextList,
-          operateur: {
-            ...prev.operateur,
-            detecteurIdentification:
-              unassigned?.identification ||
-              nextList[0]?.identification ||
-              prev.operateur.detecteurIdentification,
-            detecteurControleDate:
-              unassigned?.controleDate ||
-              nextList[0]?.controleDate ||
-              prev.operateur.detecteurControleDate,
-          },
-        }
-      })
+      const prev = dataRef.current
+      const list = prev.detecteurs || []
+      const existing = list.find((x) => x.id === id)
+      let nextList: DetecteurManuel[]
+      const nextDet: DetecteurManuel = {
+        id,
+        identification: d.identification.trim(),
+        controleDate: d.controleDate || '',
+        assigneeUserId: d.assigneeUserId || undefined,
+        assigneeName: d.assigneeName || undefined,
+        notes: d.notes || undefined,
+        updatedAt: now,
+      }
+      if (nextDet.assigneeUserId) {
+        nextList = list.map((x) =>
+          x.assigneeUserId === nextDet.assigneeUserId && x.id !== id
+            ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
+            : x,
+        )
+      } else {
+        nextList = [...list]
+      }
+      if (existing) {
+        nextList = nextList.map((x) => (x.id === id ? nextDet : x))
+      } else {
+        nextList = [...nextList.filter((x) => x.id !== id), nextDet]
+      }
+      const unassigned = nextList.find((x) => !x.assigneeUserId)
+      const next: AppData = {
+        ...prev,
+        detecteurs: nextList,
+        operateur: {
+          ...prev.operateur,
+          detecteurIdentification:
+            unassigned?.identification ||
+            nextList[0]?.identification ||
+            prev.operateur.detecteurIdentification,
+          detecteurControleDate:
+            unassigned?.controleDate ||
+            nextList[0]?.controleDate ||
+            prev.operateur.detecteurControleDate,
+        },
+      }
+      await persistNow(next)
       return id
     },
-    [],
+    [persistNow],
   )
 
-  const deleteDetecteur = useCallback((id: string) => {
-    setData((prev) => {
+  const deleteDetecteur = useCallback(
+    async (id: string) => {
+      const prev = dataRef.current
       const nextList = (prev.detecteurs || []).filter((x) => x.id !== id)
       const unassigned = nextList.find((x) => !x.assigneeUserId)
-      return {
+      const next: AppData = {
         ...prev,
         detecteurs: nextList,
         operateur: {
@@ -1299,8 +1287,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           detecteurControleDate: unassigned?.controleDate || nextList[0]?.controleDate || '',
         },
       }
-    })
-  }, [])
+      await persistNow(next)
+    },
+    [persistNow],
+  )
 
   const resetDemo = useCallback(() => {
     if (!orgId) return

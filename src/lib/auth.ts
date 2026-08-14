@@ -441,17 +441,25 @@ export async function loadOrgDataRemote(organizationId: string): Promise<AppData
 export async function saveOrgDataRemote(organizationId: string, data: AppData): Promise<void> {
   const sb = getSupabase()
   const light = stripHeavy(data)
-  const { error } = await sb.from('org_data').upsert({
-    organization_id: organizationId,
-    payload: light,
-    updated_at: new Date().toISOString(),
-  })
+  const { error } = await sb.from('org_data').upsert(
+    {
+      organization_id: organizationId,
+      payload: light,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'organization_id' },
+  )
   if (error) throw new Error(error.message)
 }
 
 function stripHeavy(data: AppData): AppData {
+  // Logo en data-URL : trop lourd pour jsonb cloud — déjà en localStorage (companyLogo)
+  const { logoImage: _logo, signatureImage: _sig, ...opRest } = data.operateur as AppData['operateur'] & {
+    signatureImage?: string
+  }
   return {
     ...data,
+    operateur: opRest,
     interventions: data.interventions.map((rest) => {
       const { cerfaPdfBase64: _drop, ...clean } = rest as typeof rest & { cerfaPdfBase64?: string }
       return clean
@@ -526,7 +534,7 @@ export function appDataWeight(data: AppData): number {
     (data.chantiers?.length || 0) * 10 +
     (data.interventions?.length || 0) * 5 +
     (data.stock?.length || 0) * 2 +
-    (data.detecteurs?.length || 0) * 2 +
+    (data.detecteurs?.length || 0) * 15 +
     (data.fichesMaintenanceClim?.length || 0) * 2 +
     (data.ordresTravail?.length || 0) * 2 +
     (o?.raisonSociale?.trim() ? 25 : 0) +
@@ -572,8 +580,7 @@ export function mergeOperateurPreferFilled(
 }
 
 /**
- * Au chargement : si le cloud est vide/plus pauvre que le cache appareil,
- * on garde le local et on le re-poussera (évite de tout ressaisir Entreprise).
+ * Au chargement : fusionne cloud + cache appareil sans perdre société ni détecteurs.
  */
 export function resolveRemoteVsLocal(
   remote: AppData,
@@ -586,36 +593,51 @@ export function resolveRemoteVsLocal(
     return { data: local, shouldPushLocal: true }
   }
 
-  if (localW > remoteW + 5) {
-    // Local clairement plus riche (ex. société remplie + cloud encore vide)
-    const merged: AppData = {
-      ...local,
-      operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
-    }
-    // Collections : prendre le jeu le plus fourni
-    if ((remote.clients?.length || 0) > (local.clients?.length || 0)) merged.clients = remote.clients
-    if ((remote.chantiers?.length || 0) > (local.chantiers?.length || 0)) {
-      merged.chantiers = remote.chantiers
-    }
-    if ((remote.interventions?.length || 0) > (local.interventions?.length || 0)) {
-      merged.interventions = remote.interventions
-    }
-    if ((remote.stock?.length || 0) > (local.stock?.length || 0)) merged.stock = remote.stock
-    if ((remote.detecteurs?.length || 0) > (local.detecteurs?.length || 0)) {
-      merged.detecteurs = remote.detecteurs
-    }
-    return { data: merged, shouldPushLocal: true }
+  const pickLonger = <T,>(a: T[] | undefined, b: T[] | undefined): T[] => {
+    const aa = a || []
+    const bb = b || []
+    return bb.length > aa.length ? bb : aa
   }
 
-  // Cloud OK : compléter quand même les champs société vides côté remote
+  // Toujours fusionner les champs société + garder le plus long des tableaux critiques
   const operateur = mergeOperateurPreferFilled(remote.operateur, local.operateur)
-  const enriched =
-    appDataWeight({ ...remote, operateur }) > remoteW ||
-    Boolean(operateur.raisonSociale && !remote.operateur?.raisonSociale?.trim())
-  return {
-    data: { ...remote, operateur },
-    shouldPushLocal: enriched,
+  const detecteurs = pickLonger(remote.detecteurs, local.detecteurs)
+  const clients = pickLonger(remote.clients, local.clients)
+  const chantiers = pickLonger(remote.chantiers, local.chantiers)
+  const interventions = pickLonger(remote.interventions, local.interventions)
+  const stock = pickLonger(remote.stock, local.stock)
+  const fichesMaintenanceClim = pickLonger(remote.fichesMaintenanceClim, local.fichesMaintenanceClim)
+  const ordresTravail = pickLonger(remote.ordresTravail, local.ordresTravail)
+  const contratsMaintenance = pickLonger(remote.contratsMaintenance, local.contratsMaintenance)
+  const agendaEvents = pickLonger(remote.agendaEvents, local.agendaEvents)
+  const stockMouvements = pickLonger(remote.stockMouvements, local.stockMouvements)
+
+  // Base = le plus riche, puis surcharges fusionnées
+  const base = localW > remoteW ? local : remote
+  const merged: AppData = {
+    ...base,
+    operateur,
+    detecteurs,
+    clients,
+    chantiers,
+    interventions,
+    stock,
+    stockMouvements,
+    fichesMaintenanceClim,
+    ordresTravail,
+    contratsMaintenance,
+    agendaEvents,
   }
+
+  const mergedW = appDataWeight(merged)
+  const shouldPushLocal =
+    mergedW > remoteW ||
+    (detecteurs?.length || 0) > (remote.detecteurs?.length || 0) ||
+    Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||
+    Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
+    Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim())
+
+  return { data: merged, shouldPushLocal }
 }
 
 const IMPORT_FLAG = 'climazen_import_done_v1'

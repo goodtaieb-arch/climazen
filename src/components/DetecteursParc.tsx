@@ -32,6 +32,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
   const [assigneeUserId, setAssigneeUserId] = useState('')
   const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
   // Charger l’équipe si non fournie (owner)
@@ -111,7 +112,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
     return existing?.assigneeName
   }
 
-  const onSave = (e: FormEvent) => {
+  const onSave = async (e: FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setFormError('')
@@ -130,10 +131,11 @@ export function DetecteursParc({ team: teamProp }: Props) {
       )
       return
     }
+    setSaving(true)
     try {
       // Solo / non choisi → affecté au gérant (personne qui a la société)
       const finalAssigneeId = assigneeUserId || user?.id || ''
-      upsertDetecteur({
+      await upsertDetecteur({
         id: editId || undefined,
         identification: idTrim,
         controleDate: controleDate.trim(),
@@ -146,6 +148,8 @@ export function DetecteursParc({ team: teamProp }: Props) {
       resetForm()
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -153,7 +157,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
     if (user?.id) setAssigneeUserId(user.id)
   }
 
-  const onUpdateMyControle = (e: FormEvent) => {
+  const onUpdateMyControle = async (e: FormEvent) => {
     e.preventDefault()
     if (!mine || mine.id === 'company-default') return
     if (!controleDate.trim()) {
@@ -164,21 +168,28 @@ export function DetecteursParc({ team: teamProp }: Props) {
       setFormError('Date de contrôle > 1 an — mettez à jour après le contrôle annuel.')
       return
     }
-    upsertDetecteur({
-      id: mine.id,
-      identification: mine.identification,
-      controleDate: controleDate.trim(),
-      assigneeUserId: mine.assigneeUserId,
-      assigneeName: mine.assigneeName,
-      notes: mine.notes,
-    })
-    setFormError('')
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setSaving(true)
+    try {
+      await upsertDetecteur({
+        id: mine.id,
+        identification: mine.identification,
+        controleDate: controleDate.trim(),
+        assigneeUserId: mine.assigneeUserId,
+        assigneeName: mine.assigneeName,
+        notes: mine.notes,
+      })
+      setFormError('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
+    } finally {
+      setSaving(false)
+    }
   }
 
   /** Opérateur sans détecteur : peut s’en créer un (auto-affecté). */
-  const onCreateMine = (e: FormEvent) => {
+  const onCreateMine = async (e: FormEvent) => {
     e.preventDefault()
     setFormError('')
     const idTrim = identification.trim()
@@ -198,16 +209,23 @@ export function DetecteursParc({ team: teamProp }: Props) {
       setFormError('Session expirée — reconnectez-vous.')
       return
     }
-    upsertDetecteur({
-      identification: idTrim,
-      controleDate: controleDate.trim(),
-      assigneeUserId: user.id,
-      assigneeName: user.fullName || user.email || 'Moi',
-    })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-    setIdentification('')
-    setControleDate(today())
+    setSaving(true)
+    try {
+      await upsertDetecteur({
+        identification: idTrim,
+        controleDate: controleDate.trim(),
+        assigneeUserId: user.id,
+        assigneeName: user.fullName || user.email || 'Moi',
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      setIdentification('')
+      setControleDate(today())
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
+    } finally {
+      setSaving(false)
+    }
   }
 
   useEffect(() => {
@@ -224,7 +242,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
           Prérempli automatiquement sur vos CERFA. Contrôle annuel obligatoire (&lt; 1 an).
         </p>
         {mine && mine.id !== 'company-default' ? (
-          <form onSubmit={onUpdateMyControle} className="grid gap-3 sm:grid-cols-2">
+          <form onSubmit={(e) => void onUpdateMyControle(e)} className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2 rounded-xl bg-mist px-3 py-2 text-sm">
               <span className="text-muted">Identification / réf. : </span>
               <strong>{mine.identification}</strong>
@@ -239,16 +257,17 @@ export function DetecteursParc({ team: teamProp }: Props) {
             <div className="flex items-end">
               <button
                 type="submit"
-                className="min-h-11 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
+                disabled={saving}
+                className="min-h-11 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
-                Mettre à jour le contrôle
+                {saving ? 'Enregistrement…' : 'Mettre à jour le contrôle'}
               </button>
             </div>
             {formError && <p className="sm:col-span-2 text-sm text-danger">{formError}</p>}
             {saved && <p className="sm:col-span-2 text-sm text-accent">Enregistré.</p>}
           </form>
         ) : (
-          <form onSubmit={onCreateMine} className="grid gap-3 sm:grid-cols-2">
+          <form onSubmit={(e) => void onCreateMine(e)} className="grid gap-3 sm:grid-cols-2">
             <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
               Aucun détecteur nominatif. Ajoutez le vôtre ici (ou demandez au gérant de vous en
               attribuer un dans Mon entreprise).
@@ -269,13 +288,15 @@ export function DetecteursParc({ team: teamProp }: Props) {
             <div className="flex flex-wrap gap-2 sm:col-span-2">
               <button
                 type="submit"
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
+                disabled={saving}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
-                <Plus className="h-4 w-4" /> Enregistrer mon détecteur
+                <Plus className="h-4 w-4" />{' '}
+                {saving ? 'Enregistrement…' : 'Enregistrer mon détecteur'}
               </button>
             </div>
             {formError && <p className="sm:col-span-2 text-sm text-danger">{formError}</p>}
-            {saved && <p className="sm:col-span-2 text-sm text-accent">Détecteur enregistré et vous est attribué.</p>}
+            {saved && <p className="sm:col-span-2 text-sm text-accent">Détecteur enregistré dans le cloud.</p>}
           </form>
         )}
       </div>
@@ -324,7 +345,10 @@ export function DetecteursParc({ team: teamProp }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm(`Supprimer le détecteur ${d.identification} ?`)) deleteDetecteur(d.id)
+                    if (!confirm(`Supprimer le détecteur ${d.identification} ?`)) return
+                    void deleteDetecteur(d.id).catch((err) =>
+                      setFormError(err instanceof Error ? err.message : 'Suppression impossible'),
+                    )
                   }}
                   className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-danger hover:bg-red-50"
                 >
@@ -338,7 +362,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
 
       <form
         id="detecteur-form"
-        onSubmit={onSave}
+        onSubmit={(e) => void onSave(e)}
         className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2"
       >
         <h3 className="font-display text-sm font-semibold sm:col-span-2">
@@ -406,10 +430,15 @@ export function DetecteursParc({ team: teamProp }: Props) {
         <div className="flex flex-wrap gap-2 sm:col-span-2">
           <button
             type="submit"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover"
+            disabled={saving}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
           >
             <Plus className="h-4 w-4" />
-            {editId ? 'Enregistrer' : 'Ajouter le détecteur'}
+            {saving
+              ? 'Enregistrement…'
+              : editId
+                ? 'Enregistrer'
+                : 'Ajouter le détecteur'}
           </button>
           {editId && (
             <button
@@ -420,7 +449,11 @@ export function DetecteursParc({ team: teamProp }: Props) {
               Annuler
             </button>
           )}
-          {saved && <span className="self-center text-sm font-semibold text-accent">Enregistré.</span>}
+          {saved && (
+            <span className="self-center text-sm font-semibold text-accent">
+              Enregistré dans le cloud.
+            </span>
+          )}
         </div>
       </form>
     </div>
