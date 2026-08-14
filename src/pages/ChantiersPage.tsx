@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Trash2,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   Building2,
   Cpu,
@@ -17,7 +18,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { openAddressInGps, formatAddressQuery } from '../lib/mapsNav'
-import { contratsActifsForSite } from '../lib/contratMaintenance'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { Chantier, Equipement, ModeGestion, NatureIntervention, TypeTravaux } from '../lib/types'
@@ -29,14 +29,9 @@ import {
   TYPE_TRAVAUX_LABELS,
 } from '../lib/types'
 import {
-  formatMoisAnnee,
   modeGestionLabel,
   resolveModeGestion,
-  resolveProchaineControle,
-  siteChargeTotaleKg,
-  siteFluidesSummary,
   siteHasCerfaASigner,
-  siteParcChip,
 } from '../lib/siteParc'
 import { Field } from './ClientsPage'
 import { DecimalField } from '../components/DecimalField'
@@ -157,6 +152,8 @@ export function ChantiersPage() {
   const [listFilter, setListFilter] = useState<'tous' | 'contrat' | 'travaux' | 'cerfa'>('tous')
   const [focusSiteId, setFocusSiteId] = useState<string | null>(null)
   const [focusEquipId, setFocusEquipId] = useState<string | null>(null)
+  /** Accordéon liste : client ouvert (null = seuls les noms clients) */
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
   const [siteMenuOpen, setSiteMenuOpen] = useState(false)
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
@@ -331,15 +328,6 @@ export function ChantiersPage() {
             : 'depanage',
       filter: '',
     })
-  }
-
-  const openSiteParc = (site: Chantier) => {
-    setFocusSiteId(site.id)
-    setFocusEquipId(null)
-    setSiteMenuOpen(false)
-    setEquipQ('')
-    setIntervChoiceSite(null)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const naturesForPicker = (nature: 'maintenance' | 'depanage' | 'controle'): NatureIntervention[] => {
@@ -1434,242 +1422,81 @@ export function ChantiersPage() {
       )}
 
       {!open && !focusSiteId && (
-      <div className="grid gap-3">
+      <div className="grid gap-2">
         {clientSiteGroups.map((group) => {
-          const villes = [
-            ...new Set(
-              group.sites
-                .map((s) => s.ville?.trim())
-                .filter(Boolean) as string[],
-            ),
-          ]
+          const isOpen = expandedClientId === group.clientId
           const totalEq = group.sites.reduce((n, s) => n + allEquipements(s).length, 0)
-          const anyCerfa = group.sites.some((s) =>
-            siteHasCerfaASigner(s.id, data.interventions),
-          )
           return (
             <div
               key={group.clientId}
               className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
             >
-              {/* En-tête client */}
-              <div className="flex items-start gap-3 border-b border-line bg-mist/40 px-3.5 py-3 sm:px-4">
-                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-600">
+              {/* Niveau 1 — nom client uniquement */}
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedClientId((cur) =>
+                    cur === group.clientId ? null : group.clientId,
+                  )
+                }
+                className="flex w-full min-h-14 items-center gap-3 px-3.5 py-3 text-left active:bg-mist sm:px-4"
+                aria-expanded={isOpen}
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-600">
                   <Building2 className="h-5 w-5" />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-bold text-ink sm:text-base">
-                    {group.label}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted">
-                    {group.multi
-                      ? `${group.sites.length} sites`
-                      : group.sites[0]?.nom &&
-                          group.sites[0].nom.toLowerCase() !== group.label.toLowerCase()
-                        ? group.sites[0].nom
-                        : '1 site'}
-                    {villes.length ? ` · ${villes.join(', ')}` : ''}
-                    {` · ${totalEq} équipement${totalEq > 1 ? 's' : ''}`}
-                    {anyCerfa ? (
-                      <span className="ml-1 font-semibold text-amber-700">· CERFA à signer</span>
-                    ) : null}
-                  </p>
-                </div>
-              </div>
+                <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-ink sm:text-base">
+                  {group.label}
+                </span>
+                <span className="shrink-0 text-[11px] font-semibold text-muted">
+                  {group.sites.length} site{group.sites.length > 1 ? 's' : ''}
+                  {totalEq > 0 ? ` · ${totalEq}` : ''}
+                </span>
+                {isOpen ? (
+                  <ChevronDown className="h-5 w-5 shrink-0 text-muted" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+                )}
+              </button>
 
-              {/* Sites du client */}
-              <div className="divide-y divide-line">
-                {group.sites.map((c) => {
-                  const eqs = allEquipements(c)
-                  const fluide = siteAvecFluideFrigorigene(c)
-                  const chip = siteParcChip(c)
-                  const mode = resolveModeGestion(c)
-                  const charge = siteChargeTotaleKg(c)
-                  const fluides = siteFluidesSummary(c)
-                  const nextCtrl = resolveProchaineControle(c)
-                  const cerfaPending = siteHasCerfaASigner(c.id, data.interventions)
-                  const contratsSite = contratsActifsForSite(data.contratsMaintenance, c)
-                  return (
-                    <div key={c.id} className="px-3.5 py-3 sm:px-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFocusSiteId(c.id)
-                          setFocusEquipId(null)
-                          setSiteMenuOpen(false)
-                          setEquipQ('')
-                          window.scrollTo({ top: 0, behavior: 'smooth' })
-                        }}
-                        className="flex w-full min-w-0 items-start gap-2 text-left"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-semibold text-ink">
-                              {group.multi ||
-                              (c.nom && c.nom.toLowerCase() !== group.label.toLowerCase())
-                                ? c.nom || 'Site'
-                                : c.ville || c.nom || 'Site'}
+              {/* Niveau 2 — sites (après clic client) */}
+              {isOpen && (
+                <ul className="divide-y divide-line border-t border-line">
+                  {group.sites.map((c) => {
+                    const eqs = allEquipements(c)
+                    return (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedClientId(group.clientId)
+                            setFocusSiteId(c.id)
+                            setFocusEquipId(null)
+                            setSiteMenuOpen(false)
+                            setEquipQ('')
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          }}
+                          className="flex w-full min-h-12 items-center gap-3 px-3.5 py-3 text-left active:bg-mist sm:px-4"
+                        >
+                          <span className="ml-2 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-mist text-slate-600">
+                            <Layers className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-ink">
+                              {c.nom || c.ville || 'Site'}
                             </span>
-                            {contratsSite.length > 0 ? (
-                              <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-900">
-                                Sous contrat
-                              </span>
-                            ) : (
-                              <span
-                                className={[
-                                  'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                                  mode === 'contrat'
-                                    ? 'bg-slate-100 text-slate-700'
-                                    : 'bg-orange-100 text-orange-800',
-                                ].join(' ')}
-                              >
-                                {modeGestionLabel(c)}
-                              </span>
-                            )}
-                            <span
-                              className={[
-                                'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                                chip.cls,
-                              ].join(' ')}
-                            >
-                              {chip.label}
+                            <span className="block text-[11px] text-muted">
+                              {eqs.length} équipement{eqs.length > 1 ? 's' : ''}
+                              {c.ville ? ` · ${c.ville}` : ''}
                             </span>
                           </span>
-                          <span className="mt-0.5 block text-xs text-muted">
-                            {[
-                              c.ville,
-                              c.adresse,
-                              nextCtrl ? `Contrôle ${formatMoisAnnee(nextCtrl)}` : null,
-                              cerfaPending ? 'CERFA à signer' : null,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ') || '—'}
-                          </span>
-                        </span>
-                        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted" />
-                      </button>
-
-                      {/* Équipements du site */}
-                      <ul className="mt-2 space-y-1">
-                        {eqs.length === 0 ? (
-                          <li className="rounded-lg border border-dashed border-line px-2.5 py-2 text-xs text-muted">
-                            Aucun équipement — ajoutez-en un.
-                          </li>
-                        ) : (
-                          eqs.map((eq) => {
-                            const eqFluide = equipAvecFluideFrigorigene(eq)
-                            return (
-                              <li key={eq.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFocusSiteId(c.id)
-                                    setFocusEquipId(eq.id)
-                                    setSiteMenuOpen(false)
-                                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                                  }}
-                                  className="flex w-full min-h-10 items-center gap-2 rounded-xl border border-line bg-mist/50 px-2.5 py-2 text-left active:bg-mist"
-                                >
-                                  <Cpu className="h-3.5 w-3.5 shrink-0 text-orange-600" />
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-xs font-semibold text-ink">
-                                      {eq.nom || eq.type || 'Équipement'}
-                                    </span>
-                                    <span className="block truncate text-[11px] text-muted">
-                                      {[
-                                        eq.marque,
-                                        eq.modele,
-                                        eqFluide
-                                          ? [
-                                              eq.fluideType,
-                                              eq.chargeNominaleKg
-                                                ? `${eq.chargeNominaleKg} kg`
-                                                : null,
-                                            ]
-                                              .filter(Boolean)
-                                              .join(' ')
-                                          : 'standard',
-                                      ]
-                                        .filter(Boolean)
-                                        .join(' · ') || '—'}
-                                    </span>
-                                  </span>
-                                </button>
-                              </li>
-                            )
-                          })
-                        )}
-                      </ul>
-
-                      {(fluide && charge > 0) || fluides ? (
-                        <p className="mt-1.5 text-[11px] text-muted">
-                          Site : {eqs.length} équip.
-                          {fluide && charge > 0
-                            ? ` · ${charge} kg${fluides ? ` ${fluides}` : ''}`
-                            : fluide
-                              ? ' · fluide'
-                              : ''}
-                        </p>
-                      ) : null}
-
-                      <div className="mt-2.5 flex flex-wrap gap-2">
-                        <QuickIconBtn
-                          icon={Cpu}
-                          label="+ Équip."
-                          tone="sites"
-                          title="Ajouter un équipement"
-                          onClick={() => addEquipementToSite(c)}
-                        />
-                        <QuickIconBtn
-                          icon={FileSignature}
-                          label="Interv."
-                          tone="cerfa"
-                          title="Se mettre en intervention (CERFA ou rapport)"
-                          onClick={() => setIntervChoiceSite(c)}
-                        />
-                        <QuickIconBtn
-                          icon={Layers}
-                          label="Parc"
-                          tone="teal"
-                          title="Ouvrir le parc"
-                          onClick={() => openSiteParc(c)}
-                        />
-                        {formatAddressQuery(c) || formatAddressQuery(group.client || {}) ? (
-                          <QuickIconBtn
-                            icon={Navigation}
-                            label="GPS"
-                            tone="teal"
-                            title="Ouvrir l’adresse dans le GPS (Waze, Maps…)"
-                            onClick={() => {
-                              const ok = openAddressInGps(
-                                formatAddressQuery(c)
-                                  ? c
-                                  : {
-                                      adresse: group.client?.adresse,
-                                      codePostal: group.client?.codePostal,
-                                      ville: group.client?.ville,
-                                    },
-                              )
-                              if (!ok) alert('Adresse incomplète pour le GPS.')
-                            }}
-                          />
-                        ) : null}
-                        {contratsSite.length > 0 ? (
-                          <QuickIconBtn
-                            icon={FileSignature}
-                            label="Contrat"
-                            tone="sites"
-                            title="Voir le contrat de maintenance"
-                            onClick={() => {
-                              navigate(`/app/contrats?id=${encodeURIComponent(contratsSite[0].id)}`)
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
           )
         })}
@@ -1714,10 +1541,11 @@ export function ChantiersPage() {
                     setFocusSiteId(null)
                     setFocusEquipId(null)
                     setSiteMenuOpen(false)
+                    if (c.clientId) setExpandedClientId(c.clientId)
                   }}
                   className="inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold active:bg-mist"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" /> Sites
+                  <ArrowLeft className="h-3.5 w-3.5" /> Clients
                 </button>
                 <p className="min-w-0 flex-1 truncate text-xs text-muted">
                   <span className="font-semibold text-ink">{c.nom}</span>
