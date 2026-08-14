@@ -260,7 +260,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
                 disabled={saving}
                 className="min-h-11 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
-                {saving ? 'Enregistrement…' : 'Mettre à jour le contrôle'}
+                {saving ? 'Enregistrement…' : 'Enregistrer détecteur'}
               </button>
             </div>
             {formError && <p className="sm:col-span-2 text-sm text-danger">{formError}</p>}
@@ -292,7 +292,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
               >
                 <Plus className="h-4 w-4" />{' '}
-                {saving ? 'Enregistrement…' : 'Enregistrer mon détecteur'}
+                {saving ? 'Enregistrement…' : 'Enregistrer détecteur'}
               </button>
             </div>
             {formError && <p className="sm:col-span-2 text-sm text-danger">{formError}</p>}
@@ -427,18 +427,14 @@ export function DetecteursParc({ team: teamProp }: Props) {
             {formError}
           </p>
         )}
-        <div className="flex flex-wrap gap-2 sm:col-span-2">
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60 sm:w-auto sm:min-h-11 sm:py-2.5"
           >
             <Plus className="h-4 w-4" />
-            {saving
-              ? 'Enregistrement…'
-              : editId
-                ? 'Enregistrer'
-                : 'Ajouter le détecteur'}
+            {saving ? 'Enregistrement…' : 'Enregistrer détecteur'}
           </button>
           {editId && (
             <button
@@ -451,7 +447,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
           )}
           {saved && (
             <span className="self-center text-sm font-semibold text-accent">
-              Enregistré dans le cloud.
+              Détecteur enregistré dans le cloud.
             </span>
           )}
         </div>
