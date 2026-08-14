@@ -1,6 +1,6 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Eye, FileCheck2, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, Circle, Eye, FileCheck2, Plus, Save, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -248,15 +248,123 @@ export function InterventionFormPage() {
   useEffect(() => {
     if (!isNew) return
     if (!otFromQuery && !numeroFromQuery) return
-    const found = data.interventions.find(
-      (i) =>
-        (otFromQuery && (i.ordreTravailId === otFromQuery || i.id === otFromQuery)) ||
-        (numeroFromQuery.trim() !== '' && i.numeroIntervention === numeroFromQuery.trim()),
-    )
+    const list = data.interventions
+    const found =
+      (equipementFromQuery &&
+        list.find(
+          (i) =>
+            i.equipementId === equipementFromQuery &&
+            ((otFromQuery && (i.ordreTravailId === otFromQuery || i.id === otFromQuery)) ||
+              (numeroFromQuery.trim() !== '' &&
+                (i.numeroIntervention === numeroFromQuery.trim() ||
+                  (i.numeroIntervention || '').startsWith(`${numeroFromQuery.trim()}-`)))),
+        )) ||
+      list.find(
+        (i) =>
+          (otFromQuery && (i.ordreTravailId === otFromQuery || i.id === otFromQuery)) ||
+          (numeroFromQuery.trim() !== '' && i.numeroIntervention === numeroFromQuery.trim()),
+      )
     if (found) {
       navigate(`/app/interventions/${found.id}`, { replace: true })
     }
-  }, [isNew, otFromQuery, numeroFromQuery, data.interventions, navigate])
+  }, [isNew, otFromQuery, numeroFromQuery, equipementFromQuery, data.interventions, navigate])
+
+  const otBatchId = ordreTravailId || linkedOt?.id || existing?.ordreTravailId || otFromQuery || ''
+
+  /** Équipements du même OT (intervention multi). */
+  const batchEquipIds = useMemo(() => {
+    const ot =
+      (data.ordresTravail || []).find((o) => o.id === otBatchId) ||
+      linkedOt ||
+      null
+    if (ot?.equipementIds && ot.equipementIds.length > 1) return ot.equipementIds
+    if (!otBatchId && !numeroIntervention) return [] as string[]
+    const siblings = data.interventions.filter(
+      (i) =>
+        (otBatchId && i.ordreTravailId === otBatchId) ||
+        (numeroIntervention &&
+          (i.numeroIntervention === numeroIntervention ||
+            (i.numeroIntervention || '').startsWith(`${numeroIntervention}-`))),
+    )
+    const ids = [
+      ...new Set(
+        siblings.map((i) => i.equipementId).filter((x): x is string => Boolean(x)),
+      ),
+    ]
+    return ids.length > 1 ? ids : []
+  }, [
+    data.ordresTravail,
+    data.interventions,
+    otBatchId,
+    linkedOt,
+    numeroIntervention,
+  ])
+
+  const batchItems = useMemo(() => {
+    if (!chantier || batchEquipIds.length < 2) return []
+    return batchEquipIds.map((eqId) => {
+      const eq = findEquipement(chantier, eqId)
+      const draft = data.interventions.find(
+        (i) =>
+          i.equipementId === eqId &&
+          ((otBatchId && i.ordreTravailId === otBatchId) ||
+            (numeroIntervention &&
+              (i.numeroIntervention === numeroIntervention ||
+                (i.numeroIntervention || '').startsWith(`${numeroIntervention}-`))) ||
+            i.id === existing?.id),
+      )
+      return {
+        equipementId: eqId,
+        label: eq
+          ? `${equipmentLabel(eq)}${eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}`
+          : 'Équipement',
+        draftId: draft?.id as string | undefined,
+        hasPdf: Boolean(draft?.hasCerfaPdf),
+        isCurrent:
+          eqId === (equipementId || existing?.equipementId || '') ||
+          draft?.id === (existing?.id || draftId || ''),
+      }
+    })
+  }, [
+    chantier,
+    batchEquipIds,
+    data.interventions,
+    otBatchId,
+    numeroIntervention,
+    existing?.id,
+    existing?.equipementId,
+    equipementId,
+    draftId,
+  ])
+
+  const isMultiBatch = batchItems.length > 1
+
+  const [markedOk, setMarkedOk] = useState<string[]>(() => {
+    if (!otBatchId) return []
+    try {
+      const raw = sessionStorage.getItem(`climazen_cerfa_ok_${otBatchId}`)
+      if (!raw) return []
+      const parsed = JSON.parse(raw) as string[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    if (!otBatchId) return
+    try {
+      sessionStorage.setItem(`climazen_cerfa_ok_${otBatchId}`, JSON.stringify(markedOk))
+    } catch {
+      /* ignore */
+    }
+  }, [markedOk, otBatchId])
+
+  const toggleMarkedOk = (eqId: string) => {
+    setMarkedOk((prev) =>
+      prev.includes(eqId) ? prev.filter((x) => x !== eqId) : [...prev, eqId],
+    )
+  }
 
   // Laisser le préremplissage initial se faire avant l’autosave
   useEffect(() => {
@@ -796,9 +904,155 @@ export function InterventionFormPage() {
     setSavedMsg('')
     try {
       const savedId = await persistInApp()
+      if (equipementId) {
+        setMarkedOk((prev) => (prev.includes(equipementId) ? prev : [...prev, equipementId]))
+      }
       if (isNew) navigate(`/app/interventions/${savedId}`, { replace: true })
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erreur enregistrement')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const goToEquipPage = (eqId: string) => {
+    if (!chantier) return
+    if (eqId === (equipementId || existing?.equipementId)) return
+    try {
+      saveDraftQuiet({ navigateToDraft: false })
+    } catch {
+      /* ignore */
+    }
+    const sibling = data.interventions.find(
+      (i) =>
+        i.equipementId === eqId &&
+        ((otBatchId && i.ordreTravailId === otBatchId) ||
+          (numeroIntervention &&
+            (i.numeroIntervention === numeroIntervention ||
+              (i.numeroIntervention || '').startsWith(`${numeroIntervention}-`)))),
+    )
+    if (sibling) {
+      navigate(`/app/interventions/${sibling.id}`)
+      return
+    }
+    const eq = findEquipement(chantier, eqId)
+    const charge = Number(eq?.chargeNominaleKg) || 0
+    const idx = Math.max(0, batchEquipIds.indexOf(eqId))
+    const baseNum = (numeroIntervention || '').replace(/-\d+$/, '') || numeroIntervention
+    const newId = upsertIntervention({
+      clientId: client?.id || chantier.clientId || '',
+      chantierId: chantier.id,
+      equipementId: eqId,
+      dateIntervention,
+      numeroIntervention:
+        batchEquipIds.length > 1 && baseNum ? `${baseNum}-${idx + 1}` : baseNum || undefined,
+      ordreTravailId: otBatchId || undefined,
+      operateur: data.operateur,
+      natures,
+      detectionPermanente: !!eq?.detectionPermanente,
+      fluideType: eq?.fluideType || fluideType || '',
+      quantiteTotaleKg: charge,
+      teqCO2: eq?.teqCO2,
+      fuiteConstatee: false,
+      manipulations: [],
+      signatureOperateur: signatureOperateur || defaultSignNom,
+      signatureOperateurQualite: signatureOperateurQualite || defaultSignQualite,
+      signatureOperateurImage: signatureOperateurImage || defaultSignImage || undefined,
+      signatureDetenteur: signatureDetenteur || undefined,
+      signatureDetenteurQualite: signatureDetenteurQualite || undefined,
+      signatureDetenteurImage: signatureDetenteurImage || undefined,
+      detecteurIdentification: detecteurIdentification || undefined,
+      detecteurControleDate: detecteurControleDate || undefined,
+      status: 'brouillon',
+      createdByUserId: user?.id,
+      createdByName: user?.fullName || user?.email,
+    })
+    navigate(`/app/interventions/${newId}`)
+  }
+
+  /** Régénère les PDF CERFA pour toutes les pages cochées ✓ (ensemble). */
+  const regenerateAllCerfas = async () => {
+    if (!client || !chantier) {
+      alert('Chantier / client manquant.')
+      return
+    }
+    setBusy(true)
+    setSavedMsg('')
+    try {
+      // Sauve d’abord la page courante
+      try {
+        await persistInApp()
+        if (equipementId) {
+          setMarkedOk((prev) => (prev.includes(equipementId) ? prev : [...prev, equipementId]))
+        }
+      } catch (err) {
+        // Si la page courante n’est pas prête, on continue sur les autres cochées
+        console.warn(err)
+      }
+
+      const okIds = new Set(
+        markedOk.length > 0
+          ? markedOk
+          : batchItems.filter((b) => b.hasPdf).map((b) => b.equipementId),
+      )
+      if (equipementId) okIds.add(equipementId)
+
+      const targets = batchItems.filter((b) => okIds.has(b.equipementId))
+      if (targets.length === 0) {
+        alert(
+          'Cochez l’icône ✓ sur chaque page équipement quand elle est OK, puis régénérez l’ensemble.',
+        )
+        return
+      }
+
+      let done = 0
+      for (const item of targets) {
+        let draft = data.interventions.find((i) => i.id === item.draftId)
+        if (!draft && item.equipementId === equipementId && draftId) {
+          draft = data.interventions.find((i) => i.id === draftId)
+        }
+        if (!draft) {
+          throw new Error(
+            `Page manquante pour « ${item.label} » — ouvrez-la, complétez, cochez ✓.`,
+          )
+        }
+        if (!draft.fluideType?.trim()) {
+          throw new Error(`Fluide manquant sur « ${item.label} ».`)
+        }
+        assertDetecteurValidePourCerfa(data, user?.id, {
+          identification: draft.detecteurIdentification || detecteurIdentification,
+          controleDate: draft.detecteurControleDate || detecteurControleDate,
+        })
+        const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
+        const fullDraft: CerfaDraft = {
+          ...draft,
+          hasCerfaPdf: true,
+          cerfaPdfFileName: fileName,
+          cerfaPdfSavedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+        upsertIntervention(fullDraft)
+        const blob = await buildCerfaPdf({ draft: fullDraft, client, chantier })
+        await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId)
+        done += 1
+      }
+
+      // Recharger le PDF de la page courante
+      const currentId = draftId || existing?.id
+      if (currentId) {
+        const pdf = await loadCerfaPdf(currentId, user?.organizationId)
+        if (pdf) {
+          if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+          setPdfUrl(URL.createObjectURL(pdf.blob))
+          setHasPdf(true)
+        }
+      }
+
+      setSavedMsg(
+        `${done} CERFA régénéré${done > 1 ? 's' : ''} pour les équipements cochés ✓.`,
+      )
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Régénération impossible')
     } finally {
       setBusy(false)
     }
@@ -882,7 +1136,62 @@ export function InterventionFormPage() {
               ))}
             </select>
           </label>
-          {chantier && equipementsForCerfa(chantier).length > 0 && (
+          {chantier && isMultiBatch && (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm font-semibold text-ink">Équipements de l’intervention</p>
+              <p className="text-xs text-muted">
+                Ouvrez chaque page, cochez ✓ quand tout est bon, puis régénérez l’ensemble des CERFA.
+              </p>
+              <ul className="space-y-1.5">
+                {batchItems.map((item, idx) => {
+                  const ok = markedOk.includes(item.equipementId) || item.hasPdf
+                  return (
+                    <li key={item.equipementId}>
+                      <div
+                        className={[
+                          'flex items-center gap-2 rounded-xl border px-2 py-2',
+                          item.isCurrent
+                            ? 'border-emerald-400 bg-emerald-50'
+                            : 'border-line bg-white',
+                        ].join(' ')}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleMarkedOk(item.equipementId)}
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-full"
+                          title={ok ? 'Page OK (cochée)' : 'Marquer cette page comme OK'}
+                          aria-pressed={ok}
+                        >
+                          {ok ? (
+                            <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-600 text-white">
+                              <Check className="h-4 w-4" strokeWidth={3} />
+                            </span>
+                          ) : (
+                            <Circle className="h-8 w-8 text-slate-300" strokeWidth={1.5} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => goToEquipPage(item.equipementId)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <span className="block text-xs font-bold text-muted">
+                            Page {idx + 1}/{batchItems.length}
+                            {item.isCurrent ? ' · en cours' : ''}
+                            {item.hasPdf ? ' · PDF' : ''}
+                          </span>
+                          <span className="block truncate text-sm font-semibold text-ink">
+                            {item.label}
+                          </span>
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+          {chantier && !isMultiBatch && equipementsForCerfa(chantier).length > 0 && (
             <label className="mt-3 block text-sm">
               <span className="mb-1 block text-muted">Équipement précis *</span>
               <select
@@ -1387,13 +1696,27 @@ export function InterventionFormPage() {
               {busy
                 ? 'Génération…'
                 : hasPdf
-                  ? 'Régénérer le CERFA'
-                  : 'Enregistrer & générer le CERFA'}
+                  ? 'Régénérer ce CERFA'
+                  : 'Enregistrer & générer ce CERFA'}
             </button>
+            {isMultiBatch && (
+              <button
+                type="button"
+                disabled={busy || !chantierId}
+                onClick={() => void regenerateAllCerfas()}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-emerald-600 bg-emerald-50 px-6 py-3 text-sm font-bold text-emerald-950 hover:bg-emerald-100 disabled:opacity-60 sm:w-auto"
+              >
+                <FileCheck2 className="h-4 w-4" />
+                {busy
+                  ? 'Régénération…'
+                  : `Régénérer l’ensemble (${Math.max(markedOk.length, batchItems.filter((b) => b.hasPdf).length) || batchItems.length} CERFA)`}
+              </button>
+            )}
           </div>
           <p className="text-xs text-muted">
-            Le brouillon se sauve aussi tout seul pendant la saisie. Pour le PDF officiel et le stock
-            bouteilles, utilisez « Enregistrer & générer le CERFA ».
+            {isMultiBatch
+              ? 'Cochez ✓ sur chaque page équipement quand elle est bonne, puis « Régénérer l’ensemble ». Le brouillon se sauve aussi tout seul.'
+              : 'Le brouillon se sauve aussi tout seul pendant la saisie. Pour le PDF officiel et le stock bouteilles, utilisez « Enregistrer & générer le CERFA ».'}
           </p>
         </div>
       </form>
