@@ -1,6 +1,10 @@
 import { v4 as uuid } from 'uuid'
 import type { CerfaDraft, Client, Equipement, NatureIntervention, Operateur, Site } from './types'
-import { equipAvecFluideFrigorigene, siteAvecFluideFrigorigene } from './types'
+import {
+  equipAvecFluideFrigorigene,
+  isDetecteurControleExpire,
+  siteAvecFluideFrigorigene,
+} from './types'
 import { findEquipement } from './migrate'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo } from './fluides'
 
@@ -167,6 +171,19 @@ export function buildMaintenanceCerfaDrafts(input: MaintenanceCerfaInput): Cerfa
   }
   if (!input.signatureOperateurImage) {
     throw new Error('Signature opérateur obligatoire — enregistrez-la dans Ma signature.')
+  }
+  if (!input.detecteurIdentification?.trim()) {
+    throw new Error(
+      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans le parc détecteurs.',
+    )
+  }
+  if (!input.detecteurControleDate?.trim()) {
+    throw new Error('Date de contrôle du détecteur manquante (contrôle annuel < 1 an).')
+  }
+  if (isDetecteurControleExpire(input.detecteurControleDate)) {
+    throw new Error(
+      `Détecteur « ${input.detecteurIdentification} » : contrôle expiré (> 1 an). Impossible de générer le CERFA.`,
+    )
   }
 
   const natures: NatureIntervention[] = input.natures?.length

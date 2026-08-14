@@ -33,7 +33,7 @@ import {
   syncEquipementsFromFlat,
   syncFlatFromEquipements,
 } from './cerfaBatch'
-import { detecteurForUser } from './detecteurs'
+import { assertDetecteurValidePourCerfa } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
 import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
@@ -801,7 +801,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!site) throw new Error('Site introuvable.')
       const client = d.clients.find((c) => c.id === site.clientId)
       if (!client) throw new Error('Client du site introuvable.')
-      const det = detecteurForUser(d, opts.userId)
+      const det = assertDetecteurValidePourCerfa(d, opts.userId)
       const dateIntervention =
         opts.dateIntervention || new Date().toISOString().slice(0, 10)
       const drafts = buildMaintenanceCerfaDrafts({
@@ -814,8 +814,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         signataireNom: opts.signataireNom,
         signataireQualite: opts.signataireQualite,
         signatureOperateurImage: opts.signatureOperateurImage,
-        detecteurIdentification: det?.identification,
-        detecteurControleDate: det?.controleDate,
+        detecteurIdentification: det.identification,
+        detecteurControleDate: det.controleDate,
         equipementIds: opts.equipementIds,
         natures: opts.natures,
       }).map((draft, i) => ({

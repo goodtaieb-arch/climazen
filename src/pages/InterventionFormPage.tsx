@@ -26,7 +26,7 @@ import { LabelHint } from '../components/LabelHint'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideCode } from '../lib/fluides'
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
-import { detecteurForUser } from '../lib/detecteurs'
+import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
@@ -353,9 +353,16 @@ export function InterventionFormPage() {
     }
   }, [defaultSignImage, defaultSignNom, defaultSignQualite]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const needsDetecteur =
-    natures.includes('controle_etancheite_periodique') ||
-    natures.includes('controle_etancheite_non_periodique')
+  // Toujours aligner sur le détecteur enregistré (technicien / société)
+  useEffect(() => {
+    if (!monDetecteur?.identification) return
+    if (!detecteurIdentification.trim()) {
+      setDetecteurIdentification(monDetecteur.identification)
+    }
+    if (!detecteurControleDate.trim() && monDetecteur.controleDate) {
+      setDetecteurControleDate(monDetecteur.controleDate)
+    }
+  }, [monDetecteur?.id, monDetecteur?.identification, monDetecteur?.controleDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const bottleRequired = needsBottleNumber({
     natures,
@@ -633,23 +640,20 @@ export function InterventionFormPage() {
       throw new Error('Indiquez la dénomination du fluide (cadre [7]).')
     }
 
+    // Cadre [5] : détecteur de fuite obligatoire + contrôle < 1 an
+    const detOk = assertDetecteurValidePourCerfa(data, user?.id, {
+      identification: detecteurIdentification,
+      controleDate: detecteurControleDate,
+    })
+    setDetecteurIdentification(detOk.identification)
+    setDetecteurControleDate(detOk.controleDate)
+
     // Toujours aligner le chantier sur le fluide de la fiche avant contrôle bouteilles
     if (!sameFluideCode(chantier.fluideType, fluideType)) {
       const teq =
         calcTeqCO2FromFluide(quantiteTotaleKg || chantier.chargeNominaleKg, fluideType) ??
         chantier.teqCO2
       upsertChantier({ ...chantier, fluideType, teqCO2: teq })
-    }
-
-    if (needsDetecteur && !detecteurIdentification) {
-      throw new Error('Cadre [5] : identification (réf.) du détecteur manquante.')
-    }
-    if (needsDetecteur && !detecteurControleDate) {
-      throw new Error('Cadre [5] : date de contrôle du détecteur manquante.')
-    }
-    if (needsDetecteur && detecteurExpire) {
-      const ok = confirm('Contrôle détecteur > 1 an. Continuer ?')
-      if (!ok) throw new Error('Enregistrement annulé.')
     }
 
     if (!signatureOperateur.trim()) {
@@ -733,7 +737,11 @@ export function InterventionFormPage() {
       }
     }
 
-    const draft = buildDraft()
+    const draft = {
+      ...buildDraft(),
+      detecteurIdentification: detOk.identification,
+      detecteurControleDate: detOk.controleDate,
+    }
     const fileName = `CERFA-15497-04-${dateIntervention}.pdf`
     const previewId = draft.id || draftId || crypto.randomUUID()
     const fullDraft: CerfaDraft = {
@@ -996,45 +1004,52 @@ export function InterventionFormPage() {
           </div>
         </Section>
 
-        {(needsDetecteur || detecteurIdentification) && (
-          <Section title="[5] Détecteur manuel de fuite">
-            <p className="mb-3 text-sm text-muted">
-              Identification (réf.) + date de contrôle — contrôle <strong>chaque année</strong>.
-              {monDetecteur?.assigneeName || monDetecteur?.assigneeUserId === user?.id
-                ? ' Prérempli depuis votre détecteur attribué.'
-                : monDetecteur
-                  ? ' Prérempli depuis le détecteur société (aucun détecteur nominatif).'
-                  : ''}
+        <Section title="[5] Détecteur manuel de fuite *">
+          <p className="mb-3 text-sm text-muted">
+            Obligatoire pour tout CERFA — identification + contrôle annuel (&lt; 1 an).
+            {monDetecteur?.assigneeName || monDetecteur?.assigneeUserId === user?.id
+              ? ' Prérempli depuis votre détecteur attribué.'
+              : monDetecteur
+                ? ' Prérempli depuis le détecteur enregistré.'
+                : ' Aucun détecteur enregistré — ajoutez-en un dans « Mon entreprise ».'}
+          </p>
+          {!monDetecteur && (
+            <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              Enregistrez un détecteur avec une date de contrôle valide avant de générer le CERFA.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Identification / réf. *"
-                value={detecteurIdentification}
-                onChange={setDetecteurIdentification}
-                required={needsDetecteur}
-              />
-              <Field
-                label="Contrôlé le (date) *"
-                type="date"
-                value={detecteurControleDate}
-                onChange={setDetecteurControleDate}
-                required={needsDetecteur}
-              />
-            </div>
-            {detecteurControleDate && (
-              <p
-                className={[
-                  'mt-3 rounded-xl px-3 py-2 text-sm',
-                  detecteurExpire ? 'bg-red-50 text-danger' : 'bg-accent-soft text-slate',
-                ].join(' ')}
-              >
-                {detecteurExpire
-                  ? '⚠ Contrôle détecteur expiré (> 1 an).'
-                  : '✓ Contrôle détecteur valable (< 1 an).'}
-              </p>
-            )}
-          </Section>
-        )}
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Identification / réf. *"
+              value={detecteurIdentification}
+              onChange={setDetecteurIdentification}
+              required
+            />
+            <Field
+              label="Contrôlé le (date) *"
+              type="date"
+              value={detecteurControleDate}
+              onChange={setDetecteurControleDate}
+              required
+            />
+          </div>
+          {detecteurControleDate ? (
+            <p
+              className={[
+                'mt-3 rounded-xl px-3 py-2 text-sm',
+                detecteurExpire ? 'bg-red-50 text-danger' : 'bg-accent-soft text-slate',
+              ].join(' ')}
+            >
+              {detecteurExpire
+                ? '⚠ Contrôle détecteur expiré (> 1 an) — CERFA interdit tant que le détecteur n’est pas contrôlé.'
+                : '✓ Contrôle détecteur valable (< 1 an).'}
+            </p>
+          ) : (
+            <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-danger">
+              Date de contrôle manquante — obligatoire pour générer le CERFA.
+            </p>
+          )}
+        </Section>
 
         <Section title={detectionPermanente ? '[9] Avec détection permanente' : '[8] Sans détection permanente'}>
           <p
