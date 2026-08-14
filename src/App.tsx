@@ -37,7 +37,9 @@ function InterventionFormRoute() {
 function FicheMaintenanceClimRoute() {
   const [params] = useSearchParams()
   const id = params.get('id') || 'new'
-  return <FicheMaintenanceClimPage key={id} />
+  const batch = params.get('batch') || ''
+  // key force le remount à chaque fiche du lot multi-équipements
+  return <FicheMaintenanceClimPage key={`${id}::${batch}`} />
 }
 
 export default function App() {

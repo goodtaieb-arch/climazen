@@ -41,6 +41,7 @@ function buildPrefill(opts: {
   }
   equip?: {
     id: string
+    nom?: string
     marque?: string
     modele?: string
     type?: string
@@ -51,20 +52,32 @@ function buildPrefill(opts: {
   technicien: string
   signatureOperateur?: string
   numero?: string
+  /** Reprendre marque / SN / fluide depuis l’équipement lié (bascule multi-pages). */
+  syncFromEquip?: boolean
 }): Omit<FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'> {
   if (opts.existing) {
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = opts.existing
+    const equip = opts.equip
+    const sync = opts.syncFromEquip && equip
+    const marqueFromEquip = equip
+      ? [equip.marque, equip.modele].filter(Boolean).join(' / ') || equip.type || equip.nom || ''
+      : ''
     return {
       ...rest,
+      equipementId: equip?.id || rest.equipementId,
+      chantierId: opts.site?.id || rest.chantierId,
       // Signatures auto comme CERFA (profil + signature client du site)
       signatureTechnicienImage:
         rest.signatureTechnicienImage || opts.signatureOperateur || '',
       signatureClientImage:
         rest.signatureClientImage || opts.site?.signatureDetenteurImage || '',
+      marqueModele: sync && marqueFromEquip ? marqueFromEquip : rest.marqueModele,
+      numeroSerie: sync && equip?.numeroSerie ? equip.numeroSerie : rest.numeroSerie,
+      fluide: sync && equip?.fluideType ? equip.fluideType : rest.fluide,
       quantiteFluideKg:
         rest.quantiteFluideKg ??
-        (opts.equip?.chargeNominaleKg != null && opts.equip.chargeNominaleKg > 0
-          ? opts.equip.chargeNominaleKg
+        (equip?.chargeNominaleKg != null && equip.chargeNominaleKg > 0
+          ? equip.chargeNominaleKg
           : rest.quantiteFluideKg ?? null),
     }
   }
@@ -83,7 +96,7 @@ function buildPrefill(opts: {
     adresse:
       [site?.adresse, site?.codePostal, site?.ville].filter(Boolean).join(', ') ||
       [client?.adresse, client?.codePostal, client?.ville].filter(Boolean).join(', '),
-    marqueModele: marqueModele || equip?.type || '',
+    marqueModele: marqueModele || equip?.type || equip?.nom || '',
     numeroSerie: equip?.numeroSerie || '',
     fluide: equip?.fluideType || '',
     quantiteFluideKg:
@@ -146,6 +159,7 @@ export function FicheMaintenanceClimPage() {
               ordresTravail: data.ordresTravail,
             })
           : undefined),
+        syncFromEquip: true,
       }),
   )
   const [clientSignNom, setClientSignNom] = useState(
@@ -154,48 +168,47 @@ export function FicheMaintenanceClimPage() {
   const [clientSignQualite, setClientSignQualite] = useState(
     () => site?.signatureDetenteurQualite || 'Représentant client',
   )
-  const hydratedKey = useRef('')
+  const loadedEditId = useRef<string | null>(null)
 
+  // Recharge TOUT le formulaire à chaque changement de fiche (Page 1/2 ↔ 2/2)
   useEffect(() => {
-    const key = `${editId}|${chantierId}|${equipementId}|${existing?.updatedAt || ''}|${site?.id || ''}|${equip?.id || ''}|${technicienDefault}|${numeroFromQuery}`
-    if (hydratedKey.current === key) return
-    if (
-      hydratedKey.current.startsWith(`${editId}|${chantierId}|${equipementId}|`) &&
-      !existing &&
-      hydratedKey.current
-    ) {
+    if (!editId) {
+      loadedEditId.current = null
       return
     }
-    hydratedKey.current = key
+    if (loadedEditId.current === editId) return
+    const fiche =
+      (data.fichesMaintenanceClim || []).find((f) => f.id === editId) || existing
+    if (!fiche) return
+    const siteRow =
+      data.chantiers.find((c) => c.id === fiche.chantierId) || site
+    const clientRow = data.clients.find(
+      (c) => c.id === (fiche.clientId || siteRow?.clientId || ''),
+    )
+    const equipRow = siteRow
+      ? allEquipements(siteRow).find((e) => e.id === fiche.equipementId)
+      : undefined
+    loadedEditId.current = editId
     setForm(
       buildPrefill({
-        existing,
-        site,
-        client,
-        equip,
-        technicien: technicienDefault,
+        existing: fiche,
+        site: siteRow,
+        client: clientRow,
+        equip: equipRow,
+        technicien: fiche.technicien || technicienDefault,
         signatureOperateur: user?.signatureImage,
-        numero: existing?.numero || numeroFromQuery || (!editId
-          ? nextNumeroIntervention({
-              interventions: data.interventions,
-              fichesMaintenanceClim: data.fichesMaintenanceClim,
-              ordresTravail: data.ordresTravail,
-            })
-          : undefined),
+        numero: fiche.numero || numeroFromQuery,
+        syncFromEquip: true,
       }),
     )
-  }, [
-    editId,
-    chantierId,
-    equipementId,
-    existing,
-    site,
-    client,
-    equip,
-    technicienDefault,
-    user?.signatureImage,
-    numeroFromQuery,
-  ])
+    if (siteRow?.signatureDetenteurNom || clientRow?.nomContact) {
+      setClientSignNom(siteRow?.signatureDetenteurNom || clientRow?.nomContact || '')
+    }
+    if (siteRow?.signatureDetenteurQualite) {
+      setClientSignQualite(siteRow.signatureDetenteurQualite)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bascule uniquement sur editId
+  }, [editId, data.fichesMaintenanceClim])
 
   // Signatures auto (comme CERFA) dès que le profil / site est dispo
   useEffect(() => {
@@ -215,7 +228,7 @@ export function FicheMaintenanceClimPage() {
       }
       return changed ? next : f
     })
-  }, [user?.signatureImage, site?.signatureDetenteurImage])
+  }, [user?.signatureImage, site?.signatureDetenteurImage, editId])
 
   const relatedFiches = useMemo(() => {
     const list = data.fichesMaintenanceClim || []
@@ -303,11 +316,21 @@ export function FicheMaintenanceClimPage() {
 
   const goToBatchPage = (ficheId: string) => {
     if (ficheId === editId) return
-    try {
-      persist()
-    } catch {
-      /* ignore */
+    const currentId = existing?.id || editId
+    if (currentId) {
+      try {
+        // Sauve la page courante SANS écraser le lien équipement
+        upsertFicheMaintenanceClim({
+          ...form,
+          id: currentId,
+          equipementId: existing?.equipementId || form.equipementId,
+          chantierId: existing?.chantierId || form.chantierId,
+        })
+      } catch {
+        /* ignore */
+      }
     }
+    loadedEditId.current = null
     navigate(
       `/app/fiche-maintenance-clim?id=${encodeURIComponent(ficheId)}${batchQuery}`,
     )
@@ -329,7 +352,9 @@ export function FicheMaintenanceClimPage() {
   const persist = () => {
     const id = upsertFicheMaintenanceClim({
       ...form,
-      id: existing?.id,
+      id: existing?.id || editId || undefined,
+      equipementId: existing?.equipementId || form.equipementId,
+      chantierId: existing?.chantierId || form.chantierId,
     })
     return id
   }
