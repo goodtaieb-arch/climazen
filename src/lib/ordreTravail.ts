@@ -50,7 +50,10 @@ export interface OrdreTravail {
   observations: string
   clientId?: string
   chantierId?: string
+  /** Équipement principal (compat) */
   equipementId?: string
+  /** Plusieurs équipements traités sur le même OT */
+  equipementIds?: string[]
   technicien: string
   /** Lien CERFA si généré avec fluide */
   interventionId?: string
@@ -135,6 +138,6 @@ export function inferParcoursStep(ot: OrdreTravail): ParcoursAppelStepId {
   if (!ot.action?.trim()) return 'ot'
   if (!ot.clientId) return 'client'
   if (!ot.chantierId) return 'site'
-  if (!ot.equipementId) return 'equipement'
+  if (!ot.equipementId && !(ot.equipementIds && ot.equipementIds.length > 0)) return 'equipement'
   return 'docs'
 }

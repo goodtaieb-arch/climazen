@@ -475,14 +475,56 @@ export function ChantiersPage() {
     }
 
     if (picker.mode === 'intervention') {
-      const eqId = selected[0]
-      setPicker(null)
-      setIntervChoiceSite(null)
-      setEquipWork({
-        site: picker.site,
-        equipementId: eqId,
-        natures: naturesForPicker(picker.nature),
-      })
+      if (selected.length === 1) {
+        const eqId = selected[0]
+        setPicker(null)
+        setIntervChoiceSite(null)
+        setEquipWork({
+          site: picker.site,
+          equipementId: eqId,
+          natures: naturesForPicker(picker.nature),
+        })
+        return
+      }
+      // Plusieurs équipements → même flux que maintenance (1 CERFA / équipement)
+      if (!user.signatureImage) {
+        alert('Enregistrez d’abord votre signature dans « Ma signature ».')
+        return
+      }
+      setBatchBusy(picker.site.id)
+      try {
+        const { drafts, site: s, client } = validateMaintenanceCerfas({
+          siteId: picker.site.id,
+          dateIntervention: today(),
+          signataireNom: user.signataireNom || user.fullName || '',
+          signataireQualite: user.signataireQualite || 'Opérateur attesté',
+          signatureOperateurImage: user.signatureImage,
+          userId: user.id,
+          userName: user.fullName || user.email,
+          equipementIds: selected,
+          natures: naturesForPicker(picker.nature),
+        })
+        setPicker(null)
+        setIntervChoiceSite(null)
+        for (const draft of drafts) {
+          const blob = await buildCerfaPdf({ draft, client, chantier: s })
+          const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
+          await saveCerfaPdf(draft.id, blob, fileName, user.organizationId)
+          upsertIntervention({
+            ...draft,
+            hasCerfaPdf: true,
+            cerfaPdfFileName: fileName,
+            cerfaPdfSavedAt: new Date().toISOString(),
+          })
+        }
+        alert(
+          `${drafts.length} CERFA généré${drafts.length > 1 ? 's' : ''} pour les équipements choisis.`,
+        )
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Génération impossible')
+      } finally {
+        setBatchBusy(null)
+      }
       return
     }
 
@@ -1970,13 +2012,15 @@ export function ChantiersPage() {
                 ? 'Quels équipements avez-vous traités ?'
                 : picker.mode === 'rapport'
                   ? 'Rapport d’intervention — quel équipement ?'
-                  : 'Quel équipement pour ce CERFA ?'}
+                  : 'Quels équipements pour cette intervention ?'}
             </h2>
             <p className="mt-1 text-sm text-muted">
               {picker.site.nom} — un n° OT (OT2026…) sera attribué automatiquement.
               {picker.mode === 'maintenance'
                 ? ' Le CERFA suffit pour la maintenance fluide ; la fiche checklist est optionnelle.'
-                : ''}
+                : picker.mode === 'intervention'
+                  ? ' Cochez un ou plusieurs équipements (1 CERFA chacun si fluide).'
+                  : ''}
             </p>
 
             {picker.mode === 'intervention' && (
@@ -2079,10 +2123,6 @@ export function ChantiersPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (picker.mode === 'intervention') {
-                            setPicker({ ...picker, selected: [eq.id] })
-                            return
-                          }
                           setPicker({
                             ...picker,
                             selected: checked
@@ -2107,10 +2147,6 @@ export function ChantiersPage() {
                         type="button"
                         className="min-w-0 flex-1 text-left"
                         onClick={() => {
-                          if (picker.mode === 'intervention') {
-                            setPicker({ ...picker, selected: [eq.id] })
-                            return
-                          }
                           setPicker({
                             ...picker,
                             selected: checked
@@ -2159,7 +2195,9 @@ export function ChantiersPage() {
               })}
             </ul>
 
-            {(picker.mode === 'maintenance' || picker.mode === 'rapport') && (
+            {(picker.mode === 'maintenance' ||
+              picker.mode === 'rapport' ||
+              picker.mode === 'intervention') && (
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <button
                   type="button"

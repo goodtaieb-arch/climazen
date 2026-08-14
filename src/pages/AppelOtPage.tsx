@@ -106,7 +106,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertIntervention } =
     useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -164,7 +164,23 @@ export function AppelOtPage() {
   const client = data.clients.find((c) => c.id === otForm.clientId)
   const site = data.chantiers.find((c) => c.id === otForm.chantierId)
   const eqs = site ? allEquipements(site) : []
-  const selectedEq = eqs.find((e) => e.id === otForm.equipementId)
+  const selectedEquipIds = useMemo(() => {
+    if (otForm.equipementIds && otForm.equipementIds.length > 0) return otForm.equipementIds
+    if (otForm.equipementId) return [otForm.equipementId]
+    return [] as string[]
+  }, [otForm.equipementId, otForm.equipementIds])
+  const selectedEqs = eqs.filter((e) => selectedEquipIds.includes(e.id))
+  const selectedEq = selectedEqs[0]
+
+  const toggleEquip = (id: string) => {
+    const cur = selectedEquipIds
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+    setOtForm({
+      ...otForm,
+      equipementIds: next,
+      equipementId: next[0] || '',
+    })
+  }
 
   useEffect(() => {
     if (!site) return
@@ -298,7 +314,7 @@ export function AppelOtPage() {
       alert('Site manquant.')
       return
     }
-    let equipementId = otForm.equipementId || ''
+    let equipementIds = [...selectedEquipIds]
     if (equipMode === 'new') {
       if (!equipForm.nom.trim() && !equipForm.type.trim()) {
         alert('Indiquez au moins un nom ou type d’équipement.')
@@ -329,14 +345,25 @@ export function AppelOtPage() {
         equipements: list,
         avecFluideFrigorigene: list.some((e) => e.avecFluideFrigorigene !== false),
       })
-      equipementId = eq.id
-    } else if (!equipementId) {
-      alert('Sélectionnez un équipement ou créez-en un.')
+      equipementIds = [...equipementIds.filter((id) => id !== eq.id), eq.id]
+    } else if (equipementIds.length === 0) {
+      alert('Cochez au moins un équipement (ou créez-en un).')
       return
     }
-    persistOt({ equipementId, parcoursStep: 'docs' }, otId)
+    persistOt(
+      {
+        equipementIds,
+        equipementId: equipementIds[0] || '',
+        parcoursStep: 'docs',
+      },
+      otId,
+    )
     setStep('docs')
-    setMsg('Équipement lié — CERFA si fluide, sinon rapport OT. Fiche checklist optionnelle.')
+    setMsg(
+      equipementIds.length > 1
+        ? `${equipementIds.length} équipements liés — CERFA si fluide, sinon rapport OT.`
+        : 'Équipement lié — CERFA si fluide, sinon rapport OT. Fiche checklist optionnelle.',
+    )
   }
 
   const skipEquipForNow = () => {
@@ -350,41 +377,91 @@ export function AppelOtPage() {
       alert('Site requis pour le CERFA.')
       return
     }
-    const existingDraft =
-      data.interventions.find(
-        (i) =>
-          (otId && i.ordreTravailId === otId) ||
-          (otForm.numero && i.numeroIntervention === otForm.numero),
-      ) ||
-      (otForm.equipementId
-        ? data.interventions.find(
-            (i) =>
-              i.status === 'brouillon' &&
-              i.chantierId === otForm.chantierId &&
-              i.equipementId === otForm.equipementId,
-          )
-        : undefined)
-    if (existingDraft) {
-      navigate(`/app/interventions/${existingDraft.id}`)
+    const ids =
+      selectedEquipIds.length > 0
+        ? selectedEquipIds
+        : otForm.equipementId
+          ? [otForm.equipementId]
+          : []
+    const withFluide = ids.filter((id) => {
+      const eq = eqs.find((e) => e.id === id)
+      return Boolean(eq && eq.avecFluideFrigorigene !== false && (eq.fluideType || '').trim())
+    })
+    if (ids.length === 0) {
+      alert('Sélectionnez au moins un équipement avant le CERFA.')
       return
     }
-    const natures = naturesCerfaPourTypeOt(otForm.typeOt).join(',')
+    if (withFluide.length === 0) {
+      alert('Aucun des équipements sélectionnés n’a de fluide — pas de CERFA requis.')
+      return
+    }
+
+    const natures = naturesCerfaPourTypeOt(otForm.typeOt)
     const id = persistOt(
       {
         parcoursStep: 'docs',
         statut: 'en_cours',
+        equipementIds: ids,
+        equipementId: withFluide[0] || ids[0],
       },
       otId,
     )
-    const q = new URLSearchParams({
-      chantier: otForm.chantierId,
-      ot: id,
-      numero: otForm.numero,
-      natures,
-      date: otForm.date,
-    })
-    if (otForm.equipementId) q.set('equipement', otForm.equipementId)
-    navigate(`/app/interventions/new?${q.toString()}`)
+
+    const draftIds: string[] = []
+    for (let i = 0; i < withFluide.length; i++) {
+      const eqId = withFluide[i]
+      const eq = eqs.find((e) => e.id === eqId)
+      const existingDraft =
+        data.interventions.find(
+          (interv) =>
+            interv.status === 'brouillon' &&
+            interv.chantierId === otForm.chantierId &&
+            interv.equipementId === eqId &&
+            (interv.ordreTravailId === id ||
+              interv.ordreTravailId === otId ||
+              interv.numeroIntervention === otForm.numero ||
+              (interv.numeroIntervention || '').startsWith(`${otForm.numero}-`)),
+        ) ||
+        data.interventions.find(
+          (interv) =>
+            interv.status === 'brouillon' &&
+            interv.chantierId === otForm.chantierId &&
+            interv.equipementId === eqId,
+        )
+      if (existingDraft) {
+        draftIds.push(existingDraft.id)
+        continue
+      }
+      const charge = Number(eq?.chargeNominaleKg) || 0
+      const draftId = upsertIntervention({
+        clientId: otForm.clientId || site?.clientId || '',
+        chantierId: otForm.chantierId,
+        equipementId: eqId,
+        dateIntervention: otForm.date,
+        numeroIntervention:
+          withFluide.length === 1 ? otForm.numero : `${otForm.numero}-${i + 1}`,
+        ordreTravailId: id,
+        operateur: data.operateur,
+        natures: natures as import('../lib/types').NatureIntervention[],
+        detectionPermanente: !!eq?.detectionPermanente,
+        fluideType: eq?.fluideType || '',
+        quantiteTotaleKg: charge,
+        teqCO2: eq?.teqCO2,
+        fuiteConstatee: false,
+        manipulations: [],
+        status: 'brouillon',
+        createdByUserId: user?.id,
+        createdByName: user?.fullName || user?.email,
+      })
+      draftIds.push(draftId)
+    }
+
+    if (draftIds.length > 1) {
+      setMsg(
+        `${draftIds.length} CERFA brouillons créés (un par équipement). Remplissez-les un par un.`,
+      )
+    }
+    navigate(`/app/interventions/${draftIds[0]}`)
   }
 
   const openFicheMaint = () => {
@@ -447,11 +524,17 @@ export function AppelOtPage() {
   }
 
   const stepIdx = STEP_INDEX[step]
-  const hasFluide = selectedEq
-    ? selectedEq.avecFluideFrigorigene !== false && !!selectedEq.fluideType
-    : site
-      ? equipementsForCerfa(site).length > 0
-      : true
+  const hasFluide =
+    selectedEqs.length > 0
+      ? selectedEqs.some(
+          (eq) => eq.avecFluideFrigorigene !== false && !!(eq.fluideType || '').trim(),
+        )
+      : site
+        ? equipementsForCerfa(site).length > 0
+        : true
+  const fluideCount = selectedEqs.filter(
+    (eq) => eq.avecFluideFrigorigene !== false && !!(eq.fluideType || '').trim(),
+  ).length
   const isMaint =
     otForm.typeOt === 'maintenance' ||
     otForm.typeOt === 'entretien' ||
@@ -851,7 +934,7 @@ export function AppelOtPage() {
       {step === 'equipement' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <p className="text-sm text-muted">
-            Sur site : inscrivez l’équipement concerné ({site?.nom || '—'}).
+            Sur site : cochez un ou plusieurs équipements concernés ({site?.nom || '—'}).
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -865,7 +948,6 @@ export function AppelOtPage() {
               type="button"
               onClick={() => {
                 setEquipMode('new')
-                setOtForm({ ...otForm, equipementId: '' })
                 setEquipForm(blankEquip(true))
               }}
               className={`rounded-full px-3 py-1.5 text-xs font-bold ${equipMode === 'new' ? 'bg-accent text-ink' : 'border border-line'}`}
@@ -875,36 +957,86 @@ export function AppelOtPage() {
           </div>
 
           {equipMode === 'pick' ? (
-            <ul className="max-h-64 space-y-1 overflow-y-auto">
-              {eqs.length === 0 ? (
-                <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
-                  Aucun équipement — créez-en un sur place.
-                </li>
-              ) : (
-                eqs.map((eq) => (
-                  <li key={eq.id}>
-                    <button
-                      type="button"
-                      onClick={() => setOtForm({ ...otForm, equipementId: eq.id })}
-                      className={[
-                        'flex min-h-12 w-full items-center gap-2 rounded-xl border px-3 text-left text-sm',
-                        otForm.equipementId === eq.id
-                          ? 'border-emerald-400 bg-emerald-50'
-                          : 'border-line bg-white active:bg-mist',
-                      ].join(' ')}
-                    >
-                      <Cpu className="h-4 w-4 shrink-0 text-muted" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-semibold">{eq.nom || eq.type || 'Équipement'}</span>
-                        <span className="block text-xs text-muted">
-                          {[eq.marque, eq.modele, eq.fluideType].filter(Boolean).join(' · ')}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))
+            <div className="space-y-2">
+              {eqs.length > 1 && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOtForm({
+                        ...otForm,
+                        equipementIds: eqs.map((e) => e.id),
+                        equipementId: eqs[0]?.id || '',
+                      })
+                    }
+                    className="rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-mist"
+                  >
+                    Tout cocher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOtForm({ ...otForm, equipementIds: [], equipementId: '' })
+                    }
+                    className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-muted hover:bg-mist"
+                  >
+                    Tout décocher
+                  </button>
+                  {selectedEquipIds.length > 0 && (
+                    <span className="self-center text-xs font-semibold text-emerald-800">
+                      {selectedEquipIds.length} sélectionné
+                      {selectedEquipIds.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
               )}
-            </ul>
+              <ul className="max-h-64 space-y-1 overflow-y-auto">
+                {eqs.length === 0 ? (
+                  <li className="rounded-xl border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
+                    Aucun équipement — créez-en un sur place.
+                  </li>
+                ) : (
+                  eqs.map((eq) => {
+                    const checked = selectedEquipIds.includes(eq.id)
+                    return (
+                      <li key={eq.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleEquip(eq.id)}
+                          className={[
+                            'flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-left text-sm',
+                            checked
+                              ? 'border-emerald-400 bg-emerald-50'
+                              : 'border-line bg-white active:bg-mist',
+                          ].join(' ')}
+                          aria-pressed={checked}
+                        >
+                          <span
+                            className={[
+                              'grid h-6 w-6 shrink-0 place-items-center rounded border-2',
+                              checked
+                                ? 'border-emerald-600 bg-emerald-600 text-white'
+                                : 'border-slate-300 bg-white',
+                            ].join(' ')}
+                          >
+                            {checked ? <Check className="h-3.5 w-3.5" /> : null}
+                          </span>
+                          <Cpu className="h-4 w-4 shrink-0 text-muted" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold">
+                              {eq.nom || eq.type || 'Équipement'}
+                            </span>
+                            <span className="block text-xs text-muted">
+                              {[eq.marque, eq.modele, eq.fluideType].filter(Boolean).join(' · ')}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })
+                )}
+              </ul>
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -1059,9 +1191,26 @@ export function AppelOtPage() {
             </p>
             <p className="text-muted">{otForm.action}</p>
             <p className="mt-1 text-xs text-muted">
-              {[client?.raisonSociale, site?.nom, selectedEq?.nom].filter(Boolean).join(' · ') ||
-                'Compléter client / site / équipement si besoin'}
+              {[
+                client?.raisonSociale,
+                site?.nom,
+                selectedEqs.length > 1
+                  ? `${selectedEqs.length} équipements`
+                  : selectedEq?.nom || selectedEq?.type,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Compléter client / site / équipement si besoin'}
             </p>
+            {selectedEqs.length > 1 && (
+              <ul className="mt-2 space-y-0.5 text-xs text-muted">
+                {selectedEqs.map((eq) => (
+                  <li key={eq.id}>
+                    · {eq.nom || eq.type || 'Équipement'}
+                    {eq.fluideType ? ` (${eq.fluideType})` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <label className="block text-sm">
@@ -1101,7 +1250,9 @@ export function AppelOtPage() {
                 <span>
                   <span className="block">CERFA (fluide / gaz)</span>
                   <span className="block text-sm font-medium text-muted">
-                    Document utile — n° {otForm.numero}, date reprise
+                    {fluideCount > 1
+                      ? `${fluideCount} équipements → 1 CERFA chacun`
+                      : `Document utile — n° ${otForm.numero}, date reprise`}
                   </span>
                 </span>
               </button>
