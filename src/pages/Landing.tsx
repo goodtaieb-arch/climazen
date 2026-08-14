@@ -338,7 +338,7 @@ export function Landing() {
               </div>
 
               {/* Téléphone — Accueil 3D (premier plan) */}
-              <div className="relative z-10 w-full max-w-[260px] sm:absolute sm:bottom-0 sm:right-0 sm:w-[48%] sm:max-w-[280px] lg:right-[-4%] lg:w-[46%]">
+              <div className="relative z-10 order-1 w-full max-w-[260px] sm:absolute sm:bottom-0 sm:right-0 sm:order-none sm:w-[48%] sm:max-w-[280px] lg:right-[-4%] lg:w-[46%]">
                 <div className="relative mx-auto rounded-[2.75rem] bg-gradient-to-b from-slate-800 via-ink to-slate-950 p-[11px] shadow-[0_28px_60px_-12px_rgba(7,24,32,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset] sm:rotate-[3deg]">
                   <span
                     className="pointer-events-none absolute -left-[3px] top-28 h-8 w-[3px] rounded-l-sm bg-slate-700"
