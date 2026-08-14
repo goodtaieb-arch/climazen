@@ -10,6 +10,7 @@ import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import { cerfaLabelFor } from '../lib/types'
+import { isOtCloture } from '../lib/ordreTravail'
 
 export function InterventionsPage() {
   const { data, deleteIntervention } = useStore()
@@ -18,9 +19,26 @@ export function InterventionsPage() {
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<'tous' | 'brouillon' | 'signe' | 'envoye'>('tous')
 
+  const effectiveStatus = (i: (typeof data.interventions)[0]) => {
+    if (i.status === 'envoye') return 'envoye' as const
+    if (i.status === 'signe') return 'signe' as const
+    // OT déjà clôturé → ne plus afficher « brouillon à reprendre »
+    const ot = (data.ordresTravail || []).find(
+      (o) =>
+        o.id === i.ordreTravailId ||
+        (i.numeroIntervention &&
+          (o.numero === i.numeroIntervention ||
+            i.numeroIntervention.startsWith(`${o.numero}-`))),
+    )
+    if (ot && isOtCloture(ot.statut) && (i.hasCerfaPdf || i.signatureOperateurImage)) {
+      return 'signe' as const
+    }
+    return i.status
+  }
+
   const filtered = useMemo(() => {
     return [...data.interventions]
-      .filter((i) => (statusFilter === 'tous' ? true : i.status === statusFilter))
+      .filter((i) => (statusFilter === 'tous' ? true : effectiveStatus(i) === statusFilter))
       .filter((i) => {
         const client = data.clients.find((c) => c.id === i.clientId)
         const chantier = data.chantiers.find((c) => c.id === i.chantierId)
@@ -41,7 +59,7 @@ export function InterventionsPage() {
         )
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  }, [data.interventions, data.clients, data.chantiers, q, statusFilter])
+  }, [data.interventions, data.ordresTravail, data.clients, data.chantiers, q, statusFilter])
 
   const openCerfa = async (id: string, label: string) => {
     const pdf = await loadCerfaPdf(id, user?.organizationId)
@@ -100,6 +118,7 @@ export function InterventionsPage() {
           const client = data.clients.find((c) => c.id === i.clientId)
           const chantier = data.chantiers.find((c) => c.id === i.chantierId)
           const label = chantier?.nom || 'Intervention'
+          const st = effectiveStatus(i)
           return (
             <div
               key={i.id}
@@ -125,17 +144,17 @@ export function InterventionsPage() {
                   <span
                     className={[
                       'rounded-full px-2 py-0.5 text-[11px] font-bold',
-                      i.status === 'brouillon'
+                      st === 'brouillon'
                         ? 'bg-amber-50 text-amber-900'
-                        : i.status === 'signe'
+                        : st === 'signe'
                           ? 'bg-emerald-50 text-emerald-800'
                           : 'bg-mist text-slate',
                     ].join(' ')}
                   >
-                    {i.status === 'brouillon'
+                    {st === 'brouillon'
                       ? 'Brouillon — à reprendre'
-                      : i.status === 'signe'
-                        ? 'Signé'
+                      : st === 'signe'
+                        ? 'Signé / clôturé'
                         : 'Envoyé'}
                   </span>
                 </div>
@@ -152,11 +171,11 @@ export function InterventionsPage() {
               <div className="mt-3 flex flex-wrap gap-1 border-t border-line pt-3">
                 <Link
                   to={`/app/interventions/${i.id}`}
-                  title="Ouvrir / régénérer le CERFA"
+                  title={st === 'signe' ? 'Voir / corriger une erreur' : 'Ouvrir / régénérer le CERFA'}
                   className="touch-target inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
                 >
                   <Pencil className="h-4 w-4 text-accent" />
-                  Ouvrir
+                  {st === 'brouillon' ? 'Reprendre' : 'Ouvrir'}
                 </Link>
                 <button
                   type="button"

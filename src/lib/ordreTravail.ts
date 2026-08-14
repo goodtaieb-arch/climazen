@@ -23,7 +23,11 @@ export const STATUT_OT_LABELS: Record<StatutOt, string> = {
   brouillon: 'Brouillon',
   en_cours: 'En cours',
   termine: 'Terminé',
-  signe: 'Signé',
+  signe: 'Clôturé',
+}
+
+export function isOtCloture(statut: StatutOt | string | undefined): boolean {
+  return statut === 'signe' || statut === 'termine'
 }
 
 /** Étapes du parcours appel client → intervention. */

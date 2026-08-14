@@ -13,6 +13,7 @@ import {
   STATUT_OT_LABELS,
   blankOrdreTravail,
   nextNumeroOt,
+  isOtCloture,
   type TypeOt,
   type StatutOt,
 } from '../lib/ordreTravail'
@@ -26,6 +27,7 @@ export function OrdresTravailPage() {
   const editId = params.get('id') || ''
   const [q, setQ] = useState('')
   const [typeFilter, setTypeFilter] = useState<'tous' | TypeOt>('tous')
+  const [statutFilter, setStatutFilter] = useState<'ouverts' | 'clotures' | 'tous'>('ouverts')
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === editId) || null,
@@ -56,9 +58,19 @@ export function OrdresTravailPage() {
     setForm(rest)
   }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Si on ouvre un OT clôturé via ?id=, basculer le filtre pour le voir dans la liste
+  useEffect(() => {
+    if (existing && isOtCloture(existing.statut)) setStatutFilter('clotures')
+  }, [existing?.id, existing?.statut])
+
   const list = useMemo(() => {
     return [...(data.ordresTravail || [])]
       .filter((o) => (typeFilter === 'tous' ? true : o.typeOt === typeFilter))
+      .filter((o) => {
+        if (statutFilter === 'tous') return true
+        if (statutFilter === 'clotures') return isOtCloture(o.statut)
+        return !isOtCloture(o.statut)
+      })
       .filter((o) => {
         const client = data.clients.find((c) => c.id === o.clientId)
         const site = data.chantiers.find((c) => c.id === o.chantierId)
@@ -70,7 +82,7 @@ export function OrdresTravailPage() {
         )
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  }, [data.ordresTravail, data.clients, data.chantiers, q, typeFilter])
+  }, [data.ordresTravail, data.clients, data.chantiers, q, typeFilter, statutFilter])
 
   const site = data.chantiers.find((c) => c.id === form.chantierId)
   const eqs = site ? allEquipements(site) : []
@@ -355,13 +367,22 @@ export function OrdresTravailPage() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
         <SearchField
           value={q}
           onChange={setQ}
           placeholder="N° OT, site, technicien…"
           testId="ot-search"
         />
+        <select
+          value={statutFilter}
+          onChange={(e) => setStatutFilter(e.target.value as typeof statutFilter)}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
+        >
+          <option value="ouverts">Ouverts (à faire)</option>
+          <option value="clotures">Clôturés</option>
+          <option value="tous">Tous</option>
+        </select>
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
@@ -380,10 +401,14 @@ export function OrdresTravailPage() {
         {list.map((o) => {
           const client = data.clients.find((c) => c.id === o.clientId)
           const siteRow = data.chantiers.find((c) => c.id === o.chantierId)
+          const cloture = isOtCloture(o.statut)
           return (
             <div
               key={o.id}
-              className="rounded-2xl border border-line bg-white p-4 shadow-sm"
+              className={[
+                'rounded-2xl border bg-white p-4 shadow-sm',
+                cloture ? 'border-emerald-200/80' : 'border-line',
+              ].join(' ')}
             >
               <Link to={`/app/ot?id=${encodeURIComponent(o.id)}`} className="block min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -393,7 +418,12 @@ export function OrdresTravailPage() {
                   <span className="font-display text-base font-semibold">
                     {TYPE_OT_LABELS[o.typeOt]}
                   </span>
-                  <span className="rounded-full bg-mist px-2 py-0.5 text-[10px] font-bold uppercase text-muted">
+                  <span
+                    className={[
+                      'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+                      cloture ? 'bg-emerald-100 text-emerald-900' : 'bg-mist text-muted',
+                    ].join(' ')}
+                  >
                     {STATUT_OT_LABELS[o.statut]}
                   </span>
                 </div>
@@ -404,17 +434,27 @@ export function OrdresTravailPage() {
                 </p>
               </Link>
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-                <Link
-                  to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900 sm:flex-none"
-                >
-                  <ClipboardList className="h-4 w-4" /> Reprendre parcours
-                </Link>
+                {cloture ? (
+                  <Link
+                    to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-muted sm:flex-none"
+                    title="Uniquement si erreur à corriger"
+                  >
+                    Modifier (erreur)
+                  </Link>
+                ) : (
+                  <Link
+                    to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900 sm:flex-none"
+                  >
+                    <ClipboardList className="h-4 w-4" /> Reprendre parcours
+                  </Link>
+                )}
                 <Link
                   to={`/app/ot?id=${encodeURIComponent(o.id)}`}
                   className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line px-3 text-xs font-semibold sm:flex-none"
                 >
-                  Ouvrir
+                  {cloture ? 'Voir' : 'Ouvrir'}
                 </Link>
                 <button
                   type="button"
@@ -431,7 +471,11 @@ export function OrdresTravailPage() {
         })}
         {list.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-10 text-center text-sm text-muted">
-            Aucun OT. Créez-en un depuis Sites & Parc ou ici.
+            {statutFilter === 'clotures'
+              ? 'Aucun OT clôturé pour l’instant.'
+              : statutFilter === 'ouverts'
+                ? 'Aucun OT ouvert. Créez-en un depuis Sites & Parc ou « Client appelle ».'
+                : 'Aucun OT. Créez-en un depuis Sites & Parc ou ici.'}
           </div>
         )}
       </div>

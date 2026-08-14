@@ -33,6 +33,7 @@ import {
   nextNumeroOt,
   naturesCerfaPourTypeOt,
   inferParcoursStep,
+  isOtCloture,
   type TypeOt,
   type ParcoursAppelStepId,
   type OrdreTravail,
@@ -160,6 +161,23 @@ export function AppelOtPage() {
     setOtId(existing.id)
     setStep(inferParcoursStep(existing))
   }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // OT déjà clôturé : classer les CERFA encore en « brouillon »
+  useEffect(() => {
+    if (!existing || !isOtCloture(existing.statut)) return
+    const linked = data.interventions.filter(
+      (i) =>
+        i.status === 'brouillon' &&
+        (i.ordreTravailId === existing.id ||
+          (existing.numero &&
+            (i.numeroIntervention === existing.numero ||
+              (i.numeroIntervention || '').startsWith(`${existing.numero}-`)))),
+    )
+    for (const draft of linked) {
+      if (!draft.hasCerfaPdf && !draft.signatureOperateurImage) continue
+      upsertIntervention({ ...draft, status: 'signe' })
+    }
+  }, [existing?.id, existing?.statut]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const client = data.clients.find((c) => c.id === otForm.clientId)
   const site = data.chantiers.find((c) => c.id === otForm.chantierId)
@@ -514,13 +532,42 @@ export function AppelOtPage() {
       alert('Signature client requise sur l’OT.')
       return
     }
-    persistOt({
+    const id = persistOt({
       statut: 'signe',
       parcoursStep: 'docs',
       rapportAction: otForm.rapportAction || otForm.action,
     })
-    setMsg(`OT ${otForm.numero} signé.`)
-    navigate(`/app/ot?id=${encodeURIComponent(otId || existing?.id || '')}`)
+    // Clôturer aussi les CERFA liés (plus de « brouillon à reprendre »)
+    const linked = data.interventions.filter(
+      (i) =>
+        i.ordreTravailId === id ||
+        i.ordreTravailId === otId ||
+        (otForm.numero &&
+          (i.numeroIntervention === otForm.numero ||
+            (i.numeroIntervention || '').startsWith(`${otForm.numero}-`))),
+    )
+    for (const draft of linked) {
+      upsertIntervention({
+        ...draft,
+        status: 'signe',
+        signatureOperateurImage:
+          draft.signatureOperateurImage || otForm.signatureTechnicienImage || undefined,
+        signatureOperateur:
+          draft.signatureOperateur || otForm.technicien || undefined,
+        signatureDetenteurImage:
+          draft.signatureDetenteurImage || otForm.signatureClientImage || undefined,
+        signatureDetenteur:
+          draft.signatureDetenteur || clientSignNom || undefined,
+        signatureDetenteurQualite:
+          draft.signatureDetenteurQualite || clientSignQualite || undefined,
+      })
+    }
+    setMsg(
+      linked.length > 0
+        ? `OT ${otForm.numero} clôturé — ${linked.length} CERFA classé${linked.length > 1 ? 's' : ''} signé${linked.length > 1 ? 's' : ''}.`
+        : `OT ${otForm.numero} clôturé.`,
+    )
+    navigate(`/app/ot?id=${encodeURIComponent(id)}`)
   }
 
   const stepIdx = STEP_INDEX[step]
@@ -539,6 +586,7 @@ export function AppelOtPage() {
     otForm.typeOt === 'maintenance' ||
     otForm.typeOt === 'entretien' ||
     otForm.typeOt === 'controle_etancheite'
+  const otCloture = isOtCloture(otForm.statut)
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -592,6 +640,16 @@ export function AppelOtPage() {
           )
         })}
       </ol>
+
+      {otCloture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <p className="font-semibold">OT clôturé</p>
+          <p className="mt-0.5 text-muted">
+            Classé avec les OT terminés. Vous pouvez encore corriger une erreur, puis re-clôturer
+            si besoin.
+          </p>
+        </div>
+      )}
 
       {msg ? (
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -1331,13 +1389,14 @@ export function AppelOtPage() {
               onClick={finishWithSignatures}
               className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
             >
-              <Check className="h-4 w-4" /> Clôturer signé
+              <Check className="h-4 w-4" /> {otCloture ? 'Re-clôturer' : 'Clôturer signé'}
             </button>
           </div>
 
           <p className="text-xs text-muted">
-            Signatures technicien + client sur l’OT (reprises sur le CERFA si besoin). La fiche
-            checklist n’est pas exigée pour clôturer une maintenance.
+            {otCloture
+              ? 'OT déjà clôturé — modification exceptionnelle en cas d’erreur.'
+              : 'Signatures technicien + client sur l’OT (reprises sur le CERFA si besoin). La fiche checklist n’est pas exigée pour clôturer.'}
           </p>
         </section>
       )}
