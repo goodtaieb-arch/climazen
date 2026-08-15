@@ -6,6 +6,21 @@
     <priority>1</priority>
   </url>
   <url>
+    <loc>https://climazen.fr/cerfa-15497</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://climazen.fr/f-gas-hors-ligne</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://climazen.fr/logiciel-cerfa-clim</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
     <loc>https://climazen.fr/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>

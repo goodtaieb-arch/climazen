@@ -26,6 +26,7 @@ import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
 import { AgendaPage } from './pages/AgendaPage'
 import { ContactPage } from './pages/ContactPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
+import { Cerfa15497Page, FGasHorsLignePage, LogicielCerfaClimPage } from './pages/SeoPages'
 
 /** Remonte le formulaire à chaque CERFA (Page 1/2 ↔ 2/2) pour recharger les données. */
 function InterventionFormRoute() {
@@ -52,6 +53,9 @@ export default function App() {
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Landing />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/cerfa-15497" element={<Cerfa15497Page />} />
+                <Route path="/f-gas-hors-ligne" element={<FGasHorsLignePage />} />
+                <Route path="/logiciel-cerfa-clim" element={<LogicielCerfaClimPage />} />
                 <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
                 <Route path="/cgu" element={<CguPage />} />
                 <Route path="/confidentialite" element={<ConfidentialitePage />} />

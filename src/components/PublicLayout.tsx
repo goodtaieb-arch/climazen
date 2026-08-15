@@ -37,6 +37,17 @@ export function PublicLayout() {
               Fonctionnalités
             </a>
             <NavLink
+              to="/cerfa-15497"
+              className={({ isActive }) =>
+                [
+                  'rounded-full px-3 py-2 font-medium transition-colors',
+                  isActive ? 'bg-accent-soft text-ink' : 'text-muted hover:bg-mist hover:text-ink',
+                ].join(' ')
+              }
+            >
+              CERFA 15497
+            </NavLink>
+            <NavLink
               to="/contact"
               className={({ isActive }) =>
                 [
@@ -84,6 +95,15 @@ export function PublicLayout() {
             <a href="/#tarifs" className="hover:text-ink">
               Tarifs
             </a>
+            <Link to="/cerfa-15497" className="hover:text-ink">
+              CERFA 15497-04
+            </Link>
+            <Link to="/f-gas-hors-ligne" className="hover:text-ink">
+              F-Gas hors ligne
+            </Link>
+            <Link to="/logiciel-cerfa-clim" className="hover:text-ink">
+              Logiciel CERFA clim
+            </Link>
             <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-ink">
               {CONTACT_EMAIL}
             </a>
