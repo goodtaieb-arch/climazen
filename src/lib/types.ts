@@ -323,8 +323,22 @@ export interface StockItem {
   conformeA2LA3?: boolean
   /** Pression d’épreuve PH (bar) — marquage ogive. */
   pressionEpreuveBar?: number
-  /** Date de rééprouvage / prochain contrôle périodique bouteille. */
+  /** Date de fin de validité / prochain rééprouvage (contrôle périodique). */
   dateReepreuvage?: string
+  /** Poids à vide (tare) kg — pour calcul balance terrain. */
+  tareKg?: number
+  /**
+   * Date d’entrée en possession (consigne distributeur).
+   * Sert au compteur « jours en possession ».
+   */
+  dateEntreePossession?: string
+  /** Seuil d’alerte consigne (jours), défaut 30. */
+  seuilAlerteConsigneJours?: number
+  /**
+   * Type d’huile associé (récupération) — éviter mélange MO / POE.
+   * MO = minérale, POE = polyolester, PAG, AB = alkylbenzène.
+   */
+  typeHuile?: 'POE' | 'PAG' | 'MO' | 'AB' | 'autre' | 'inconnu'
   /** BSFF Trackdéchets si applicable */
   bsffReference?: string
   codeUn?: string
@@ -355,6 +369,8 @@ export type StockMouvementKind =
   | 'destruction'
   /** Déplacement interne atelier ↔ véhicule (pas de CERFA client) */
   | 'transfert_interne'
+  /** Perte / fuite / dégazage accidentel (bilan F-Gas annuel) */
+  | 'perte_emission'
 
 export interface StockMouvement {
   id: string
@@ -442,6 +458,8 @@ export interface CerfaDraft {
     bsffReference?: string
     /** Entrée (récup) ou sortie (usage / vidage) — historique lié au CERFA */
     sens?: StockMouvementSens
+    /** Huile associée à cette récupération (MO / POE…) */
+    typeHuile?: StockItem['typeHuile']
   }[]
 
   /** [12] */

@@ -21,6 +21,13 @@ import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3 } f
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
+import {
+  TYPE_HUILE_LABELS,
+  alerteConsigneJours,
+  isBouteilleReepreuveBientot,
+  isBouteilleReepreuveExpiree,
+  type TypeHuile,
+} from '../lib/stockBouteilleExtras'
 import { A2lConformiteCheckbox, A2lRecupAlert } from '../components/A2lRecupAlert'
 import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
 import { MobileFab } from '../components/MobileFab'
@@ -56,6 +63,10 @@ const blank = (opts?: {
     conformeA2LA3: false,
     pressionEpreuveBar: undefined,
     dateReepreuvage: '',
+    tareKg: undefined,
+    dateEntreePossession: today(),
+    seuilAlerteConsigneJours: 30,
+    typeHuile: contenantType === 'recuperation' ? 'inconnu' : undefined,
   }
 }
 
@@ -114,6 +125,7 @@ export function StockPage() {
     enregistrerRetourConsigneBouteille,
     enregistrerDestructionBouteille,
     enregistrerTransfertInterneBouteille,
+    enregistrerPerteEmissionBouteille,
   } = useStore()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -143,6 +155,13 @@ export function StockPage() {
     versLabel: '',
     date: today(),
     documentAdr: '',
+    notes: '',
+  })
+  const [perteId, setPerteId] = useState<string | null>(null)
+  const [perteForm, setPerteForm] = useState({
+    quantiteKg: 0,
+    date: today(),
+    motif: 'Fuite / dégazage accidentel',
     notes: '',
   })
   const [q, setQ] = useState('')
@@ -394,9 +413,36 @@ export function StockPage() {
     }
   }
 
+  const openPerte = (s: StockItem) => {
+    setPerteId(s.id)
+    setPerteForm({
+      quantiteKg: Number(s.quantiteKg) || 0,
+      date: today(),
+      motif: 'Fuite / dégazage accidentel',
+      notes: '',
+    })
+  }
+
+  const submitPerte = (e: FormEvent) => {
+    e.preventDefault()
+    if (!perteId) return
+    try {
+      enregistrerPerteEmissionBouteille({
+        stockItemId: perteId,
+        ...perteForm,
+        createdByName: user?.fullName || user?.email || user?.username,
+      })
+      setPerteId(null)
+      setExpandedId(perteId)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erreur déclaration perte')
+    }
+  }
+
   const retourBottle = retourId ? data.stock.find((s) => s.id === retourId) : null
   const destrBottle = destrId ? data.stock.find((s) => s.id === destrId) : null
   const trfBottle = trfId ? data.stock.find((s) => s.id === trfId) : null
+  const perteBottle = perteId ? data.stock.find((s) => s.id === perteId) : null
 
   return (
     <div className="space-y-6">
@@ -525,6 +571,58 @@ export function StockPage() {
             </p>
           )}
 
+          <DecimalField
+            label="Tare (poids vide, kg)"
+            value={form.tareKg ?? 0}
+            onChange={(n) => setForm({ ...form, tareKg: n || undefined })}
+            placeholder="ex. 8,5"
+            emptyZero
+          />
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Date de rééprouvage / fin de validité</span>
+            <input
+              type="date"
+              value={form.dateReepreuvage || ''}
+              onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Entrée en possession (consigne)</span>
+            <input
+              type="date"
+              value={form.dateEntreePossession || ''}
+              onChange={(e) => setForm({ ...form, dateEntreePossession: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <DecimalField
+            label="Alerte consigne après (jours)"
+            value={form.seuilAlerteConsigneJours ?? 30}
+            onChange={(n) => setForm({ ...form, seuilAlerteConsigneJours: n || 30 })}
+            placeholder="30"
+            emptyZero
+          />
+          {form.contenantType === 'recuperation' && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-muted">Type d’huile (récupération)</span>
+              <select
+                value={form.typeHuile || 'inconnu'}
+                onChange={(e) => setForm({ ...form, typeHuile: e.target.value as TypeHuile })}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                {(Object.keys(TYPE_HUILE_LABELS) as TypeHuile[]).map((k) => (
+                  <option key={k} value={k}>
+                    {TYPE_HUILE_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted">
+                Évite le mélange MO / POE sur la même bouteille (recyclage).
+              </p>
+            </label>
+          )}
+
           {form.contenantType === 'recuperation' && isFluideInflammableA2LOrA3(form.fluide) && (
             <div className="space-y-2 sm:col-span-2">
               <A2lRecupAlert fluide={form.fluide} />
@@ -534,24 +632,13 @@ export function StockPage() {
                 onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
                 id="stock-conforme-a2l"
               />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DecimalField
-                  label="Pression d’épreuve PH (bar)"
-                  value={form.pressionEpreuveBar ?? 0}
-                  onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
-                  placeholder="ex. 48"
-                  emptyZero
-                />
-                <label className="block text-sm">
-                  <span className="mb-1 block text-muted">Date de rééprouvage</span>
-                  <input
-                    type="date"
-                    value={form.dateReepreuvage || ''}
-                    onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
-                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
-                  />
-                </label>
-              </div>
+              <DecimalField
+                label="Pression d’épreuve PH (bar)"
+                value={form.pressionEpreuveBar ?? 0}
+                onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
+                placeholder="ex. 48"
+                emptyZero
+              />
             </div>
           )}
 
@@ -944,6 +1031,65 @@ export function StockPage() {
         </form>
       )}
 
+      {perteId && perteBottle && (
+        <form
+          onSubmit={submitPerte}
+          className="grid gap-3 rounded-2xl border border-rose-200 bg-rose-50/70 p-5 sm:grid-cols-2"
+        >
+          <p className="text-sm text-rose-950 sm:col-span-2">
+            Déclaration de perte / fuite — <strong>{perteBottle.numeroContenant}</strong> (
+            {perteBottle.fluide}). Met à jour le stock et le bilan F-Gas annuel.
+          </p>
+          <DecimalField
+            label="Quantité perdue (kg) *"
+            value={perteForm.quantiteKg}
+            onChange={(n) => setPerteForm({ ...perteForm, quantiteKg: n })}
+            emptyZero
+          />
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Date *</span>
+            <input
+              required
+              type="date"
+              value={perteForm.date}
+              onChange={(e) => setPerteForm({ ...perteForm, date: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Motif</span>
+            <input
+              value={perteForm.motif}
+              onChange={(e) => setPerteForm({ ...perteForm, motif: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Notes</span>
+            <input
+              value={perteForm.notes}
+              onChange={(e) => setPerteForm({ ...perteForm, notes: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button
+              type="submit"
+              className="rounded-full bg-rose-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-800"
+            >
+              Enregistrer la perte
+            </button>
+            <button
+              type="button"
+              onClick={() => setPerteId(null)}
+              className="rounded-full border border-line bg-white px-5 py-2.5 text-sm"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="space-y-4">
         {groups.map((group) => {
           const f = findFluide(group.fluide)
@@ -1035,6 +1181,39 @@ export function StockPage() {
                                   Même client
                                 </span>
                               )}
+                              {isBouteilleReepreuveExpiree(s) && (
+                                <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                                  Rééprouvage dépassé
+                                </span>
+                              )}
+                              {!isBouteilleReepreuveExpiree(s) &&
+                                isBouteilleReepreuveBientot(s) && (
+                                  <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                                    Rééprouvage bientôt
+                                  </span>
+                                )}
+                              {(() => {
+                                const c = alerteConsigneJours(s)
+                                if (!c) return null
+                                return (
+                                  <span
+                                    className={[
+                                      'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                      c.alerte
+                                        ? 'bg-violet-700 text-white'
+                                        : 'bg-violet-100 text-violet-900',
+                                    ].join(' ')}
+                                  >
+                                    {c.jours} j consigne
+                                    {c.alerte ? ' !' : ''}
+                                  </span>
+                                )
+                              })()}
+                              {s.typeHuile && s.typeHuile !== 'inconnu' && (
+                                <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-stone-800">
+                                  {s.typeHuile}
+                                </span>
+                              )}
                               {s.contenantType === 'recuperation' &&
                                 isFluideInflammableA2LOrA3(s.fluide) && (
                                   <span
@@ -1104,6 +1283,16 @@ export function StockPage() {
                               title="Transfert interne atelier ↔ véhicule (sans CERFA)"
                             >
                               Transfert
+                            </button>
+                          )}
+                          {current > 0 && !isBouteilleRetournee(s) && (
+                            <button
+                              type="button"
+                              onClick={() => openPerte(s)}
+                              className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-950 hover:bg-rose-100"
+                              title="Déclaration perte / fuite (bilan F-Gas)"
+                            >
+                              Perte
                             </button>
                           )}
                           <button
@@ -1180,6 +1369,10 @@ export function StockPage() {
                                       ) : m.kind === 'transfert_interne' ? (
                                         <span className="font-semibold text-sky-800">
                                           Transfert interne
+                                        </span>
+                                      ) : m.kind === 'perte_emission' ? (
+                                        <span className="font-semibold text-rose-800">
+                                          Perte / émission −{m.quantiteKg} kg
                                         </span>
                                       ) : m.kind === 'destruction' ? (
                                         <span className="font-semibold text-orange-800">
@@ -1307,7 +1500,7 @@ export function StockPage() {
 
       <MobileFab
         label="Ajouter"
-        hidden={open || !!retourId || !!destrId || !!trfId}
+        hidden={open || !!retourId || !!destrId || !!trfId || !!perteId}
         onClick={() => {
           setEditId(null)
           setForm(blank())

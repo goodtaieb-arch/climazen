@@ -109,6 +109,10 @@ function kindLabel(m: StockMouvement): string {
       return 'Destruction'
     case 'retour_consigne':
       return 'Retour consigne'
+    case 'transfert_interne':
+      return 'Transfert interne'
+    case 'perte_emission':
+      return 'Perte / émission accidentelle'
     case 'cerfa':
       return m.sens === 'entree' ? 'Récupération (CERFA)' : 'Charge / sortie (CERFA)'
     default:
@@ -168,6 +172,19 @@ function buildJustificatifs(
         organisme: m.tiersNom?.trim() || 'Centre / déchèterie non renseigné',
         reference: m.documentReference?.trim() || m.cerfaLabel || '—',
         typeDoc: 'BSFF / bon de prise en charge déchets',
+        note: m.note,
+      })
+    } else if (m.kind === 'perte_emission') {
+      push({
+        categorie: 'decheterie',
+        categorieLabel: 'Perte / fuite / dégazage accidentel (émission)',
+        date: m.date.slice(0, 10),
+        fluide: m.fluide,
+        quantiteKg: m.quantiteKg,
+        numeroContenant: m.numeroContenant,
+        organisme: 'Déclaration interne F-Gas',
+        reference: m.cerfaLabel || '—',
+        typeDoc: 'Déclaration de perte / émission',
         note: m.note,
       })
     } else if (m.kind === 'retour_consigne') {
@@ -281,7 +298,7 @@ export function buildRapportAnnuelGaz(data: AppData, year: number): RapportAnnue
           acheteKg += q
           continue
         }
-        if (m.kind === 'destruction') {
+        if (m.kind === 'destruction' || m.kind === 'perte_emission') {
           detruitKg += q
           continue
         }
@@ -289,6 +306,7 @@ export function buildRapportAnnuelGaz(data: AppData, year: number): RapportAnnue
           remisFournisseurKg += q
           continue
         }
+        if (m.kind === 'transfert_interne') continue
         if (m.sens === 'sortie') chargeKg += q
         else recupereKg += q
       }

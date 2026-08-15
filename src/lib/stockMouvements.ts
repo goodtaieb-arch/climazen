@@ -51,7 +51,7 @@ export function applyStockFromIntervention(
   const now = new Date().toISOString()
   const date = intervention.dateIntervention || now.slice(0, 10)
 
-  // 2) Appliquer les nouveaux mouvements
+    // 2) Appliquer les nouveaux mouvements
   const denomination = (intervention.fluideType || '').trim()
   for (const m of manip) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
@@ -102,6 +102,23 @@ export function applyStockFromIntervention(
       // Pas sur récupération : une même bouteille déchet peut accumuler plusieurs sites.
       if (item.contenantType === 'regenere' && intervention.clientId && !item.origineClientId) {
         patch.origineClientId = intervention.clientId
+      }
+      // Huile récupération : mémorise / refuse mélange MO ↔ POE
+      const huile = m.typeHuile
+      if (huile && item.contenantType === 'recuperation') {
+        if (
+          item.typeHuile &&
+          item.typeHuile !== 'inconnu' &&
+          huile !== 'inconnu' &&
+          item.typeHuile !== huile
+        ) {
+          throw new Error(
+            `Mélange d’huiles interdit sur ${item.numeroContenant} : bouteille déjà en ${item.typeHuile}, récupération en ${huile}. Utilisez une autre bouteille.`,
+          )
+        }
+        if (!item.typeHuile || item.typeHuile === 'inconnu') {
+          patch.typeHuile = huile
+        }
       }
       stock[idx] = { ...item, ...patch }
       mouvements.push(
@@ -512,6 +529,61 @@ export function enregistrerTransfertInterne(
     ]
       .filter(Boolean)
       .join(' · '),
+  })
+
+  return {
+    ...data,
+    stock: data.stock.map((s, i) => (i === idx ? nextItem : s)),
+    stockMouvements: [...(data.stockMouvements || []), mouvement],
+  }
+}
+
+/**
+ * Déclaration de perte / fuite / dégazage accidentel (bilan F-Gas annuel).
+ * Sortie de stock sans CERFA client.
+ */
+export function enregistrerPerteEmission(
+  data: AppData,
+  opts: {
+    stockItemId: string
+    quantiteKg: number
+    date: string
+    motif?: string
+    notes?: string
+    createdByName?: string
+  },
+): AppData {
+  const idx = data.stock.findIndex((s) => s.id === opts.stockItemId)
+  if (idx < 0) throw new Error('Bouteille introuvable.')
+  const item = data.stock[idx]
+  const qty = roundKg(Number(opts.quantiteKg) || 0)
+  if (qty <= 0) throw new Error('Quantité perdue (kg) obligatoire.')
+  if (qty > item.quantiteKg + 1e-9) {
+    throw new Error(`Stock insuffisant : reste ${item.quantiteKg} kg.`)
+  }
+
+  const now = new Date().toISOString()
+  const date = opts.date || now.slice(0, 10)
+  const apres = roundKg(item.quantiteKg - qty)
+  const motif = opts.motif?.trim() || 'Perte / fuite / dégazage accidentel'
+
+  const nextItem: StockItem = {
+    ...item,
+    quantiteKg: apres,
+    updatedAt: now,
+  }
+
+  const mouvement = makeMouvement({
+    item,
+    sens: 'sortie',
+    quantiteKg: qty,
+    quantiteAvantKg: item.quantiteKg,
+    quantiteApresKg: apres,
+    date,
+    cerfaLabel: `PERTE-${date}-${item.numeroContenant || item.id.slice(0, 6)}`,
+    createdByName: opts.createdByName,
+    kind: 'perte_emission',
+    note: [motif, opts.notes?.trim() || ''].filter(Boolean).join(' · '),
   })
 
   return {

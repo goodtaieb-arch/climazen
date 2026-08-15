@@ -38,6 +38,12 @@ import {
 } from '../lib/stockRegles'
 import { A2lRecupAlert } from '../components/A2lRecupAlert'
 import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
+import {
+  TYPE_HUILE_LABELS,
+  isBouteilleReepreuveExpiree,
+  quantiteDepuisPesee,
+  type TypeHuile,
+} from '../lib/stockBouteilleExtras'
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
@@ -58,6 +64,9 @@ type ManipDraft = {
   stockItemId: string
   quantiteKg: number
   sens: StockMouvementSens
+  typeHuile?: import('../lib/types').StockItem['typeHuile']
+  /** Poids brut lu sur balance (tare déduite → quantiteKg) */
+  poidsBrutKg?: number
 }
 
 function newManipLine(sens: StockMouvementSens = 'sortie'): ManipDraft {
@@ -66,6 +75,8 @@ function newManipLine(sens: StockMouvementSens = 'sortie'): ManipDraft {
     stockItemId: '',
     quantiteKg: 0,
     sens,
+    typeHuile: undefined,
+    poidsBrutKg: undefined,
   }
 }
 
@@ -543,6 +554,18 @@ export function InterventionFormPage() {
             next.sens = sensMouvementPourContenant(item.contenantType, item.quantiteKg)
             const allowed = sensAutorisesCerfa(item.contenantType)
             if (!allowed.includes(next.sens)) next.sens = allowed[0]
+            if (item.contenantType === 'recuperation' && !next.typeHuile) {
+              next.typeHuile = item.typeHuile || 'inconnu'
+            }
+            if (item.tareKg && next.poidsBrutKg != null) {
+              next.quantiteKg = quantiteDepuisPesee(next.poidsBrutKg, item.tareKg)
+            }
+          }
+        }
+        if (patch.poidsBrutKg != null) {
+          const item = data.stock.find((s) => s.id === next.stockItemId)
+          if (item?.tareKg) {
+            next.quantiteKg = quantiteDepuisPesee(patch.poidsBrutKg, item.tareKg)
           }
         }
         return next
@@ -598,6 +621,7 @@ export function InterventionFormPage() {
           numeroContenant: item.numeroContenant,
           bsffReference: item.bsffReference,
           sens: m.sens,
+          typeHuile: m.typeHuile || item.typeHuile,
         }
       })
       .filter((x): x is NonNullable<typeof x> => !!x)
@@ -911,6 +935,11 @@ export function InterventionFormPage() {
       ) {
         throw new Error(
           `Bouteille ${item.numeroContenant} (${item.fluide}) : confirmez en Stock qu’elle est certifiée A2L/A3 (collerette rouge + pas à gauche) avant la récupération.`,
+        )
+      }
+      if (isBouteilleReepreuveExpiree(item)) {
+        throw new Error(
+          `Bouteille ${item.numeroContenant} : date de rééprouvage dépassée (${item.dateReepreuvage}). Contrôle périodique obligatoire avant usage.`,
         )
       }
     }
@@ -1658,11 +1687,64 @@ export function InterventionFormPage() {
                               : 'Quantité récupérée / ajoutée (kg) *'
                         }
                         value={m.quantiteKg}
-                        onChange={(n) => updateManip(m.key, { quantiteKg: n })}
+                        onChange={(n) => updateManip(m.key, { quantiteKg: n, poidsBrutKg: undefined })}
                         placeholder="ex. 2,2"
                         emptyZero
                       />
                     </div>
+                  )}
+                  {item && m.sens === 'entree' && Number(item.tareKg) > 0 && (
+                    <div className="rounded-xl border border-line bg-mist/50 p-3">
+                      <p className="mb-2 text-xs font-semibold text-ink">
+                        Calculateur balance (brut − tare {item.tareKg} kg)
+                      </p>
+                      <DecimalField
+                        label="Poids lu sur la balance (brut, kg)"
+                        value={m.poidsBrutKg ?? 0}
+                        onChange={(n) => updateManip(m.key, { poidsBrutKg: n })}
+                        placeholder="ex. 12,4"
+                        emptyZero
+                      />
+                      <p className="mt-1 text-xs text-muted">
+                        Quantité fluide calculée :{' '}
+                        <strong>
+                          {quantiteDepuisPesee(m.poidsBrutKg ?? 0, item.tareKg || 0)} kg
+                        </strong>
+                      </p>
+                    </div>
+                  )}
+                  {item?.contenantType === 'recuperation' && m.sens === 'entree' && (
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-muted">Type d’huile de l’équipement</span>
+                      <select
+                        value={m.typeHuile || item.typeHuile || 'inconnu'}
+                        onChange={(e) =>
+                          updateManip(m.key, { typeHuile: e.target.value as TypeHuile })
+                        }
+                        className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                      >
+                        {(Object.keys(TYPE_HUILE_LABELS) as TypeHuile[]).map((k) => (
+                          <option key={k} value={k}>
+                            {TYPE_HUILE_LABELS[k]}
+                          </option>
+                        ))}
+                      </select>
+                      {item.typeHuile &&
+                        item.typeHuile !== 'inconnu' &&
+                        m.typeHuile &&
+                        m.typeHuile !== 'inconnu' &&
+                        item.typeHuile !== m.typeHuile && (
+                          <p className="mt-1 text-xs font-semibold text-danger">
+                            Attention : bouteille déjà en {item.typeHuile} — mélange avec{' '}
+                            {m.typeHuile} interdit (recyclage).
+                          </p>
+                        )}
+                    </label>
+                  )}
+                  {item && isBouteilleReepreuveExpiree(item) && (
+                    <p className="text-xs font-semibold text-danger">
+                      Rééprouvage dépassé ({item.dateReepreuvage}) — usage interdit jusqu’au contrôle.
+                    </p>
                   )}
                   {item && !item.numeroContenant?.trim() && (
                     <p className="text-xs text-danger">
