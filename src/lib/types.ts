@@ -95,6 +95,11 @@ export interface Operateur {
   facturationWebhookUrl?: string
   /** create_client | create_devis | create_facture */
   facturationActionDefaut?: FacturationAction
+  /**
+   * Installations de destination habituelles (CERFA [13]) —
+   * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.
+   */
+  destinationsInstallation?: string[]
 }
 
 /** Plateformes de facturation les plus utilisées (via Make). */

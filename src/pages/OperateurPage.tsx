@@ -144,6 +144,35 @@ export function OperateurPage() {
         <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+          <h2 className="font-display mb-1 text-base font-semibold">
+            Destinations CERFA [13]
+          </h2>
+          <p className="mb-3 text-sm text-muted">
+            Distributeurs / dépôts proposés dans le menu « Installation de destination » (Climalife,
+            Gazechim, Dépôt…). Une ligne = une destination. Les saisies libres sur une fiche sont
+            aussi mémorisées automatiquement.
+          </p>
+          <textarea
+            rows={4}
+            value={(form.destinationsInstallation || []).join('\n')}
+            onChange={(e) =>
+              patchForm({
+                destinationsInstallation: e.target.value
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder={'Climalife\nGazechim\nWestfalen\nDépôt atelier'}
+            className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Les destinations par défaut (Climalife, Gazechim, Westfalen, Dépôt, Destruction / BSFF)
+            restent toujours proposées, même si cette liste est vide.
+          </p>
+        </div>
+
+        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Logo de la société</h2>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             {form.logoImage ? (

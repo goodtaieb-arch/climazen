@@ -26,7 +26,20 @@ import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
-import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, isFluideInflammableA2LOrA3, sameFluideCode } from '../lib/fluides'
+import {
+  adrInfoForFluide,
+  calcTeqCO2FromFluide,
+  controlesPeriodiquesInfo,
+  findFluide,
+  isFluideInflammableA2LOrA3,
+  sameFluideCode,
+} from '../lib/fluides'
+import {
+  DESTINATION_AUTRE_VALUE,
+  isDestinationLibre,
+  mergeDestinationsInstallation,
+  rememberDestination,
+} from '../lib/destinationsInstallation'
 import {
   assertMouvementCerfaLegal,
   bouteilleEligibleChargeCerfa,
@@ -45,7 +58,7 @@ import {
   type TypeHuile,
 } from '../lib/stockBouteilleExtras'
 import { bottleLetter, roundKg } from '../lib/decimal'
-import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
+import { TIP_ADR, TIP_BOUTEILLE, TIP_DESTINATION, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
@@ -85,8 +98,14 @@ export function InterventionFormPage() {
   const [searchParams] = useSearchParams()
   const isNew = !id || id === 'new'
   const navigate = useNavigate()
-  const { data, saveInterventionWithStock, upsertIntervention, upsertChantier, applySiteClientSignature } =
-    useStore()
+  const {
+    data,
+    saveInterventionWithStock,
+    upsertIntervention,
+    upsertChantier,
+    applySiteClientSignature,
+    setOperateur,
+  } = useStore()
   const { user } = useAuth()
 
   const existing = useMemo(
@@ -238,6 +257,20 @@ export function InterventionFormPage() {
   const detecteurExpire = isDetecteurControleExpire(detecteurControleDate)
   /** Dénomination fluide de la fiche CERFA (pas l’ancien gaz du chantier) */
   const denominationFluide = (fluideType || '').trim()
+  const adrAuto = useMemo(() => adrInfoForFluide(denominationFluide), [denominationFluide])
+  const destinationsOptions = useMemo(() => {
+    const fromInterventions = data.interventions
+      .map((i) => i.installationDestination || '')
+      .filter(Boolean)
+    return mergeDestinationsInstallation(data.operateur.destinationsInstallation, fromInterventions)
+  }, [data.interventions, data.operateur.destinationsInstallation])
+  const destinationSelectValue = useMemo(() => {
+    const v = installationDestination.trim()
+    if (!v) return ''
+    if (isDestinationLibre(v, destinationsOptions)) return DESTINATION_AUTRE_VALUE
+    const match = destinationsOptions.find((o) => o.trim().toLowerCase() === v.toLowerCase())
+    return match || DESTINATION_AUTRE_VALUE
+  }, [installationDestination, destinationsOptions])
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
@@ -448,16 +481,17 @@ export function InterventionFormPage() {
     if (eq?.teqCO2 || chantier.teqCO2) setTeqCO2(eq?.teqCO2 ?? chantier.teqCO2 ?? 0)
   }, [chantierId, equipementId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Préremplir UN / ADR depuis la 1ʳᵉ bouteille choisie
+  // [12] Code UN + ADR : 100 % auto selon le fluide [7]
   useEffect(() => {
-    if (existing) return
-    const first = manips.find((m) => m.stockItemId)
-    if (!first) return
-    const item = data.stock.find((s) => s.id === first.stockItemId)
-    if (!item) return
-    if (item.codeUn) setCodeUn(item.codeUn)
-    if (item.denominationAdr) setDenominationAdr(item.denominationAdr)
-  }, [firstStockId]) // eslint-disable-line react-hooks/exhaustive-deps
+    const adr = adrInfoForFluide(denominationFluide)
+    if (adr) {
+      setCodeUn(adr.codeUn)
+      setDenominationAdr(adr.denominationAdr)
+    } else {
+      setCodeUn('')
+      setDenominationAdr('')
+    }
+  }, [denominationFluide])
 
   // Si la dénomination fluide change, retirer toute bouteille d’un autre gaz (tous types)
   useEffect(() => {
@@ -967,6 +1001,15 @@ export function InterventionFormPage() {
     )
     setDraftId(savedId)
     lastDraftJsonRef.current = ''
+
+    const dest = installationDestination.trim()
+    if (dest) {
+      const nextDest = rememberDestination(data.operateur.destinationsInstallation, dest)
+      const prev = data.operateur.destinationsInstallation || []
+      if (JSON.stringify(nextDest) !== JSON.stringify(prev)) {
+        void setOperateur({ ...data.operateur, destinationsInstallation: nextDest })
+      }
+    }
 
     if (signatureDetenteurImage && chantierId) {
       applySiteClientSignature({
@@ -1871,28 +1914,73 @@ export function InterventionFormPage() {
 
         <Section title="[12] / [13] Déchets & destination">
           <div className="grid gap-3 sm:grid-cols-2">
-            <LabelHint label="Code UN" tip={TIP_UN}>
+            <LabelHint label="Code UN (auto)" tip={TIP_UN}>
               <input
                 value={codeUn}
-                onChange={(e) => setCodeUn(e.target.value)}
-                placeholder="ex. 3163"
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                readOnly
+                placeholder={denominationFluide ? 'Non trouvé pour ce fluide' : 'Choisir le fluide [7]'}
+                className="h-11 w-full rounded-xl border border-line bg-mist/60 px-3 text-ink"
+                aria-readonly="true"
               />
             </LabelHint>
-            <LabelHint label="Dénomination ADR/RID" tip={TIP_ADR}>
+            <LabelHint label="Dénomination ADR/RID (auto)" tip={TIP_ADR}>
               <input
                 value={denominationAdr}
-                onChange={(e) => setDenominationAdr(e.target.value)}
-                placeholder="ex. UN 3163 Gaz liquéfié, n.s.a. (R-410A)"
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                readOnly
+                placeholder={denominationFluide ? 'Non trouvé pour ce fluide' : 'Choisir le fluide [7]'}
+                className="h-11 w-full rounded-xl border border-line bg-mist/60 px-3 text-ink"
+                aria-readonly="true"
               />
             </LabelHint>
-            <Field
+            {denominationFluide && !adrAuto && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-2">
+                Pas de code UN / ADR connu pour <strong>{denominationFluide}</strong>. Vérifiez le
+                fluide [7] ou contactez le support ClimaZEN pour l’ajouter.
+              </p>
+            )}
+            {adrAuto && (
+              <p className="text-xs text-muted sm:col-span-2">
+                Rempli automatiquement depuis le fluide <strong>{denominationFluide}</strong> —
+                changez [7] pour mettre à jour.
+              </p>
+            )}
+            <LabelHint
               label="Installation de destination [13]"
-              value={installationDestination}
-              onChange={setInstallationDestination}
+              tip={TIP_DESTINATION}
               className="sm:col-span-2"
-            />
+            >
+              <select
+                value={destinationSelectValue}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === DESTINATION_AUTRE_VALUE) {
+                    if (!isDestinationLibre(installationDestination, destinationsOptions)) {
+                      setInstallationDestination('')
+                    }
+                    return
+                  }
+                  setInstallationDestination(v)
+                }}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="">— Choisir un distributeur / dépôt —</option>
+                {destinationsOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+                <option value={DESTINATION_AUTRE_VALUE}>Autre (texte libre)…</option>
+              </select>
+              {destinationSelectValue === DESTINATION_AUTRE_VALUE && (
+                <input
+                  value={installationDestination}
+                  onChange={(e) => setInstallationDestination(e.target.value)}
+                  placeholder="ex. Nom du centre, adresse, filière…"
+                  className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3"
+                  autoFocus
+                />
+              )}
+            </LabelHint>
           </div>
         </Section>
 

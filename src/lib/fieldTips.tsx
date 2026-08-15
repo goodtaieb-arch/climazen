@@ -25,15 +25,12 @@ export const TIP_UN = (
   <>
     <strong className="font-semibold text-accent">Code UN</strong>
     <span className="mt-1 block text-white/85">
-      Numéro à <strong className="text-white">4 chiffres</strong> qui identifie la matière dangereuse
-      pour le transport (réglementation ADR/RID).
+      Rempli <strong className="text-white">automatiquement</strong> selon le fluide choisi en [7]
+      (ex. R-32 → 3252, R-410A → 3163, R-134a → 3159).
     </span>
     <span className="mt-2 block text-white/80">
-      Il forme le début de la dénomination :{' '}
-      <strong className="text-white">UN [code] + nom du gaz</strong>
-      <br />
-      Ex. : <strong className="text-white">3163</strong>, <strong className="text-white">1078</strong>,{' '}
-      <strong className="text-white">3159</strong>…
+      Numéro à 4 chiffres ADR/RID identifiant la matière dangereuse pour le transport. Non
+      modifiable ici — changez le fluide [7] pour mettre à jour.
     </span>
   </>
 )
@@ -42,13 +39,27 @@ export const TIP_ADR = (
   <>
     <strong className="font-semibold text-accent">Dénomination ADR/RID</strong>
     <span className="mt-1 block text-white/85">
-      Désignation officielle de transport des marchandises dangereuses (réglementation ADR)
-      correspondant au fluide récupéré dans la bouteille.
+      Désignation officielle de transport, remplie <strong className="text-white">automatiquement</strong>{' '}
+      dès que le fluide [7] est sélectionné.
     </span>
     <span className="mt-2 block text-white/80">
       Structure : <strong className="text-white">UN [Code UN] + nom du gaz</strong>
       <br />
-      Ex. : UN 3163 Gaz liquéfié, n.s.a. (R-410A)
+      Ex. : UN 3252 DIFLUOROMETHANE (REFRIGERANT GAS R 32)
+    </span>
+  </>
+)
+
+export const TIP_DESTINATION = (
+  <>
+    <strong className="font-semibold text-accent">Installation de destination [13]</strong>
+    <span className="mt-1 block text-white/85">
+      Lieu où part le fluide récupéré / les déchets : distributeur (Climalife, Gazechim…), dépôt
+      atelier ou filière destruction (BSFF).
+    </span>
+    <span className="mt-2 block text-white/80">
+      Choisissez dans la liste ou saisissez un texte libre (« Autre »). Les destinations utilisées
+      sont mémorisées pour la prochaine fiche.
     </span>
   </>
 )

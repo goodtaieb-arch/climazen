@@ -394,7 +394,10 @@ const FLUIDE_ADR: Record<string, FluideAdrInfo> = {
   },
 }
 
-/** Préremplit Code UN + dénomination ADR selon le fluide (modifiable ensuite). */
+/**
+ * Code UN + dénomination ADR/RID selon le fluide (CERFA [12] — 100 % auto).
+ * Source : table A ADR / fiches SDS distributeurs (Climalife, Arkema…).
+ */
 export function adrInfoForFluide(fluideCode: string): FluideAdrInfo | null {
   if (!fluideCode.trim()) return null
   const key = normalizeFluideCode(fluideCode)
