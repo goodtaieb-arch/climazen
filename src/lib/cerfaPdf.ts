@@ -261,6 +261,7 @@ export async function buildCerfaPdf(opts: {
       // Charge / appoint dans l’installation
       partsCharge.push(formatKg(q))
       if (m.numeroContenant?.trim()) {
+        // Uniquement le n° série officiel (jamais surnom / type de contenant)
         const L = String.fromCharCode(65 + (chargeLetterIdx % 3)) // A/B/C
         chargeLetterIdx++
         contenantsCharge.push(`${L}: ${m.numeroContenant.trim()}`)
@@ -273,6 +274,7 @@ export async function buildCerfaPdf(opts: {
       // Récupération depuis l’installation → bouteille (D / E)
       partsRecup.push(formatKg(q))
       if (m.numeroContenant?.trim()) {
+        // Uniquement le n° série officiel (jamais surnom / type de contenant)
         const L = String.fromCharCode(68 + (recupLetterIdx % 23)) // D, E, F…
         recupLetterIdx++
         contenantsRecup.push(`${L}: ${m.numeroContenant.trim()}`)

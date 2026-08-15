@@ -30,6 +30,12 @@ import {
   applyBouteilleDefaults,
   bouteilleDefaultsForFluide,
 } from '../lib/bouteilleDefaults'
+import {
+  assertNumeroContenantCerfa,
+  labelBouteilleAffichage,
+  sousTitreNumeroSerie,
+  titreBouteilleStock,
+} from '../lib/bouteilleLabel'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
@@ -66,6 +72,7 @@ const blank = (opts?: {
     fluide,
     contenantType,
     numeroContenant: '',
+    surnom: '',
     quantiteKg: contenantDemarreVide(contenantType) ? 0 : 0,
     quantiteInitialeKg: 0,
     capaciteMaxKg: defs.capaciteMaxKg,
@@ -119,7 +126,7 @@ function groupStockByFluide(items: StockItem[]): StockFluideGroup[] {
     .map(([fluide, bottles]) => ({
       fluide,
       bottles: [...bottles].sort((a, b) =>
-        (a.numeroContenant || '').localeCompare(b.numeroContenant || '', 'fr'),
+        titreBouteilleStock(a).localeCompare(titreBouteilleStock(b), 'fr'),
       ),
       totalKg: roundKg(bottles.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
     }))
@@ -248,7 +255,7 @@ export function StockPage() {
         (s) =>
           !isBouteilleRetournee(s) &&
           matchesQuery(
-            [s.fluide, s.numeroContenant, s.contenantType, s.bsffReference, s.codeUn, s.notes]
+            [s.fluide, s.numeroContenant, s.surnom, s.contenantType, s.bsffReference, s.codeUn, s.notes]
               .filter(Boolean)
               .join(' '),
             q,
@@ -262,7 +269,7 @@ export function StockPage() {
         (s) =>
           isBouteilleRetournee(s) &&
           matchesQuery(
-            [s.fluide, s.numeroContenant, s.contenantType, s.bsffReference].filter(Boolean).join(' '),
+            [s.fluide, s.numeroContenant, s.surnom, s.contenantType, s.bsffReference].filter(Boolean).join(' '),
             q,
           ),
       ),
@@ -302,10 +309,11 @@ export function StockPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.numeroContenant.trim()) {
-      alert(
-        'N° de bouteille obligatoire : le registre de stock doit répertorier chaque bouteille sous son numéro propre (annexe 15497 / F-Gas).',
-      )
+    let numeroOfficiel: string
+    try {
+      numeroOfficiel = assertNumeroContenantCerfa(form.numeroContenant)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'N° de série invalide')
       return
     }
     let qty = Number(form.quantiteKg) || 0
@@ -313,6 +321,7 @@ export function StockPage() {
     const fluide = form.fluide.trim()
     const defs = bouteilleDefaultsForFluide(fluide)
     let capaciteMaxKg = Number(form.capaciteMaxKg) || defs.capaciteMaxKg
+    const surnom = (form.surnom || '').trim() || undefined
 
     if (contenantType !== 'recuperation' && !fluide) {
       alert('Indiquez le fluide de la bouteille (sauf récupération vide non assignée).')
@@ -377,6 +386,8 @@ export function StockPage() {
       ...form,
       fluide,
       contenantType,
+      numeroContenant: numeroOfficiel,
+      surnom,
       capaciteMaxKg:
         contenantType === 'recuperation' ||
         contenantType === 'recycle' ||
@@ -702,13 +713,13 @@ export function StockPage() {
           </label>
 
           <div className="sm:col-span-2">
-            <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
+            <LabelHint label="N° de série / n° de contenant *" tip={TIP_BOUTEILLE}>
               <div className="flex gap-2">
                 <input
                   required
                   value={form.numeroContenant}
                   onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
-                  placeholder="ex. BOT-R32-001 (gravé / distributeur)"
+                  placeholder="ex. BOT-32-4890 ou code-barres (CERFA)"
                   className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
                 />
                 <BarcodeScanButton
@@ -716,7 +727,28 @@ export function StockPage() {
                 />
               </div>
             </LabelHint>
+            <p className="mt-1 text-[11px] text-muted">
+              Numéro officiel imprimé sur le CERFA — pas le type (« Transfert », etc.).
+            </p>
           </div>
+
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Surnom / libellé interne (optionnel)</span>
+            <input
+              value={form.surnom || ''}
+              onChange={(e) => setForm({ ...form, surnom: e.target.value })}
+              placeholder={
+                form.contenantType === 'transfert'
+                  ? 'ex. Bouteille Transfert Camion Luc'
+                  : 'ex. Récup atelier — usage dépôt uniquement'
+              }
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+            <p className="mt-1 text-[11px] text-muted">
+              Affiché dans le stock et les menus pour les techniciens — jamais à la place du n° sur
+              le CERFA.
+            </p>
+          </label>
 
           <DecimalField
             label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
@@ -1419,9 +1451,14 @@ export function StockPage() {
                           )}
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-center gap-2">
-                              <span className="truncate font-semibold text-ink">
-                                {s.numeroContenant || '—'}
+                              <span className="min-w-0 truncate font-semibold text-ink">
+                                {titreBouteilleStock(s)}
                               </span>
+                              {sousTitreNumeroSerie(s) && (
+                                <span className="truncate text-xs font-medium text-muted">
+                                  {sousTitreNumeroSerie(s)}
+                                </span>
+                              )}
                               {(s.conformeA2LA3 || isFluideInflammableA2LOrA3(s.fluide)) && (
                                 <span
                                   className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
@@ -1718,7 +1755,7 @@ export function StockPage() {
                       onClick={() => setExpandedId(openHist ? null : s.id)}
                     >
                       <div className="font-display font-semibold">
-                        {s.numeroContenant} · {s.fluide}
+                        {labelBouteilleAffichage(s)} · {s.fluide}
                       </div>
                       <div className="mt-1 text-sm text-muted">
                         Bon {s.bonRetourConsigne}

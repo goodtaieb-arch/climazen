@@ -66,15 +66,20 @@ export const TIP_DESTINATION = (
 
 export const TIP_BOUTEILLE = (
   <>
-    <strong className="font-semibold text-accent">N° de bouteille / contenant</strong>
+    <strong className="font-semibold text-accent">N° de série / n° de contenant</strong>
     <span className="mt-1 block text-white/85">
       Obligatoire dès qu’il y a un <strong className="text-white">mouvement de fluide</strong>{' '}
-      (récupération, charge ou transfert) impliquant un conteneur — Code de l’environnement & F-Gas.
+      (récupération, charge ou transfert) — Code de l’environnement & F-Gas. C’est{' '}
+      <strong className="text-white">ce numéro réel</strong> qui est imprimé sur le Cerfa 15497*04.
     </span>
     <ul className="mt-2 list-disc space-y-1.5 pl-4 text-white/80">
       <li>
-        <strong className="text-white">Récupération / charge :</strong> identifier la bouteille sur
-        le Cerfa 15497*04 (n° de série / identification fourni par le distributeur ou gravé).
+        <strong className="text-white">CERFA :</strong> n° de série / identification fourni par le
+        distributeur, gravé ou code-barres — jamais le mot « Transfert » ni le type de contenant.
+      </li>
+      <li>
+        <strong className="text-white">Surnom (optionnel) :</strong> libellé interne pour le dépôt /
+        les menus (ex. « Transfert camion Luc ») — n’apparaît pas à la place du n° sur le CERFA.
       </li>
       <li>
         <strong className="text-white">Registre de stock (annexe) :</strong> chaque bouteille sous

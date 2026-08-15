@@ -311,7 +311,17 @@ export interface StockItem {
    */
   fluide: string
   contenantType: ContenantType
+  /**
+   * N° de série / n° de contenant officiel (gravé, distributeur, code-barres).
+   * Obligatoire — c’est ce numéro qui figure sur le CERFA 15497 [11].
+   * Ne jamais y mettre le type (« Transfert », « Récupération »…).
+   */
   numeroContenant: string
+  /**
+   * Surnom / libellé interne optionnel (ex. « Bouteille Transfert Camion Luc »).
+   * Affichage stock & menus uniquement — jamais imprimé à la place du n° sur le CERFA.
+   */
+  surnom?: string
   /** Quantité restante actuelle (kg) */
   quantiteKg: number
   /** Quantité à l’entrée en stock (kg) — pour suivre les usages partiels */

@@ -62,6 +62,7 @@ import {
   type TypeHuile,
 } from '../lib/stockBouteilleExtras'
 import { bottleLetterCerfa, roundKg } from '../lib/decimal'
+import { assertNumeroContenantCerfa, labelBouteilleAffichage } from '../lib/bouteilleLabel'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_DESTINATION, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
@@ -966,7 +967,16 @@ export function InterventionFormPage() {
       }
       if (!item.numeroContenant?.trim()) {
         throw new Error(
-          `La bouteille ${item.numeroContenant || 'sélectionnée'} n’a pas de n° d’identification. Complétez-le dans Stock fluides.`,
+          `La bouteille ${labelBouteilleAffichage(item)} n’a pas de n° d’identification. Complétez-le dans Stock fluides.`,
+        )
+      }
+      try {
+        assertNumeroContenantCerfa(item.numeroContenant)
+      } catch (err) {
+        throw new Error(
+          err instanceof Error
+            ? err.message
+            : `N° de série invalide pour ${labelBouteilleAffichage(item)}.`,
         )
       }
       if (!(m.quantiteKg > 0)) {
@@ -1746,7 +1756,7 @@ export function InterventionFormPage() {
                               ? ` → ${denominationFluide}`
                               : ''}{' '}
                             · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType}
-                            {a2lTag} · {s.numeroContenant || 'SANS N°'} —{' '}
+                            {a2lTag} · {labelBouteilleAffichage(s)} —{' '}
                             {videDest
                               ? nonAssigne
                                 ? 'vide non assignée (à verrouiller)'
