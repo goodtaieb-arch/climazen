@@ -1,4 +1,4 @@
-import { fluidesByFamille, findFluide, formatGwp } from '../lib/fluides'
+import { fluidesByFamille, findFluide, formatClasseSecuriteLabel, formatGwp } from '../lib/fluides'
 
 type Props = {
   label?: string
@@ -26,6 +26,14 @@ export function FluideSelect({
   }))
   const known = findFluide(value)
   const custom = value && !known
+  const classeLabel = value ? formatClasseSecuriteLabel(value) : null
+  const classeWarn =
+    known?.classeSecurite === 'A2L' ||
+    known?.classeSecurite === 'A2' ||
+    known?.classeSecurite === 'A3' ||
+    known?.classeSecurite === 'B2L' ||
+    known?.classeSecurite === 'B2' ||
+    known?.classeSecurite === 'B3'
 
   return (
     <label className={`block text-sm ${className}`}>
@@ -55,11 +63,19 @@ export function FluideSelect({
         )}
         {custom && <option value="__custom__">{value} (hors liste)</option>}
       </select>
+      {classeLabel && (
+        <p
+          className={[
+            'mt-1.5 text-sm font-semibold',
+            classeWarn ? 'text-amber-800' : 'text-ink',
+          ].join(' ')}
+        >
+          {classeLabel}
+        </p>
+      )}
       {showMeta && known && (
-        <p className="mt-1.5 text-xs text-muted">
-          <span className="font-medium text-ink">
-            GWP {formatGwp(known)}
-          </span>
+        <p className="mt-1 text-xs text-muted">
+          <span className="font-medium text-ink">GWP {formatGwp(known)}</span>
           {' · '}
           {known.familleDetail}
           {known.interdit ? (

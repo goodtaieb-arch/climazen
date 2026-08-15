@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
   CONTENANT_TYPE_LABELS,
+  contenantDemarreVide,
   isBouteilleRetournee,
   isContenantDestination,
   needsRetourConsigne,
@@ -52,9 +53,10 @@ const blank = (opts?: {
     fluide,
     contenantType,
     numeroContenant: '',
-    quantiteKg: contenantType === 'recuperation' ? 0 : 0,
+    quantiteKg: contenantDemarreVide(contenantType) ? 0 : 0,
     quantiteInitialeKg: 0,
-    capaciteMaxKg: contenantType === 'recuperation' ? 12.5 : undefined,
+    capaciteMaxKg:
+      contenantType === 'recuperation' || contenantType === 'recycle' ? 12.5 : undefined,
     emplacement: contenantType === 'transfert' ? 'atelier' : undefined,
     bsffReference: '',
     codeUn: adr?.codeUn || '',
@@ -77,7 +79,8 @@ const TYPES: { value: ContenantType; label: string }[] = (
 const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   vierge: { label: 'Vierge (neuf)', cls: 'bg-emerald-100 text-emerald-800' },
   recuperation: { label: 'Récup. déchet', cls: 'bg-orange-100 text-orange-800' },
-  regenere: { label: 'Recyclé / régén.', cls: 'bg-sky-100 text-sky-800' },
+  recycle: { label: 'Recyclé site', cls: 'bg-sky-100 text-sky-800' },
+  regenere: { label: 'Régénéré', cls: 'bg-indigo-100 text-indigo-800' },
   transfert: { label: 'Transfert', cls: 'bg-slate-100 text-slate-700' },
 }
 
@@ -258,20 +261,30 @@ export function StockPage() {
     let contenantType = form.contenantType
     let capaciteMaxKg = Number(form.capaciteMaxKg) || undefined
 
-    if (!editId && qty <= 0 && !isContenantDestination(contenantType)) {
+    // Récupération / Recyclé site : démarrent toujours vides à la création
+    if (!editId && contenantDemarreVide(contenantType)) {
+      qty = 0
+    }
+
+    if (!editId && qty <= 0 && !isContenantDestination(contenantType) && contenantType !== 'transfert') {
       const ok = window.confirm(
-        'Quantité à 0 kg : une bouteille Vierge doit arriver pleine (achat). Pour une destination de vidange, choisissez Récupération / Recyclé / Transfert.\n\nPasser en Récupération vide ?',
+        'Quantité à 0 kg : une bouteille Vierge / Régénérée doit arriver pleine (achat). Pour une destination de vidange, choisissez Récupération ou Recyclé site.\n\nPasser en Récupération vide ?',
       )
       if (ok) {
         contenantType = 'recuperation'
         capaciteMaxKg = capaciteMaxKg || 10
+        qty = 0
       } else {
         return
       }
     }
 
-    if (contenantType === 'vierge' && qty <= 0) {
-      alert('Bouteille vierge (neuf) : indiquez la quantité à l’entrée (kg) > 0.')
+    if ((contenantType === 'vierge' || contenantType === 'regenere') && qty <= 0) {
+      alert(
+        contenantType === 'regenere'
+          ? 'Bouteille régénérée (achat distributeur) : indiquez la quantité à l’entrée (kg) > 0.'
+          : 'Bouteille vierge (neuf) : indiquez la quantité à l’entrée (kg) > 0.',
+      )
       return
     }
 
@@ -301,7 +314,10 @@ export function StockPage() {
       ...form,
       contenantType,
       capaciteMaxKg:
-        contenantType === 'recuperation' || contenantType === 'regenere' || contenantType === 'transfert'
+        contenantType === 'recuperation' ||
+        contenantType === 'recycle' ||
+        contenantType === 'regenere' ||
+        contenantType === 'transfert'
           ? capaciteMaxKg
           : form.capaciteMaxKg,
       emplacement: contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement,
@@ -514,12 +530,14 @@ export function StockPage() {
               value={form.contenantType}
               onChange={(e) => {
                 const contenantType = e.target.value as ContenantType
+                const demarreVide = contenantDemarreVide(contenantType)
                 setForm((f) => ({
                   ...f,
                   contenantType,
-                  quantiteKg: contenantType === 'recuperation' && !editId ? 0 : f.quantiteKg,
+                  quantiteKg: !editId && demarreVide ? 0 : f.quantiteKg,
+                  quantiteInitialeKg: !editId && demarreVide ? 0 : f.quantiteInitialeKg,
                   capaciteMaxKg:
-                    contenantType === 'recuperation' && !f.capaciteMaxKg ? 10 : f.capaciteMaxKg,
+                    demarreVide && !f.capaciteMaxKg ? 12.5 : f.capaciteMaxKg,
                   emplacement:
                     contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
                 }))
@@ -533,18 +551,19 @@ export function StockPage() {
               ))}
             </select>
             <p className="mt-1 text-xs text-muted">{resumeRegleContenant(form.contenantType)}</p>
-            {isContenantDestination(form.contenantType) ? (
+            {contenantDemarreVide(form.contenantType) ? (
               <p className="mt-1 text-xs text-orange-800">
-                Destination de vidange : 0 kg OK sur le CERFA — même fluide que l’équipement.
+                Bouteille vide à l’entrée (0 kg) — elle se remplit sur le CERFA (vidange / recyclage).
               </p>
-            ) : Number(form.quantiteKg) <= 0 ? (
+            ) : form.contenantType === 'vierge' || form.contenantType === 'regenere' ? (
               <p className="mt-1 text-xs text-amber-800">
-                Vierge : quantité d’entrée &gt; 0 obligatoire (achat distributeur).
+                Achat distributeur : quantité d’entrée &gt; 0 obligatoire.
               </p>
             ) : null}
           </label>
 
           {(form.contenantType === 'recuperation' ||
+            form.contenantType === 'recycle' ||
             form.contenantType === 'regenere' ||
             form.contenantType === 'transfert') && (
             <DecimalField
@@ -696,8 +715,11 @@ export function StockPage() {
 
           <DecimalField
             label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
-            value={form.quantiteKg}
+            value={
+              !editId && contenantDemarreVide(form.contenantType) ? 0 : form.quantiteKg
+            }
             onChange={(n) => {
+              if (!editId && contenantDemarreVide(form.contenantType)) return
               setForm({
                 ...form,
                 quantiteKg: n,
@@ -705,13 +727,32 @@ export function StockPage() {
               })
             }}
             placeholder="ex. 10,5"
+            disabled={!editId && contenantDemarreVide(form.contenantType)}
+            hint={
+              !editId && contenantDemarreVide(form.contenantType)
+                ? 'Forcé à 0 kg — la bouteille démarre vide.'
+                : undefined
+            }
           />
           {editId ? (
             <DecimalField
               label="Quantité d’entrée (kg)"
-              value={form.quantiteInitialeKg ?? form.quantiteKg}
-              onChange={(n) => setForm({ ...form, quantiteInitialeKg: n })}
+              value={
+                contenantDemarreVide(form.contenantType)
+                  ? 0
+                  : (form.quantiteInitialeKg ?? form.quantiteKg)
+              }
+              onChange={(n) => {
+                if (contenantDemarreVide(form.contenantType)) return
+                setForm({ ...form, quantiteInitialeKg: n })
+              }}
               placeholder="capacité / entrée"
+              disabled={contenantDemarreVide(form.contenantType)}
+              hint={
+                contenantDemarreVide(form.contenantType)
+                  ? 'Entrée à 0 kg (récupération / recyclé site).'
+                  : undefined
+              }
             />
           ) : (
             <div className="hidden sm:block" aria-hidden />
@@ -1176,7 +1217,7 @@ export function StockPage() {
                                   BSFF seul
                                 </span>
                               )}
-                              {s.contenantType === 'regenere' && s.origineClientId && (
+                              {s.contenantType === 'recycle' && s.origineClientId && (
                                 <span className="rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-950">
                                   Même client
                                 </span>

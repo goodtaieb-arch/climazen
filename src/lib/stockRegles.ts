@@ -95,17 +95,22 @@ export function naturesPermettentRemplissageRecup(natures: NatureIntervention[])
 /**
  * Réinjection (sortie / charge) autorisée chez ce client ?
  * - Récupération : jamais (déchet → BSFF / distributeur)
- * - Recyclé avec origineClientId : uniquement le même détenteur
- * - Régénéré usine (regenere sans origine) : OK partout
- * - Transfert avec origine (ex. fluide récupéré à tort) : même client
+ * - Recyclé site : uniquement le même détenteur (origineClientId)
+ * - Régénéré usine : OK partout
+ * - Transfert avec origine : même client
  */
 export function peutReinjectionSurClient(
   item: Pick<StockItem, 'contenantType' | 'origineClientId'>,
   clientId: string | undefined | null,
 ): boolean {
   if (item.contenantType === 'recuperation') return false
-  if (item.contenantType === 'regenere' || item.contenantType === 'transfert') {
-    if (!item.origineClientId) return true // régénéré usine / fluide propre logistique
+  if (item.contenantType === 'recycle') {
+    if (!item.origineClientId || !clientId) return false
+    return item.origineClientId === clientId
+  }
+  if (item.contenantType === 'regenere') return true
+  if (item.contenantType === 'transfert') {
+    if (!item.origineClientId) return true
     if (!clientId) return false
     return item.origineClientId === clientId
   }
@@ -114,12 +119,12 @@ export function peutReinjectionSurClient(
 
 /**
  * Sens autorisés sur CERFA selon F-Gas / suivi stock.
- * - Vierge : sortie seule (charge)
+ * - Vierge / Régénéré : sortie seule (charge)
  * - Récupération : entrée seule (fluide usagé → BSFF, jamais réinjection)
  * - Recyclé / Transfert : entrée et sortie (sortie filtrée par client si recyclé site)
  */
 export function sensAutorisesCerfa(type: ContenantType): StockMouvementSens[] {
-  if (type === 'vierge') return ['sortie']
+  if (type === 'vierge' || type === 'regenere') return ['sortie']
   if (type === 'recuperation') return ['entree']
   return ['entree', 'sortie']
 }
@@ -133,7 +138,7 @@ export function assertSensCerfaLegal(type: ContenantType, sens: StockMouvementSe
         `Bouteille « ${label} » : réinjection interdite (F-Gas). Le fluide usagé doit être évacué via Stock → BSFF / retour distributeur (régénération usine).`,
       )
     }
-    if (type === 'vierge' && sens === 'entree') {
+    if ((type === 'vierge' || type === 'regenere') && sens === 'entree') {
       throw new Error(
         `Bouteille « ${label} » : seules des sorties (charge / appoint) sont autorisées.`,
       )
@@ -171,6 +176,11 @@ export function assertMouvementCerfaLegal(opts: {
         `Bouteille « Transfert » : pas de récupération client. Utilisez une bouteille Récupération (déchet) ou Recyclé (même détenteur).`,
       )
     }
+    if (item.contenantType === 'regenere') {
+      throw new Error(
+        `Bouteille « Régénéré » : achat distributeur — pas de vidange client. Utilisez Récupération ou Recyclé site.`,
+      )
+    }
     if (restante != null && qty > restante + 1e-9) {
       const max = poidsMaxAutoriseKg(item)
       throw new Error(
@@ -195,10 +205,12 @@ export function resumeRegleContenant(type: ContenantType): string {
   switch (type) {
     case 'vierge':
       return 'Neuf distributeur : stock positif au départ, uniquement des sorties (charge). N° bouteille obligatoire.'
-      case 'recuperation':
-      return 'Déchet usagé : accumulation multi-sites (même fluide), max 80 % capacité. Jamais de réinjection — BSFF / distributeur quand pleine.'
+    case 'recuperation':
+      return 'Déchet usagé : démarre vide, accumulation multi-sites (même fluide), max 80 % capacité. Jamais de réinjection — BSFF / distributeur quand pleine.'
+    case 'recycle':
+      return 'Recyclage sur site : démarre vide, remplissage puis réinjection uniquement chez le même détenteur / client.'
     case 'regenere':
-      return 'Recyclé site = même détenteur uniquement. Régénéré usine (sans client d’origine) = utilisable partout après achat distributeur.'
+      return 'Régénéré usine (achat distributeur) : quantité d’entrée > 0, utilisable partout en charge — pas de vidange client.'
     case 'transfert':
       return 'Logistique interne atelier ↔ véhicule (sans CERFA). Pas de vidange client dans cette bouteille.'
     default:

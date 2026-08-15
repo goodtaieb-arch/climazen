@@ -29,13 +29,19 @@ export const NATURE_LABELS: Record<NatureIntervention, string> = {
   autre: 'Autre manipulation de fluide',
 }
 
-export type ContenantType = 'vierge' | 'regenere' | 'recuperation' | 'transfert'
+export type ContenantType = 'vierge' | 'recycle' | 'regenere' | 'recuperation' | 'transfert'
 
 export const CONTENANT_TYPE_LABELS: Record<ContenantType, string> = {
   vierge: 'Vierge (neuf)',
-  regenere: 'Recyclé / régénéré',
+  recycle: 'Recyclé (sur site — même client)',
+  regenere: 'Régénéré (achat distributeur)',
   recuperation: 'Récupération (déchet)',
   transfert: 'Transfert (logistique)',
+}
+
+/** Bouteille créée vide (récupération déchet ou recyclage site). */
+export function contenantDemarreVide(type: ContenantType): boolean {
+  return type === 'recuperation' || type === 'recycle'
 }
 
 /** Mouvement de fluide → n° de bouteille obligatoire (F-Gas / Cerfa). */
@@ -548,10 +554,11 @@ export function cerfaLabelFor(
 
 /**
  * Contenant pouvant recevoir du fluide récupéré sur CERFA (déchet / recyclage site).
+ * Régénéré = achat distributeur (déjà plein) — pas une destination de vidange.
  * Transfert = logistique interne uniquement (pas de vidange client).
  */
 export function isContenantDestination(type: ContenantType): boolean {
-  return type === 'recuperation' || type === 'regenere'
+  return type === 'recuperation' || type === 'recycle'
 }
 
 /**

@@ -98,9 +98,8 @@ export function applyStockFromIntervention(
     } else {
       const apres = roundKg(avant + qty)
       const patch: Partial<StockItem> = { quantiteKg: apres, updatedAt: now }
-      // Rattache le fluide recyclé au détenteur (réinjection même client uniquement).
-      // Pas sur récupération : une même bouteille déchet peut accumuler plusieurs sites.
-      if (item.contenantType === 'regenere' && intervention.clientId && !item.origineClientId) {
+      // Rattache le fluide recyclé site au détenteur (réinjection même client uniquement).
+      if (item.contenantType === 'recycle' && intervention.clientId && !item.origineClientId) {
         patch.origineClientId = intervention.clientId
       }
       // Huile récupération : mémorise / refuse mélange MO ↔ POE

@@ -249,7 +249,7 @@ export async function buildCerfaPdf(opts: {
     if (!(q > 0)) continue
     partsKg.push(formatKg(q))
     if (m.type === 'vierge') qa = roundKg(qa + q)
-    else if (m.type === 'regenere') qb = roundKg(qb + q)
+    else if (m.type === 'regenere' || m.type === 'recycle') qb = roundKg(qb + q)
     else if (m.type === 'recuperation') qc = roundKg(qc + q)
     else if (m.type === 'transfert') qd = roundKg(qd + q)
     if (m.numeroContenant?.trim()) contenants.push(m.numeroContenant.trim())

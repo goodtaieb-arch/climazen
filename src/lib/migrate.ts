@@ -1,5 +1,14 @@
 import { v4 as uuid } from 'uuid'
-import type { AppData, CerfaDraft, DetecteurManuel, Equipement, ModeGestion, Site, TypeTravaux } from './types'
+import type {
+  AppData,
+  CerfaDraft,
+  DetecteurManuel,
+  Equipement,
+  ModeGestion,
+  Site,
+  StockItem,
+  TypeTravaux,
+} from './types'
 import { addMonthsIso, resolveModeGestion } from './siteParc'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
@@ -164,6 +173,17 @@ function migrateDetecteurs(data: AppData): DetecteurManuel[] {
   ]
 }
 
+/**
+ * Ancien type unique « regenere » = recyclé site OU régénéré usine.
+ * Si origineClientId → recyclé site ; sinon → régénéré distributeur.
+ */
+function migrateStockItem(s: StockItem): StockItem {
+  if (s.contenantType === 'regenere' && s.origineClientId) {
+    return { ...s, contenantType: 'recycle' }
+  }
+  return s
+}
+
 export function migrateAppData(data: AppData): AppData {
   const sites = (data.chantiers || []).map((c) => migrateSite(c as unknown as LegacyChantier))
   const interventions = (data.interventions || []).map((i) => migrateIntervention(i, sites))
@@ -173,6 +193,7 @@ export function migrateAppData(data: AppData): AppData {
     chantiers: sites,
     interventions,
     detecteurs,
+    stock: (data.stock || []).map(migrateStockItem),
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
     ordresTravail: data.ordresTravail || [],
     contratsMaintenance: data.contratsMaintenance || [],
