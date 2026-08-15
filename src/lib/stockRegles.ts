@@ -105,7 +105,7 @@ export function resumeRegleContenant(type: ContenantType): string {
     case 'regenere':
       return 'Recyclé / régénéré : réinjection uniquement chez le même détenteur (même client).'
     case 'transfert':
-      return 'Bouteille de service / logistique (atelier ↔ véhicule). Suivi interne des transferts.'
+      return 'Bouteille de service / logistique. Transfert atelier ↔ véhicule sans CERFA (registre F-Gas + ADR).'
     default:
       return ''
   }

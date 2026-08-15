@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import type { AppData, CerfaDraft, ContenantType, StockItem, StockMouvement, StockMouvementSens } from './types'
-import { cerfaLabelFor, sensMouvementPourContenant } from './types'
+import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from './types'
 import { sameFluideCode } from './fluides'
 import { assertMouvementCerfaLegal } from './stockRegles'
 
@@ -423,3 +423,104 @@ export function enregistrerDestruction(
     stockMouvements: [...(data.stockMouvements || []), mouvement],
   }
 }
+
+export type EmplacementStock = 'atelier' | 'vehicule'
+
+export function labelEmplacement(
+  emplacement?: EmplacementStock | null,
+  label?: string | null,
+): string {
+  if (emplacement === 'vehicule') {
+    const name = (label || '').trim()
+    return name ? `Véhicule « ${name} »` : 'Véhicule'
+  }
+  if (emplacement === 'atelier') return 'Atelier / dépôt'
+  return 'Non renseigné'
+}
+
+/**
+ * Transfert interne atelier ↔ véhicule (ou véhicule ↔ véhicule).
+ * Aucun CERFA : le fluide reste propriété de l’entreprise.
+ * Enregistre une ligne au registre de stock F-Gas (traçabilité).
+ */
+export function enregistrerTransfertInterne(
+  data: AppData,
+  opts: {
+    stockItemId: string
+    versEmplacement: EmplacementStock
+    versLabel?: string
+    date?: string
+    notes?: string
+    /** Réf. document ADR / déclaration transport (optionnel) */
+    documentAdr?: string
+    createdByName?: string
+  },
+): AppData {
+  const idx = data.stock.findIndex((s) => s.id === opts.stockItemId)
+  if (idx < 0) throw new Error('Bouteille introuvable.')
+  const item = data.stock[idx]
+  if (isBouteilleRetournee(item)) {
+    throw new Error('Bouteille déjà retournée (consigne) — transfert impossible.')
+  }
+
+  const fromEmp = item.emplacement || 'atelier'
+  const fromLabel = item.emplacementLabel
+  const toEmp = opts.versEmplacement
+  const toLabel = toEmp === 'vehicule' ? opts.versLabel?.trim() || '' : ''
+
+  if (toEmp === 'vehicule' && !toLabel) {
+    throw new Error('Indiquez le nom du véhicule (ex. Véhicule A, Camion 12).')
+  }
+
+  const samePlace =
+    fromEmp === toEmp &&
+    (fromEmp !== 'vehicule' || (fromLabel || '').trim() === toLabel)
+  if (samePlace) {
+    throw new Error('La bouteille est déjà à cet emplacement.')
+  }
+
+  const now = new Date().toISOString()
+  const date = opts.date || now.slice(0, 10)
+  const qty = roundKg(Number(item.quantiteKg) || 0)
+  const fromTxt = labelEmplacement(fromEmp, fromLabel)
+  const toTxt = labelEmplacement(toEmp, toLabel)
+  const adr = opts.documentAdr?.trim()
+
+  const nextItem: StockItem = {
+    ...item,
+    emplacement: toEmp,
+    emplacementLabel: toEmp === 'vehicule' ? toLabel : undefined,
+    updatedAt: now,
+  }
+
+  const mouvement = makeMouvement({
+    item,
+    // Quantité inchangée : snapshot pour le registre (où se trouve chaque kg)
+    sens: 'sortie',
+    quantiteKg: Math.max(qty, 0.001),
+    quantiteAvantKg: qty,
+    quantiteApresKg: qty,
+    date,
+    cerfaLabel: `TRF-${date}-${item.numeroContenant || item.id.slice(0, 6)}`,
+    createdByName: opts.createdByName,
+    kind: 'transfert_interne',
+    documentReference: adr,
+    note: [
+      `Transfert interne (sans CERFA) : ${fromTxt} → ${toTxt}`,
+      qty > 0 ? `Fluide suivi : ${qty} kg ${item.fluide}` : 'Bouteille vide déplacée',
+      item.codeUn ? `ADR ${item.codeUn}` : '',
+      item.denominationAdr || '',
+      adr ? `Doc. transport ADR : ${adr}` : 'Penser au document ADR / seuil 1000 points',
+      opts.notes?.trim() || '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  })
+
+  return {
+    ...data,
+    stock: data.stock.map((s, i) => (i === idx ? nextItem : s)),
+    stockMouvements: [...(data.stockMouvements || []), mouvement],
+  }
+}
+

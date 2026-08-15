@@ -19,7 +19,7 @@ import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
 import { adrInfoForFluide, findFluide, formatGwp } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
-import { mouvementsForBottle } from '../lib/stockMouvements'
+import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant } from '../lib/stockRegles'
 import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
@@ -102,8 +102,14 @@ function BottleLevelBar({ current, initial }: { current: number; initial: number
 }
 
 export function StockPage() {
-  const { data, upsertStock, deleteStock, enregistrerRetourConsigneBouteille, enregistrerDestructionBouteille } =
-    useStore()
+  const {
+    data,
+    upsertStock,
+    deleteStock,
+    enregistrerRetourConsigneBouteille,
+    enregistrerDestructionBouteille,
+    enregistrerTransfertInterneBouteille,
+  } = useStore()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState(blank)
@@ -124,6 +130,14 @@ export function StockPage() {
     date: today(),
     centreDestruction: '',
     documentReference: '',
+    notes: '',
+  })
+  const [trfId, setTrfId] = useState<string | null>(null)
+  const [trfForm, setTrfForm] = useState({
+    versEmplacement: 'vehicule' as 'atelier' | 'vehicule',
+    versLabel: '',
+    date: today(),
+    documentAdr: '',
     notes: '',
   })
   const [q, setQ] = useState('')
@@ -255,7 +269,12 @@ export function StockPage() {
         contenantType === 'recuperation' || contenantType === 'regenere' || contenantType === 'transfert'
           ? capaciteMaxKg
           : form.capaciteMaxKg,
-      emplacement: contenantType === 'transfert' ? form.emplacement || 'atelier' : undefined,
+      emplacement: contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement,
+      emplacementLabel:
+        (contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement) ===
+        'vehicule'
+          ? form.emplacementLabel?.trim() || undefined
+          : undefined,
       quantiteKg: qty,
       quantiteInitialeKg: editId
         ? form.quantiteInitialeKg ?? qty
@@ -327,8 +346,41 @@ export function StockPage() {
     }
   }
 
+  const openTransfert = (s: StockItem) => {
+    const from = s.emplacement || 'atelier'
+    setTrfId(s.id)
+    setTrfForm({
+      versEmplacement: from === 'vehicule' ? 'atelier' : 'vehicule',
+      versLabel: from === 'vehicule' ? '' : s.emplacementLabel || '',
+      date: today(),
+      documentAdr: '',
+      notes: '',
+    })
+  }
+
+  const submitTransfert = (e: FormEvent) => {
+    e.preventDefault()
+    if (!trfId) return
+    try {
+      enregistrerTransfertInterneBouteille({
+        stockItemId: trfId,
+        versEmplacement: trfForm.versEmplacement,
+        versLabel: trfForm.versLabel,
+        date: trfForm.date,
+        documentAdr: trfForm.documentAdr,
+        notes: trfForm.notes,
+        createdByName: user?.fullName || user?.email || user?.username,
+      })
+      setTrfId(null)
+      setExpandedId(trfId)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erreur transfert interne')
+    }
+  }
+
   const retourBottle = retourId ? data.stock.find((s) => s.id === retourId) : null
   const destrBottle = destrId ? data.stock.find((s) => s.id === destrId) : null
+  const trfBottle = trfId ? data.stock.find((s) => s.id === trfId) : null
 
   return (
     <div className="space-y-6">
@@ -338,7 +390,8 @@ export function StockPage() {
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold tracking-tight">Stock fluides</h1>
             <p className="mt-1 text-muted">
-              Bouteilles, mouvements CERFA, et bons de retour de consigne (bouteilles neuves vides).
+              Bouteilles, CERFA, transferts atelier ↔ véhicule (sans CERFA), BSFF et retours
+              consigne.
             </p>
           </div>
         </div>
@@ -441,22 +494,35 @@ export function StockPage() {
           )}
 
           {form.contenantType === 'transfert' && (
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted">Emplacement</span>
-              <select
-                value={form.emplacement || 'atelier'}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    emplacement: e.target.value as 'atelier' | 'vehicule',
-                  })
-                }
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                <option value="atelier">Atelier / dépôt</option>
-                <option value="vehicule">Véhicule technicien</option>
-              </select>
-            </label>
+            <>
+              <label className="block text-sm">
+                <span className="mb-1 block text-muted">Emplacement</span>
+                <select
+                  value={form.emplacement || 'atelier'}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      emplacement: e.target.value as 'atelier' | 'vehicule',
+                    })
+                  }
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                >
+                  <option value="atelier">Atelier / dépôt</option>
+                  <option value="vehicule">Véhicule technicien</option>
+                </select>
+              </label>
+              {form.emplacement === 'vehicule' && (
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Nom du véhicule</span>
+                  <input
+                    value={form.emplacementLabel || ''}
+                    onChange={(e) => setForm({ ...form, emplacementLabel: e.target.value })}
+                    placeholder="ex. Véhicule A"
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+              )}
+            </>
           )}
 
           <div className="sm:col-span-2">
@@ -716,6 +782,106 @@ export function StockPage() {
         </form>
       )}
 
+      {trfId && trfBottle && (
+        <form
+          onSubmit={submitTransfert}
+          className="grid gap-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-5 sm:grid-cols-2"
+        >
+          <div className="sm:col-span-2 space-y-1 text-sm text-sky-950">
+            <p className="font-semibold">
+              Transfert interne (sans CERFA) — {trfBottle.numeroContenant} · {trfBottle.fluide} ·{' '}
+              {roundKg(Number(trfBottle.quantiteKg) || 0)} kg
+            </p>
+            <p className="text-xs">
+              Emplacement actuel :{' '}
+              <strong>
+                {labelEmplacement(trfBottle.emplacement || 'atelier', trfBottle.emplacementLabel)}
+              </strong>
+              . Le fluide reste propriété de l’entreprise — registre F-Gas mis à jour, aucun CERFA
+              client.
+            </p>
+            {(trfBottle.codeUn || trfBottle.denominationAdr) && (
+              <p className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs">
+                ADR transport : {trfBottle.codeUn || '—'}
+                {trfBottle.denominationAdr ? ` · ${trfBottle.denominationAdr}` : ''} — document ADR
+                / seuil 1000 points à prévoir dans le véhicule.
+              </p>
+            )}
+          </div>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Destination *</span>
+            <select
+              value={trfForm.versEmplacement}
+              onChange={(e) =>
+                setTrfForm({
+                  ...trfForm,
+                  versEmplacement: e.target.value as 'atelier' | 'vehicule',
+                })
+              }
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            >
+              <option value="atelier">Atelier / dépôt</option>
+              <option value="vehicule">Véhicule</option>
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Date *</span>
+            <input
+              required
+              type="date"
+              value={trfForm.date}
+              onChange={(e) => setTrfForm({ ...trfForm, date: e.target.value })}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          {trfForm.versEmplacement === 'vehicule' && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-muted">Nom du véhicule *</span>
+              <input
+                required
+                value={trfForm.versLabel}
+                onChange={(e) => setTrfForm({ ...trfForm, versLabel: e.target.value })}
+                placeholder="ex. Véhicule A"
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              />
+            </label>
+          )}
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Réf. document ADR (optionnel)</span>
+            <input
+              value={trfForm.documentAdr}
+              onChange={(e) => setTrfForm({ ...trfForm, documentAdr: e.target.value })}
+              placeholder="ex. Déclaration transport / n° doc."
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Notes</span>
+            <input
+              value={trfForm.notes}
+              onChange={(e) => setTrfForm({ ...trfForm, notes: e.target.value })}
+              placeholder="ex. Préparation tournée"
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            />
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button
+              type="submit"
+              className="rounded-full bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800"
+            >
+              Enregistrer le transfert
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrfId(null)}
+              className="rounded-full border border-line bg-white px-5 py-2.5 text-sm"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="space-y-4">
         {groups.map((group) => {
           const f = findFluide(group.fluide)
@@ -765,6 +931,7 @@ export function StockPage() {
                   const lastCtx = lastCerfa ? mouvementContext(lastCerfa) : null
                   const canDestroy =
                     s.contenantType === 'recuperation' && current > 0 && !isBouteilleRetournee(s)
+                  const canTransfer = !isBouteilleRetournee(s)
                   return (
                     <li key={s.id}>
                       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
@@ -790,6 +957,9 @@ export function StockPage() {
                                 ].join(' ')}
                               >
                                 {badge.label}
+                              </span>
+                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
+                                {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
                             </span>
                             <span className="mt-0.5 block truncate text-xs text-muted">
@@ -831,6 +1001,16 @@ export function StockPage() {
                               title="Évacuation BSFF / destruction"
                             >
                               BSFF
+                            </button>
+                          )}
+                          {canTransfer && (
+                            <button
+                              type="button"
+                              onClick={() => openTransfert(s)}
+                              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:bg-sky-100"
+                              title="Transfert interne atelier ↔ véhicule (sans CERFA)"
+                            >
+                              Transfert
                             </button>
                           )}
                           <button
@@ -904,6 +1084,14 @@ export function StockPage() {
                                             ? ` · ${m.bonRetourReference}`
                                             : ''}
                                         </span>
+                                      ) : m.kind === 'transfert_interne' ? (
+                                        <span className="font-semibold text-sky-800">
+                                          Transfert interne
+                                        </span>
+                                      ) : m.kind === 'destruction' ? (
+                                        <span className="font-semibold text-orange-800">
+                                          Évacuation BSFF −{m.quantiteKg} kg
+                                        </span>
                                       ) : (
                                         <span
                                           className={
@@ -922,7 +1110,8 @@ export function StockPage() {
                                         {ctx?.client ? ` · ${ctx.client}` : ''}
                                         {ctx?.site ? ` · ${ctx.site}` : ''}
                                         {m.note ? ` · ${m.note}` : ''}
-                                        {m.kind !== 'retour_consigne'
+                                        {m.kind !== 'retour_consigne' &&
+                                        m.kind !== 'transfert_interne'
                                           ? ` · ${m.quantiteAvantKg} → ${m.quantiteApresKg} kg`
                                           : ''}
                                       </span>
@@ -1025,7 +1214,7 @@ export function StockPage() {
 
       <MobileFab
         label="Ajouter"
-        hidden={open || !!retourId || !!destrId}
+        hidden={open || !!retourId || !!destrId || !!trfId}
         onClick={() => {
           setEditId(null)
           setForm(blank())

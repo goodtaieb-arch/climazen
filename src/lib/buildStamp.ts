@@ -1,2 +1,2 @@
 /** Stamp de build — change à chaque déploiement pour forcer le cache PWA. */
-export const APP_BUILD = '2026-08-15-fgas-regles-bouteilles'
+export const APP_BUILD = '2026-08-15-transfert-interne-stock'

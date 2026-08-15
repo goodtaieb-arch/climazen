@@ -312,8 +312,10 @@ export interface StockItem {
    * Renseigné à la première récupération CERFA.
    */
   origineClientId?: string
-  /** Emplacement logistique (bouteilles de transfert). */
+  /** Emplacement logistique (atelier / véhicule) — suivi interne sans CERFA. */
   emplacement?: 'atelier' | 'vehicule'
+  /** Libellé véhicule / dépôt (ex. « Véhicule A », « Camion 12 »). */
+  emplacementLabel?: string
   /** BSFF Trackdéchets si applicable */
   bsffReference?: string
   codeUn?: string
@@ -342,6 +344,8 @@ export type StockMouvementKind =
   | 'achat'
   /** Remise à un centre / installation de destruction agréée */
   | 'destruction'
+  /** Déplacement interne atelier ↔ véhicule (pas de CERFA client) */
+  | 'transfert_interne'
 
 export interface StockMouvement {
   id: string
