@@ -294,7 +294,10 @@ export function siteAvecFluideFrigorigene(
 
 export interface StockItem {
   id: string
-  /** Ex. R-32, R-410A, R-1234yf */
+  /**
+   * Ex. R-32, R-410A, R-1234yf.
+   * Vide = non assigné (bouteille récup. vide : fixé au 1er CERFA).
+   */
   fluide: string
   contenantType: ContenantType
   numeroContenant: string

@@ -17,7 +17,7 @@ import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
-import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3 } from '../lib/fluides'
+import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3, isFluideNonAssigne, labelFluideStock } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
@@ -45,9 +45,11 @@ const blank = (opts?: {
   fluide?: string
   contenantType?: ContenantType
 }): Omit<StockItem, 'id' | 'updatedAt'> => {
-  const fluide = opts?.fluide?.trim() || 'R-32'
-  const adr = adrInfoForFluide(fluide)
   const contenantType = opts?.contenantType || 'vierge'
+  const fluide =
+    opts?.fluide?.trim() ||
+    (contenantType === 'recuperation' ? '' : 'R-32')
+  const adr = fluide ? adrInfoForFluide(fluide) : null
   return {
     fluide,
     contenantType,
@@ -86,6 +88,14 @@ function applyFluideAdr(
   fluide: string,
   force = false,
 ): Omit<StockItem, 'id' | 'updatedAt'> {
+  if (!fluide.trim()) {
+    return {
+      ...form,
+      fluide: '',
+      codeUn: force ? '' : form.codeUn,
+      denominationAdr: force ? '' : form.denominationAdr,
+    }
+  }
   const adr = adrInfoForFluide(fluide)
   if (!adr) return { ...form, fluide }
   const prevAdr = adrInfoForFluide(form.fluide)
@@ -217,7 +227,7 @@ export function StockPage() {
   const groups = useMemo(() => {
     const map = new Map<string, StockItem[]>()
     for (const s of actifStock) {
-      const key = s.fluide || '—'
+      const key = labelFluideStock(s.fluide)
       const list = map.get(key) || []
       list.push(s)
       map.set(key, list)
@@ -257,6 +267,12 @@ export function StockPage() {
     let qty = Number(form.quantiteKg) || 0
     let contenantType = form.contenantType
     let capaciteMaxKg = Number(form.capaciteMaxKg) || undefined
+    const fluide = form.fluide.trim()
+
+    if (contenantType !== 'recuperation' && !fluide) {
+      alert('Indiquez le fluide de la bouteille (sauf récupération vide non assignée).')
+      return
+    }
 
     if (!editId && qty <= 0 && !isContenantDestination(contenantType)) {
       const ok = window.confirm(
@@ -265,6 +281,7 @@ export function StockPage() {
       if (ok) {
         contenantType = 'recuperation'
         capaciteMaxKg = capaciteMaxKg || 10
+        qty = 0
       } else {
         return
       }
@@ -289,7 +306,7 @@ export function StockPage() {
         )
         return
       }
-      if (isFluideInflammableA2LOrA3(form.fluide) && !form.conformeA2LA3) {
+      if (fluide && isFluideInflammableA2LOrA3(fluide) && !form.conformeA2LA3) {
         alert(
           'Fluide inflammable (A2L/A3) : cochez la confirmation « bouteille certifiée A2L/A3 » (collerette rouge + pas à gauche).',
         )
@@ -299,6 +316,7 @@ export function StockPage() {
 
     upsertStock({
       ...form,
+      fluide,
       contenantType,
       capaciteMaxKg:
         contenantType === 'recuperation' || contenantType === 'regenere' || contenantType === 'transfert'
@@ -502,11 +520,18 @@ export function StockPage() {
             value={form.fluide}
             onChange={(v) =>
               setForm((f) => ({
-                ...applyFluideAdr(f, v),
+                ...applyFluideAdr(f, v, true),
                 conformeA2LA3: isFluideInflammableA2LOrA3(v) ? f.conformeA2LA3 : false,
               }))
             }
-            required
+            required={form.contenantType !== 'recuperation'}
+            allowUnassigned={form.contenantType === 'recuperation'}
+            disabled={
+              !!editId &&
+              form.contenantType === 'recuperation' &&
+              !isFluideNonAssigne(form.fluide) &&
+              (Number(form.quantiteKg) || 0) > 0
+            }
           />
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Type de contenant</span>
@@ -514,15 +539,28 @@ export function StockPage() {
               value={form.contenantType}
               onChange={(e) => {
                 const contenantType = e.target.value as ContenantType
-                setForm((f) => ({
-                  ...f,
-                  contenantType,
-                  quantiteKg: contenantType === 'recuperation' && !editId ? 0 : f.quantiteKg,
-                  capaciteMaxKg:
-                    contenantType === 'recuperation' && !f.capaciteMaxKg ? 10 : f.capaciteMaxKg,
-                  emplacement:
-                    contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
-                }))
+                setForm((f) => {
+                  const nextFluide =
+                    contenantType === 'recuperation' && !editId && !f.fluide.trim()
+                      ? ''
+                      : contenantType !== 'recuperation' && !f.fluide.trim()
+                        ? 'R-32'
+                        : f.fluide
+                  const base = {
+                    ...f,
+                    contenantType,
+                    quantiteKg: contenantType === 'recuperation' && !editId ? 0 : f.quantiteKg,
+                    capaciteMaxKg:
+                      contenantType === 'recuperation' && !f.capaciteMaxKg ? 12.5 : f.capaciteMaxKg,
+                    emplacement:
+                      contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
+                    typeHuile:
+                      contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
+                  }
+                  return nextFluide === f.fluide
+                    ? base
+                    : { ...applyFluideAdr(base, nextFluide, true), conformeA2LA3: false }
+                })
               }}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
@@ -623,22 +661,40 @@ export function StockPage() {
             </label>
           )}
 
-          {form.contenantType === 'recuperation' && isFluideInflammableA2LOrA3(form.fluide) && (
+          {form.contenantType === 'recuperation' &&
+            (isFluideNonAssigne(form.fluide) || isFluideInflammableA2LOrA3(form.fluide)) && (
             <div className="space-y-2 sm:col-span-2">
-              <A2lRecupAlert fluide={form.fluide} />
-              <A2lConformiteCheckbox
-                fluide={form.fluide}
-                checked={!!form.conformeA2LA3}
-                onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
-                id="stock-conforme-a2l"
-              />
-              <DecimalField
-                label="Pression d’épreuve PH (bar)"
-                value={form.pressionEpreuveBar ?? 0}
-                onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
-                placeholder="ex. 48"
-                emptyZero
-              />
+              {isFluideInflammableA2LOrA3(form.fluide) ? (
+                <>
+                  <A2lRecupAlert fluide={form.fluide} />
+                  <A2lConformiteCheckbox
+                    fluide={form.fluide}
+                    checked={!!form.conformeA2LA3}
+                    onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
+                    id="stock-conforme-a2l"
+                  />
+                  <DecimalField
+                    label="Pression d’épreuve PH (bar)"
+                    value={form.pressionEpreuveBar ?? 0}
+                    onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
+                    placeholder="ex. 48"
+                    emptyZero
+                  />
+                </>
+              ) : (
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={!!form.conformeA2LA3}
+                    onChange={(e) => setForm({ ...form, conformeA2LA3: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-amber-700"
+                  />
+                  <span>
+                    Bouteille adaptée A2L/A3 (collerette rouge + pas à gauche) — à cocher si le 1er
+                    CERFA sera un gaz inflammable (ex. R-32).
+                  </span>
+                </label>
+              )}
             </div>
           )}
 
@@ -1092,7 +1148,7 @@ export function StockPage() {
 
       <div className="space-y-4">
         {groups.map((group) => {
-          const f = findFluide(group.fluide)
+          const f = findFluide(group.fluide === 'Non assigné' ? '' : group.fluide)
           return (
             <section
               key={group.fluide}
@@ -1171,6 +1227,11 @@ export function StockPage() {
                               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
                                 {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
+                              {isFluideNonAssigne(s.fluide) && s.contenantType === 'recuperation' && (
+                                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-800">
+                                  Non assigné
+                                </span>
+                              )}
                               {s.contenantType === 'recuperation' && current > 0 && (
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
                                   BSFF seul

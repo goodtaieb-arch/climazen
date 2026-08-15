@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import type { AppData, CerfaDraft, ContenantType, StockItem, StockMouvement, StockMouvementSens } from './types'
 import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from './types'
-import { sameFluideCode } from './fluides'
+import { adrInfoForFluide, findFluide, isFluideNonAssigne, sameFluideCode } from './fluides'
 import { assertMouvementCerfaLegal } from './stockRegles'
 
 function roundKg(n: number) {
@@ -52,19 +52,39 @@ export function applyStockFromIntervention(
   const date = intervention.dateIntervention || now.slice(0, 10)
 
     // 2) Appliquer les nouveaux mouvements
-  const denomination = (intervention.fluideType || '').trim()
+    const denomination = (intervention.fluideType || '').trim()
   for (const m of manip) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
     if (idx < 0) throw new Error('Bouteille introuvable dans le stock.')
-    const item = stock[idx]
-    if (denomination && !sameFluideCode(item.fluide, denomination)) {
-      throw new Error(
-        `Bouteille ${item.numeroContenant} (${item.fluide}) ≠ dénomination fluide ${denomination}. Même gaz obligatoire.`,
-      )
-    }
+    let item = stock[idx]
     const sens = resolveSens(m.type || item.contenantType, m.sens)
     const qty = roundKg(m.quantiteKg)
     const avant = item.quantiteKg
+
+    // 1er CERFA sur récup. non assignée : verrouille le fluide de l’intervention
+    if (
+      sens === 'entree' &&
+      item.contenantType === 'recuperation' &&
+      isFluideNonAssigne(item.fluide) &&
+      denomination
+    ) {
+      const code = findFluide(denomination)?.code || denomination
+      const adr = adrInfoForFluide(code)
+      item = {
+        ...item,
+        fluide: code,
+        codeUn: adr?.codeUn || item.codeUn,
+        denominationAdr: adr?.denominationAdr || item.denominationAdr,
+        updatedAt: now,
+      }
+      stock[idx] = item
+    }
+
+    if (denomination && !sameFluideCode(item.fluide, denomination)) {
+      throw new Error(
+        `Bouteille ${item.numeroContenant} (${item.fluide || 'non assigné'}) ≠ dénomination fluide ${denomination}. Même gaz obligatoire.`,
+      )
+    }
 
     assertMouvementCerfaLegal({
       item,
@@ -407,6 +427,17 @@ export function enregistrerDestruction(
     quantiteKg: apres,
     updatedAt: now,
     ...(ref && !item.bsffReference ? { bsffReference: ref } : {}),
+    // Après évacuation totale : bouteille à nouveau disponible (fluide non assigné)
+    ...(apres <= 1e-9 && item.contenantType === 'recuperation'
+      ? {
+          fluide: '',
+          codeUn: '',
+          denominationAdr: '',
+          conformeA2LA3: false,
+          typeHuile: 'inconnu' as const,
+          origineClientId: undefined,
+        }
+      : {}),
   }
 
   const mouvement = makeMouvement({

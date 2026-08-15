@@ -26,7 +26,7 @@ import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
-import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, isFluideInflammableA2LOrA3, sameFluideCode } from '../lib/fluides'
+import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, fluideCompatibleAvecCerfa, isFluideInflammableA2LOrA3, isFluideNonAssigne, labelFluideStock, sameFluideCode } from '../lib/fluides'
 import {
   assertMouvementCerfaLegal,
   bouteilleEligibleChargeCerfa,
@@ -244,14 +244,18 @@ export function InterventionFormPage() {
     if (!denominationFluide) return []
     const permetRecup = naturesPermettentRemplissageRecup(natures)
     return data.stock.filter((s) => {
-      if (!sameFluideCode(s.fluide, denominationFluide)) return false
       if (isBouteilleRetournee(s)) return false
       const qty = Number(s.quantiteKg) || 0
 
       // Déchet usagé : jamais proposée en charge — uniquement pour remplir (récup / démantèlement)
       if (s.contenantType === 'recuperation') {
-        return permetRecup
+        if (!permetRecup) return false
+        // Non assignée (vide ou déjà) : OK → fluide fixé au 1er CERFA
+        if (isFluideNonAssigne(s.fluide)) return true
+        return sameFluideCode(s.fluide, denominationFluide)
       }
+
+      if (!sameFluideCode(s.fluide, denominationFluide)) return false
 
       if (qty > 0) {
         // Charge / appoint : vierge, recyclé (même client) ou régénéré usine — pas le déchet
@@ -270,6 +274,7 @@ export function InterventionFormPage() {
       (s) =>
         isContenantDestination(s.contenantType) &&
         !isBouteilleRetournee(s) &&
+        !isFluideNonAssigne(s.fluide) &&
         !sameFluideCode(s.fluide, denominationFluide),
     )
   }, [data.stock, denominationFluide])
@@ -286,10 +291,9 @@ export function InterventionFormPage() {
   }, [data.stock, denominationFluide])
 
   const stockCreateRecupHref = useMemo(() => {
-    const q = new URLSearchParams({ type: 'recuperation' })
-    if (denominationFluide) q.set('fluide', denominationFluide)
-    return `/app/stock?${q.toString()}`
-  }, [denominationFluide])
+    // Récup. vide non assignée — fluide fixé au 1er CERFA
+    return `/app/stock?${new URLSearchParams({ type: 'recuperation' }).toString()}`
+  }, [])
 
   // Charger le CERFA déjà enregistré dans l’app
   useEffect(() => {
@@ -460,6 +464,7 @@ export function InterventionFormPage() {
   }, [firstStockId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Si la dénomination fluide change, retirer toute bouteille d’un autre gaz (tous types)
+  // (conserve les récup. non assignées)
   useEffect(() => {
     if (!denominationFluide) {
       setManips((prev) => (prev.some((m) => m.stockItemId) ? prev.map((m) => ({ ...m, stockItemId: '', quantiteKg: 0 })) : prev))
@@ -469,7 +474,8 @@ export function InterventionFormPage() {
       const next = prev.filter((m) => {
         if (!m.stockItemId) return true
         const item = data.stock.find((s) => s.id === m.stockItemId)
-        return item ? sameFluideCode(item.fluide, denominationFluide) : false
+        if (!item) return false
+        return fluideCompatibleAvecCerfa(item.fluide, denominationFluide)
       })
       return next.length === prev.length ? prev : next
     })
@@ -898,9 +904,9 @@ export function InterventionFormPage() {
       if (!item) {
         throw new Error('Choisissez une bouteille du stock pour chaque ligne remplie.')
       }
-      if (!sameFluideCode(item.fluide, denominationFluide)) {
+      if (!fluideCompatibleAvecCerfa(item.fluide, denominationFluide)) {
         throw new Error(
-          `Interdit : bouteille ${item.numeroContenant} (${item.fluide}) ≠ dénomination fluide ${denominationFluide}. Même gaz obligatoire pour tous les types.`,
+          `Interdit : bouteille ${item.numeroContenant} (${labelFluideStock(item.fluide)}) ≠ dénomination fluide ${denominationFluide}. Même gaz obligatoire pour tous les types.`,
         )
       }
       if (!item.numeroContenant?.trim()) {
@@ -928,13 +934,14 @@ export function InterventionFormPage() {
         quantiteKg: m.quantiteKg,
         clientId: client?.id || chantier?.clientId,
       })
+      const fluideA2l = isFluideNonAssigne(item.fluide) ? denominationFluide : item.fluide
       if (
         item.contenantType === 'recuperation' &&
-        isFluideInflammableA2LOrA3(item.fluide) &&
+        isFluideInflammableA2LOrA3(fluideA2l) &&
         !item.conformeA2LA3
       ) {
         throw new Error(
-          `Bouteille ${item.numeroContenant} (${item.fluide}) : confirmez en Stock qu’elle est certifiée A2L/A3 (collerette rouge + pas à gauche) avant la récupération.`,
+          `Bouteille ${item.numeroContenant} : confirmez en Stock qu’elle est certifiée A2L/A3 (collerette rouge + pas à gauche) avant la récupération${isFluideNonAssigne(item.fluide) ? ` (${denominationFluide})` : ` (${item.fluide})`}.`,
         )
       }
       if (isBouteilleReepreuveExpiree(item)) {
@@ -1634,11 +1641,20 @@ export function InterventionFormPage() {
                       {optionsDispo.map((s) => {
                         const q = Number(s.quantiteKg) || 0
                         const videDest = q <= 0 && bouteilleVisibleCerfaMemeVide(s.contenantType)
+                        const nonAssigne = isFluideNonAssigne(s.fluide)
                         return (
                           <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
-                            {s.fluide} · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType}{' '}
-                            · {s.numeroContenant || 'SANS N°'} —{' '}
-                            {videDest ? 'vide (à remplir)' : `reste ${s.quantiteKg} kg`}
+                            {labelFluideStock(s.fluide)}
+                            {nonAssigne && denominationFluide
+                              ? ` → ${denominationFluide}`
+                              : ''}{' '}
+                            · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType} ·{' '}
+                            {s.numeroContenant || 'SANS N°'} —{' '}
+                            {videDest
+                              ? nonAssigne
+                                ? 'vide non assignée (à verrouiller)'
+                                : 'vide (à remplir)'
+                              : `reste ${s.quantiteKg} kg`}
                             {s.quantiteInitialeKg != null && q > 0
                               ? ` / ${s.quantiteInitialeKg} kg`
                               : ''}
@@ -1752,7 +1768,14 @@ export function InterventionFormPage() {
                       fluides.
                     </p>
                   )}
-                  {item?.contenantType === 'recuperation' && (
+                  {item?.contenantType === 'recuperation' && isFluideNonAssigne(item.fluide) && (
+                    <p className="text-xs text-sky-900">
+                      Bouteille non assignée : à l’enregistrement, elle sera verrouillée sur{' '}
+                      <strong>{denominationFluide || 'le fluide CERFA'}</strong> jusqu’au BSFF /
+                      retour distributeur.
+                    </p>
+                  )}
+                  {item?.contenantType === 'recuperation' && !isFluideNonAssigne(item.fluide) && (
                     <p className="text-xs text-amber-900">
                       Accumulation autorisée sur plusieurs sites (même fluide {item.fluide} uniquement).
                       Chaque site = un CERFA avec le n° {item.numeroContenant}. Pas de réinjection —
@@ -1760,9 +1783,15 @@ export function InterventionFormPage() {
                     </p>
                   )}
                   {item?.contenantType === 'recuperation' &&
-                    isFluideInflammableA2LOrA3(item.fluide) && (
+                    isFluideInflammableA2LOrA3(
+                      isFluideNonAssigne(item.fluide) ? denominationFluide : item.fluide,
+                    ) && (
                       <div className="space-y-2">
-                        <A2lRecupAlert fluide={item.fluide} />
+                        <A2lRecupAlert
+                          fluide={
+                            isFluideNonAssigne(item.fluide) ? denominationFluide : item.fluide
+                          }
+                        />
                         {!item.conformeA2LA3 && (
                           <p className="text-xs font-semibold text-danger">
                             Conformité A2L/A3 non cochée en Stock — ouvrez la bouteille et validez
@@ -1855,7 +1884,7 @@ export function InterventionFormPage() {
                 to={stockCreateRecupHref}
                 className="inline-flex font-semibold text-accent underline-offset-2 hover:underline"
               >
-                Créer une bouteille de récupération {denominationFluide} →
+                Créer une bouteille de récupération vide (fluide au 1er CERFA) →
               </Link>
             </div>
           )}
