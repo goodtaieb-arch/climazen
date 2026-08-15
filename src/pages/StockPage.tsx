@@ -582,7 +582,11 @@ export function StockPage() {
             onChange={(v) =>
               setForm((f) => ({
                 ...applyFluideAdr(f, v, true),
-                conformeA2LA3: isFluideInflammableA2LOrA3(v) ? f.conformeA2LA3 : false,
+                // Garder le marquage A2L si fluide inflam. OU récup non assignée
+                conformeA2LA3:
+                  isFluideInflammableA2LOrA3(v) || isFluideNonAssigne(v)
+                    ? f.conformeA2LA3
+                    : false,
               }))
             }
             required={form.contenantType !== 'recuperation'}
@@ -621,7 +625,14 @@ export function StockPage() {
                   }
                   return nextFluide === f.fluide
                     ? base
-                    : { ...applyFluideAdr(base, nextFluide, true), conformeA2LA3: false }
+                    : {
+                        ...applyFluideAdr(base, nextFluide, true),
+                        conformeA2LA3:
+                          isFluideInflammableA2LOrA3(nextFluide) ||
+                          (contenantType === 'recuperation' && isFluideNonAssigne(nextFluide))
+                            ? f.conformeA2LA3
+                            : false,
+                      }
                 })
               }}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
@@ -1243,7 +1254,18 @@ export function StockPage() {
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                     Type de gaz
                   </div>
-                  <div className="font-display text-xl font-bold text-ink">{group.fluide}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="font-display text-xl font-bold text-ink">{group.fluide}</div>
+                    {isFluideInflammableA2LOrA3(group.fluide) && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                        title="Fluide inflammable (A2L/A3)"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        {findFluide(group.fluide)?.classeSecurite || 'A2L'}
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-0.5 text-xs text-muted">
                     {group.bottles.length} bouteille
                     {group.bottles.length > 1 ? 's' : ''}
@@ -1302,15 +1324,12 @@ export function StockPage() {
                               </span>
                               {(s.conformeA2LA3 || isFluideInflammableA2LOrA3(s.fluide)) && (
                                 <span
-                                  className="inline-flex items-center gap-0.5 text-amber-700"
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
                                   title="Bouteille destinée aux fluides inflammables (A2L/A3)"
                                   aria-label="Avertissement : fluide inflammable A2L/A3"
                                 >
-                                  <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-                                  <span className="text-[10px] font-bold uppercase tracking-wide">
-                                    {findFluide(s.fluide)?.classeSecurite ||
-                                      (s.conformeA2LA3 ? 'A2L' : '')}
-                                  </span>
+                                  <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                  {findFluide(s.fluide)?.classeSecurite || 'A2L'}
                                 </span>
                               )}
                               <span
