@@ -96,6 +96,36 @@ const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   transfert: { label: 'Transfert', cls: 'bg-slate-100 text-slate-700' },
 }
 
+/** Récupération déchet = hors stock utilisable (traitement / destruction BSFF). */
+function isStockDechet(s: Pick<StockItem, 'contenantType'>): boolean {
+  return s.contenantType === 'recuperation'
+}
+
+type StockFluideGroup = {
+  fluide: string
+  bottles: StockItem[]
+  totalKg: number
+}
+
+function groupStockByFluide(items: StockItem[]): StockFluideGroup[] {
+  const map = new Map<string, StockItem[]>()
+  for (const s of items) {
+    const key = labelFluideStock(s.fluide)
+    const list = map.get(key) || []
+    list.push(s)
+    map.set(key, list)
+  }
+  return [...map.entries()]
+    .map(([fluide, bottles]) => ({
+      fluide,
+      bottles: [...bottles].sort((a, b) =>
+        (a.numeroContenant || '').localeCompare(b.numeroContenant || '', 'fr'),
+      ),
+      totalKg: roundKg(bottles.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
+    }))
+    .sort((a, b) => a.fluide.localeCompare(b.fluide, 'fr'))
+}
+
 function applyFluideAdr(
   form: Omit<StockItem, 'id' | 'updatedAt'>,
   fluide: string,
@@ -239,24 +269,23 @@ export function StockPage() {
     [data.stock, q],
   )
 
-  const groups = useMemo(() => {
-    const map = new Map<string, StockItem[]>()
-    for (const s of actifStock) {
-      const key = labelFluideStock(s.fluide)
-      const list = map.get(key) || []
-      list.push(s)
-      map.set(key, list)
-    }
-    return [...map.entries()]
-      .map(([fluide, bottles]) => ({
-        fluide,
-        bottles: [...bottles].sort((a, b) =>
-          (a.numeroContenant || '').localeCompare(b.numeroContenant || '', 'fr'),
-        ),
-        totalKg: roundKg(bottles.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
-      }))
-      .sort((a, b) => a.fluide.localeCompare(b.fluide, 'fr'))
-  }, [actifStock])
+  const stockUtilisable = useMemo(
+    () => actifStock.filter((s) => !isStockDechet(s)),
+    [actifStock],
+  )
+  const stockDechet = useMemo(() => actifStock.filter((s) => isStockDechet(s)), [actifStock])
+
+  const groupsUtilisable = useMemo(() => groupStockByFluide(stockUtilisable), [stockUtilisable])
+  const groupsDechet = useMemo(() => groupStockByFluide(stockDechet), [stockDechet])
+
+  const totalUtilisableKg = useMemo(
+    () => roundKg(stockUtilisable.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
+    [stockUtilisable],
+  )
+  const totalDechetKg = useMemo(
+    () => roundKg(stockDechet.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
+    [stockDechet],
+  )
 
   const mouvementContext = (m: StockMouvement) => {
     if (!m.interventionId) return null
@@ -515,8 +544,7 @@ export function StockPage() {
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold tracking-tight">Stock fluides</h1>
             <p className="mt-1 text-muted">
-              Bouteilles, CERFA, transferts atelier ↔ véhicule (sans CERFA), BSFF et retours
-              consigne.
+              Gaz utilisable (charge) séparé du gaz récupéré (déchet → BSFF / traitement).
             </p>
           </div>
         </div>
@@ -556,6 +584,33 @@ export function StockPage() {
         placeholder="Rechercher fluide, n° bouteille, BSFF…"
         testId="stock-search"
       />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+            Stock utilisable
+          </div>
+          <div className="mt-0.5 font-display text-2xl font-bold text-emerald-950">
+            {totalUtilisableKg}{' '}
+            <span className="text-base font-semibold text-emerald-800/80">kg</span>
+          </div>
+          <p className="mt-1 text-xs text-emerald-900/80">
+            Vierge, régénéré, recyclé site — pour charge / appoint.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-orange-200 bg-orange-50/80 px-4 py-3">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-orange-900">
+            Récupération déchet
+          </div>
+          <div className="mt-0.5 font-display text-2xl font-bold text-orange-950">
+            {totalDechetKg}{' '}
+            <span className="text-base font-semibold text-orange-800/80">kg</span>
+          </div>
+          <p className="mt-1 text-xs text-orange-950/80">
+            Destiné au traitement / destruction (BSFF) — pas de réinjection.
+          </p>
+        </div>
+      </div>
 
       {open && (
         <form
@@ -1241,18 +1296,58 @@ export function StockPage() {
         </form>
       )}
 
-      <div className="space-y-4">
-        {groups.map((group) => {
+      <div className="space-y-8">
+        {(
+          [
+            {
+              id: 'utilisable' as const,
+              title: 'Stock utilisable',
+              hint: 'Gaz pour charge / appoint — vierge, régénéré, recyclé site, transfert.',
+              groups: groupsUtilisable,
+              empty: 'Aucune bouteille utilisable pour le moment.',
+              border: 'border-emerald-200',
+              head: 'border-emerald-100 bg-emerald-50/70',
+              qtyLabel: 'Quantité utilisable',
+            },
+            {
+              id: 'dechet' as const,
+              title: 'Récupération déchet → traitement / destruction',
+              hint: 'Fluide usagé uniquement pour BSFF / retour distributeur — jamais réinjecté en charge.',
+              groups: groupsDechet,
+              empty: 'Aucune bouteille de récupération.',
+              border: 'border-orange-200',
+              head: 'border-orange-100 bg-orange-50/80',
+              qtyLabel: 'À évacuer (BSFF)',
+            },
+          ] as const
+        ).map((cat) => (
+          <div key={cat.id} className="space-y-3">
+            <div>
+              <h2 className="font-display text-lg font-bold text-ink">{cat.title}</h2>
+              <p className="text-xs text-muted">{cat.hint}</p>
+            </div>
+            {cat.groups.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-line bg-white px-4 py-3 text-sm text-muted">
+                {cat.empty}
+              </p>
+            ) : (
+              cat.groups.map((group) => {
           const f = findFluide(group.fluide === 'Non assigné' ? '' : group.fluide)
           return (
             <section
-              key={group.fluide}
-              className="overflow-hidden rounded-2xl border border-accent/25 bg-white"
+              key={`${cat.id}-${group.fluide}`}
+              className={['overflow-hidden rounded-2xl border bg-white', cat.border].join(' ')}
             >
-              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-accent/20 bg-accent-soft/40 px-4 py-3">
+              <div
+                className={[
+                  'flex flex-wrap items-end justify-between gap-3 border-b px-4 py-3',
+                  cat.head,
+                ].join(' ')}
+              >
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                     Type de gaz
+                    {cat.id === 'dechet' ? ' · déchet' : ' · utilisable'}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="font-display text-xl font-bold text-ink">{group.fluide}</div>
@@ -1265,6 +1360,11 @@ export function StockPage() {
                         {findFluide(group.fluide)?.classeSecurite || 'A2L'}
                       </span>
                     )}
+                    {cat.id === 'dechet' && (
+                      <span className="rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        Non utilisable
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     {group.bottles.length} bouteille
@@ -1274,7 +1374,7 @@ export function StockPage() {
                 </div>
                 <div className="text-right">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                    Quantité totale
+                    {cat.qtyLabel}
                   </div>
                   <div className="font-display text-2xl font-bold text-ink">
                     {group.totalKg}{' '}
@@ -1588,7 +1688,10 @@ export function StockPage() {
               </ul>
             </section>
           )
-        })}
+              })
+            )}
+          </div>
+        ))}
 
         {retournees.length > 0 && (
           <section className="space-y-2">
