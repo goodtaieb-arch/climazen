@@ -98,12 +98,9 @@ export function applyStockFromIntervention(
     } else {
       const apres = roundKg(avant + qty)
       const patch: Partial<StockItem> = { quantiteKg: apres, updatedAt: now }
-      // Rattache le fluide récupéré / recyclé au détenteur pour la réinjection
-      if (
-        (item.contenantType === 'regenere' || item.contenantType === 'recuperation') &&
-        intervention.clientId &&
-        !item.origineClientId
-      ) {
+      // Rattache le fluide recyclé au détenteur (réinjection même client uniquement).
+      // Pas sur récupération : une même bouteille déchet peut accumuler plusieurs sites.
+      if (item.contenantType === 'regenere' && intervention.clientId && !item.origineClientId) {
         patch.origineClientId = intervention.clientId
       }
       stock[idx] = { ...item, ...patch }

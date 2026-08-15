@@ -1,8 +1,17 @@
 import type { ContenantType, NatureIntervention, StockItem, StockMouvementSens } from './types'
 import { CONTENANT_TYPE_LABELS, isContenantDestination } from './types'
 
-/** Capacité max utile (kg) — récup. obligatoire ; sinon quantiteInitialeKg en repli. */
-export function capaciteMaxEffective(item: Pick<StockItem, 'capaciteMaxKg' | 'quantiteInitialeKg'>): number | null {
+/** Taux de remplissage max sécurité (dilatation thermique) — récupération. */
+export const TAUX_REMPLISSAGE_SECURITE = 0.8
+
+function roundKg(n: number) {
+  return Math.round(n * 1000) / 1000
+}
+
+/** Capacité nominale (kg) saisie en stock — avant application du 80 %. */
+export function capaciteNominaleKg(
+  item: Pick<StockItem, 'capaciteMaxKg' | 'quantiteInitialeKg'>,
+): number | null {
   const cap = Number(item.capaciteMaxKg)
   if (Number.isFinite(cap) && cap > 0) return cap
   const init = Number(item.quantiteInitialeKg)
@@ -10,10 +19,72 @@ export function capaciteMaxEffective(item: Pick<StockItem, 'capaciteMaxKg' | 'qu
   return null
 }
 
+/** @deprecated alias — préférer capaciteNominaleKg */
+export function capaciteMaxEffective(
+  item: Pick<StockItem, 'capaciteMaxKg' | 'quantiteInitialeKg'>,
+): number | null {
+  return capaciteNominaleKg(item)
+}
+
+/**
+ * Poids max fluide autorisé (sécurité).
+ * Récupération : 80 % de la capacité nominale. Autres : capacité nominale.
+ */
+export function poidsMaxAutoriseKg(item: StockItem): number | null {
+  const nom = capaciteNominaleKg(item)
+  if (nom == null) return null
+  if (item.contenantType === 'recuperation') {
+    return roundKg(nom * TAUX_REMPLISSAGE_SECURITE)
+  }
+  return nom
+}
+
 export function capaciteRestanteKg(item: StockItem): number | null {
-  const cap = capaciteMaxEffective(item)
-  if (cap == null) return null
-  return Math.max(0, Math.round((cap - (Number(item.quantiteKg) || 0)) * 1000) / 1000)
+  const max = poidsMaxAutoriseKg(item)
+  if (max == null) return null
+  return Math.max(0, roundKg(max - (Number(item.quantiteKg) || 0)))
+}
+
+export type JaugeRecupInfo = {
+  actuelKg: number
+  nominalKg: number
+  maxAutoriseKg: number
+  restanteKg: number
+  /** 0–100 par rapport au poids max autorisé (80 % nominal) */
+  pctAutorise: number
+  alerteBientotPleine: boolean
+  pleine: boolean
+  message: string | null
+}
+
+/** Jauge cumulée multi-sites + seuils d’alerte (80 % du max autorisé). */
+export function jaugeRemplissageRecup(item: StockItem): JaugeRecupInfo | null {
+  if (item.contenantType !== 'recuperation') return null
+  const nominalKg = capaciteNominaleKg(item)
+  const maxAutoriseKg = poidsMaxAutoriseKg(item)
+  if (nominalKg == null || maxAutoriseKg == null) return null
+  const actuelKg = roundKg(Number(item.quantiteKg) || 0)
+  const restanteKg = Math.max(0, roundKg(maxAutoriseKg - actuelKg))
+  const pctAutorise =
+    maxAutoriseKg > 0 ? Math.min(100, Math.round((actuelKg / maxAutoriseKg) * 100)) : 0
+  const pleine = actuelKg >= maxAutoriseKg - 1e-9
+  const alerteBientotPleine = !pleine && pctAutorise >= 80
+  let message: string | null = null
+  if (pleine) {
+    message = `Bouteille pleine (${actuelKg} / ${maxAutoriseKg} kg max autorisés) — générer le BSFF et retour distributeur.`
+  } else if (alerteBientotPleine) {
+    message = `Bouteille bientôt pleine (${actuelKg} / ${maxAutoriseKg} kg max) — prévoir le retour distributeur (BSFF).`
+  }
+  return {
+    actuelKg,
+    nominalKg,
+    maxAutoriseKg,
+    restanteKg,
+    pctAutorise,
+    alerteBientotPleine,
+    pleine,
+    message,
+  }
 }
 
 /** CERFA natures qui autorisent le remplissage d’une bouteille de récupération. */
@@ -87,10 +158,11 @@ export function assertMouvementCerfaLegal(opts: {
   if (sens === 'entree') {
     const restante = capaciteRestanteKg(item)
     if (item.contenantType === 'recuperation') {
-      const cap = capaciteMaxEffective(item)
-      if (cap == null || cap <= 0) {
+      const max = poidsMaxAutoriseKg(item)
+      const nom = capaciteNominaleKg(item)
+      if (max == null || max <= 0 || nom == null) {
         throw new Error(
-          `Bouteille ${item.numeroContenant} : indiquez la capacité max (kg) dans Stock pour éviter la surcharge.`,
+          `Bouteille ${item.numeroContenant} : indiquez la capacité nominale (kg) dans Stock. Le plafond sécurité est 80 % (${TAUX_REMPLISSAGE_SECURITE * 100} %).`,
         )
       }
     }
@@ -100,8 +172,9 @@ export function assertMouvementCerfaLegal(opts: {
       )
     }
     if (restante != null && qty > restante + 1e-9) {
+      const max = poidsMaxAutoriseKg(item)
       throw new Error(
-        `Capacité dépassée sur ${item.numeroContenant} : reste ${restante} kg avant le max (${capaciteMaxEffective(item)} kg).`,
+        `Plafond sécurité dépassé sur ${item.numeroContenant} : reste ${restante} kg (max autorisé ${max} kg = 80 % de la capacité). Même fluide uniquement, multi-sites OK jusqu’à ce plafond.`,
       )
     }
   }
@@ -122,8 +195,8 @@ export function resumeRegleContenant(type: ContenantType): string {
   switch (type) {
     case 'vierge':
       return 'Neuf distributeur : stock positif au départ, uniquement des sorties (charge). N° bouteille obligatoire.'
-    case 'recuperation':
-      return 'Déchet usagé : se remplit à la récupération uniquement. Jamais de charge/appoint client. Sortie = BSFF / retour distributeur uniquement.'
+      case 'recuperation':
+      return 'Déchet usagé : accumulation multi-sites (même fluide), max 80 % capacité. Jamais de réinjection — BSFF / distributeur quand pleine.'
     case 'regenere':
       return 'Recyclé site = même détenteur uniquement. Régénéré usine (sans client d’origine) = utilisable partout après achat distributeur.'
     case 'transfert':

@@ -31,11 +31,13 @@ import {
   assertMouvementCerfaLegal,
   bouteilleEligibleChargeCerfa,
   capaciteRestanteKg,
+  jaugeRemplissageRecup,
   naturesPermettentRemplissageRecup,
   resumeRegleContenant,
   sensAutorisesCerfa,
 } from '../lib/stockRegles'
 import { A2lRecupAlert } from '../components/A2lRecupAlert'
+import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
@@ -1574,6 +1576,7 @@ export function InterventionFormPage() {
                   (isContenantDestination(item.contenantType) && qtyRestante <= 0) ||
                   m.sens === 'entree')
               const resteCap = item ? capaciteRestanteKg(item) : null
+              const jauge = item ? jaugeRemplissageRecup(item) : null
               return (
                 <div
                   key={m.key}
@@ -1620,6 +1623,7 @@ export function InterventionFormPage() {
                       {resumeRegleContenant(item.contenantType)}
                     </p>
                   )}
+                  {jauge && <RecupJaugeBanner item={item!} />}
                   {item && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm">
@@ -1650,7 +1654,7 @@ export function InterventionFormPage() {
                           m.sens === 'sortie'
                             ? `Quantité sortie (kg) * — max ${item.quantiteKg}`
                             : resteCap != null
-                              ? `Quantité récupérée (kg) * — max ${resteCap}`
+                              ? `Quantité récupérée (kg) * — max ${resteCap} (cumul multi-sites)`
                               : 'Quantité récupérée / ajoutée (kg) *'
                         }
                         value={m.quantiteKg}
@@ -1668,8 +1672,9 @@ export function InterventionFormPage() {
                   )}
                   {item?.contenantType === 'recuperation' && (
                     <p className="text-xs text-amber-900">
-                      Fluide usagé : pas de réinjection sur un autre équipement. Après remplissage,
-                      évacuez via Stock (BSFF / destruction).
+                      Accumulation autorisée sur plusieurs sites (même fluide {item.fluide} uniquement).
+                      Chaque site = un CERFA avec le n° {item.numeroContenant}. Pas de réinjection —
+                      à pleine capacité : BSFF / retour distributeur.
                     </p>
                   )}
                   {item?.contenantType === 'recuperation' &&

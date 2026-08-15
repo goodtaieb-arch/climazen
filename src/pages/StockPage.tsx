@@ -20,8 +20,9 @@ import { BarcodeScanButton } from '../components/BarcodeScanButton'
 import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3 } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
-import { resumeRegleContenant } from '../lib/stockRegles'
+import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
 import { A2lConformiteCheckbox, A2lRecupAlert } from '../components/A2lRecupAlert'
+import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
 import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
 
@@ -46,7 +47,7 @@ const blank = (opts?: {
     numeroContenant: '',
     quantiteKg: contenantType === 'recuperation' ? 0 : 0,
     quantiteInitialeKg: 0,
-    capaciteMaxKg: contenantType === 'recuperation' ? 10 : undefined,
+    capaciteMaxKg: contenantType === 'recuperation' ? 12.5 : undefined,
     emplacement: contenantType === 'transfert' ? 'atelier' : undefined,
     bsffReference: '',
     codeUn: adr?.codeUn || '',
@@ -257,11 +258,16 @@ export function StockPage() {
 
     if (contenantType === 'recuperation') {
       if (!capaciteMaxKg || capaciteMaxKg <= 0) {
-        alert('Bouteille de récupération : capacité max (kg) obligatoire pour éviter la surcharge.')
+        alert(
+          'Bouteille de récupération : capacité nominale (kg) obligatoire. Le plafond sécurité sera 80 % de cette valeur.',
+        )
         return
       }
-      if (qty > capaciteMaxKg + 1e-9) {
-        alert(`Quantité (${qty} kg) supérieure à la capacité max (${capaciteMaxKg} kg).`)
+      const maxAutorise = Math.round(capaciteMaxKg * 0.8 * 1000) / 1000
+      if (qty > maxAutorise + 1e-9) {
+        alert(
+          `Quantité (${qty} kg) supérieure au max autorisé ${maxAutorise} kg (80 % de ${capaciteMaxKg} kg).`,
+        )
         return
       }
       if (isFluideInflammableA2LOrA3(form.fluide) && !form.conformeA2LA3) {
@@ -498,14 +504,25 @@ export function StockPage() {
             <DecimalField
               label={
                 form.contenantType === 'recuperation'
-                  ? 'Capacité max (kg) *'
+                  ? 'Capacité nominale (kg) *'
                   : 'Capacité max (kg)'
               }
               value={form.capaciteMaxKg ?? 0}
               onChange={(n) => setForm({ ...form, capaciteMaxKg: n })}
-              placeholder="ex. 10"
+              placeholder="ex. 12,5"
               emptyZero
             />
+          )}
+
+          {form.contenantType === 'recuperation' && Number(form.capaciteMaxKg) > 0 && (
+            <p className="text-xs text-orange-900 sm:col-span-2">
+              Poids max autorisé (sécurité 80 %) :{' '}
+              <strong>
+                {Math.round(Number(form.capaciteMaxKg) * 0.8 * 1000) / 1000} kg
+              </strong>{' '}
+              de fluide. Même fluide uniquement ; accumulation sur plusieurs sites clients jusqu’à
+              ce plafond, puis BSFF / retour distributeur.
+            </p>
           )}
 
           {form.contenantType === 'recuperation' && isFluideInflammableA2LOrA3(form.fluide) && (
@@ -966,7 +983,9 @@ export function StockPage() {
                   const openHist = expandedId === s.id
                   const badge = TYPE_BADGE[s.contenantType] || TYPE_BADGE.transfert
                   const awaitRetour = needsRetourConsigne(s)
+                  const jauge = jaugeRemplissageRecup(s)
                   const initial =
+                    (jauge ? jauge.maxAutoriseKg : 0) ||
                     Number(s.capaciteMaxKg) ||
                     Number(s.quantiteInitialeKg) ||
                     Number(s.quantiteKg) ||
@@ -1042,6 +1061,11 @@ export function StockPage() {
                                 : ''}
                             </span>
                             <BottleLevelBar current={current} initial={initial} />
+                            {jauge && (jauge.alerteBientotPleine || jauge.pleine) && (
+                              <div className="mt-1.5">
+                                <RecupJaugeBanner item={s} />
+                              </div>
+                            )}
                           </span>
                           <span className="shrink-0 text-right">
                             <span className="font-display text-base font-bold text-ink">
