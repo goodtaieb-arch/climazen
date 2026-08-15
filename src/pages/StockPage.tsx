@@ -17,10 +17,11 @@ import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
-import { adrInfoForFluide, findFluide, formatGwp } from '../lib/fluides'
+import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3 } from '../lib/fluides'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant } from '../lib/stockRegles'
+import { A2lConformiteCheckbox, A2lRecupAlert } from '../components/A2lRecupAlert'
 import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
 
@@ -51,6 +52,9 @@ const blank = (opts?: {
     codeUn: adr?.codeUn || '',
     denominationAdr: adr?.denominationAdr || '',
     notes: '',
+    conformeA2LA3: false,
+    pressionEpreuveBar: undefined,
+    dateReepreuvage: '',
   }
 }
 
@@ -260,6 +264,12 @@ export function StockPage() {
         alert(`Quantité (${qty} kg) supérieure à la capacité max (${capaciteMaxKg} kg).`)
         return
       }
+      if (isFluideInflammableA2LOrA3(form.fluide) && !form.conformeA2LA3) {
+        alert(
+          'Fluide inflammable (A2L/A3) : cochez la confirmation « bouteille certifiée A2L/A3 » (collerette rouge + pas à gauche).',
+        )
+        return
+      }
     }
 
     upsertStock({
@@ -438,7 +448,12 @@ export function StockPage() {
           <FluideSelect
             label="Fluide"
             value={form.fluide}
-            onChange={(v) => setForm((f) => applyFluideAdr(f, v))}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...applyFluideAdr(f, v),
+                conformeA2LA3: isFluideInflammableA2LOrA3(v) ? f.conformeA2LA3 : false,
+              }))
+            }
             required
           />
           <label className="block text-sm">
@@ -491,6 +506,36 @@ export function StockPage() {
               placeholder="ex. 10"
               emptyZero
             />
+          )}
+
+          {form.contenantType === 'recuperation' && isFluideInflammableA2LOrA3(form.fluide) && (
+            <div className="space-y-2 sm:col-span-2">
+              <A2lRecupAlert fluide={form.fluide} />
+              <A2lConformiteCheckbox
+                fluide={form.fluide}
+                checked={!!form.conformeA2LA3}
+                onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
+                id="stock-conforme-a2l"
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DecimalField
+                  label="Pression d’épreuve PH (bar)"
+                  value={form.pressionEpreuveBar ?? 0}
+                  onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
+                  placeholder="ex. 48"
+                  emptyZero
+                />
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Date de rééprouvage</span>
+                  <input
+                    type="date"
+                    value={form.dateReepreuvage || ''}
+                    onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+              </div>
+            </div>
           )}
 
           {form.contenantType === 'transfert' && (
@@ -961,6 +1006,20 @@ export function StockPage() {
                               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
                                 {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
+                              {s.contenantType === 'recuperation' &&
+                                isFluideInflammableA2LOrA3(s.fluide) && (
+                                  <span
+                                    className={[
+                                      'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                      s.conformeA2LA3
+                                        ? 'bg-red-600 text-white'
+                                        : 'bg-red-100 text-red-800 ring-1 ring-red-400',
+                                    ].join(' ')}
+                                  >
+                                    {findFluide(s.fluide)?.classeSecurite || 'A2L'}
+                                    {s.conformeA2LA3 ? '' : ' ?'}
+                                  </span>
+                                )}
                             </span>
                             <span className="mt-0.5 block truncate text-xs text-muted">
                               {awaitRetour

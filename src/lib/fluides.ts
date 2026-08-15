@@ -23,6 +23,8 @@ export type FluideRef = {
   applications: string
   /** Interdit à la manipulation / recharge */
   interdit?: boolean
+  /** Classe de sécurité ASHRAE / ISO (inflammabilité) */
+  classeSecurite?: 'A1' | 'A2L' | 'A2' | 'A3' | 'B1' | 'B2L' | 'B2' | 'B3'
 }
 
 export const FLUIDES: FluideRef[] = [
@@ -33,6 +35,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'HFC pur',
     gwp: 675,
     applications: 'Climatisation résidentielle, Pompes à chaleur (PAC)',
+    classeSecurite: 'A2L',
   },
   {
     code: 'R-134a',
@@ -40,6 +43,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'HFC pur',
     gwp: 1430,
     applications: 'Chillers, Froid commercial, Climatisation automobile',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-407C',
@@ -47,6 +51,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFC',
     gwp: 1774,
     applications: 'Climatisation, Groupes de production d’eau glacée',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-410A',
@@ -54,6 +59,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFC',
     gwp: 2088,
     applications: 'PAC, Climatisation (remplacement progressif par R-32 / R-454B)',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-404A',
@@ -61,6 +67,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFC',
     gwp: 3922,
     applications: 'Froid commercial & industriel (interdiction de recharge neuve)',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-507A',
@@ -68,6 +75,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFC',
     gwp: 3985,
     applications: 'Froid commercial & industriel à basse température',
+    classeSecurite: 'A1',
   },
 
   // 2. HFO & mélanges HFO/HFC
@@ -78,6 +86,7 @@ export const FLUIDES: FluideRef[] = [
     gwp: 1,
     gwpApprox: true,
     applications: 'Climatisation automobile, Chillers',
+    classeSecurite: 'A2L',
   },
   {
     code: 'R-1234ze',
@@ -86,6 +95,7 @@ export const FLUIDES: FluideRef[] = [
     gwp: 1,
     gwpApprox: true,
     applications: 'Groupes d’eau glacée, Pompes à chaleur grande puissance',
+    classeSecurite: 'A2L',
   },
   {
     code: 'R-1233zd',
@@ -93,6 +103,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'HFO pur',
     gwp: 1,
     applications: 'Chillers centrifuges très basse pression',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-454C',
@@ -100,6 +111,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFO/HFC',
     gwp: 148,
     applications: 'Alternative au R-404A (GWP < 150)',
+    classeSecurite: 'A2L',
   },
   {
     code: 'R-455A',
@@ -107,6 +119,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFO/HFC',
     gwp: 148,
     applications: 'Froid commercial (GWP < 150)',
+    classeSecurite: 'A2L',
   },
   {
     code: 'R-454B',
@@ -114,6 +127,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFO/HFC',
     gwp: 466,
     applications: 'Alternative principale au R-410A dans les PAC Air-Eau',
+    classeSecurite: 'A2L',
   },
   {
     code: 'R-448A',
@@ -122,6 +136,7 @@ export const FLUIDES: FluideRef[] = [
     gwp: 1387,
     gwpApprox: true,
     applications: 'Substitution directe (drop-in) du R-404A',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-449A',
@@ -130,6 +145,7 @@ export const FLUIDES: FluideRef[] = [
     gwp: 1387,
     gwpApprox: true,
     applications: 'Substitution directe (drop-in) du R-404A',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-452A',
@@ -137,6 +153,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Mélange HFO/HFC',
     gwp: 2140,
     applications: 'Transport frigorifique (camions, conteneurs)',
+    classeSecurite: 'A1',
   },
 
   // 3. Naturels & HC
@@ -146,6 +163,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Inorganique naturel (CO₂)',
     gwp: 1,
     applications: 'Référence GWP. Froid commercial (supermarchés), PAC',
+    classeSecurite: 'A1',
   },
   {
     code: 'R-717',
@@ -153,6 +171,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Ammoniac (NH₃)',
     gwp: 0,
     applications: 'Froid industriel (entrepôts logistiques, patinoires)',
+    classeSecurite: 'B2L',
   },
   {
     code: 'R-290',
@@ -160,6 +179,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Hydrocarbure (Propane)',
     gwp: 0.02,
     applications: 'PAC monobloc extérieures, vitrines frigorifiques',
+    classeSecurite: 'A3',
   },
   {
     code: 'R-600a',
@@ -167,6 +187,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Hydrocarbure (Isobutane)',
     gwp: 0.04,
     applications: 'Électroménager, réfrigérateurs & congélateurs domestiques',
+    classeSecurite: 'A3',
   },
   {
     code: 'R-1270',
@@ -174,6 +195,7 @@ export const FLUIDES: FluideRef[] = [
     familleDetail: 'Hydrocarbure (Propylène)',
     gwp: 1.8,
     applications: 'Groupes d’eau glacée, Froid commercial spécialisé',
+    classeSecurite: 'A3',
   },
 
   // 4. Interdits HCFC & CFC
@@ -244,6 +266,23 @@ export function findFluide(code: string): FluideRef | undefined {
   if (!code.trim()) return undefined
   const n = normalizeFluideCode(code)
   return FLUIDES.find((f) => normalizeFluideCode(f.code) === n)
+}
+
+/** Classe de sécurité ASHRAE (A1, A2L, A3…). */
+export function classeSecuriteFluide(code: string): FluideRef['classeSecurite'] | undefined {
+  return findFluide(code)?.classeSecurite
+}
+
+/** Fluide inflammable A2L ou A3 → bouteille récup. collerette rouge + pas à gauche. */
+export function isFluideInflammableA2LOrA3(code: string): boolean {
+  const c = classeSecuriteFluide(code)
+  return c === 'A2L' || c === 'A3'
+}
+
+export function messageBouteilleRecupA2L(code: string): string | null {
+  if (!isFluideInflammableA2LOrA3(code)) return null
+  const classe = classeSecuriteFluide(code) || 'A2L'
+  return `Bouteille ${classe} obligatoire (collerette rouge + pas de vis à gauche / LH). Pictogramme flamme, classe gravée, PH (bar) et date de rééprouvage à vérifier.`
 }
 
 /** Transport ADR / RID — cadres CERFA [12] (préremplissage stock). */

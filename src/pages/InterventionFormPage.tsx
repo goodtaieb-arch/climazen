@@ -26,7 +26,7 @@ import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
-import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideCode } from '../lib/fluides'
+import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, isFluideInflammableA2LOrA3, sameFluideCode } from '../lib/fluides'
 import {
   assertMouvementCerfaLegal,
   capaciteRestanteKg,
@@ -34,6 +34,7 @@ import {
   resumeRegleContenant,
   sensAutorisesCerfa,
 } from '../lib/stockRegles'
+import { A2lRecupAlert } from '../components/A2lRecupAlert'
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
@@ -891,6 +892,15 @@ export function InterventionFormPage() {
         quantiteKg: m.quantiteKg,
         clientId: client?.id || chantier?.clientId,
       })
+      if (
+        item.contenantType === 'recuperation' &&
+        isFluideInflammableA2LOrA3(item.fluide) &&
+        !item.conformeA2LA3
+      ) {
+        throw new Error(
+          `Bouteille ${item.numeroContenant} (${item.fluide}) : confirmez en Stock qu’elle est certifiée A2L/A3 (collerette rouge + pas à gauche) avant la récupération.`,
+        )
+      }
     }
 
     const draft = {
@@ -1652,6 +1662,18 @@ export function InterventionFormPage() {
                       évacuez via Stock (BSFF / destruction).
                     </p>
                   )}
+                  {item?.contenantType === 'recuperation' &&
+                    isFluideInflammableA2LOrA3(item.fluide) && (
+                      <div className="space-y-2">
+                        <A2lRecupAlert fluide={item.fluide} />
+                        {!item.conformeA2LA3 && (
+                          <p className="text-xs font-semibold text-danger">
+                            Conformité A2L/A3 non cochée en Stock — ouvrez la bouteille et validez
+                            avant d’enregistrer le CERFA.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   {item && fillMode && m.sens === 'entree' && item.contenantType !== 'recuperation' && (
                     <p className="text-xs text-muted">
                       Vidange : le fluide quitte l’installation et remplit cette bouteille (

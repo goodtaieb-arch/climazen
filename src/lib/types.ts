@@ -316,6 +316,15 @@ export interface StockItem {
   emplacement?: 'atelier' | 'vehicule'
   /** Libellé véhicule / dépôt (ex. « Véhicule A », « Camion 12 »). */
   emplacementLabel?: string
+  /**
+   * Récup. fluide A2L/A3 : technicien confirme bouteille adaptée
+   * (collerette rouge, pas à gauche, pictogramme flamme).
+   */
+  conformeA2LA3?: boolean
+  /** Pression d’épreuve PH (bar) — marquage ogive. */
+  pressionEpreuveBar?: number
+  /** Date de rééprouvage / prochain contrôle périodique bouteille. */
+  dateReepreuvage?: string
   /** BSFF Trackdéchets si applicable */
   bsffReference?: string
   codeUn?: string
