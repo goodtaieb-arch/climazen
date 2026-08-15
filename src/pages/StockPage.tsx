@@ -18,6 +18,10 @@ import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
 import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3 } from '../lib/fluides'
+import {
+  applyBouteilleDefaults,
+  bouteilleDefaultsForFluide,
+} from '../lib/bouteilleDefaults'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
@@ -28,7 +32,7 @@ import {
   isBouteilleReepreuveExpiree,
   type TypeHuile,
 } from '../lib/stockBouteilleExtras'
-import { A2lConformiteCheckbox, A2lRecupAlert } from '../components/A2lRecupAlert'
+import { A2lConformiteLigne } from '../components/A2lRecupAlert'
 import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
 import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
@@ -47,6 +51,7 @@ const blank = (opts?: {
 }): Omit<StockItem, 'id' | 'updatedAt'> => {
   const fluide = opts?.fluide?.trim() || 'R-32'
   const adr = adrInfoForFluide(fluide)
+  const defs = bouteilleDefaultsForFluide(fluide)
   const contenantType = opts?.contenantType || 'vierge'
   return {
     fluide,
@@ -54,16 +59,16 @@ const blank = (opts?: {
     numeroContenant: '',
     quantiteKg: contenantType === 'recuperation' ? 0 : 0,
     quantiteInitialeKg: 0,
-    capaciteMaxKg: contenantType === 'recuperation' ? 12.5 : undefined,
+    capaciteMaxKg: defs.capaciteMaxKg,
     emplacement: contenantType === 'transfert' ? 'atelier' : undefined,
     bsffReference: '',
     codeUn: adr?.codeUn || '',
     denominationAdr: adr?.denominationAdr || '',
     notes: '',
     conformeA2LA3: false,
-    pressionEpreuveBar: undefined,
+    pressionEpreuveBar: defs.pressionEpreuveBar,
     dateReepreuvage: '',
-    tareKg: undefined,
+    tareKg: defs.tareKg,
     dateEntreePossession: today(),
     seuilAlerteConsigneJours: 30,
     typeHuile: contenantType === 'recuperation' ? 'inconnu' : undefined,
@@ -87,14 +92,14 @@ function applyFluideAdr(
   force = false,
 ): Omit<StockItem, 'id' | 'updatedAt'> {
   const adr = adrInfoForFluide(fluide)
-  if (!adr) return { ...form, fluide }
+  const withDefaults = applyBouteilleDefaults(form, fluide, force)
+  if (!adr) return withDefaults
   const prevAdr = adrInfoForFluide(form.fluide)
   const unWasAuto = !form.codeUn || (prevAdr && form.codeUn === prevAdr.codeUn)
   const denomWasAuto =
     !form.denominationAdr || (prevAdr && form.denominationAdr === prevAdr.denominationAdr)
   return {
-    ...form,
-    fluide,
+    ...withDefaults,
     codeUn: force || unWasAuto ? adr.codeUn : form.codeUn,
     denominationAdr: force || denomWasAuto ? adr.denominationAdr : form.denominationAdr,
   }
@@ -134,6 +139,7 @@ export function StockPage() {
   const [open, setOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [regsOpen, setRegsOpen] = useState(false)
+  const [techOpen, setTechOpen] = useState(false)
   const [retourId, setRetourId] = useState<string | null>(null)
   const [retourForm, setRetourForm] = useState({
     bonRetourConsigne: '',
@@ -180,7 +186,8 @@ export function StockPage() {
       }),
     )
     setOpen(true)
-    setRegsOpen(wantRecup)
+    setRegsOpen(false)
+    setTechOpen(false)
     const next = new URLSearchParams(searchParams)
     next.delete('type')
     next.delete('fluide')
@@ -256,7 +263,12 @@ export function StockPage() {
     }
     let qty = Number(form.quantiteKg) || 0
     let contenantType = form.contenantType
-    let capaciteMaxKg = Number(form.capaciteMaxKg) || undefined
+    const defs = bouteilleDefaultsForFluide(form.fluide)
+    let capaciteMaxKg = Number(form.capaciteMaxKg) || defs.capaciteMaxKg
+
+    if (!editId && contenantType === 'recuperation') {
+      qty = 0
+    }
 
     if (!editId && qty <= 0 && !isContenantDestination(contenantType)) {
       const ok = window.confirm(
@@ -264,7 +276,8 @@ export function StockPage() {
       )
       if (ok) {
         contenantType = 'recuperation'
-        capaciteMaxKg = capaciteMaxKg || 10
+        capaciteMaxKg = capaciteMaxKg || defs.capaciteMaxKg
+        qty = 0
       } else {
         return
       }
@@ -301,9 +314,14 @@ export function StockPage() {
       ...form,
       contenantType,
       capaciteMaxKg:
-        contenantType === 'recuperation' || contenantType === 'regenere' || contenantType === 'transfert'
+        contenantType === 'recuperation' ||
+        contenantType === 'regenere' ||
+        contenantType === 'transfert' ||
+        contenantType === 'vierge'
           ? capaciteMaxKg
           : form.capaciteMaxKg,
+      tareKg: form.tareKg ?? defs.tareKg,
+      pressionEpreuveBar: form.pressionEpreuveBar ?? defs.pressionEpreuveBar,
       emplacement: contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement,
       emplacementLabel:
         (contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement) ===
@@ -319,12 +337,21 @@ export function StockPage() {
     setOpen(false)
     setEditId(null)
     setRegsOpen(false)
+    setTechOpen(false)
   }
 
   const startEdit = (s: StockItem) => {
     setEditId(s.id)
     setForm({ ...s })
     setRegsOpen(Boolean(s.bsffReference || s.codeUn || s.denominationAdr))
+    setTechOpen(
+      Boolean(
+        s.dateReepreuvage ||
+          (s.tareKg != null && s.tareKg > 0) ||
+          (s.pressionEpreuveBar != null && s.pressionEpreuveBar > 0) ||
+          (s.typeHuile && s.typeHuile !== 'inconnu'),
+      ),
+    )
     setOpen(true)
   }
 
@@ -463,7 +490,8 @@ export function StockPage() {
             onClick={() => {
               setEditId(null)
               setForm(blank({ contenantType: 'recuperation' }))
-              setRegsOpen(true)
+              setRegsOpen(false)
+              setTechOpen(false)
               setOpen(true)
             }}
             className="hidden min-h-12 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 text-sm font-semibold text-orange-900 hover:bg-orange-100 md:inline-flex"
@@ -476,6 +504,7 @@ export function StockPage() {
               setEditId(null)
               setForm(blank())
               setRegsOpen(false)
+              setTechOpen(false)
               setOpen(true)
             }}
             className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
@@ -497,8 +526,19 @@ export function StockPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
+          <p className="rounded-xl bg-mist/50 px-3 py-2 text-xs text-muted sm:col-span-2">
+            Saisie rapide : <strong className="text-ink">fluide</strong>,{' '}
+            <strong className="text-ink">type</strong>, <strong className="text-ink">n° bouteille</strong>
+            {form.contenantType === 'vierge' ? (
+              <>
+                {' '}
+                + <strong className="text-ink">quantité</strong>
+              </>
+            ) : null}
+            . Capacité / tare / PH préremplis selon le fluide.
+          </p>
           <FluideSelect
-            label="Fluide"
+            label="Fluide *"
             value={form.fluide}
             onChange={(v) =>
               setForm((f) => ({
@@ -509,7 +549,7 @@ export function StockPage() {
             required
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Type de contenant</span>
+            <span className="mb-1 block text-muted">Type de contenant *</span>
             <select
               value={form.contenantType}
               onChange={(e) => {
@@ -519,9 +559,11 @@ export function StockPage() {
                   contenantType,
                   quantiteKg: contenantType === 'recuperation' && !editId ? 0 : f.quantiteKg,
                   capaciteMaxKg:
-                    contenantType === 'recuperation' && !f.capaciteMaxKg ? 10 : f.capaciteMaxKg,
+                    f.capaciteMaxKg || bouteilleDefaultsForFluide(f.fluide).capaciteMaxKg,
                   emplacement:
                     contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
+                  typeHuile:
+                    contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
                 }))
               }}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
@@ -533,113 +575,76 @@ export function StockPage() {
               ))}
             </select>
             <p className="mt-1 text-xs text-muted">{resumeRegleContenant(form.contenantType)}</p>
-            {isContenantDestination(form.contenantType) ? (
-              <p className="mt-1 text-xs text-orange-800">
-                Destination de vidange : 0 kg OK sur le CERFA — même fluide que l’équipement.
-              </p>
-            ) : Number(form.quantiteKg) <= 0 ? (
-              <p className="mt-1 text-xs text-amber-800">
-                Vierge : quantité d’entrée &gt; 0 obligatoire (achat distributeur).
-              </p>
-            ) : null}
           </label>
 
-          {(form.contenantType === 'recuperation' ||
-            form.contenantType === 'regenere' ||
-            form.contenantType === 'transfert') && (
+          <div className="sm:col-span-2">
+            <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
+              <div className="flex gap-2">
+                <input
+                  required
+                  value={form.numeroContenant}
+                  onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
+                  placeholder="ex. BOT-R32-001 (gravé / distributeur)"
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
+                />
+                <BarcodeScanButton
+                  onDetected={(value) => setForm({ ...form, numeroContenant: value })}
+                />
+              </div>
+            </LabelHint>
+          </div>
+
+          <DecimalField
+            label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
+            value={form.contenantType === 'recuperation' && !editId ? 0 : form.quantiteKg}
+            onChange={(n) => {
+              if (form.contenantType === 'recuperation' && !editId) return
+              setForm({
+                ...form,
+                quantiteKg: n,
+                quantiteInitialeKg: editId ? form.quantiteInitialeKg : n,
+              })
+            }}
+            placeholder={form.contenantType === 'recuperation' ? '0 (vide)' : 'ex. 10,5'}
+            disabled={form.contenantType === 'recuperation' && !editId}
+          />
+          {editId ? (
+            <DecimalField
+              label="Quantité d’entrée (kg)"
+              value={form.quantiteInitialeKg ?? form.quantiteKg}
+              onChange={(n) => setForm({ ...form, quantiteInitialeKg: n })}
+              placeholder="capacité / entrée"
+            />
+          ) : (
             <DecimalField
               label={
                 form.contenantType === 'recuperation'
-                  ? 'Capacité nominale (kg) *'
-                  : 'Capacité max (kg)'
+                  ? 'Capacité nominale (kg)'
+                  : 'Capacité (kg)'
               }
-              value={form.capaciteMaxKg ?? 0}
+              value={form.capaciteMaxKg ?? bouteilleDefaultsForFluide(form.fluide).capaciteMaxKg}
               onChange={(n) => setForm({ ...form, capaciteMaxKg: n })}
-              placeholder="ex. 12,5"
+              placeholder="12,5"
               emptyZero
             />
           )}
 
           {form.contenantType === 'recuperation' && Number(form.capaciteMaxKg) > 0 && (
-            <p className="text-xs text-orange-900 sm:col-span-2">
-              Poids max autorisé (sécurité 80 %) :{' '}
+            <p className="text-xs text-muted sm:col-span-2">
+              Max sécurité 80 % :{' '}
               <strong>
                 {Math.round(Number(form.capaciteMaxKg) * 0.8 * 1000) / 1000} kg
-              </strong>{' '}
-              de fluide. Même fluide uniquement ; accumulation sur plusieurs sites clients jusqu’à
-              ce plafond, puis BSFF / retour distributeur.
+              </strong>
             </p>
           )}
 
-          <DecimalField
-            label="Tare (poids vide, kg)"
-            value={form.tareKg ?? 0}
-            onChange={(n) => setForm({ ...form, tareKg: n || undefined })}
-            placeholder="ex. 8,5"
-            emptyZero
-          />
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date de rééprouvage / fin de validité</span>
-            <input
-              type="date"
-              value={form.dateReepreuvage || ''}
-              onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">Entrée en possession (consigne)</span>
-            <input
-              type="date"
-              value={form.dateEntreePossession || ''}
-              onChange={(e) => setForm({ ...form, dateEntreePossession: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </label>
-          <DecimalField
-            label="Alerte consigne après (jours)"
-            value={form.seuilAlerteConsigneJours ?? 30}
-            onChange={(n) => setForm({ ...form, seuilAlerteConsigneJours: n || 30 })}
-            placeholder="30"
-            emptyZero
-          />
-          {form.contenantType === 'recuperation' && (
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-muted">Type d’huile (récupération)</span>
-              <select
-                value={form.typeHuile || 'inconnu'}
-                onChange={(e) => setForm({ ...form, typeHuile: e.target.value as TypeHuile })}
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                {(Object.keys(TYPE_HUILE_LABELS) as TypeHuile[]).map((k) => (
-                  <option key={k} value={k}>
-                    {TYPE_HUILE_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-muted">
-                Évite le mélange MO / POE sur la même bouteille (recyclage).
-              </p>
-            </label>
-          )}
-
           {form.contenantType === 'recuperation' && isFluideInflammableA2LOrA3(form.fluide) && (
-            <div className="space-y-2 sm:col-span-2">
-              <A2lRecupAlert fluide={form.fluide} />
-              <A2lConformiteCheckbox
-                fluide={form.fluide}
-                checked={!!form.conformeA2LA3}
-                onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
-                id="stock-conforme-a2l"
-              />
-              <DecimalField
-                label="Pression d’épreuve PH (bar)"
-                value={form.pressionEpreuveBar ?? 0}
-                onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
-                placeholder="ex. 48"
-                emptyZero
-              />
-            </div>
+            <A2lConformiteLigne
+              fluide={form.fluide}
+              checked={!!form.conformeA2LA3}
+              onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
+              id="stock-conforme-a2l"
+            />
           )}
 
           {form.contenantType === 'transfert' && (
@@ -674,48 +679,92 @@ export function StockPage() {
             </>
           )}
 
-          <div className="sm:col-span-2">
-            <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
-              <div className="flex gap-2">
-                <input
-                  required
-                  value={form.numeroContenant}
-                  onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
-                  placeholder="ex. BOT-R32-001 (gravé / distributeur)"
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
+          <div className="sm:col-span-2 overflow-hidden rounded-xl border border-line">
+            <button
+              type="button"
+              onClick={() => setTechOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 bg-mist/40 px-4 py-3 text-left text-sm font-semibold"
+            >
+              <span>Caractéristiques techniques avancées (optionnel)</span>
+              {techOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted" />
+              )}
+            </button>
+            {techOpen && (
+              <div className="grid gap-3 border-t border-line p-4 sm:grid-cols-2">
+                <p className="text-xs text-muted sm:col-span-2">
+                  Préremplis selon le fluide (ex. R-32 → tare 10 kg, PH 48 bar). Modifiables si la
+                  bouteille diffère.
+                </p>
+                <DecimalField
+                  label="Tare (poids vide, kg)"
+                  value={form.tareKg ?? 0}
+                  onChange={(n) => setForm({ ...form, tareKg: n || undefined })}
+                  placeholder="ex. 10"
+                  emptyZero
                 />
-                <BarcodeScanButton
-                  onDetected={(value) => setForm({ ...form, numeroContenant: value })}
+                <DecimalField
+                  label="Pression d’épreuve PH (bar)"
+                  value={form.pressionEpreuveBar ?? 0}
+                  onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
+                  placeholder="ex. 48"
+                  emptyZero
                 />
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Date de rééprouvage / fin de validité</span>
+                  <input
+                    type="date"
+                    value={form.dateReepreuvage || ''}
+                    onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Entrée en possession (consigne)</span>
+                  <input
+                    type="date"
+                    value={form.dateEntreePossession || ''}
+                    onChange={(e) => setForm({ ...form, dateEntreePossession: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+                <DecimalField
+                  label="Alerte consigne après (jours)"
+                  value={form.seuilAlerteConsigneJours ?? 30}
+                  onChange={(n) => setForm({ ...form, seuilAlerteConsigneJours: n || 30 })}
+                  placeholder="30"
+                  emptyZero
+                />
+                {form.contenantType === 'recuperation' && (
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-muted">Type d’huile (récupération)</span>
+                    <select
+                      value={form.typeHuile || 'inconnu'}
+                      onChange={(e) => setForm({ ...form, typeHuile: e.target.value as TypeHuile })}
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                    >
+                      {(Object.keys(TYPE_HUILE_LABELS) as TypeHuile[]).map((k) => (
+                        <option key={k} value={k}>
+                          {TYPE_HUILE_LABELS[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {editId && (
+                  <DecimalField
+                    label="Capacité nominale / max (kg)"
+                    value={form.capaciteMaxKg ?? 0}
+                    onChange={(n) => setForm({ ...form, capaciteMaxKg: n })}
+                    placeholder="12,5"
+                    emptyZero
+                  />
+                )}
               </div>
-            </LabelHint>
-            <p className="mt-1 text-xs text-muted">
-              Sur mobile : scannez le code-barres / QR fournisseur au lieu de taper le n°.
-            </p>
+            )}
           </div>
-
-          <DecimalField
-            label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
-            value={form.quantiteKg}
-            onChange={(n) => {
-              setForm({
-                ...form,
-                quantiteKg: n,
-                quantiteInitialeKg: editId ? form.quantiteInitialeKg : n,
-              })
-            }}
-            placeholder="ex. 10,5"
-          />
-          {editId ? (
-            <DecimalField
-              label="Quantité d’entrée (kg)"
-              value={form.quantiteInitialeKg ?? form.quantiteKg}
-              onChange={(n) => setForm({ ...form, quantiteInitialeKg: n })}
-              placeholder="capacité / entrée"
-            />
-          ) : (
-            <div className="hidden sm:block" aria-hidden />
-          )}
 
           <div className="sm:col-span-2 overflow-hidden rounded-xl border border-line">
             <button
@@ -783,6 +832,7 @@ export function StockPage() {
               onClick={() => {
                 setOpen(false)
                 setRegsOpen(false)
+                setTechOpen(false)
               }}
               className="rounded-full border border-line px-5 py-2.5 text-sm"
             >
@@ -1505,6 +1555,7 @@ export function StockPage() {
           setEditId(null)
           setForm(blank())
           setRegsOpen(false)
+          setTechOpen(false)
           setOpen(true)
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }}

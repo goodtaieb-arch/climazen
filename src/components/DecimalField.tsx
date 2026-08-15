@@ -13,6 +13,7 @@ export function DecimalField({
   required,
   placeholder = 'ex. 2,2',
   emptyZero = true,
+  disabled = false,
 }: {
   label: string
   value: number
@@ -22,6 +23,7 @@ export function DecimalField({
   placeholder?: string
   /** Si true, 0 s’affiche vide pour faciliter la saisie */
   emptyZero?: boolean
+  disabled?: boolean
 }) {
   const focused = useRef(false)
   const toText = (n: number) => (emptyZero && (!n || n === 0) ? '' : formatDecimalFr(n))
@@ -40,12 +42,16 @@ export function DecimalField({
         inputMode="decimal"
         autoComplete="off"
         required={required}
+        disabled={disabled}
+        readOnly={disabled}
         placeholder={placeholder}
-        value={text}
+        value={disabled && (!value || value === 0) ? '0' : text}
         onFocus={() => {
+          if (disabled) return
           focused.current = true
         }}
         onBlur={() => {
+          if (disabled) return
           focused.current = false
           const n = parseDecimalFr(text)
           const final = n ?? 0
@@ -53,6 +59,7 @@ export function DecimalField({
           setText(toText(final))
         }}
         onChange={(e) => {
+          if (disabled) return
           const raw = sanitizeDecimalTyping(e.target.value)
           setText(raw)
           if (raw === '') {
@@ -62,7 +69,12 @@ export function DecimalField({
           const n = parseDecimalFr(raw)
           if (n !== null) onChange(n)
         }}
-        className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base outline-none focus:border-accent md:h-11 md:text-sm"
+        className={[
+          'h-12 w-full rounded-xl border border-line px-3 text-base outline-none md:h-11 md:text-sm',
+          disabled
+            ? 'cursor-not-allowed bg-mist/70 text-muted'
+            : 'bg-white focus:border-accent',
+        ].join(' ')}
       />
     </label>
   )
