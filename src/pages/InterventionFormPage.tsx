@@ -61,7 +61,7 @@ import {
   quantiteDepuisPesee,
   type TypeHuile,
 } from '../lib/stockBouteilleExtras'
-import { bottleLetter, roundKg } from '../lib/decimal'
+import { bottleLetterCerfa, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_DESTINATION, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
@@ -1660,6 +1660,24 @@ export function InterventionFormPage() {
                   m.sens === 'entree')
               const resteCap = item ? capaciteRestanteKg(item) : null
               const jauge = item ? jaugeRemplissageRecup(item) : null
+              const sensEffectif =
+                m.sens ||
+                (item
+                  ? sensMouvementPourContenant(item.contenantType, item.quantiteKg)
+                  : 'sortie')
+              const side: 'charge' | 'recup' = sensEffectif === 'entree' ? 'recup' : 'charge'
+              let sideIndex = 0
+              for (let i = 0; i < idx; i++) {
+                const prev = manips[i]
+                const prevItem = data.stock.find((s) => s.id === prev.stockItemId)
+                const prevSens =
+                  prev.sens ||
+                  (prevItem
+                    ? sensMouvementPourContenant(prevItem.contenantType, prevItem.quantiteKg)
+                    : 'sortie')
+                if ((prevSens === 'entree') === (side === 'recup')) sideIndex++
+              }
+              const lettre = bottleLetterCerfa(sideIndex, side)
               return (
                 <div
                   key={m.key}
@@ -1667,7 +1685,8 @@ export function InterventionFormPage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-muted">
-                      Bouteille {bottleLetter(idx)}
+                      Bouteille {lettre}
+                      {side === 'recup' ? ' (récup.)' : ' (charge)'}
                     </span>
                     <button
                       type="button"

@@ -244,25 +244,39 @@ export async function buildCerfaPdf(opts: {
   let qd = 0 // D — destiné au traitement (récup)
   let qe = 0 // E — conservé pour réutilisation (récup)
   const partsCharge: string[] = []
-  const contenants: string[] = []
+  const partsRecup: string[] = []
+  const contenantsCharge: string[] = []
+  const contenantsRecup: string[] = []
   let bsff = ''
+  let recupLetterIdx = 0
+  let chargeLetterIdx = 0
   for (const m of draft.manipulations) {
     const q = roundKg(Number(m.quantiteKg) || 0)
     if (!(q > 0)) continue
     const sens =
       m.sens || sensMouvementPourContenant(m.type, m.type === 'recuperation' ? 0 : 1)
-    if (m.numeroContenant?.trim()) contenants.push(m.numeroContenant.trim())
     if (m.bsffReference) bsff = m.bsffReference
 
     if (sens === 'sortie') {
       // Charge / appoint dans l’installation
       partsCharge.push(formatKg(q))
+      if (m.numeroContenant?.trim()) {
+        const L = String.fromCharCode(65 + (chargeLetterIdx % 3)) // A/B/C
+        chargeLetterIdx++
+        contenantsCharge.push(`${L}: ${m.numeroContenant.trim()}`)
+      }
       if (m.type === 'vierge') qa = roundKg(qa + q)
       else if (m.type === 'recycle') qb = roundKg(qb + q)
       else if (m.type === 'regenere') qc = roundKg(qc + q)
       // transfert en sortie : hors cases A/B/C officielles
     } else {
-      // Récupération depuis l’installation → bouteille
+      // Récupération depuis l’installation → bouteille (D / E)
+      partsRecup.push(formatKg(q))
+      if (m.numeroContenant?.trim()) {
+        const L = String.fromCharCode(68 + (recupLetterIdx % 23)) // D, E, F…
+        recupLetterIdx++
+        contenantsRecup.push(`${L}: ${m.numeroContenant.trim()}`)
+      }
       if (m.type === 'recuperation') {
         qd = roundKg(qd + q) // déchet → traitement
       } else if (m.type === 'recycle' || m.type === 'regenere') {
@@ -279,11 +293,14 @@ export async function buildCerfaPdf(opts: {
   if (qc) setText(form, '11_QC', formatKg(qc))
   if (qd) setText(form, '11_QD', formatKg(qd))
   if (qe) setText(form, '11_QE', formatKg(qe))
-  if (totalRecup) setText(form, '11_QDE', formatKg(totalRecup))
+  // Total récupéré (D+E) : forme additive si plusieurs bouteilles (ex. 1+2)
+  if (partsRecup.length > 1) setText(form, '11_QDE', partsRecup.join('+'))
+  else if (totalRecup) setText(form, '11_QDE', formatKg(totalRecup))
   // Dénomination fluide chargé — uniquement s’il y a eu une charge
   if (totalCharge > 0) {
     setText(form, '11_Denom', draft.fluideType || chantier.fluideType)
   }
+  const contenants = [...contenantsCharge, ...contenantsRecup]
   if (contenants.length) setText(form, '11_Contenant_ID', contenants.join(' / '))
   if (bsff) setText(form, '11_BSFF', bsff)
 

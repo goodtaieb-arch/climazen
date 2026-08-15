@@ -50,7 +50,20 @@ export function formatKg(n: number | null | undefined, decimals = 3): string {
   return parseFloat(r.toFixed(decimals)).toString()
 }
 
-/** Lettre bouteille CERFA : 0→A, 1→B, 2→C… */
+/** Lettre bouteille générique : 0→A, 1→B, 2→C… */
 export function bottleLetter(index: number): string {
   return String.fromCharCode(65 + (Math.max(0, index) % 26))
+}
+
+/**
+ * Lettre CERFA [11] selon le sens :
+ * - charge (sortie) → A, B, C…
+ * - récupération (entrée) → D, E…
+ */
+export function bottleLetterCerfa(
+  indexAmongSide: number,
+  side: 'charge' | 'recup',
+): string {
+  const base = side === 'charge' ? 0 : 3
+  return String.fromCharCode(65 + base + (Math.max(0, indexAmongSide) % 23))
 }
