@@ -490,7 +490,7 @@ export function AppelOtPage() {
         `${draftIds.length} CERFA brouillons créés (un par équipement). Remplissez-les un par un.`,
       )
     }
-    navigate(`/app/interventions/${draftIds[0]}`)
+    navigate(`/app/interventions/${draftIds[0]}?ot=${encodeURIComponent(id)}`)
   }
 
   const openFicheMaint = () => {

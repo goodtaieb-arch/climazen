@@ -137,14 +137,32 @@ export function InterventionFormPage() {
   const monDetecteur = detecteurForUser(data, user?.id)
 
   const linkedOt = useMemo(() => {
-    if (!otFromQuery && !numeroFromQuery) return null
     const list = data.ordresTravail || []
-    return (
-      list.find((o) => o.id === otFromQuery) ||
-      list.find((o) => o.numero === otFromQuery || o.numero === numeroFromQuery) ||
-      null
-    )
-  }, [data.ordresTravail, otFromQuery, numeroFromQuery])
+    const ids = [otFromQuery, existing?.ordreTravailId].filter(Boolean) as string[]
+    for (const oid of ids) {
+      const found = list.find((o) => o.id === oid || o.numero === oid)
+      if (found) return found
+    }
+    const nums = [numeroFromQuery, existing?.numeroIntervention].filter(Boolean) as string[]
+    for (const n of nums) {
+      const base = otBaseNumero(n) || n
+      const found = list.find(
+        (o) => o.numero === n || o.numero === base || sameOtNumero(o.numero, n),
+      )
+      if (found) return found
+    }
+    return null
+  }, [
+    data.ordresTravail,
+    otFromQuery,
+    numeroFromQuery,
+    existing?.ordreTravailId,
+    existing?.numeroIntervention,
+  ])
+
+  const otReturnHref = linkedOt
+    ? `/app/appel?ot=${encodeURIComponent(linkedOt.id)}`
+    : null
 
   const [chantierId, setChantierId] = useState(
     existing?.chantierId ||
@@ -1233,11 +1251,12 @@ export function InterventionFormPage() {
             } catch {
               /* ignore */
             }
-            navigate('/app/interventions')
+            navigate(otReturnHref || '/app/interventions')
           }}
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" /> Interventions
+          <ArrowLeft className="h-4 w-4" />
+          {otReturnHref ? `Retour OT ${linkedOt?.numero || ''}`.trim() : 'Interventions'}
         </button>
         {hasPdf && pdfUrl && (
           <button
@@ -1273,9 +1292,20 @@ export function InterventionFormPage() {
       </div>
 
       {savedMsg && (
-        <div className="flex items-start gap-2 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3 text-sm text-slate">
-          <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0" />
-          {savedMsg}
+        <div className="space-y-3 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3 text-sm text-slate">
+          <div className="flex items-start gap-2">
+            <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{savedMsg}</span>
+          </div>
+          {otReturnHref && hasPdf && (
+            <button
+              type="button"
+              onClick={() => navigate(otReturnHref)}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white sm:w-auto"
+            >
+              <Check className="h-4 w-4" /> Retour à l’OT — signer & clôturer
+            </button>
+          )}
         </div>
       )}
 
@@ -2131,6 +2161,16 @@ export function InterventionFormPage() {
                   ? 'Régénérer ce CERFA'
                   : 'Enregistrer & générer ce CERFA'}
             </button>
+            {otReturnHref && hasPdf && (
+              <button
+                type="button"
+                onClick={() => navigate(otReturnHref)}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0f766e] px-6 py-3 text-sm font-bold text-white hover:bg-teal-800 sm:w-auto"
+              >
+                <Check className="h-4 w-4" />
+                Retour OT — clôturer
+              </button>
+            )}
             {isMultiBatch && (
               <button
                 type="button"
@@ -2166,6 +2206,15 @@ export function InterventionFormPage() {
             </button>
           </div>
           <iframe title="CERFA 15497-04" src={pdfUrl} className="h-[70vh] w-full rounded-xl border border-line bg-mist" />
+          {otReturnHref && (
+            <button
+              type="button"
+              onClick={() => navigate(otReturnHref)}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white"
+            >
+              <Check className="h-4 w-4" /> Retour à l’OT — signer & clôturer
+            </button>
+          )}
         </section>
       )}
 
