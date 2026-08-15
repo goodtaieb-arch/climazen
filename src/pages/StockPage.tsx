@@ -1,9 +1,10 @@
-import { type FormEvent, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
+  CONTENANT_TYPE_LABELS,
   isBouteilleRetournee,
   needsRetourConsigne,
   type ContenantType,
@@ -29,12 +30,13 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const blank = (): Omit<StockItem, 'id' | 'updatedAt'> => {
-  const fluide = 'R-32'
+const blank = (opts?: { fluide?: string; contenantType?: ContenantType }): Omit<StockItem, 'id' | 'updatedAt'> => {
+  const fluide = opts?.fluide?.trim() || 'R-32'
   const adr = adrInfoForFluide(fluide)
+  const contenantType = opts?.contenantType || 'vierge'
   return {
     fluide,
-    contenantType: 'vierge',
+    contenantType,
     numeroContenant: '',
     quantiteKg: 0,
     quantiteInitialeKg: 0,
@@ -45,12 +47,9 @@ const blank = (): Omit<StockItem, 'id' | 'updatedAt'> => {
   }
 }
 
-const TYPES: { value: ContenantType; label: string }[] = [
-  { value: 'vierge', label: 'Vierge (neuf)' },
-  { value: 'regenere', label: 'Recyclé / régénéré' },
-  { value: 'recuperation', label: 'Récupération' },
-  { value: 'transfert', label: 'Transfert' },
-]
+const TYPES: { value: ContenantType; label: string }[] = (
+  Object.keys(CONTENANT_TYPE_LABELS) as ContenantType[]
+).map((value) => ({ value, label: CONTENANT_TYPE_LABELS[value] }))
 
 const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   vierge: { label: 'Vierge (neuf)', cls: 'bg-emerald-100 text-emerald-800' },
@@ -98,6 +97,7 @@ function BottleLevelBar({ current, initial }: { current: number; initial: number
 export function StockPage() {
   const { data, upsertStock, deleteStock, enregistrerRetourConsigneBouteille } = useStore()
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState(blank)
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -111,6 +111,27 @@ export function StockPage() {
     bonRetourNotes: '',
   })
   const [q, setQ] = useState('')
+
+  // Prefill depuis CERFA / lien « bouteille de récupération »
+  useEffect(() => {
+    const type = searchParams.get('type') as ContenantType | null
+    const fluide = searchParams.get('fluide') || ''
+    const wantRecup = type === 'recuperation'
+    if (!wantRecup && !fluide) return
+    setEditId(null)
+    setForm(
+      blank({
+        fluide: fluide || undefined,
+        contenantType: wantRecup ? 'recuperation' : undefined,
+      }),
+    )
+    setOpen(true)
+    setRegsOpen(wantRecup)
+    const next = new URLSearchParams(searchParams)
+    next.delete('type')
+    next.delete('fluide')
+    setSearchParams(next, { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const actifStock = useMemo(
     () =>
@@ -180,8 +201,17 @@ export function StockPage() {
       return
     }
     const qty = Number(form.quantiteKg) || 0
+    let contenantType = form.contenantType
+    // Bouteille vide hors récupération : invisible sur CERFA vidange / démantèlement
+    if (!editId && qty <= 0 && contenantType !== 'recuperation') {
+      const ok = window.confirm(
+        'Quantité à 0 kg : pour vider une installation (récup / démantèlement), le type doit être « Récupération ».\n\nPasser automatiquement en Récupération ?',
+      )
+      if (ok) contenantType = 'recuperation'
+    }
     upsertStock({
       ...form,
+      contenantType,
       quantiteKg: qty,
       quantiteInitialeKg: editId
         ? form.quantiteInitialeKg ?? qty
@@ -240,18 +270,32 @@ export function StockPage() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditId(null)
-            setForm(blank())
-            setRegsOpen(false)
-            setOpen(true)
-          }}
-          className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
-        >
-          <Plus className="h-4 w-4" /> Ajouter
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEditId(null)
+              setForm(blank({ contenantType: 'recuperation' }))
+              setRegsOpen(true)
+              setOpen(true)
+            }}
+            className="hidden min-h-12 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 text-sm font-semibold text-orange-900 hover:bg-orange-100 md:inline-flex"
+          >
+            <Plus className="h-4 w-4" /> Récup. vide
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditId(null)
+              setForm(blank())
+              setRegsOpen(false)
+              setOpen(true)
+            }}
+            className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
+          >
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
       </div>
 
       <SearchField
@@ -285,6 +329,17 @@ export function StockPage() {
                 </option>
               ))}
             </select>
+            {form.contenantType === 'recuperation' ? (
+              <p className="mt-1 text-xs text-orange-800">
+                Bouteille de récupération : laissez 0 kg pour vider une installation sur le CERFA
+                (démantèlement / récupération). Même fluide que l’équipement.
+              </p>
+            ) : Number(form.quantiteKg) <= 0 ? (
+              <p className="mt-1 text-xs text-amber-800">
+                À 0 kg, une bouteille « Vierge » n’apparaît pas sur le CERFA pour la vidange —
+                choisissez « Récupération ».
+              </p>
+            ) : null}
           </label>
 
           <div className="sm:col-span-2">

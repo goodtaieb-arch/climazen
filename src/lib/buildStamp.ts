@@ -1,2 +1,2 @@
 /** Stamp de build — change à chaque déploiement pour forcer le cache PWA. */
-export const APP_BUILD = '2026-08-15-seo-pages'
+export const APP_BUILD = '2026-08-15-cerfa-bouteille-recup'

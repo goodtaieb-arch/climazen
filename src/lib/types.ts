@@ -31,6 +31,13 @@ export const NATURE_LABELS: Record<NatureIntervention, string> = {
 
 export type ContenantType = 'vierge' | 'regenere' | 'recuperation' | 'transfert'
 
+export const CONTENANT_TYPE_LABELS: Record<ContenantType, string> = {
+  vierge: 'Vierge (neuf)',
+  regenere: 'Recyclé / régénéré',
+  recuperation: 'Récupération',
+  transfert: 'Transfert',
+}
+
 /** Mouvement de fluide → n° de bouteille obligatoire (F-Gas / Cerfa). */
 export function natureImpliqueMouvementFluide(natures: NatureIntervention[]): boolean {
   // Obligatoire : charge, récupération, démantèlement.

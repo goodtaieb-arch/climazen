@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Circle, Eye, FileCheck2, Plus, Save, Trash2 } from 'l
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
+  CONTENANT_TYPE_LABELS,
   NATURE_LABELS,
   isBouteilleRetournee,
   isDetecteurControleExpire,
@@ -224,6 +225,33 @@ export function InterventionFormPage() {
         ((Number(s.quantiteKg) || 0) > 0 || s.contenantType === 'recuperation'),
     )
   }, [data.stock, denominationFluide])
+
+  const recupWrongFluide = useMemo(() => {
+    if (!denominationFluide) return []
+    return data.stock.filter(
+      (s) =>
+        s.contenantType === 'recuperation' &&
+        !isBouteilleRetournee(s) &&
+        !sameFluideCode(s.fluide, denominationFluide),
+    )
+  }, [data.stock, denominationFluide])
+
+  const emptyNonRecupSameFluide = useMemo(() => {
+    if (!denominationFluide) return []
+    return data.stock.filter(
+      (s) =>
+        sameFluideCode(s.fluide, denominationFluide) &&
+        !isBouteilleRetournee(s) &&
+        (Number(s.quantiteKg) || 0) <= 0 &&
+        s.contenantType !== 'recuperation',
+    )
+  }, [data.stock, denominationFluide])
+
+  const stockCreateRecupHref = useMemo(() => {
+    const q = new URLSearchParams({ type: 'recuperation' })
+    if (denominationFluide) q.set('fluide', denominationFluide)
+    return `/app/stock?${q.toString()}`
+  }, [denominationFluide])
 
   // Charger le CERFA déjà enregistré dans l’app
   useEffect(() => {
@@ -1523,9 +1551,14 @@ export function InterventionFormPage() {
                       <option value="">— Choisir —</option>
                       {optionsDispo.map((s) => (
                         <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
-                          {s.fluide} · {s.contenantType} · {s.numeroContenant || 'SANS N°'} — reste{' '}
-                          {s.quantiteKg} kg
-                          {s.quantiteInitialeKg != null ? ` / ${s.quantiteInitialeKg} kg` : ''}
+                          {s.fluide} · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType} ·{' '}
+                          {s.numeroContenant || 'SANS N°'} —{' '}
+                          {s.contenantType === 'recuperation' && (Number(s.quantiteKg) || 0) <= 0
+                            ? 'vide (récup.)'
+                            : `reste ${s.quantiteKg} kg`}
+                          {s.quantiteInitialeKg != null && (Number(s.quantiteKg) || 0) > 0
+                            ? ` / ${s.quantiteInitialeKg} kg`
+                            : ''}
                         </option>
                       ))}
                     </select>
@@ -1543,7 +1576,9 @@ export function InterventionFormPage() {
                         >
                           {item.contenantType === 'recuperation' ? (
                             <>
-                              <option value="entree">Ajouter (récupération → + kg)</option>
+                              <option value="entree">
+                                Remplir depuis l’installation (récup. → + kg)
+                              </option>
                               <option value="sortie">Retirer (vidage / transfert → − kg)</option>
                             </>
                           ) : (
@@ -1558,7 +1593,7 @@ export function InterventionFormPage() {
                         label={
                           m.sens === 'sortie'
                             ? `Quantité sortie (kg) * — max ${item.quantiteKg}`
-                            : 'Quantité ajoutée (kg) *'
+                            : 'Quantité récupérée (kg) *'
                         }
                         value={m.quantiteKg}
                         onChange={(n) => updateManip(m.key, { quantiteKg: n })}
@@ -1571,6 +1606,12 @@ export function InterventionFormPage() {
                     <p className="text-xs text-danger">
                       Cette ligne de stock n’a pas de n° de bouteille — corrigez-la dans Stock
                       fluides.
+                    </p>
+                  )}
+                  {item?.contenantType === 'recuperation' && m.sens === 'entree' && (
+                    <p className="text-xs text-muted">
+                      Démantèlement / vidange : le fluide quitte l’installation et{' '}
+                      <strong>remplit</strong> cette bouteille de récupération.
                     </p>
                   )}
                 </div>
@@ -1589,8 +1630,55 @@ export function InterventionFormPage() {
 
           {manips.length === 0 && bottleRequired && (
             <p className="mt-2 rounded-xl bg-accent-soft/70 px-3 py-2 text-xs text-slate">
-              Cliquez « Ajouter une bouteille » — le reste et le CERFA seront liés
-              automatiquement.
+              Cliquez « Ajouter une bouteille », choisissez votre bouteille de{' '}
+              <strong>Récupération</strong> (même fluide que [7]), puis indiquez les kg récupérés.
+            </p>
+          )}
+
+          {!denominationFluide && (
+            <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              Renseignez d’abord le <strong>fluide [7]</strong> : sans dénomination, aucune
+              bouteille ne peut être proposée.
+            </p>
+          )}
+
+          {denominationFluide && stockMatchingFluide.length === 0 && (
+            <div className="mt-2 space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              <p>
+                Aucune bouteille utilisable pour <strong>{denominationFluide}</strong>. Pour vider
+                l’installation, créez une bouteille type <strong>Récupération</strong>, fluide{' '}
+                <strong>{denominationFluide}</strong>, quantité 0 kg.
+              </p>
+              {emptyNonRecupSameFluide.length > 0 && (
+                <p>
+                  {emptyNonRecupSameFluide.length} bouteille(s) à 0 kg existent déjà mais en type
+                  « {CONTENANT_TYPE_LABELS[emptyNonRecupSameFluide[0].contenantType]} » — passez-les
+                  en <strong>Récupération</strong> dans Stock, sinon elles restent invisibles ici.
+                </p>
+              )}
+              {recupWrongFluide.length > 0 && (
+                <p>
+                  Bouteille(s) récup. trouvées mais autre fluide :{' '}
+                  {recupWrongFluide
+                    .slice(0, 3)
+                    .map((s) => `${s.numeroContenant || '?'} (${s.fluide})`)
+                    .join(', ')}
+                  . Alignez le fluide CERFA ou créez une récup. {denominationFluide}.
+                </p>
+              )}
+              <Link
+                to={stockCreateRecupHref}
+                className="inline-flex font-semibold text-accent underline-offset-2 hover:underline"
+              >
+                Créer une bouteille de récupération {denominationFluide} →
+              </Link>
+            </div>
+          )}
+
+          {denominationFluide && stockMatchingFluide.length > 0 && manips.some((m) => !m.stockItemId) && (
+            <p className="mt-2 text-xs text-muted">
+              Astuce démantèlement : choisissez une ligne « Récupération · vide », mouvement{' '}
+              <em>Remplir depuis l’installation</em>, puis saisissez les kg.
             </p>
           )}
         </Section>
