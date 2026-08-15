@@ -34,8 +34,8 @@ export type ContenantType = 'vierge' | 'regenere' | 'recuperation' | 'transfert'
 export const CONTENANT_TYPE_LABELS: Record<ContenantType, string> = {
   vierge: 'Vierge (neuf)',
   regenere: 'Recyclé / régénéré',
-  recuperation: 'Récupération',
-  transfert: 'Transfert',
+  recuperation: 'Récupération (déchet)',
+  transfert: 'Transfert (logistique)',
 }
 
 /** Mouvement de fluide → n° de bouteille obligatoire (F-Gas / Cerfa). */
@@ -529,11 +529,11 @@ export function cerfaLabelFor(
 }
 
 /**
- * Contenant pouvant recevoir du fluide récupéré (y compris vide sur CERFA).
- * Vierge neuve exclue : réservée à la charge / sortie.
+ * Contenant pouvant recevoir du fluide récupéré sur CERFA (déchet / recyclage site).
+ * Transfert = logistique interne uniquement (pas de vidange client).
  */
 export function isContenantDestination(type: ContenantType): boolean {
-  return type === 'recuperation' || type === 'regenere' || type === 'transfert'
+  return type === 'recuperation' || type === 'regenere'
 }
 
 /**

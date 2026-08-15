@@ -29,8 +29,9 @@ import { LabelHint } from '../components/LabelHint'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, isFluideInflammableA2LOrA3, sameFluideCode } from '../lib/fluides'
 import {
   assertMouvementCerfaLegal,
+  bouteilleEligibleChargeCerfa,
   capaciteRestanteKg,
-  peutReinjectionSurClient,
+  naturesPermettentRemplissageRecup,
   resumeRegleContenant,
   sensAutorisesCerfa,
 } from '../lib/stockRegles'
@@ -228,18 +229,27 @@ export function InterventionFormPage() {
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
     if (!denominationFluide) return []
+    const permetRecup = naturesPermettentRemplissageRecup(natures)
     return data.stock.filter((s) => {
       if (!sameFluideCode(s.fluide, denominationFluide)) return false
       if (isBouteilleRetournee(s)) return false
       const qty = Number(s.quantiteKg) || 0
-      if (!(qty > 0 || bouteilleVisibleCerfaMemeVide(s.contenantType))) return false
-      // Recyclé déjà rattaché : uniquement chez le même client
-      if (s.contenantType === 'regenere' && qty > 0 && !peutReinjectionSurClient(s, client?.id)) {
-        return false
+
+      // Déchet usagé : jamais proposée en charge — uniquement pour remplir (récup / démantèlement)
+      if (s.contenantType === 'recuperation') {
+        return permetRecup
       }
-      return true
+
+      if (qty > 0) {
+        // Charge / appoint : vierge, recyclé (même client) ou régénéré usine — pas le déchet
+        return bouteilleEligibleChargeCerfa(s, client?.id)
+      }
+
+      // Vide : recyclé (boucle même détenteur) ou récup seulement si natures OK
+      if (!bouteilleVisibleCerfaMemeVide(s.contenantType)) return false
+      return permetRecup
     })
-  }, [data.stock, denominationFluide, client?.id])
+  }, [data.stock, denominationFluide, client?.id, natures])
 
   const destinationWrongFluide = useMemo(() => {
     if (!denominationFluide) return []
@@ -1696,9 +1706,19 @@ export function InterventionFormPage() {
 
           {manips.length === 0 && bottleRequired && (
             <p className="mt-2 rounded-xl bg-accent-soft/70 px-3 py-2 text-xs text-slate">
-              Cliquez « Ajouter une bouteille », choisissez une bouteille{' '}
-              <strong>Récupération</strong>, <strong>Recyclé</strong> ou <strong>Transfert</strong>{' '}
-              (même fluide que [7]), puis indiquez les kg.
+              {naturesPermettentRemplissageRecup(natures) ? (
+                <>
+                  Récupération / démantèlement : ajoutez une bouteille{' '}
+                  <strong>Récupération (déchet)</strong> ou <strong>Recyclé</strong> (même
+                  détenteur). Le fluide usagé ne peut pas servir à charger un autre client.
+                </>
+              ) : (
+                <>
+                  Charge / appoint : utilisez une bouteille <strong>Vierge</strong> ou{' '}
+                  <strong>régénérée usine</strong>. Les bouteilles de récupération (déchet) sont
+                  bloquées ici.
+                </>
+              )}
             </p>
           )}
 
@@ -1712,10 +1732,20 @@ export function InterventionFormPage() {
           {denominationFluide && stockMatchingFluide.length === 0 && (
             <div className="mt-2 space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
               <p>
-                Aucune bouteille utilisable pour <strong>{denominationFluide}</strong>. Pour vider
-                l’installation, créez une bouteille <strong>Récupération</strong>,{' '}
-                <strong>Recyclé</strong> ou <strong>Transfert</strong>, fluide{' '}
-                <strong>{denominationFluide}</strong> (0 kg OK).
+                Aucune bouteille utilisable pour <strong>{denominationFluide}</strong>.
+                {naturesPermettentRemplissageRecup(natures) ? (
+                  <>
+                    {' '}
+                    Pour vider l’installation : bouteille <strong>Récupération (déchet)</strong> ou{' '}
+                    <strong>Recyclé</strong> (même détenteur), fluide {denominationFluide}.
+                  </>
+                ) : (
+                  <>
+                    {' '}
+                    Pour une charge : bouteille <strong>Vierge</strong> ou régénérée (pas une
+                    récupération déchet).
+                  </>
+                )}
               </p>
               {emptyViergeSameFluide.length > 0 && (
                 <p>
@@ -1745,8 +1775,9 @@ export function InterventionFormPage() {
 
           {denominationFluide && stockMatchingFluide.length > 0 && manips.some((m) => !m.stockItemId) && (
             <p className="mt-2 text-xs text-muted">
-              Astuce vidange : choisissez une ligne « vide (à remplir) » (récup. / recyclé /
-              transfert), mouvement <em>Remplir depuis l’installation</em>, puis saisissez les kg.
+              {naturesPermettentRemplissageRecup(natures)
+                ? 'Vidange : bouteille « Récupération » → Remplir (jamais de réinjection). Recyclé = même client uniquement.'
+                : 'Charge : bouteille Vierge ou régénérée usine. Récupération déchet absente de cette liste (F-Gas).'}
             </p>
           )}
         </Section>

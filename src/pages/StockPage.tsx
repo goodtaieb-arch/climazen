@@ -64,8 +64,8 @@ const TYPES: { value: ContenantType; label: string }[] = (
 
 const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   vierge: { label: 'Vierge (neuf)', cls: 'bg-emerald-100 text-emerald-800' },
-  recuperation: { label: 'Récupération', cls: 'bg-orange-100 text-orange-800' },
-  regenere: { label: 'Recyclé', cls: 'bg-sky-100 text-sky-800' },
+  recuperation: { label: 'Récup. déchet', cls: 'bg-orange-100 text-orange-800' },
+  regenere: { label: 'Recyclé / régén.', cls: 'bg-sky-100 text-sky-800' },
   transfert: { label: 'Transfert', cls: 'bg-slate-100 text-slate-700' },
 }
 
@@ -1006,6 +1006,16 @@ export function StockPage() {
                               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
                                 {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
+                              {s.contenantType === 'recuperation' && current > 0 && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                                  BSFF seul
+                                </span>
+                              )}
+                              {s.contenantType === 'regenere' && s.origineClientId && (
+                                <span className="rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-950">
+                                  Même client
+                                </span>
+                              )}
                               {s.contenantType === 'recuperation' &&
                                 isFluideInflammableA2LOrA3(s.fluide) && (
                                   <span

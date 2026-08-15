@@ -1,4 +1,4 @@
-import type { ContenantType, StockItem, StockMouvementSens } from './types'
+import type { ContenantType, NatureIntervention, StockItem, StockMouvementSens } from './types'
 import { CONTENANT_TYPE_LABELS, isContenantDestination } from './types'
 
 /** Capacité max utile (kg) — récup. obligatoire ; sinon quantiteInitialeKg en repli. */
@@ -16,22 +16,36 @@ export function capaciteRestanteKg(item: StockItem): number | null {
   return Math.max(0, Math.round((cap - (Number(item.quantiteKg) || 0)) * 1000) / 1000)
 }
 
-/** Réinjection autorisée sur ce client (recyclé / régénéré). */
+/** CERFA natures qui autorisent le remplissage d’une bouteille de récupération. */
+export function naturesPermettentRemplissageRecup(natures: NatureIntervention[]): boolean {
+  return natures.some((n) => n === 'recuperation' || n === 'demantelement')
+}
+
+/**
+ * Réinjection (sortie / charge) autorisée chez ce client ?
+ * - Récupération : jamais (déchet → BSFF / distributeur)
+ * - Recyclé avec origineClientId : uniquement le même détenteur
+ * - Régénéré usine (regenere sans origine) : OK partout
+ * - Transfert avec origine (ex. fluide récupéré à tort) : même client
+ */
 export function peutReinjectionSurClient(
   item: Pick<StockItem, 'contenantType' | 'origineClientId'>,
   clientId: string | undefined | null,
 ): boolean {
-  if (item.contenantType !== 'regenere') return true
-  if (!item.origineClientId) return true // pas encore rattaché → première utilisation libre
-  if (!clientId) return false
-  return item.origineClientId === clientId
+  if (item.contenantType === 'recuperation') return false
+  if (item.contenantType === 'regenere' || item.contenantType === 'transfert') {
+    if (!item.origineClientId) return true // régénéré usine / fluide propre logistique
+    if (!clientId) return false
+    return item.origineClientId === clientId
+  }
+  return true
 }
 
 /**
  * Sens autorisés sur CERFA selon F-Gas / suivi stock.
  * - Vierge : sortie seule (charge)
- * - Récupération : entrée seule (fluide usagé → BSFF / destruction, pas de réinjection)
- * - Recyclé / Transfert : entrée et sortie
+ * - Récupération : entrée seule (fluide usagé → BSFF, jamais réinjection)
+ * - Recyclé / Transfert : entrée et sortie (sortie filtrée par client si recyclé site)
  */
 export function sensAutorisesCerfa(type: ContenantType): StockMouvementSens[] {
   if (type === 'vierge') return ['sortie']
@@ -45,7 +59,7 @@ export function assertSensCerfaLegal(type: ContenantType, sens: StockMouvementSe
     const label = CONTENANT_TYPE_LABELS[type] || type
     if (type === 'recuperation' && sens === 'sortie') {
       throw new Error(
-        `Bouteille « ${label} » : réinjection interdite (F-Gas). Évacuez via Stock → destruction / BSFF.`,
+        `Bouteille « ${label} » : réinjection interdite (F-Gas). Le fluide usagé doit être évacué via Stock → BSFF / retour distributeur (régénération usine).`,
       )
     }
     if (type === 'vierge' && sens === 'entree') {
@@ -80,6 +94,11 @@ export function assertMouvementCerfaLegal(opts: {
         )
       }
     }
+    if (item.contenantType === 'transfert') {
+      throw new Error(
+        `Bouteille « Transfert » : pas de récupération client. Utilisez une bouteille Récupération (déchet) ou Recyclé (même détenteur).`,
+      )
+    }
     if (restante != null && qty > restante + 1e-9) {
       throw new Error(
         `Capacité dépassée sur ${item.numeroContenant} : reste ${restante} kg avant le max (${capaciteMaxEffective(item)} kg).`,
@@ -87,12 +106,15 @@ export function assertMouvementCerfaLegal(opts: {
     }
   }
 
-  if (sens === 'sortie' && item.contenantType === 'regenere') {
-    if (!peutReinjectionSurClient(item, clientId)) {
+  if (sens === 'sortie' && !peutReinjectionSurClient(item, clientId)) {
+    if (item.contenantType === 'recuperation') {
       throw new Error(
-        `Fluide recyclé / régénéré (${item.numeroContenant}) : réinjection uniquement chez le même détenteur / client d’origine.`,
+        `Fluide usagé (${item.numeroContenant}) : réinjection interdite. Évacuez via Stock → BSFF / retour distributeur.`,
       )
     }
+    throw new Error(
+      `Fluide recyclé (${item.numeroContenant}) : réinjection uniquement chez le même détenteur / client (recyclage site). Pour un autre site : régénération usine via distributeur.`,
+    )
   }
 }
 
@@ -101,11 +123,11 @@ export function resumeRegleContenant(type: ContenantType): string {
     case 'vierge':
       return 'Neuf distributeur : stock positif au départ, uniquement des sorties (charge). N° bouteille obligatoire.'
     case 'recuperation':
-      return 'Fluide usagé : part de 0 kg, se remplit à la récupération. Capacité max obligatoire. Pas de réinjection client — BSFF / destruction.'
+      return 'Déchet usagé : se remplit à la récupération uniquement. Jamais de charge/appoint client. Sortie = BSFF / retour distributeur uniquement.'
     case 'regenere':
-      return 'Recyclé / régénéré : réinjection uniquement chez le même détenteur (même client).'
+      return 'Recyclé site = même détenteur uniquement. Régénéré usine (sans client d’origine) = utilisable partout après achat distributeur.'
     case 'transfert':
-      return 'Bouteille de service / logistique. Transfert atelier ↔ véhicule sans CERFA (registre F-Gas + ADR).'
+      return 'Logistique interne atelier ↔ véhicule (sans CERFA). Pas de vidange client dans cette bouteille.'
     default:
       return ''
   }
@@ -113,4 +135,15 @@ export function resumeRegleContenant(type: ContenantType): string {
 
 export function isDestinationVidange(type: ContenantType): boolean {
   return isContenantDestination(type)
+}
+
+/** Visible dans la liste CERFA pour une opération de charge (sortie). */
+export function bouteilleEligibleChargeCerfa(
+  item: Pick<StockItem, 'contenantType' | 'origineClientId' | 'quantiteKg'>,
+  clientId: string | undefined | null,
+): boolean {
+  const qty = Number(item.quantiteKg) || 0
+  if (qty <= 0) return false
+  if (item.contenantType === 'recuperation') return false
+  return peutReinjectionSurClient(item, clientId)
 }
