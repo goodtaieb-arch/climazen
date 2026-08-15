@@ -307,6 +307,34 @@ export function isFluideInflammableA2LOrA3(code: string): boolean {
   return c === 'A2L' || c === 'A3'
 }
 
+/**
+ * Classification déchets CERFA [12] :
+ * - Inflammable (A2L/A3/A2…) → rubrique 16 05 04*
+ * - Non inflammable (A1…) → rubrique 14 06 01*
+ * R-410A = A1 / UN 3163 → NON inflammable (pas 16 05 04*).
+ */
+export function isFluideAdrInflammable(fluideCode: string, codeUn?: string): boolean {
+  const c = classeSecuriteFluide(fluideCode)
+  if (c === 'A1' || c === 'B1') return false
+  if (c === 'A2L' || c === 'A2' || c === 'A3' || c === 'B2L' || c === 'B2' || c === 'B3') {
+    return true
+  }
+  if (isFluideInflammableA2LOrA3(fluideCode)) return true
+  const code = (codeUn || '').toUpperCase().replace(/\s+/g, '')
+  // UN connus inflammables (sans se fier à 3163 — gaz n.s.a. souvent non inflam.)
+  if (
+    code.includes('3161') ||
+    code.includes('3252') ||
+    code.includes('1978') ||
+    code.includes('1969') ||
+    code.includes('1077') ||
+    code.includes('1005')
+  ) {
+    return true
+  }
+  return false
+}
+
 export function messageBouteilleRecupA2L(code: string): string | null {
   if (!isFluideInflammableA2LOrA3(code)) return null
   const classe = classeSecuriteFluide(code) || 'A2L'

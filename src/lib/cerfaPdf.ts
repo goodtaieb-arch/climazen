@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, PDFName, PDFBool, rgb } from 'pdf-lib'
 import type { CerfaDraft, Client, Chantier, NatureIntervention } from './types'
-import { controlesPeriodiquesInfo } from './fluides'
+import { sensMouvementPourContenant } from './types'
+import { controlesPeriodiquesInfo, isFluideAdrInflammable } from './fluides'
 import { formatKg, roundKg } from './decimal'
 import { findEquipement } from './migrate'
 
@@ -235,50 +236,75 @@ export async function buildCerfaPdf(opts: {
   }
 
   // [11] Manipulation
-  // Case « Quantité chargée totale (A+B+C) » = détail par bouteille (ex. 2.3+0.4)
-  // Cases A/B/C = totaux par type (vierge / régénéré / récup)
-  let qa = 0
-  let qb = 0
-  let qc = 0
-  let qd = 0
-  const partsKg: string[] = []
+  // Gauche = CHARGE (A+B+C) : sorties (vierge / recyclé / régénéré)
+  // Droite = RÉCUP (D+E) : entrées (récup. déchet → D, recyclé site → E)
+  let qa = 0 // A — fluide vierge (charge)
+  let qb = 0 // B — fluide recyclé (charge)
+  let qc = 0 // C — fluide régénéré (charge)
+  let qd = 0 // D — destiné au traitement (récup)
+  let qe = 0 // E — conservé pour réutilisation (récup)
+  const partsCharge: string[] = []
   const contenants: string[] = []
   let bsff = ''
   for (const m of draft.manipulations) {
     const q = roundKg(Number(m.quantiteKg) || 0)
     if (!(q > 0)) continue
-    partsKg.push(formatKg(q))
-    if (m.type === 'vierge') qa = roundKg(qa + q)
-    else if (m.type === 'regenere' || m.type === 'recycle') qb = roundKg(qb + q)
-    else if (m.type === 'recuperation') qc = roundKg(qc + q)
-    else if (m.type === 'transfert') qd = roundKg(qd + q)
+    const sens =
+      m.sens || sensMouvementPourContenant(m.type, m.type === 'recuperation' ? 0 : 1)
     if (m.numeroContenant?.trim()) contenants.push(m.numeroContenant.trim())
     if (m.bsffReference) bsff = m.bsffReference
+
+    if (sens === 'sortie') {
+      // Charge / appoint dans l’installation
+      partsCharge.push(formatKg(q))
+      if (m.type === 'vierge') qa = roundKg(qa + q)
+      else if (m.type === 'recycle') qb = roundKg(qb + q)
+      else if (m.type === 'regenere') qc = roundKg(qc + q)
+      // transfert en sortie : hors cases A/B/C officielles
+    } else {
+      // Récupération depuis l’installation → bouteille
+      if (m.type === 'recuperation') {
+        qd = roundKg(qd + q) // déchet → traitement
+      } else if (m.type === 'recycle' || m.type === 'regenere') {
+        qe = roundKg(qe + q) // conservé pour réutilisation
+      }
+    }
   }
-  const total = roundKg(qa + qb + qc + qd)
-  if (partsKg.length) setText(form, '11_Quantite', partsKg.join('+'))
-  else if (total) setText(form, '11_Quantite', formatKg(total))
+  const totalCharge = roundKg(qa + qb + qc)
+  const totalRecup = roundKg(qd + qe)
+  if (partsCharge.length) setText(form, '11_Quantite', partsCharge.join('+'))
+  else if (totalCharge) setText(form, '11_Quantite', formatKg(totalCharge))
   if (qa) setText(form, '11_QA', formatKg(qa))
   if (qb) setText(form, '11_QB', formatKg(qb))
-  if (qc) {
-    setText(form, '11_QC', formatKg(qc))
-    setText(form, '11_QDE', formatKg(qc))
-  }
+  if (qc) setText(form, '11_QC', formatKg(qc))
   if (qd) setText(form, '11_QD', formatKg(qd))
-  setText(form, '11_Denom', draft.fluideType || chantier.fluideType)
+  if (qe) setText(form, '11_QE', formatKg(qe))
+  if (totalRecup) setText(form, '11_QDE', formatKg(totalRecup))
+  // Dénomination fluide chargé — uniquement s’il y a eu une charge
+  if (totalCharge > 0) {
+    setText(form, '11_Denom', draft.fluideType || chantier.fluideType)
+  }
   if (contenants.length) setText(form, '11_Contenant_ID', contenants.join(' / '))
   if (bsff) setText(form, '11_BSFF', bsff)
 
-  // [12] UN
+  // [12] UN — inflammabilité selon le fluide (pas seulement le code UN)
+  // R-410A = A1 / UN 3163 → 14 06 01* non inflammable
+  // R-32 = A2L / UN 3252 → 16 05 04* inflammable
   const code = (draft.codeUn || '').toUpperCase()
-  if (code.includes('1078')) check(form, 'Case_12_UN1078', true)
-  else if (code.includes('3161')) check(form, 'Case_12_UN3161', true)
-  else if (code.includes('3163') || code.includes('160504')) {
+  const fluideCerfa = draft.fluideType || chantier.fluideType || ''
+  const inflammable = isFluideAdrInflammable(fluideCerfa, draft.codeUn)
+  const libelleAdr = `${draft.codeUn || ''} ${draft.denominationAdr || ''}`.trim()
+
+  if (!inflammable && code.includes('1078')) {
+    check(form, 'Case_12_UN1078', true)
+  } else if (inflammable && code.includes('3161')) {
+    check(form, 'Case_12_UN3161', true)
+  } else if (inflammable && (code || libelleAdr)) {
     check(form, 'Case_12_Autre160504', true)
-    setText(form, 'Autre-FF-inflammable', `${draft.codeUn} ${draft.denominationAdr || ''}`.trim())
-  } else if (code) {
+    setText(form, 'Autre-FF-inflammable', libelleAdr)
+  } else if (code || libelleAdr) {
     check(form, 'Case_12_Autre140601', true)
-    setText(form, 'Autre-FF-NON-inflammable', `${draft.codeUn} ${draft.denominationAdr || ''}`.trim())
+    setText(form, 'Autre-FF-NON-inflammable', libelleAdr)
   }
 
   // [13] [14]
