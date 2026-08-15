@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   CheckSquare,
   Download,
+  Eye,
   FileArchive,
   Loader2,
   Mail,
   Share2,
   Square,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -20,6 +22,8 @@ import {
   shareDocsPack,
   type PackDoc,
 } from '../lib/docsPack'
+import { createPdfObjectUrl } from '../lib/cerfaPdf'
+import { PdfViewerModal } from './PdfViewerModal'
 
 type Props = {
   ot: OrdreTravail
@@ -39,6 +43,7 @@ const KIND_LABEL: Record<PackDoc['kind'], string> = {
 
 /**
  * Regroupe CERFA + fiches + rapport OT → enregistrer (ZIP) ou envoyer (share / mailto).
+ * Aperçu PDF + suppression des doublons CERFA / fiches.
  */
 export function DocsPackPanel({
   ot,
@@ -47,7 +52,7 @@ export function DocsPackPanel({
   onClose,
   className = '',
 }: Props) {
-  const { data } = useStore()
+  const { data, deleteIntervention, deleteFicheMaintenanceClim } = useStore()
   const { user } = useAuth()
   const client = data.clients.find((c) => c.id === ot.clientId)
   const [docs, setDocs] = useState<PackDoc[]>([])
@@ -56,6 +61,8 @@ export function DocsPackPanel({
   const [busy, setBusy] = useState<'save' | 'send' | null>(null)
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
+  const [viewer, setViewer] = useState<{ url: string; title: string } | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const zipName = useMemo(
     () => packZipFileName(ot.numero || ot.id.slice(0, 8), client?.raisonSociale),
@@ -76,7 +83,12 @@ export function DocsPackPanel({
       .then((list) => {
         if (cancelled) return
         setDocs(list)
-        setSelected(new Set(list.map((d) => d.id)))
+        setSelected((prev) => {
+          const ids = new Set(list.map((d) => d.id))
+          if (prev.size === 0) return ids
+          const kept = new Set([...prev].filter((id) => ids.has(id)))
+          return kept.size > 0 ? kept : ids
+        })
       })
       .catch((err) => {
         console.error(err)
@@ -88,7 +100,16 @@ export function DocsPackPanel({
     return () => {
       cancelled = true
     }
-  }, [open, ot.id, ot.updatedAt, ot.rapportAction, ot.numero, data, user?.organizationId])
+  }, [
+    open,
+    ot.id,
+    ot.updatedAt,
+    ot.rapportAction,
+    ot.numero,
+    data,
+    user?.organizationId,
+    reloadKey,
+  ])
 
   const chosen = docs.filter((d) => selected.has(d.id))
 
@@ -104,6 +125,54 @@ export function DocsPackPanel({
   const toggleAll = () => {
     if (selected.size === docs.length) setSelected(new Set())
     else setSelected(new Set(docs.map((d) => d.id)))
+  }
+
+  const onPreview = (d: PackDoc) => {
+    if (viewer?.url) URL.revokeObjectURL(viewer.url)
+    setViewer({
+      url: createPdfObjectUrl(d.blob),
+      title: d.label || d.fileName,
+    })
+  }
+
+  const onDelete = (d: PackDoc) => {
+    if (d.kind === 'rapport_ot' || d.kind === 'rapport_annuel' || !d.canDelete) {
+      // Retirer seulement du lot (pas de fiche source à supprimer)
+      setDocs((prev) => prev.filter((x) => x.id !== d.id))
+      setSelected((prev) => {
+        const next = new Set(prev)
+        next.delete(d.id)
+        return next
+      })
+      setHint('Document retiré du lot.')
+      return
+    }
+    const kindLabel = d.kind === 'cerfa' ? 'ce CERFA' : 'cette fiche'
+    if (
+      !confirm(
+        `Supprimer définitivement ${kindLabel} ?\n${d.label}\n\nCette action enlève aussi le PDF stocké.`,
+      )
+    ) {
+      return
+    }
+    try {
+      if (d.kind === 'cerfa' && d.sourceId) {
+        deleteIntervention(d.sourceId)
+      } else if (d.kind === 'fiche' && d.sourceId) {
+        deleteFicheMaintenanceClim(d.sourceId)
+      }
+      setDocs((prev) => prev.filter((x) => x.id !== d.id))
+      setSelected((prev) => {
+        const next = new Set(prev)
+        next.delete(d.id)
+        return next
+      })
+      setHint(`${KIND_LABEL[d.kind]} supprimé.`)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      console.error(err)
+      setError('Suppression impossible.')
+    }
   }
 
   const onSave = async () => {
@@ -148,7 +217,6 @@ export function DocsPackPanel({
         setHint('Partage annulé.')
         return
       }
-      // Fallback : télécharger + mailto (pièce jointe manuelle)
       await downloadDocsPack(chosen, zipName)
       const mail = clientMailtoForPack({
         email: client?.email,
@@ -186,7 +254,7 @@ export function DocsPackPanel({
             Envoyer / enregistrer · {ot.numero || 'OT'}
           </h3>
           <p className="mt-0.5 text-xs text-muted">
-            CERFA, fiche maintenance, rapport — un ZIP si plusieurs.
+            Lisez le PDF, cochez, supprimez les doublons — puis ZIP / envoi.
             {client?.email ? ` · ${client.email}` : ' · pas d’e-mail client'}
           </p>
         </div>
@@ -230,26 +298,57 @@ export function DocsPackPanel({
               const on = selected.has(d.id)
               return (
                 <li key={d.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(d.id)}
+                  <div
                     className={[
-                      'flex w-full min-h-11 items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm',
+                      'flex min-h-11 items-center gap-1.5 rounded-xl border px-2 py-2 text-sm',
                       on ? 'border-accent/40 bg-accent-soft/40' : 'border-line bg-white',
                     ].join(' ')}
                   >
-                    {on ? (
-                      <CheckSquare className="h-4 w-4 shrink-0 text-accent" />
-                    ) : (
-                      <Square className="h-4 w-4 shrink-0 text-muted" />
-                    )}
-                    <span className="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => toggle(d.id)}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
+                      aria-pressed={on}
+                      title={on ? 'Retirer du lot' : 'Inclure dans le lot'}
+                    >
+                      {on ? (
+                        <CheckSquare className="h-4 w-4 text-accent" />
+                      ) : (
+                        <Square className="h-4 w-4 text-muted" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onPreview(d)}
+                      className="min-w-0 flex-1 text-left"
+                      title="Lire / vérifier le PDF"
+                    >
                       <span className="block font-semibold text-ink">{d.label || d.fileName}</span>
                       <span className="block truncate text-[11px] text-muted">
                         {KIND_LABEL[d.kind]} · {d.fileName}
                       </span>
-                    </span>
-                  </button>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onPreview(d)}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-white text-ink hover:bg-mist"
+                      title="Lire le PDF"
+                    >
+                      <Eye className="h-4 w-4 text-accent" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(d)}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-danger hover:bg-red-50"
+                      title={
+                        d.canDelete
+                          ? 'Supprimer définitivement'
+                          : 'Retirer du lot (rapport OT)'
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </li>
               )
             })}
@@ -292,6 +391,18 @@ export function DocsPackPanel({
           Envoyer au client
         </button>
       </div>
+
+      {viewer && (
+        <PdfViewerModal
+          url={viewer.url}
+          title={viewer.title}
+          fileName={`${viewer.title.replace(/[^\w.-]+/g, '-').slice(0, 60)}.pdf`}
+          onClose={() => {
+            URL.revokeObjectURL(viewer.url)
+            setViewer(null)
+          }}
+        />
+      )}
     </div>
   )
 

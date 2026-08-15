@@ -9,6 +9,7 @@ import { loadCerfaPdf } from './pdfStore'
 import { TYPE_OT_LABELS, type OrdreTravail } from './ordreTravail'
 import type { AppData, CerfaDraft, Client, Chantier } from './types'
 import { mailtoHref } from './agenda'
+import { allEquipements } from './cerfaBatch'
 
 export type PackDocKind = 'cerfa' | 'fiche' | 'rapport_ot' | 'rapport_annuel'
 
@@ -18,6 +19,10 @@ export type PackDoc = {
   label: string
   fileName: string
   blob: Blob
+  /** Id source (intervention / fiche) pour lecture / suppression. */
+  sourceId?: string
+  /** Suppression possible (CERFA / fiche). Rapport OT = exclusion du lot seulement. */
+  canDelete?: boolean
 }
 
 function safeName(raw: string, fallback = 'doc'): string {
@@ -206,12 +211,21 @@ export async function collectOtDocsPack(opts: {
       }
     }
     if (!blob) continue
+    const eq = site ? allEquipements(site).find((e) => e.id === draft.equipementId) : undefined
+    const eqLabel =
+      eq
+        ? [eq.nom || eq.type, eq.marque, eq.modele, eq.numeroSerie ? `SN ${eq.numeroSerie}` : '']
+            .filter(Boolean)
+            .join(' · ')
+        : draft.fluideType || draft.id.slice(0, 8)
     out.push({
       id: `cerfa-${draft.id}`,
       kind: 'cerfa',
-      label: `CERFA ${draft.numeroIntervention || ''}`.trim(),
+      label: `CERFA ${draft.numeroIntervention || ''} · ${eqLabel}`.trim(),
       fileName: uniqueName(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`),
       blob,
+      sourceId: draft.id,
+      canDelete: true,
     })
   }
 
@@ -225,15 +239,23 @@ export async function collectOtDocsPack(opts: {
         siret: data.operateur?.siret,
         logoImage: data.operateur?.logoImage,
       })
+      const eq = site ? allEquipements(site).find((e) => e.id === fiche.equipementId) : undefined
+      const eqLabel =
+        eq
+          ? [eq.nom || eq.type, eq.marque, eq.modele].filter(Boolean).join(' · ')
+          : [fiche.marqueModele, fiche.numeroSerie].filter(Boolean).join(' · ') ||
+            fiche.id.slice(0, 8)
       const fileName = uniqueName(
-        `Fiche-maintenance-${safeName(fiche.numero || fiche.id.slice(0, 8))}.pdf`,
+        `Fiche-maintenance-${safeName(fiche.numero || fiche.id.slice(0, 8))}-${safeName(eqLabel)}.pdf`,
       )
       out.push({
         id: `fiche-${fiche.id}`,
         kind: 'fiche',
-        label: `Fiche maintenance ${fiche.numero || ''}`.trim(),
+        label: `Fiche maintenance · ${eqLabel}`.trim(),
         fileName,
         blob,
+        sourceId: fiche.id,
+        canDelete: true,
       })
     } catch (err) {
       console.error('ClimaZEN: pack fiche', fiche.id, err)
@@ -252,6 +274,8 @@ export async function collectOtDocsPack(opts: {
         label: 'Rapport OT',
         fileName: uniqueName(`Rapport-OT-${safeName(ot.numero || ot.id.slice(0, 8))}.pdf`),
         blob,
+        sourceId: ot.id,
+        canDelete: false,
       })
     } catch (err) {
       console.error('ClimaZEN: pack rapport OT', err)
