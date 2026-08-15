@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid'
 import type { AppData, CerfaDraft, ContenantType, StockItem, StockMouvement, StockMouvementSens } from './types'
 import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from './types'
 import { adrInfoForFluide, findFluide, isFluideNonAssigne, sameFluideCode } from './fluides'
+import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { assertMouvementCerfaLegal } from './stockRegles'
 
 function roundKg(n: number) {
@@ -60,6 +61,20 @@ export function applyStockFromIntervention(
     const sens = resolveSens(m.type || item.contenantType, m.sens)
     const qty = roundKg(m.quantiteKg)
     const avant = item.quantiteKg
+
+    // Capacité nominale manquante → défaut 12,5 kg (modifiable ensuite dans Stock)
+    if (
+      (item.contenantType === 'recuperation' || item.contenantType === 'recycle') &&
+      !(Number(item.capaciteMaxKg) > 0)
+    ) {
+      const defs = bouteilleDefaultsForFluide(item.fluide || denomination)
+      item = {
+        ...item,
+        capaciteMaxKg: defs.capaciteMaxKg || BOUTEILLE_DEFAULTS.capaciteMaxKg,
+        updatedAt: now,
+      }
+      stock[idx] = item
+    }
 
     // 1er CERFA sur récup. non assignée : verrouille le fluide de l’intervention
     if (

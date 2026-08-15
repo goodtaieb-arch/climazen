@@ -1,2 +1,2 @@
 /** Stamp de build — change à chaque déploiement pour forcer le cache PWA. */
-export const APP_BUILD = '2026-08-15-deploy-stock-cerfa'
+export const APP_BUILD = '2026-08-15-recup-capacite-defaut'

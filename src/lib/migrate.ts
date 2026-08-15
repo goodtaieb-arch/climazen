@@ -10,6 +10,7 @@ import type {
   TypeTravaux,
 } from './types'
 import { addMonthsIso, resolveModeGestion } from './siteParc'
+import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
 type LegacyChantier = Partial<Site> & {
@@ -176,12 +177,24 @@ function migrateDetecteurs(data: AppData): DetecteurManuel[] {
 /**
  * Ancien type unique « regenere » = recyclé site OU régénéré usine.
  * Si origineClientId → recyclé site ; sinon → régénéré distributeur.
+ * Capacité manquante (récup / recyclé) → défaut 12,5 kg.
  */
 function migrateStockItem(s: StockItem): StockItem {
-  if (s.contenantType === 'regenere' && s.origineClientId) {
-    return { ...s, contenantType: 'recycle' }
+  let next = s
+  if (next.contenantType === 'regenere' && next.origineClientId) {
+    next = { ...next, contenantType: 'recycle' }
   }
-  return s
+  if (
+    (next.contenantType === 'recuperation' || next.contenantType === 'recycle') &&
+    !(Number(next.capaciteMaxKg) > 0)
+  ) {
+    const defs = bouteilleDefaultsForFluide(next.fluide || '')
+    next = {
+      ...next,
+      capaciteMaxKg: defs.capaciteMaxKg || BOUTEILLE_DEFAULTS.capaciteMaxKg,
+    }
+  }
+  return next
 }
 
 export function migrateAppData(data: AppData): AppData {

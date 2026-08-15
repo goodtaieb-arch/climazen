@@ -1,5 +1,6 @@
 import type { ContenantType, NatureIntervention, StockItem, StockMouvementSens } from './types'
 import { CONTENANT_TYPE_LABELS, isContenantDestination } from './types'
+import { BOUTEILLE_DEFAULTS } from './bouteilleDefaults'
 
 /** Taux de remplissage max sécurité (dilatation thermique) — récupération. */
 export const TAUX_REMPLISSAGE_SECURITE = 0.8
@@ -8,21 +9,24 @@ function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
 }
 
-/** Capacité nominale (kg) saisie en stock — avant application du 80 %. */
+/**
+ * Capacité nominale (kg) saisie en stock — avant application du 80 %.
+ * Si absente : défaut 12,5 kg (bouteille courante) — modifiable dans Stock.
+ */
 export function capaciteNominaleKg(
   item: Pick<StockItem, 'capaciteMaxKg' | 'quantiteInitialeKg'>,
-): number | null {
+): number {
   const cap = Number(item.capaciteMaxKg)
   if (Number.isFinite(cap) && cap > 0) return cap
   const init = Number(item.quantiteInitialeKg)
   if (Number.isFinite(init) && init > 0) return init
-  return null
+  return BOUTEILLE_DEFAULTS.capaciteMaxKg
 }
 
 /** @deprecated alias — préférer capaciteNominaleKg */
 export function capaciteMaxEffective(
   item: Pick<StockItem, 'capaciteMaxKg' | 'quantiteInitialeKg'>,
-): number | null {
+): number {
   return capaciteNominaleKg(item)
 }
 
@@ -30,18 +34,16 @@ export function capaciteMaxEffective(
  * Poids max fluide autorisé (sécurité).
  * Récupération : 80 % de la capacité nominale. Autres : capacité nominale.
  */
-export function poidsMaxAutoriseKg(item: StockItem): number | null {
+export function poidsMaxAutoriseKg(item: StockItem): number {
   const nom = capaciteNominaleKg(item)
-  if (nom == null) return null
   if (item.contenantType === 'recuperation') {
     return roundKg(nom * TAUX_REMPLISSAGE_SECURITE)
   }
   return nom
 }
 
-export function capaciteRestanteKg(item: StockItem): number | null {
+export function capaciteRestanteKg(item: StockItem): number {
   const max = poidsMaxAutoriseKg(item)
-  if (max == null) return null
   return Math.max(0, roundKg(max - (Number(item.quantiteKg) || 0)))
 }
 
@@ -62,7 +64,6 @@ export function jaugeRemplissageRecup(item: StockItem): JaugeRecupInfo | null {
   if (item.contenantType !== 'recuperation') return null
   const nominalKg = capaciteNominaleKg(item)
   const maxAutoriseKg = poidsMaxAutoriseKg(item)
-  if (nominalKg == null || maxAutoriseKg == null) return null
   const actuelKg = roundKg(Number(item.quantiteKg) || 0)
   const restanteKg = Math.max(0, roundKg(maxAutoriseKg - actuelKg))
   const pctAutorise =
@@ -162,15 +163,6 @@ export function assertMouvementCerfaLegal(opts: {
 
   if (sens === 'entree') {
     const restante = capaciteRestanteKg(item)
-    if (item.contenantType === 'recuperation') {
-      const max = poidsMaxAutoriseKg(item)
-      const nom = capaciteNominaleKg(item)
-      if (max == null || max <= 0 || nom == null) {
-        throw new Error(
-          `Bouteille ${item.numeroContenant} : indiquez la capacité nominale (kg) dans Stock. Le plafond sécurité est 80 % (${TAUX_REMPLISSAGE_SECURITE * 100} %).`,
-        )
-      }
-    }
     if (item.contenantType === 'transfert') {
       throw new Error(
         `Bouteille « Transfert » : pas de récupération client. Utilisez une bouteille Récupération (déchet) ou Recyclé (même détenteur).`,
@@ -183,8 +175,9 @@ export function assertMouvementCerfaLegal(opts: {
     }
     if (restante != null && qty > restante + 1e-9) {
       const max = poidsMaxAutoriseKg(item)
+      const nom = capaciteNominaleKg(item)
       throw new Error(
-        `Plafond sécurité dépassé sur ${item.numeroContenant} : reste ${restante} kg (max autorisé ${max} kg = 80 % de la capacité). Même fluide uniquement, multi-sites OK jusqu’à ce plafond.`,
+        `Plafond sécurité dépassé sur ${item.numeroContenant} : reste ${restante} kg (max autorisé ${max} kg = 80 % de ${nom} kg). Même fluide uniquement, multi-sites OK jusqu’à ce plafond.`,
       )
     }
   }
