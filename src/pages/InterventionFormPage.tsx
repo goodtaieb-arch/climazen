@@ -45,6 +45,7 @@ import {
 } from '../lib/destinationsInstallation'
 import {
   assertMouvementCerfaLegal,
+  bouteilleCompatibleA2LPourFluide,
   bouteilleEligibleChargeCerfa,
   capaciteRestanteKg,
   jaugeRemplissageRecup,
@@ -281,6 +282,7 @@ export function InterventionFormPage() {
     const permetRecup = naturesPermettentRemplissageRecup(natures)
     return data.stock.filter((s) => {
       if (isBouteilleRetournee(s)) return false
+      if (!bouteilleCompatibleA2LPourFluide(s, denominationFluide)) return false
       const qty = Number(s.quantiteKg) || 0
 
       // Déchet usagé : jamais proposée en charge — uniquement pour remplir (récup / démantèlement)
@@ -508,7 +510,9 @@ export function InterventionFormPage() {
       const next = prev.filter((m) => {
         if (!m.stockItemId) return true
         const item = data.stock.find((s) => s.id === m.stockItemId)
-        return item ? fluideCompatibleAvecCerfa(item.fluide, denominationFluide) : false
+        if (!item) return false
+        if (!fluideCompatibleAvecCerfa(item.fluide, denominationFluide)) return false
+        return bouteilleCompatibleA2LPourFluide(item, denominationFluide)
       })
       return next.length === prev.length ? prev : next
     })
@@ -968,13 +972,14 @@ export function InterventionFormPage() {
         clientId: client?.id || chantier?.clientId,
       })
       const fluideA2l = isFluideNonAssigne(item.fluide) ? denominationFluide : item.fluide
-      if (
-        item.contenantType === 'recuperation' &&
-        isFluideInflammableA2LOrA3(fluideA2l) &&
-        !item.conformeA2LA3
-      ) {
+      if (!bouteilleCompatibleA2LPourFluide(item, denominationFluide)) {
+        if (item.conformeA2LA3 && !isFluideInflammableA2LOrA3(denominationFluide)) {
+          throw new Error(
+            `Bouteille ${item.numeroContenant} : destinée aux fluides inflammables (A2L/A3) — incompatible avec ${denominationFluide}.`,
+          )
+        }
         throw new Error(
-          `Bouteille ${item.numeroContenant} : confirmez en Stock qu’elle est certifiée A2L/A3 (collerette rouge + pas à gauche) avant la récupération${isFluideNonAssigne(item.fluide) ? ` (${denominationFluide})` : ` (${item.fluide})`}.`,
+          `Bouteille ${item.numeroContenant} : confirmez en Stock qu’elle est certifiée A2L/A3 (collerette rouge + pas à gauche) avant la récupération${isFluideNonAssigne(item.fluide) ? ` (${denominationFluide})` : ` (${fluideA2l})`}.`,
         )
       }
       if (isBouteilleReepreuveExpiree(item)) {
@@ -1684,14 +1689,15 @@ export function InterventionFormPage() {
                         const q = Number(s.quantiteKg) || 0
                         const videDest = q <= 0 && bouteilleVisibleCerfaMemeVide(s.contenantType)
                         const nonAssigne = isFluideNonAssigne(s.fluide)
+                        const a2lTag = s.conformeA2LA3 ? ' · A2L' : ''
                         return (
                           <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
                             {labelFluideStock(s.fluide)}
                             {nonAssigne && denominationFluide
                               ? ` → ${denominationFluide}`
                               : ''}{' '}
-                            · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType} ·{' '}
-                            {s.numeroContenant || 'SANS N°'} —{' '}
+                            · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType}
+                            {a2lTag} · {s.numeroContenant || 'SANS N°'} —{' '}
                             {videDest
                               ? nonAssigne
                                 ? 'vide non assignée (à verrouiller)'
@@ -1890,12 +1896,20 @@ export function InterventionFormPage() {
           {denominationFluide && stockMatchingFluide.length === 0 && (
             <div className="mt-2 space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
               <p>
-                Aucune bouteille utilisable pour <strong>{denominationFluide}</strong>.
+                Aucune bouteille utilisable pour <strong>{denominationFluide}</strong>
+                {isFluideInflammableA2LOrA3(denominationFluide)
+                  ? ' (A2L/A3 : uniquement bouteilles certifiées collerette rouge)'
+                  : ' (hors bouteilles dédiées A2L/A3)'}
+                .
                 {naturesPermettentRemplissageRecup(natures) ? (
                   <>
                     {' '}
                     Pour vider l’installation : bouteille <strong>Récupération (déchet)</strong> ou{' '}
-                    <strong>Recyclé site</strong> (même détenteur), fluide {denominationFluide}.
+                    <strong>Recyclé site</strong> (même détenteur), fluide {denominationFluide}
+                    {isFluideInflammableA2LOrA3(denominationFluide)
+                      ? ', conformité A2L/A3 cochée'
+                      : ', sans marquage A2L'}
+                    .
                   </>
                 ) : (
                   <>

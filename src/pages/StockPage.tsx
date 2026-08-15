@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ChevronDown, ChevronRight, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronRight, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
@@ -1300,6 +1300,19 @@ export function StockPage() {
                               <span className="truncate font-semibold text-ink">
                                 {s.numeroContenant || '—'}
                               </span>
+                              {(s.conformeA2LA3 || isFluideInflammableA2LOrA3(s.fluide)) && (
+                                <span
+                                  className="inline-flex items-center gap-0.5 text-amber-700"
+                                  title="Bouteille destinée aux fluides inflammables (A2L/A3)"
+                                  aria-label="Avertissement : fluide inflammable A2L/A3"
+                                >
+                                  <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+                                  <span className="text-[10px] font-bold uppercase tracking-wide">
+                                    {findFluide(s.fluide)?.classeSecurite ||
+                                      (s.conformeA2LA3 ? 'A2L' : '')}
+                                  </span>
+                                </span>
+                              )}
                               <span
                                 className={[
                                   'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
@@ -1359,20 +1372,6 @@ export function StockPage() {
                                   {s.typeHuile}
                                 </span>
                               )}
-                              {s.contenantType === 'recuperation' &&
-                                isFluideInflammableA2LOrA3(s.fluide) && (
-                                  <span
-                                    className={[
-                                      'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                                      s.conformeA2LA3
-                                        ? 'bg-red-600 text-white'
-                                        : 'bg-red-100 text-red-800 ring-1 ring-red-400',
-                                    ].join(' ')}
-                                  >
-                                    {findFluide(s.fluide)?.classeSecurite || 'A2L'}
-                                    {s.conformeA2LA3 ? '' : ' ?'}
-                                  </span>
-                                )}
                             </span>
                             <span className="mt-0.5 block truncate text-xs text-muted">
                               {awaitRetour

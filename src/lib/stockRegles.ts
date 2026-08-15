@@ -1,6 +1,23 @@
 import type { ContenantType, NatureIntervention, StockItem, StockMouvementSens } from './types'
 import { CONTENANT_TYPE_LABELS, isContenantDestination } from './types'
 import { BOUTEILLE_DEFAULTS } from './bouteilleDefaults'
+import { isFluideInflammableA2LOrA3 } from './fluides'
+
+/**
+ * Compatibilité bouteille ↔ fluide CERFA (inflammabilité A2L/A3) :
+ * - Bouteille marquée conforme A2L/A3 → uniquement fluides inflammables
+ * - Fluide A2L/A3 en récupération → bouteille doit être certifiée A2L/A3
+ * - Fluide non inflam. (ex. R-410A A1) → interdit sur bouteille dédiée A2L
+ */
+export function bouteilleCompatibleA2LPourFluide(
+  item: Pick<StockItem, 'conformeA2LA3' | 'contenantType'>,
+  denominationFluide: string,
+): boolean {
+  const fluideInflam = isFluideInflammableA2LOrA3(denominationFluide)
+  if (item.conformeA2LA3) return fluideInflam
+  if (fluideInflam && item.contenantType === 'recuperation') return false
+  return true
+}
 
 /** Taux de remplissage max sécurité (dilatation thermique) — récupération. */
 export const TAUX_REMPLISSAGE_SECURITE = 0.8
