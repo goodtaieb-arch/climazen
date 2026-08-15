@@ -68,73 +68,284 @@ function fichesForOt(data: AppData, ot: OrdreTravail): FicheMaintenanceClim[] {
 
 async function buildRapportOtPdf(
   ot: OrdreTravail,
-  client?: Client,
-  site?: Chantier,
+  opts: {
+    client?: Client
+    site?: Chantier
+    operateur?: Pick<
+      AppData['operateur'],
+      | 'raisonSociale'
+      | 'adresse'
+      | 'telephone'
+      | 'email'
+      | 'siret'
+      | 'attestationNumero'
+      | 'logoImage'
+    >
+    equipLabels?: string[]
+    clientSignNom?: string
+  },
 ): Promise<Blob> {
+  const { client, site, operateur, equipLabels = [], clientSignNom } = opts
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const margin = 16
-  let y = 18
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.text('Rapport d’intervention — ClimaZEN', margin, y)
-  y += 10
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'normal')
-  const lines = [
-    `N° OT : ${ot.numero || '—'}`,
-    `Type : ${TYPE_OT_LABELS[ot.typeOt] || ot.typeOt}`,
-    `Date : ${ot.date || '—'}`,
-    `Client : ${client?.raisonSociale || '—'}`,
-    `Site : ${site?.nom || '—'}`,
-    `Technicien : ${ot.technicien || '—'}`,
-  ]
-  for (const line of lines) {
-    doc.text(line, margin, y)
-    y += 7
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 14
+  const maxW = pageW - margin * 2
+  const ACCENT: [number, number, number] = [15, 118, 110]
+  const INK: [number, number, number] = [15, 23, 42]
+  const MUTED: [number, number, number] = [100, 116, 139]
+  const LINE: [number, number, number] = [226, 232, 240]
+  const SOFT: [number, number, number] = [240, 253, 250]
+  let y = 0
+
+  const fmtDate = (iso: string) => {
+    const d = (iso || '').slice(0, 10)
+    const [yy, mm, dd] = d.split('-')
+    if (!yy || !mm || !dd) return iso || '—'
+    return `${dd}/${mm}/${yy}`
   }
-  y += 4
-  doc.setFont('helvetica', 'bold')
-  doc.text('Action / demande', margin, y)
-  y += 6
-  doc.setFont('helvetica', 'normal')
-  const action = doc.splitTextToSize(ot.action || '—', 180)
-  doc.text(action, margin, y)
-  y += action.length * 5 + 6
-  doc.setFont('helvetica', 'bold')
-  doc.text('Rapport d’action', margin, y)
-  y += 6
-  doc.setFont('helvetica', 'normal')
-  const rapport = doc.splitTextToSize(ot.rapportAction || '—', 180)
-  doc.text(rapport, margin, y)
-  y += rapport.length * 5 + 6
-  if (ot.observations?.trim()) {
-    doc.setFont('helvetica', 'bold')
-    doc.text('Observations', margin, y)
-    y += 6
-    doc.setFont('helvetica', 'normal')
-    const obs = doc.splitTextToSize(ot.observations, 180)
-    doc.text(obs, margin, y)
-    y += obs.length * 5 + 8
+
+  const imageFormat = (dataUrl: string): 'PNG' | 'JPEG' | null => {
+    if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) return 'JPEG'
+    if (dataUrl.startsWith('data:image/png') || dataUrl.startsWith('data:image/webp')) return 'PNG'
+    if (dataUrl.startsWith('data:image')) return 'PNG'
+    return null
   }
-  const addSig = async (label: string, dataUrl?: string) => {
-    if (!dataUrl?.startsWith('data:image')) return
-    if (y > 240) {
-      doc.addPage()
-      y = 20
-    }
-    doc.setFont('helvetica', 'bold')
-    doc.text(label, margin, y)
-    y += 4
+
+  const embedImage = async (
+    dataUrl: string | undefined,
+    x: number,
+    yy: number,
+    w: number,
+    h: number,
+  ) => {
+    if (!dataUrl?.startsWith('data:image')) return false
+    const fmt = imageFormat(dataUrl)
+    if (!fmt) return false
     try {
-      const fmt = dataUrl.includes('jpeg') || dataUrl.includes('jpg') ? 'JPEG' : 'PNG'
-      doc.addImage(dataUrl, fmt, margin, y, 70, 28)
-      y += 34
+      doc.addImage(dataUrl, fmt, x, yy, w, h)
+      return true
     } catch {
-      y += 4
+      try {
+        doc.addImage(dataUrl, 'PNG', x, yy, w, h)
+        return true
+      } catch {
+        return false
+      }
     }
   }
-  await addSig('Signature technicien', ot.signatureTechnicienImage)
-  await addSig('Signature client', ot.signatureClientImage)
+
+  const ensureSpace = (need: number) => {
+    // Réserver la zone signatures en bas (~52 mm) sur la dernière page utile
+    if (y + need > pageH - 58) {
+      doc.addPage()
+      doc.setFillColor(...ACCENT)
+      doc.rect(0, 0, pageW, 3, 'F')
+      y = 12
+    }
+  }
+
+  const drawSection = (title: string, body: string) => {
+    ensureSpace(22)
+    doc.setFillColor(...SOFT)
+    doc.roundedRect(margin, y, maxW, 7, 1.2, 1.2, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(...ACCENT)
+    doc.text(title, margin + 3, y + 4.8)
+    y += 10
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...INK)
+    const lines = doc.splitTextToSize(body?.trim() || '—', maxW)
+    ensureSpace(lines.length * 4.2 + 6)
+    doc.text(lines, margin, y)
+    y += lines.length * 4.2 + 6
+  }
+
+  // ——— En-tête société + logo ———
+  doc.setFillColor(...ACCENT)
+  doc.rect(0, 0, pageW, 30, 'F')
+  doc.setFillColor(...SOFT)
+  doc.rect(0, 30, pageW, 9, 'F')
+
+  const logo = operateur?.logoImage
+  let titleX = margin
+  if (logo) {
+    // Fond blanc derrière le logo pour lisibilité
+    doc.setFillColor(255, 255, 255)
+    doc.roundedRect(margin - 1, 4, 22, 22, 2, 2, 'F')
+    const ok = await embedImage(logo, margin, 5, 20, 20)
+    if (ok) titleX = margin + 24
+  }
+
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  doc.text('Rapport d’intervention', titleX, 12)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  const companyLine = operateur?.raisonSociale || 'ClimaZEN'
+  doc.text(companyLine, titleX, 19)
+  const companyMeta = [
+    operateur?.telephone,
+    operateur?.email,
+    operateur?.siret ? `SIRET ${operateur.siret}` : '',
+  ]
+    .filter(Boolean)
+    .join('  ·  ')
+  if (companyMeta) {
+    doc.setFontSize(7.5)
+    doc.text(companyMeta, titleX, 25)
+  }
+
+  y = 37
+  doc.setTextColor(...MUTED)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.text(`OT ${ot.numero || '—'}`, margin, y)
+  doc.text(fmtDate(ot.date), margin + 48, y)
+  doc.text(TYPE_OT_LABELS[ot.typeOt] || ot.typeOt || '—', margin + 78, y)
+  doc.text(`Technicien : ${ot.technicien || '—'}`, margin + 120, y)
+  y = 46
+
+  // ——— Carte infos client / site ———
+  const siteAdresse = [site?.adresse, [site?.codePostal, site?.ville].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ')
+  const infoRows: [string, string][] = [
+    ['Client', client?.raisonSociale || '—'],
+    [
+      'Contact',
+      [client?.nomContact, client?.telephone, client?.email].filter(Boolean).join(' · ') || '—',
+    ],
+    ['Site', site?.nom || '—'],
+    ['Adresse', siteAdresse || client?.adresse || '—'],
+  ]
+  if (equipLabels.length) {
+    infoRows.push(['Équipement(s)', equipLabels.join('\n')])
+  }
+
+  let infoH = 8
+  for (const [, v] of infoRows) {
+    const wrapped = doc.splitTextToSize(String(v), maxW - 40)
+    infoH += Math.max(4.4, wrapped.length * 3.8) + 0.8
+  }
+  infoH += 2
+  doc.setFillColor(255, 255, 255)
+  doc.setDrawColor(...LINE)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(margin, y, maxW, infoH, 2, 2, 'FD')
+  doc.setFillColor(...ACCENT)
+  doc.roundedRect(margin, y, 2.2, infoH, 1, 1, 'F')
+
+  let iy = y + 5.5
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...ACCENT)
+  doc.text('Client & intervention', margin + 5, iy)
+  iy += 5.5
+  for (const [k, v] of infoRows) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...MUTED)
+    doc.text(k, margin + 5, iy)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...INK)
+    const wrapped = doc.splitTextToSize(String(v), maxW - 40)
+    doc.text(wrapped, margin + 36, iy)
+    iy += Math.max(4.4, wrapped.length * 3.8) + 0.8
+  }
+  y = y + infoH + 6
+
+  drawSection('Demande / action', ot.action || '—')
+  drawSection('Rapport d’action (réalisé)', ot.rapportAction || ot.action || '—')
+  if (ot.observations?.trim()) {
+    drawSection('Observations', ot.observations)
+  }
+
+  // ——— Cases de signature en bas de page ———
+  const boxW = (maxW - 6) / 2
+  const boxH = 36
+  const sigY = pageH - 52
+  if (y > sigY - 4) {
+    doc.addPage()
+    doc.setFillColor(...ACCENT)
+    doc.rect(0, 0, pageW, 3, 'F')
+  }
+  const sy = Math.max(y + 2, sigY)
+
+  doc.setFillColor(...SOFT)
+  doc.roundedRect(margin, sy - 8, maxW, 7, 1.2, 1.2, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...ACCENT)
+  doc.text('Validation & signatures', margin + 3, sy - 3.2)
+
+  const drawSignBox = async (
+    x: number,
+    title: string,
+    img?: string,
+    name?: string,
+    qualite?: string,
+  ) => {
+    doc.setDrawColor(...LINE)
+    doc.setFillColor(255, 255, 255)
+    doc.setLineWidth(0.35)
+    doc.roundedRect(x, sy, boxW, boxH, 2, 2, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...MUTED)
+    doc.text(title, x + 3, sy + 4.5)
+    // Zone signature
+    doc.setDrawColor(203, 213, 225)
+    doc.setLineWidth(0.2)
+    doc.roundedRect(x + 3, sy + 7, boxW - 6, 18, 1.2, 1.2, 'S')
+    await embedImage(img, x + 5, sy + 8, boxW - 10, 16)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...INK)
+    if (name) doc.text(name, x + 3, sy + boxH - 5.5)
+    if (qualite) {
+      doc.setFontSize(6.5)
+      doc.setTextColor(...MUTED)
+      doc.text(qualite, x + 3, sy + boxH - 2)
+    }
+  }
+
+  await drawSignBox(
+    margin,
+    'Signature technicien',
+    ot.signatureTechnicienImage,
+    ot.technicien || '—',
+    'Opérateur attesté',
+  )
+  await drawSignBox(
+    margin + boxW + 6,
+    'Signature client / détenteur',
+    ot.signatureClientImage,
+    clientSignNom || client?.nomContact || client?.raisonSociale || '—',
+    'Représentant client',
+  )
+
+  // Pied de page
+  doc.setDrawColor(...LINE)
+  doc.setLineWidth(0.2)
+  doc.line(margin, pageH - 9, pageW - margin, pageH - 9)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...MUTED)
+  const foot = [
+    operateur?.raisonSociale,
+    operateur?.attestationNumero ? `Attestation ${operateur.attestationNumero}` : '',
+    operateur?.siret ? `SIRET ${operateur.siret}` : '',
+    'Document généré avec ClimaZEN',
+  ]
+    .filter(Boolean)
+    .join('  ·  ')
+  doc.text(foot, margin, pageH - 5)
+
   return doc.output('blob')
 }
 
@@ -267,7 +478,29 @@ export async function collectOtDocsPack(opts: {
     !!(ot.rapportAction?.trim() || ot.action?.trim() || ot.signatureTechnicienImage || ot.signatureClientImage)
   if (hasRapport) {
     try {
-      const blob = await buildRapportOtPdf(ot, client, site)
+      const eqIds =
+        ot.equipementIds && ot.equipementIds.length > 0
+          ? ot.equipementIds
+          : ot.equipementId
+            ? [ot.equipementId]
+            : []
+      const equipLabels = eqIds
+        .map((eqId) => {
+          const eq = site ? allEquipements(site).find((e) => e.id === eqId) : undefined
+          if (!eq) return ''
+          return [eq.nom || eq.type, eq.marque, eq.modele, eq.numeroSerie ? `N° ${eq.numeroSerie}` : '']
+            .filter(Boolean)
+            .join(' · ')
+        })
+        .filter(Boolean)
+      const blob = await buildRapportOtPdf(ot, {
+        client,
+        site,
+        operateur: data.operateur,
+        equipLabels,
+        clientSignNom:
+          site?.signatureDetenteurNom || client?.nomContact || client?.raisonSociale || '',
+      })
       out.push({
         id: `rapport-${ot.id}`,
         kind: 'rapport_ot',
