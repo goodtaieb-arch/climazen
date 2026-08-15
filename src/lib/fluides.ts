@@ -273,6 +273,14 @@ export function classeSecuriteFluide(code: string): FluideRef['classeSecurite'] 
   return findFluide(code)?.classeSecurite
 }
 
+/** Classe ASHRAE affichée sous le sélecteur fluide (ex. « Classe A2L ⚠️ »). */
+export function formatClasseSecuriteLabel(code: string): string | null {
+  const c = classeSecuriteFluide(code)
+  if (!c) return null
+  const warn = c === 'A2L' || c === 'A2' || c === 'A3' || c === 'B2L' || c === 'B2' || c === 'B3'
+  return warn ? `Classe ${c} ⚠️` : `Classe ${c}`
+}
+
 /** Fluide inflammable A2L ou A3 → bouteille récup. collerette rouge + pas à gauche. */
 export function isFluideInflammableA2LOrA3(code: string): boolean {
   const c = classeSecuriteFluide(code)

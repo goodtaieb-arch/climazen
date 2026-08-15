@@ -1839,7 +1839,7 @@ export function InterventionFormPage() {
               {naturesPermettentRemplissageRecup(natures) ? (
                 <>
                   Récupération / démantèlement : ajoutez une bouteille{' '}
-                  <strong>Récupération (déchet)</strong> ou <strong>Recyclé</strong> (même
+                  <strong>Récupération (déchet)</strong> ou <strong>Recyclé site</strong> (même
                   détenteur). Le fluide usagé ne peut pas servir à charger un autre client.
                 </>
               ) : (
@@ -1867,7 +1867,7 @@ export function InterventionFormPage() {
                   <>
                     {' '}
                     Pour vider l’installation : bouteille <strong>Récupération (déchet)</strong> ou{' '}
-                    <strong>Recyclé</strong> (même détenteur), fluide {denominationFluide}.
+                    <strong>Recyclé site</strong> (même détenteur), fluide {denominationFluide}.
                   </>
                 ) : (
                   <>
@@ -1906,8 +1906,8 @@ export function InterventionFormPage() {
           {denominationFluide && stockMatchingFluide.length > 0 && manips.some((m) => !m.stockItemId) && (
             <p className="mt-2 text-xs text-muted">
               {naturesPermettentRemplissageRecup(natures)
-                ? 'Vidange : bouteille « Récupération » → Remplir (jamais de réinjection). Recyclé = même client uniquement.'
-                : 'Charge : bouteille Vierge ou régénérée usine. Récupération déchet absente de cette liste (F-Gas).'}
+                ? 'Vidange : bouteille « Récupération » → Remplir (jamais de réinjection). Recyclé site = même client uniquement.'
+                : 'Charge : bouteille Vierge ou Régénéré (achat). Récupération déchet absente de cette liste (F-Gas).'}
             </p>
           )}
         </Section>
