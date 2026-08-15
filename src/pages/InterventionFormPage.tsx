@@ -27,6 +27,13 @@ import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
 import { calcTeqCO2FromFluide, controlesPeriodiquesInfo, findFluide, sameFluideCode } from '../lib/fluides'
+import {
+  assertMouvementCerfaLegal,
+  capaciteRestanteKg,
+  peutReinjectionSurClient,
+  resumeRegleContenant,
+  sensAutorisesCerfa,
+} from '../lib/stockRegles'
 import { bottleLetter, roundKg } from '../lib/decimal'
 import { TIP_ADR, TIP_BOUTEILLE, TIP_UN } from '../lib/fieldTips'
 import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecteurs'
@@ -220,13 +227,18 @@ export function InterventionFormPage() {
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
     if (!denominationFluide) return []
-    return data.stock.filter(
-      (s) =>
-        sameFluideCode(s.fluide, denominationFluide) &&
-        !isBouteilleRetournee(s) &&
-        ((Number(s.quantiteKg) || 0) > 0 || bouteilleVisibleCerfaMemeVide(s.contenantType)),
-    )
-  }, [data.stock, denominationFluide])
+    return data.stock.filter((s) => {
+      if (!sameFluideCode(s.fluide, denominationFluide)) return false
+      if (isBouteilleRetournee(s)) return false
+      const qty = Number(s.quantiteKg) || 0
+      if (!(qty > 0 || bouteilleVisibleCerfaMemeVide(s.contenantType))) return false
+      // Recyclé déjà rattaché : uniquement chez le même client
+      if (s.contenantType === 'regenere' && qty > 0 && !peutReinjectionSurClient(s, client?.id)) {
+        return false
+      }
+      return true
+    })
+  }, [data.stock, denominationFluide, client?.id])
 
   const destinationWrongFluide = useMemo(() => {
     if (!denominationFluide) return []
@@ -516,6 +528,8 @@ export function InterventionFormPage() {
           const item = data.stock.find((s) => s.id === patch.stockItemId)
           if (item) {
             next.sens = sensMouvementPourContenant(item.contenantType, item.quantiteKg)
+            const allowed = sensAutorisesCerfa(item.contenantType)
+            if (!allowed.includes(next.sens)) next.sens = allowed[0]
           }
         }
         return next
@@ -871,6 +885,12 @@ export function InterventionFormPage() {
           `Stock insuffisant sur ${item.numeroContenant} : reste ${item.quantiteKg} kg.`,
         )
       }
+      assertMouvementCerfaLegal({
+        item,
+        sens: m.sens,
+        quantiteKg: m.quantiteKg,
+        clientId: client?.id || chantier?.clientId,
+      })
     }
 
     const draft = {
@@ -1527,11 +1547,13 @@ export function InterventionFormPage() {
                 (s) => s.id === m.stockItemId || !dejaPrises.has(s.id),
               )
               const qtyRestante = item ? Number(item.quantiteKg) || 0 : 0
+              const autorises = item ? sensAutorisesCerfa(item.contenantType) : []
               const fillMode =
                 !!item &&
                 (item.contenantType === 'recuperation' ||
                   (isContenantDestination(item.contenantType) && qtyRestante <= 0) ||
                   m.sens === 'entree')
+              const resteCap = item ? capaciteRestanteKg(item) : null
               return (
                 <div
                   key={m.key}
@@ -1574,28 +1596,32 @@ export function InterventionFormPage() {
                     </select>
                   </LabelHint>
                   {item && (
+                    <p className="text-[11px] leading-snug text-muted">
+                      {resumeRegleContenant(item.contenantType)}
+                    </p>
+                  )}
+                  {item && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm">
                         <span className="mb-1 block text-muted">Type de mouvement *</span>
                         <select
-                          value={m.sens}
+                          value={autorises.includes(m.sens) ? m.sens : autorises[0]}
                           onChange={(e) =>
                             updateManip(m.key, { sens: e.target.value as StockMouvementSens })
                           }
                           className="h-11 w-full rounded-xl border border-line bg-white px-3"
                         >
-                          {isContenantDestination(item.contenantType) ? (
-                            <>
-                              <option value="entree">
-                                Remplir depuis l’installation (→ + kg)
-                              </option>
-                              <option value="sortie">Retirer / vider la bouteille (→ − kg)</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="sortie">Utiliser / charge (sortie → − kg)</option>
-                              <option value="entree">Réintégrer (entrée → + kg)</option>
-                            </>
+                          {autorises.includes('entree') && (
+                            <option value="entree">
+                              Remplir depuis l’installation (→ + kg)
+                            </option>
+                          )}
+                          {autorises.includes('sortie') && (
+                            <option value="sortie">
+                              {item.contenantType === 'vierge'
+                                ? 'Utiliser / charge (sortie → − kg)'
+                                : 'Réinjecter / retirer (sortie → − kg)'}
+                            </option>
                           )}
                         </select>
                       </label>
@@ -1603,7 +1629,9 @@ export function InterventionFormPage() {
                         label={
                           m.sens === 'sortie'
                             ? `Quantité sortie (kg) * — max ${item.quantiteKg}`
-                            : 'Quantité récupérée / ajoutée (kg) *'
+                            : resteCap != null
+                              ? `Quantité récupérée (kg) * — max ${resteCap}`
+                              : 'Quantité récupérée / ajoutée (kg) *'
                         }
                         value={m.quantiteKg}
                         onChange={(n) => updateManip(m.key, { quantiteKg: n })}
@@ -1618,10 +1646,15 @@ export function InterventionFormPage() {
                       fluides.
                     </p>
                   )}
-                  {item && fillMode && m.sens === 'entree' && (
+                  {item?.contenantType === 'recuperation' && (
+                    <p className="text-xs text-amber-900">
+                      Fluide usagé : pas de réinjection sur un autre équipement. Après remplissage,
+                      évacuez via Stock (BSFF / destruction).
+                    </p>
+                  )}
+                  {item && fillMode && m.sens === 'entree' && item.contenantType !== 'recuperation' && (
                     <p className="text-xs text-muted">
-                      Vidange / démantèlement : le fluide quitte l’installation et{' '}
-                      <strong>remplit</strong> cette bouteille (
+                      Vidange : le fluide quitte l’installation et remplit cette bouteille (
                       {CONTENANT_TYPE_LABELS[item.contenantType]}).
                     </p>
                   )}

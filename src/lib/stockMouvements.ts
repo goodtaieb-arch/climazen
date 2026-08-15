@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid'
 import type { AppData, CerfaDraft, ContenantType, StockItem, StockMouvement, StockMouvementSens } from './types'
 import { cerfaLabelFor, sensMouvementPourContenant } from './types'
 import { sameFluideCode } from './fluides'
+import { assertMouvementCerfaLegal } from './stockRegles'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -65,6 +66,13 @@ export function applyStockFromIntervention(
     const qty = roundKg(m.quantiteKg)
     const avant = item.quantiteKg
 
+    assertMouvementCerfaLegal({
+      item,
+      sens,
+      quantiteKg: qty,
+      clientId: intervention.clientId,
+    })
+
     if (sens === 'sortie') {
       if (qty > avant + 1e-9) {
         throw new Error(
@@ -89,7 +97,16 @@ export function applyStockFromIntervention(
       )
     } else {
       const apres = roundKg(avant + qty)
-      stock[idx] = { ...item, quantiteKg: apres, updatedAt: now }
+      const patch: Partial<StockItem> = { quantiteKg: apres, updatedAt: now }
+      // Rattache le fluide récupéré / recyclé au détenteur pour la réinjection
+      if (
+        (item.contenantType === 'regenere' || item.contenantType === 'recuperation') &&
+        intervention.clientId &&
+        !item.origineClientId
+      ) {
+        patch.origineClientId = intervention.clientId
+      }
+      stock[idx] = { ...item, ...patch }
       mouvements.push(
         makeMouvement({
           item,
@@ -362,6 +379,15 @@ export function enregistrerDestruction(
   const centre = opts.centreDestruction?.trim()
   const ref = opts.documentReference?.trim() || item.bsffReference?.trim()
 
+  if (item.contenantType === 'vierge' || item.contenantType === 'transfert') {
+    throw new Error(
+      'L’évacuation BSFF / destruction concerne surtout les bouteilles de récupération (fluide usagé).',
+    )
+  }
+  if (!ref) {
+    throw new Error('Référence BSFF / bordereau obligatoire pour l’évacuation vers un centre agréé.')
+  }
+
   const nextItem: StockItem = {
     ...item,
     quantiteKg: apres,
@@ -376,7 +402,7 @@ export function enregistrerDestruction(
     quantiteAvantKg: item.quantiteKg,
     quantiteApresKg: apres,
     date,
-    cerfaLabel: ref ? `DEST-${ref}` : `DEST-${date}-${item.numeroContenant}`,
+    cerfaLabel: `DEST-${ref}`,
     createdByName: opts.createdByName,
     kind: 'destruction',
     tiersNom: centre,
@@ -384,7 +410,7 @@ export function enregistrerDestruction(
     note: [
       'Destruction / traitement agréé',
       centre ? `Centre : ${centre}` : '',
-      ref ? `BSFF / doc. : ${ref}` : '',
+      `BSFF / doc. : ${ref}`,
       opts.notes?.trim() || '',
     ]
       .filter(Boolean)

@@ -44,6 +44,11 @@ export function loadData(organizationId?: string | null): AppData {
     const stock = (parsed.stock || []).map((s) => ({
       ...s,
       quantiteInitialeKg: s.quantiteInitialeKg ?? s.quantiteKg,
+      capaciteMaxKg:
+        s.capaciteMaxKg ??
+        (s.contenantType === 'recuperation'
+          ? s.quantiteInitialeKg || undefined
+          : s.capaciteMaxKg),
     }))
     return migrateAppData({
       ...base,

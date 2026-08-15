@@ -29,7 +29,7 @@ import {
 import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
 import { deleteCerfaPdf } from './pdfStore'
 import { useAuth } from './AuthContext'
-import { applyStockFromIntervention, enregistrerRetourConsigne, revertStockForIntervention } from './stockMouvements'
+import { applyStockFromIntervention, enregistrerDestruction, enregistrerRetourConsigne, revertStockForIntervention } from './stockMouvements'
 import {
   buildMaintenanceCerfaDrafts,
   syncEquipementsFromFlat,
@@ -134,6 +134,15 @@ type Store = {
     bonRetourDate: string
     bonRetourFournisseur?: string
     bonRetourNotes?: string
+    createdByName?: string
+  }) => void
+  enregistrerDestructionBouteille: (opts: {
+    stockItemId: string
+    quantiteKg: number
+    date: string
+    centreDestruction?: string
+    documentReference?: string
+    notes?: string
     createdByName?: string
   }) => void
   upsertIntervention: (
@@ -1044,6 +1053,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const enregistrerDestructionBouteille = useCallback(
+    (opts: {
+      stockItemId: string
+      quantiteKg: number
+      date: string
+      centreDestruction?: string
+      documentReference?: string
+      notes?: string
+      createdByName?: string
+    }) => {
+      let error: Error | null = null
+      setData((d) => {
+        try {
+          return enregistrerDestruction(d, opts)
+        } catch (err) {
+          error = err instanceof Error ? err : new Error('Erreur destruction')
+          return d
+        }
+      })
+      if (error) throw error
+    },
+    [],
+  )
+
   const upsertIntervention = useCallback(
     (i: Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
       const id = i.id ?? uuid()
@@ -1331,6 +1364,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertStock,
       deleteStock,
       enregistrerRetourConsigneBouteille,
+      enregistrerDestructionBouteille,
       upsertIntervention,
       saveInterventionWithStock,
       deleteIntervention,
@@ -1368,6 +1402,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertStock,
       deleteStock,
       enregistrerRetourConsigneBouteille,
+      enregistrerDestructionBouteille,
       upsertIntervention,
       saveInterventionWithStock,
       deleteIntervention,

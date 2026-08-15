@@ -302,6 +302,18 @@ export interface StockItem {
   quantiteKg: number
   /** Quantité à l’entrée en stock (kg) — pour suivre les usages partiels */
   quantiteInitialeKg?: number
+  /**
+   * Capacité max de remplissage (kg) — obligatoire pour récupération (surcharge).
+   * Distinct de quantiteInitialeKg (contenu à l’entrée).
+   */
+  capaciteMaxKg?: number
+  /**
+   * Client / détenteur d’origine du fluide (recyclé) — réinjection limitée à ce client.
+   * Renseigné à la première récupération CERFA.
+   */
+  origineClientId?: string
+  /** Emplacement logistique (bouteilles de transfert). */
+  emplacement?: 'atelier' | 'vehicule'
   /** BSFF Trackdéchets si applicable */
   bsffReference?: string
   codeUn?: string
