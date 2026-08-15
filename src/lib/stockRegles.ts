@@ -105,17 +105,56 @@ export function jaugeRemplissageRecup(item: StockItem): JaugeRecupInfo | null {
   }
 }
 
-/** CERFA natures qui autorisent le remplissage d’une bouteille de récupération. */
+/** CERFA natures qui autorisent le remplissage d’une bouteille (récup). */
 export function naturesPermettentRemplissageRecup(natures: NatureIntervention[]): boolean {
-  return natures.some((n) => n === 'recuperation' || n === 'demantelement')
+  return modeRemplissageCerfa(natures) != null
+}
+
+/**
+ * Mode de récupération CERFA :
+ * - definitive = démantèlement / mise au rebut → bouteilles Récupération (déchet)
+ * - temporaire = récupération avec réinjection prévue → bouteilles Transfert / Service
+ * Si les deux natures sont cochées, la définitive prime (sécurité).
+ */
+export type ModeRemplissageCerfa = 'temporaire' | 'definitive'
+
+export function naturesRecupDefinitive(natures: NatureIntervention[]): boolean {
+  return natures.includes('demantelement')
+}
+
+export function naturesRecupTemporaire(natures: NatureIntervention[]): boolean {
+  return natures.includes('recuperation') && !natures.includes('demantelement')
+}
+
+export function modeRemplissageCerfa(
+  natures: NatureIntervention[],
+): ModeRemplissageCerfa | null {
+  if (naturesRecupDefinitive(natures)) return 'definitive'
+  if (naturesRecupTemporaire(natures)) return 'temporaire'
+  return null
+}
+
+/**
+ * Bouteille autorisée pour remplir depuis l’installation selon le mode récup.
+ * Temporaire → Transfert / Service uniquement.
+ * Définitive → Récupération (déchet) uniquement.
+ */
+export function bouteilleEligibleRemplissageSelonNatures(
+  item: Pick<StockItem, 'contenantType'>,
+  natures: NatureIntervention[],
+): boolean {
+  const mode = modeRemplissageCerfa(natures)
+  if (mode === 'definitive') return item.contenantType === 'recuperation'
+  if (mode === 'temporaire') return item.contenantType === 'transfert'
+  return false
 }
 
 /**
  * Réinjection (sortie / charge) autorisée chez ce client ?
- * - Récupération : jamais (déchet → BSFF / distributeur)
+ * - Récupération (déchet) : JAMAIS (→ BSFF / traitement)
  * - Recyclé site : uniquement le même détenteur (origineClientId)
  * - Régénéré usine : OK partout
- * - Transfert avec origine : même client
+ * - Transfert / Service : même client si origine connue, sinon OK
  */
 export function peutReinjectionSurClient(
   item: Pick<StockItem, 'contenantType' | 'origineClientId'>,
@@ -180,14 +219,14 @@ export function assertMouvementCerfaLegal(opts: {
 
   if (sens === 'entree') {
     const restante = capaciteRestanteKg(item)
-    if (item.contenantType === 'transfert') {
-      throw new Error(
-        `Bouteille « Transfert » : pas de récupération client. Utilisez une bouteille Récupération (déchet) ou Recyclé (même détenteur).`,
-      )
-    }
     if (item.contenantType === 'regenere') {
       throw new Error(
-        `Bouteille « Régénéré » : achat distributeur — pas de vidange client. Utilisez Récupération ou Recyclé site.`,
+        `Bouteille « Régénéré » : achat distributeur — pas de vidange client. Utilisez Transfert / Service (récup. temporaire) ou Récupération (déchet).`,
+      )
+    }
+    if (item.contenantType === 'vierge') {
+      throw new Error(
+        `Bouteille « Vierge » : uniquement des sorties (charge). Pour récupérer du fluide : Transfert / Service ou Récupération (déchet).`,
       )
     }
     if (restante != null && qty > restante + 1e-9) {
@@ -199,15 +238,18 @@ export function assertMouvementCerfaLegal(opts: {
     }
   }
 
-  if (sens === 'sortie' && !peutReinjectionSurClient(item, clientId)) {
+  if (sens === 'sortie') {
+    // Interdiction absolue : déchet jamais réinjecté / recharge
     if (item.contenantType === 'recuperation') {
       throw new Error(
-        `Fluide usagé (${item.numeroContenant}) : réinjection interdite. Évacuez via Stock → BSFF / retour distributeur.`,
+        `Interdit : bouteille Récupération (déchet) ${item.numeroContenant} — fluide destiné au traitement / BSFF, jamais de recharge ni réinjection.`,
       )
     }
-    throw new Error(
-      `Fluide recyclé (${item.numeroContenant}) : réinjection uniquement chez le même détenteur / client (recyclage site). Pour un autre site : régénération usine via distributeur.`,
-    )
+    if (!peutReinjectionSurClient(item, clientId)) {
+      throw new Error(
+        `Fluide recyclé / service (${item.numeroContenant}) : réinjection uniquement chez le même détenteur / client. Pour un autre site : régénération usine via distributeur.`,
+      )
+    }
   }
 }
 
@@ -222,7 +264,7 @@ export function resumeRegleContenant(type: ContenantType): string {
     case 'regenere':
       return 'Régénéré usine (achat distributeur) : quantité d’entrée > 0, utilisable partout en charge — pas de vidange client.'
     case 'transfert':
-      return 'Logistique interne atelier ↔ véhicule (sans CERFA). Pas de vidange client dans cette bouteille.'
+      return 'Transfert / Service : récupération temporaire pour réparation, puis réinjection sur le même équipement / client. Pas de mise au rebut (utilisez Récupération déchet).'
     default:
       return ''
   }
@@ -232,13 +274,14 @@ export function isDestinationVidange(type: ContenantType): boolean {
   return isContenantDestination(type)
 }
 
-/** Visible dans la liste CERFA pour une opération de charge (sortie). */
+/** Visible dans la liste CERFA pour une opération de charge / réinjection (sortie). */
 export function bouteilleEligibleChargeCerfa(
   item: Pick<StockItem, 'contenantType' | 'origineClientId' | 'quantiteKg'>,
   clientId: string | undefined | null,
 ): boolean {
   const qty = Number(item.quantiteKg) || 0
   if (qty <= 0) return false
+  // Interdiction absolue : déchet jamais proposé en recharge / réinjection
   if (item.contenantType === 'recuperation') return false
   return peutReinjectionSurClient(item, clientId)
 }

@@ -23,8 +23,8 @@ export const NATURE_LABELS: Record<NatureIntervention, string> = {
   entretien_reparation: 'Entretien / réparation',
   controle_etancheite_periodique: 'Contrôle d’étanchéité périodique',
   controle_etancheite_non_periodique: 'Contrôle d’étanchéité non périodique',
-  demantelement: 'Démantèlement',
-  recuperation: 'Récupération de fluide',
+  demantelement: 'Démantèlement / récup. définitive (déchet)',
+  recuperation: 'Récupération temporaire (réinjection prévue)',
   charge: 'Charge de fluide',
   autre: 'Autre manipulation de fluide',
 }
@@ -36,7 +36,7 @@ export const CONTENANT_TYPE_LABELS: Record<ContenantType, string> = {
   recycle: 'Recyclé (sur site — même client)',
   regenere: 'Régénéré (achat distributeur)',
   recuperation: 'Récupération (déchet)',
-  transfert: 'Transfert (logistique)',
+  transfert: 'Transfert / Service',
 }
 
 /** Bouteille créée vide (récupération déchet ou recyclage site). */
@@ -212,8 +212,8 @@ export const TYPE_TRAVAUX_LABELS: Record<TypeTravaux, string> = {
   maintenance: 'Maintenance',
   mise_en_service: 'Mise en service',
   controle_etancheite: 'Contrôle d’étanchéité',
-  recuperation: 'Récupération de fluide',
-  demantelement: 'Démantèlement',
+  recuperation: 'Récupération temporaire',
+  demantelement: 'Démantèlement / récup. définitive',
   ventilation_vmc: 'Ventilation / VMC',
   autre: 'Autre',
 }
@@ -571,19 +571,19 @@ export function cerfaLabelFor(
 }
 
 /**
- * Contenant pouvant recevoir du fluide récupéré sur CERFA (déchet / recyclage site).
+ * Contenant pouvant recevoir du fluide récupéré sur CERFA.
+ * - Récupération (déchet) / Recyclé site / Transfert-Service (récup. temporaire)
  * Régénéré = achat distributeur (déjà plein) — pas une destination de vidange.
- * Transfert = logistique interne uniquement (pas de vidange client).
  */
 export function isContenantDestination(type: ContenantType): boolean {
-  return type === 'recuperation' || type === 'recycle'
+  return type === 'recuperation' || type === 'recycle' || type === 'transfert'
 }
 
 /**
  * Sens du mouvement selon le type (et le stock restant) :
  * - récupération → entrée (fluide récupéré dans la bouteille)
  * - recyclé / transfert vides → entrée (remplir depuis l’installation)
- * - sinon → sortie (usage / charge)
+ * - sinon → sortie (usage / charge / réinjection)
  */
 export function sensMouvementPourContenant(
   type: ContenantType,

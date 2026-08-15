@@ -47,9 +47,10 @@ import {
   assertMouvementCerfaLegal,
   bouteilleCompatibleA2LPourFluide,
   bouteilleEligibleChargeCerfa,
+  bouteilleEligibleRemplissageSelonNatures,
   capaciteRestanteKg,
   jaugeRemplissageRecup,
-  naturesPermettentRemplissageRecup,
+  modeRemplissageCerfa,
   resumeRegleContenant,
   sensAutorisesCerfa,
 } from '../lib/stockRegles'
@@ -298,29 +299,36 @@ export function InterventionFormPage() {
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
   const stockMatchingFluide = useMemo(() => {
     if (!denominationFluide) return []
-    const permetRecup = naturesPermettentRemplissageRecup(natures)
+    const mode = modeRemplissageCerfa(natures)
     return data.stock.filter((s) => {
       if (isBouteilleRetournee(s)) return false
       if (!bouteilleCompatibleA2LPourFluide(s, denominationFluide)) return false
       const qty = Number(s.quantiteKg) || 0
 
-      // Déchet usagé : jamais proposée en charge — uniquement pour remplir (récup / démantèlement)
-      if (s.contenantType === 'recuperation') {
-        if (!permetRecup) return false
+      // ——— Remplissage depuis l’installation (récup) ———
+      if (mode === 'definitive') {
+        // Mise au rebut : uniquement Récupération (déchet)
+        if (s.contenantType !== 'recuperation') return false
         if (isFluideNonAssigne(s.fluide)) return true
         return sameFluideCode(s.fluide, denominationFluide)
       }
-
-      if (!sameFluideCode(s.fluide, denominationFluide)) return false
-
-      if (qty > 0) {
-        // Charge / appoint : vierge, recyclé (même client) ou régénéré usine — pas le déchet
-        return bouteilleEligibleChargeCerfa(s, client?.id)
+      if (mode === 'temporaire') {
+        // Réparation / réinjection prévue : uniquement Transfert / Service
+        if (s.contenantType !== 'transfert') return false
+        if (!s.fluide?.trim() || isFluideNonAssigne(s.fluide)) return true
+        return sameFluideCode(s.fluide, denominationFluide)
       }
 
-      // Vide : recyclé (boucle même détenteur) ou récup seulement si natures OK
-      if (!bouteilleVisibleCerfaMemeVide(s.contenantType)) return false
-      return permetRecup
+      // ——— Charge / réinjection (pas de nature récup) ———
+      // Interdiction absolue : déchet jamais proposé
+      if (s.contenantType === 'recuperation') return false
+      if (!sameFluideCode(s.fluide, denominationFluide)) return false
+      if (qty > 0) return bouteilleEligibleChargeCerfa(s, client?.id)
+      // Vide hors récup : recyclé même détenteur éventuel — pas le déchet
+      if (s.contenantType === 'recycle' && bouteilleVisibleCerfaMemeVide(s.contenantType)) {
+        return true
+      }
+      return false
     })
   }, [data.stock, denominationFluide, client?.id, natures])
 
@@ -347,8 +355,10 @@ export function InterventionFormPage() {
   }, [data.stock, denominationFluide])
 
   const stockCreateRecupHref = useMemo(() => {
-    return `/app/stock?${new URLSearchParams({ type: 'recuperation' }).toString()}`
-  }, [])
+    const mode = modeRemplissageCerfa(natures)
+    const type = mode === 'temporaire' ? 'transfert' : 'recuperation'
+    return `/app/stock?${new URLSearchParams({ type }).toString()}`
+  }, [natures])
 
   // Charger le CERFA déjà enregistré dans l’app
   useEffect(() => {
@@ -519,23 +529,30 @@ export function InterventionFormPage() {
     }
   }, [denominationFluide])
 
-  // Si la dénomination fluide change, retirer toute bouteille d’un autre gaz (tous types)
+  // Si fluide ou natures changent, retirer les bouteilles incompatibles
   useEffect(() => {
     if (!denominationFluide) {
       setManips((prev) => (prev.some((m) => m.stockItemId) ? prev.map((m) => ({ ...m, stockItemId: '', quantiteKg: 0 })) : prev))
       return
     }
+    const mode = modeRemplissageCerfa(natures)
     setManips((prev) => {
       const next = prev.filter((m) => {
         if (!m.stockItemId) return true
         const item = data.stock.find((s) => s.id === m.stockItemId)
         if (!item) return false
         if (!fluideCompatibleAvecCerfa(item.fluide, denominationFluide)) return false
-        return bouteilleCompatibleA2LPourFluide(item, denominationFluide)
+        if (!bouteilleCompatibleA2LPourFluide(item, denominationFluide)) return false
+        if (mode) {
+          return bouteilleEligibleRemplissageSelonNatures(item, natures)
+        }
+        // Charge / réinjection : déchet interdit
+        if (item.contenantType === 'recuperation') return false
+        return true
       })
       return next.length === prev.length ? prev : next
     })
-  }, [denominationFluide]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [denominationFluide, natures]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Préremplir nom / signature client depuis le site (personne qui signe, pas la société)
   useEffect(() => {
@@ -977,6 +994,19 @@ export function InterventionFormPage() {
           err instanceof Error
             ? err.message
             : `N° de série invalide pour ${labelBouteilleAffichage(item)}.`,
+        )
+      }
+      const mode = modeRemplissageCerfa(natures)
+      if (mode && !bouteilleEligibleRemplissageSelonNatures(item, natures)) {
+        throw new Error(
+          mode === 'temporaire'
+            ? `Récupération temporaire : utilisez uniquement une bouteille Transfert / Service (pas une Récupération déchet).`
+            : `Récupération définitive / démantèlement : utilisez uniquement une bouteille Récupération (déchet).`,
+        )
+      }
+      if (!mode && item.contenantType === 'recuperation') {
+        throw new Error(
+          `Interdit : bouteille Récupération (déchet) pour une charge / réinjection. Évacuez via BSFF.`,
         )
       }
       if (!(m.quantiteKg > 0)) {
@@ -1929,17 +1959,22 @@ export function InterventionFormPage() {
 
           {manips.length === 0 && bottleRequired && (
             <p className="mt-2 rounded-xl bg-accent-soft/70 px-3 py-2 text-xs text-slate">
-              {naturesPermettentRemplissageRecup(natures) ? (
+              {modeRemplissageCerfa(natures) === 'temporaire' ? (
                 <>
-                  Récupération / démantèlement : ajoutez une bouteille{' '}
-                  <strong>Récupération (déchet)</strong> ou <strong>Recyclé site</strong> (même
-                  détenteur). Le fluide usagé ne peut pas servir à charger un autre client.
+                  Récupération temporaire : uniquement bouteille{' '}
+                  <strong>Transfert / Service</strong> (réinjection prévue). Les bouteilles
+                  Récupération (déchet) sont bloquées.
+                </>
+              ) : modeRemplissageCerfa(natures) === 'definitive' ? (
+                <>
+                  Récupération définitive / démantèlement : uniquement bouteille{' '}
+                  <strong>Récupération (déchet)</strong> → traitement / BSFF. Pas de réinjection.
                 </>
               ) : (
                 <>
-                  Charge / appoint : utilisez une bouteille <strong>Vierge</strong> ou{' '}
-                  <strong>régénérée usine</strong>. Les bouteilles de récupération (déchet) sont
-                  bloquées ici.
+                  Charge / appoint : bouteille <strong>Vierge</strong>,{' '}
+                  <strong>régénérée</strong> ou <strong>Transfert / Service</strong> (réinjection).
+                  Les bouteilles de récupération (déchet) sont bloquées.
                 </>
               )}
             </p>
@@ -1960,14 +1995,20 @@ export function InterventionFormPage() {
                   ? ' (A2L/A3 : uniquement bouteilles certifiées collerette rouge)'
                   : ' (hors bouteilles dédiées A2L/A3)'}
                 .
-                {naturesPermettentRemplissageRecup(natures) ? (
+                {modeRemplissageCerfa(natures) === 'temporaire' ? (
                   <>
                     {' '}
-                    Pour vider l’installation : bouteille <strong>Récupération (déchet)</strong> ou{' '}
-                    <strong>Recyclé site</strong> (même détenteur), fluide {denominationFluide}
+                    Créez une bouteille <strong>Transfert / Service</strong> (vide) pour ce fluide
+                    dans Stock.
+                  </>
+                ) : modeRemplissageCerfa(natures) === 'definitive' ? (
+                  <>
+                    {' '}
+                    Créez une bouteille <strong>Récupération (déchet)</strong> pour ce fluide dans
+                    Stock
                     {isFluideInflammableA2LOrA3(denominationFluide)
                       ? ', conformité A2L/A3 cochée'
-                      : ', sans marquage A2L'}
+                      : ''}
                     .
                   </>
                 ) : (
@@ -1999,16 +2040,20 @@ export function InterventionFormPage() {
                 to={stockCreateRecupHref}
                 className="inline-flex font-semibold text-accent underline-offset-2 hover:underline"
               >
-                Créer une bouteille de récupération vide (fluide au 1er CERFA) →
+                {modeRemplissageCerfa(natures) === 'temporaire'
+                  ? 'Créer une bouteille Transfert / Service →'
+                  : 'Créer une bouteille Récupération (déchet) vide →'}
               </Link>
             </div>
           )}
 
           {denominationFluide && stockMatchingFluide.length > 0 && manips.some((m) => !m.stockItemId) && (
             <p className="mt-2 text-xs text-muted">
-              {naturesPermettentRemplissageRecup(natures)
-                ? 'Vidange : bouteille « Récupération » → Remplir (jamais de réinjection). Recyclé site = même client uniquement.'
-                : 'Charge : bouteille Vierge ou Régénéré (achat). Récupération déchet absente de cette liste (F-Gas).'}
+              {modeRemplissageCerfa(natures) === 'temporaire'
+                ? 'Récup. temporaire : bouteille Transfert / Service → remplir, puis réinjecter (jamais une Récupération déchet).'
+                : modeRemplissageCerfa(natures) === 'definitive'
+                  ? 'Récup. définitive : bouteille Récupération (déchet) → BSFF uniquement (jamais de réinjection).'
+                  : 'Charge / réinjection : Vierge, Régénéré ou Transfert / Service. Récupération déchet bloquée (F-Gas).'}
             </p>
           )}
         </Section>

@@ -133,8 +133,12 @@ export function applyStockFromIntervention(
     } else {
       const apres = roundKg(avant + qty)
       const patch: Partial<StockItem> = { quantiteKg: apres, updatedAt: now }
-      // Rattache le fluide recyclé site au détenteur (réinjection même client uniquement).
-      if (item.contenantType === 'recycle' && intervention.clientId && !item.origineClientId) {
+      // Rattache au détenteur (réinjection même client) — recyclé site & transfert/service
+      if (
+        (item.contenantType === 'recycle' || item.contenantType === 'transfert') &&
+        intervention.clientId &&
+        !item.origineClientId
+      ) {
         patch.origineClientId = intervention.clientId
       }
       // Huile récupération : mémorise / refuse mélange MO ↔ POE

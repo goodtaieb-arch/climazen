@@ -100,7 +100,7 @@ const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   recuperation: { label: 'Récup. déchet', cls: 'bg-orange-100 text-orange-800' },
   recycle: { label: 'Recyclé site', cls: 'bg-sky-100 text-sky-800' },
   regenere: { label: 'Régénéré', cls: 'bg-indigo-100 text-indigo-800' },
-  transfert: { label: 'Transfert', cls: 'bg-slate-100 text-slate-700' },
+  transfert: { label: 'Transfert / Service', cls: 'bg-slate-100 text-slate-700' },
 }
 
 /** Récupération déchet = hors stock utilisable (traitement / destruction BSFF). */
@@ -227,17 +227,18 @@ export function StockPage() {
   })
   const [q, setQ] = useState('')
 
-  // Prefill depuis CERFA / lien « bouteille de récupération »
+  // Prefill depuis CERFA / lien « bouteille de récupération / transfert »
   useEffect(() => {
     const type = searchParams.get('type') as ContenantType | null
     const fluide = searchParams.get('fluide') || ''
-    const wantRecup = type === 'recuperation'
-    if (!wantRecup && !fluide) return
+    const wantType =
+      type === 'recuperation' || type === 'transfert' || type === 'recycle' ? type : null
+    if (!wantType && !fluide) return
     setEditId(null)
     setForm(
       blank({
         fluide: fluide || undefined,
-        contenantType: wantRecup ? 'recuperation' : undefined,
+        contenantType: wantType || undefined,
       }),
     )
     setOpen(true)
@@ -1334,7 +1335,7 @@ export function StockPage() {
             {
               id: 'utilisable' as const,
               title: 'Stock utilisable',
-              hint: 'Gaz pour charge / appoint — vierge, régénéré, recyclé site, transfert.',
+              hint: 'Gaz pour charge / appoint / récup. temporaire — vierge, régénéré, recyclé site, transfert / service.',
               groups: groupsUtilisable,
               empty: 'Aucune bouteille utilisable pour le moment.',
               border: 'border-emerald-200',

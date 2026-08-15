@@ -281,8 +281,12 @@ export async function buildCerfaPdf(opts: {
       }
       if (m.type === 'recuperation') {
         qd = roundKg(qd + q) // déchet → traitement
-      } else if (m.type === 'recycle' || m.type === 'regenere') {
-        qe = roundKg(qe + q) // conservé pour réutilisation
+      } else if (
+        m.type === 'recycle' ||
+        m.type === 'regenere' ||
+        m.type === 'transfert'
+      ) {
+        qe = roundKg(qe + q) // conservé pour réutilisation (récup. temporaire / recyclé)
       }
     }
   }
