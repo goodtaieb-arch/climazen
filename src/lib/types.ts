@@ -504,12 +504,31 @@ export function cerfaLabelFor(
 }
 
 /**
- * Sens du mouvement selon le type de contenant :
- * - vierge / régénéré / transfert → sortie (usage)
- * - récupération → entrée (fluide récupéré dans la bouteille)
+ * Contenant pouvant recevoir du fluide récupéré (y compris vide sur CERFA).
+ * Vierge neuve exclue : réservée à la charge / sortie.
  */
-export function sensMouvementPourContenant(type: ContenantType): StockMouvementSens {
-  return type === 'recuperation' ? 'entree' : 'sortie'
+export function isContenantDestination(type: ContenantType): boolean {
+  return type === 'recuperation' || type === 'regenere' || type === 'transfert'
+}
+
+/**
+ * Sens du mouvement selon le type (et le stock restant) :
+ * - récupération → entrée (fluide récupéré dans la bouteille)
+ * - recyclé / transfert vides → entrée (remplir depuis l’installation)
+ * - sinon → sortie (usage / charge)
+ */
+export function sensMouvementPourContenant(
+  type: ContenantType,
+  quantiteKg = 0,
+): StockMouvementSens {
+  if (type === 'recuperation') return 'entree'
+  if (isContenantDestination(type) && (Number(quantiteKg) || 0) <= 0) return 'entree'
+  return 'sortie'
+}
+
+/** Visible dans CERFA [11] même à 0 kg (destination de vidange). */
+export function bouteilleVisibleCerfaMemeVide(type: ContenantType): boolean {
+  return isContenantDestination(type)
 }
 
 /** Contrôle détecteur valable 1 an — true si dépassé ou manquant. */

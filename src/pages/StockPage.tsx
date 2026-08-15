@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import {
   CONTENANT_TYPE_LABELS,
   isBouteilleRetournee,
+  isContenantDestination,
   needsRetourConsigne,
   type ContenantType,
   type StockItem,
@@ -202,10 +203,10 @@ export function StockPage() {
     }
     const qty = Number(form.quantiteKg) || 0
     let contenantType = form.contenantType
-    // Bouteille vide hors récupération : invisible sur CERFA vidange / démantèlement
-    if (!editId && qty <= 0 && contenantType !== 'recuperation') {
+    // Bouteille vide « Vierge » : invisible sur CERFA vidange (récup / recyclé / transfert OK)
+    if (!editId && qty <= 0 && !isContenantDestination(contenantType)) {
       const ok = window.confirm(
-        'Quantité à 0 kg : pour vider une installation (récup / démantèlement), le type doit être « Récupération ».\n\nPasser automatiquement en Récupération ?',
+        'Quantité à 0 kg : pour vider une installation, choisissez Récupération, Recyclé ou Transfert.\n\nPasser automatiquement en Récupération ?',
       )
       if (ok) contenantType = 'recuperation'
     }
@@ -329,15 +330,15 @@ export function StockPage() {
                 </option>
               ))}
             </select>
-            {form.contenantType === 'recuperation' ? (
+            {isContenantDestination(form.contenantType) ? (
               <p className="mt-1 text-xs text-orange-800">
-                Bouteille de récupération : laissez 0 kg pour vider une installation sur le CERFA
-                (démantèlement / récupération). Même fluide que l’équipement.
+                Destination de vidange (récup. / recyclé / transfert) : 0 kg OK sur le CERFA —
+                même fluide que l’équipement.
               </p>
             ) : Number(form.quantiteKg) <= 0 ? (
               <p className="mt-1 text-xs text-amber-800">
-                À 0 kg, une bouteille « Vierge » n’apparaît pas sur le CERFA pour la vidange —
-                choisissez « Récupération ».
+                À 0 kg, une bouteille « Vierge » n’apparaît pas pour la vidange — choisissez
+                Récupération, Recyclé ou Transfert.
               </p>
             ) : null}
           </label>

@@ -6,7 +6,9 @@ import { useAuth } from '../lib/AuthContext'
 import {
   CONTENANT_TYPE_LABELS,
   NATURE_LABELS,
+  bouteilleVisibleCerfaMemeVide,
   isBouteilleRetournee,
+  isContenantDestination,
   isDetecteurControleExpire,
   needsBottleNumber,
   sensMouvementPourContenant,
@@ -222,28 +224,28 @@ export function InterventionFormPage() {
       (s) =>
         sameFluideCode(s.fluide, denominationFluide) &&
         !isBouteilleRetournee(s) &&
-        ((Number(s.quantiteKg) || 0) > 0 || s.contenantType === 'recuperation'),
+        ((Number(s.quantiteKg) || 0) > 0 || bouteilleVisibleCerfaMemeVide(s.contenantType)),
     )
   }, [data.stock, denominationFluide])
 
-  const recupWrongFluide = useMemo(() => {
+  const destinationWrongFluide = useMemo(() => {
     if (!denominationFluide) return []
     return data.stock.filter(
       (s) =>
-        s.contenantType === 'recuperation' &&
+        isContenantDestination(s.contenantType) &&
         !isBouteilleRetournee(s) &&
         !sameFluideCode(s.fluide, denominationFluide),
     )
   }, [data.stock, denominationFluide])
 
-  const emptyNonRecupSameFluide = useMemo(() => {
+  const emptyViergeSameFluide = useMemo(() => {
     if (!denominationFluide) return []
     return data.stock.filter(
       (s) =>
         sameFluideCode(s.fluide, denominationFluide) &&
         !isBouteilleRetournee(s) &&
         (Number(s.quantiteKg) || 0) <= 0 &&
-        s.contenantType !== 'recuperation',
+        s.contenantType === 'vierge',
     )
   }, [data.stock, denominationFluide])
 
@@ -513,7 +515,7 @@ export function InterventionFormPage() {
         if (patch.stockItemId) {
           const item = data.stock.find((s) => s.id === patch.stockItemId)
           if (item) {
-            next.sens = sensMouvementPourContenant(item.contenantType)
+            next.sens = sensMouvementPourContenant(item.contenantType, item.quantiteKg)
           }
         }
         return next
@@ -1524,6 +1526,12 @@ export function InterventionFormPage() {
               const optionsDispo = stockMatchingFluide.filter(
                 (s) => s.id === m.stockItemId || !dejaPrises.has(s.id),
               )
+              const qtyRestante = item ? Number(item.quantiteKg) || 0 : 0
+              const fillMode =
+                !!item &&
+                (item.contenantType === 'recuperation' ||
+                  (isContenantDestination(item.contenantType) && qtyRestante <= 0) ||
+                  m.sens === 'entree')
               return (
                 <div
                   key={m.key}
@@ -1549,18 +1557,20 @@ export function InterventionFormPage() {
                       className="h-11 w-full rounded-xl border border-line bg-white px-3"
                     >
                       <option value="">— Choisir —</option>
-                      {optionsDispo.map((s) => (
-                        <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
-                          {s.fluide} · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType} ·{' '}
-                          {s.numeroContenant || 'SANS N°'} —{' '}
-                          {s.contenantType === 'recuperation' && (Number(s.quantiteKg) || 0) <= 0
-                            ? 'vide (récup.)'
-                            : `reste ${s.quantiteKg} kg`}
-                          {s.quantiteInitialeKg != null && (Number(s.quantiteKg) || 0) > 0
-                            ? ` / ${s.quantiteInitialeKg} kg`
-                            : ''}
-                        </option>
-                      ))}
+                      {optionsDispo.map((s) => {
+                        const q = Number(s.quantiteKg) || 0
+                        const videDest = q <= 0 && bouteilleVisibleCerfaMemeVide(s.contenantType)
+                        return (
+                          <option key={s.id} value={s.id} disabled={!s.numeroContenant?.trim()}>
+                            {s.fluide} · {CONTENANT_TYPE_LABELS[s.contenantType] || s.contenantType}{' '}
+                            · {s.numeroContenant || 'SANS N°'} —{' '}
+                            {videDest ? 'vide (à remplir)' : `reste ${s.quantiteKg} kg`}
+                            {s.quantiteInitialeKg != null && q > 0
+                              ? ` / ${s.quantiteInitialeKg} kg`
+                              : ''}
+                          </option>
+                        )
+                      })}
                     </select>
                   </LabelHint>
                   {item && (
@@ -1574,12 +1584,12 @@ export function InterventionFormPage() {
                           }
                           className="h-11 w-full rounded-xl border border-line bg-white px-3"
                         >
-                          {item.contenantType === 'recuperation' ? (
+                          {isContenantDestination(item.contenantType) ? (
                             <>
                               <option value="entree">
-                                Remplir depuis l’installation (récup. → + kg)
+                                Remplir depuis l’installation (→ + kg)
                               </option>
-                              <option value="sortie">Retirer (vidage / transfert → − kg)</option>
+                              <option value="sortie">Retirer / vider la bouteille (→ − kg)</option>
                             </>
                           ) : (
                             <>
@@ -1593,7 +1603,7 @@ export function InterventionFormPage() {
                         label={
                           m.sens === 'sortie'
                             ? `Quantité sortie (kg) * — max ${item.quantiteKg}`
-                            : 'Quantité récupérée (kg) *'
+                            : 'Quantité récupérée / ajoutée (kg) *'
                         }
                         value={m.quantiteKg}
                         onChange={(n) => updateManip(m.key, { quantiteKg: n })}
@@ -1608,10 +1618,11 @@ export function InterventionFormPage() {
                       fluides.
                     </p>
                   )}
-                  {item?.contenantType === 'recuperation' && m.sens === 'entree' && (
+                  {item && fillMode && m.sens === 'entree' && (
                     <p className="text-xs text-muted">
-                      Démantèlement / vidange : le fluide quitte l’installation et{' '}
-                      <strong>remplit</strong> cette bouteille de récupération.
+                      Vidange / démantèlement : le fluide quitte l’installation et{' '}
+                      <strong>remplit</strong> cette bouteille (
+                      {CONTENANT_TYPE_LABELS[item.contenantType]}).
                     </p>
                   )}
                 </div>
@@ -1630,8 +1641,9 @@ export function InterventionFormPage() {
 
           {manips.length === 0 && bottleRequired && (
             <p className="mt-2 rounded-xl bg-accent-soft/70 px-3 py-2 text-xs text-slate">
-              Cliquez « Ajouter une bouteille », choisissez votre bouteille de{' '}
-              <strong>Récupération</strong> (même fluide que [7]), puis indiquez les kg récupérés.
+              Cliquez « Ajouter une bouteille », choisissez une bouteille{' '}
+              <strong>Récupération</strong>, <strong>Recyclé</strong> ou <strong>Transfert</strong>{' '}
+              (même fluide que [7]), puis indiquez les kg.
             </p>
           )}
 
@@ -1646,24 +1658,25 @@ export function InterventionFormPage() {
             <div className="mt-2 space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
               <p>
                 Aucune bouteille utilisable pour <strong>{denominationFluide}</strong>. Pour vider
-                l’installation, créez une bouteille type <strong>Récupération</strong>, fluide{' '}
-                <strong>{denominationFluide}</strong>, quantité 0 kg.
+                l’installation, créez une bouteille <strong>Récupération</strong>,{' '}
+                <strong>Recyclé</strong> ou <strong>Transfert</strong>, fluide{' '}
+                <strong>{denominationFluide}</strong> (0 kg OK).
               </p>
-              {emptyNonRecupSameFluide.length > 0 && (
+              {emptyViergeSameFluide.length > 0 && (
                 <p>
-                  {emptyNonRecupSameFluide.length} bouteille(s) à 0 kg existent déjà mais en type
-                  « {CONTENANT_TYPE_LABELS[emptyNonRecupSameFluide[0].contenantType]} » — passez-les
-                  en <strong>Récupération</strong> dans Stock, sinon elles restent invisibles ici.
+                  {emptyViergeSameFluide.length} bouteille(s) « Vierge » à 0 kg existent — elles
+                  ne servent pas à la vidange. Passez-les en Récupération / Recyclé / Transfert
+                  dans Stock, ou créez une nouvelle destination.
                 </p>
               )}
-              {recupWrongFluide.length > 0 && (
+              {destinationWrongFluide.length > 0 && (
                 <p>
-                  Bouteille(s) récup. trouvées mais autre fluide :{' '}
-                  {recupWrongFluide
+                  Bouteille(s) destination trouvées mais autre fluide :{' '}
+                  {destinationWrongFluide
                     .slice(0, 3)
-                    .map((s) => `${s.numeroContenant || '?'} (${s.fluide})`)
+                    .map((s) => `${s.numeroContenant || '?'} (${s.fluide} · ${CONTENANT_TYPE_LABELS[s.contenantType]})`)
                     .join(', ')}
-                  . Alignez le fluide CERFA ou créez une récup. {denominationFluide}.
+                  . Alignez le fluide CERFA ou créez une bouteille {denominationFluide}.
                 </p>
               )}
               <Link
@@ -1677,8 +1690,8 @@ export function InterventionFormPage() {
 
           {denominationFluide && stockMatchingFluide.length > 0 && manips.some((m) => !m.stockItemId) && (
             <p className="mt-2 text-xs text-muted">
-              Astuce démantèlement : choisissez une ligne « Récupération · vide », mouvement{' '}
-              <em>Remplir depuis l’installation</em>, puis saisissez les kg.
+              Astuce vidange : choisissez une ligne « vide (à remplir) » (récup. / recyclé /
+              transfert), mouvement <em>Remplir depuis l’installation</em>, puis saisissez les kg.
             </p>
           )}
         </Section>
