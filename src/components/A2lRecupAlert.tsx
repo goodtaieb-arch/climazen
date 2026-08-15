@@ -1,6 +1,6 @@
 import { classeSecuriteFluide, isFluideInflammableA2LOrA3, messageBouteilleRecupA2L } from '../lib/fluides'
 
-/** Alerte visuelle récupération fluide inflammable A2L / A3. */
+/** Alerte visuelle récupération fluide inflammable A2L / A3 (détail CERFA). */
 export function A2lRecupAlert({
   fluide,
   className = '',
@@ -35,6 +35,43 @@ export function A2lRecupAlert({
       </ul>
       {msg ? <p className="mt-2 text-[11px] text-red-800/90">{msg}</p> : null}
     </div>
+  )
+}
+
+/** Ligne compacte Stock : info A2L + case à cocher rapide. */
+export function A2lConformiteLigne({
+  fluide,
+  checked,
+  onChange,
+  id = 'conforme-a2l-ligne',
+}: {
+  fluide: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  id?: string
+}) {
+  if (!isFluideInflammableA2LOrA3(fluide)) return null
+  const classe = classeSecuriteFluide(fluide) || 'A2L'
+  return (
+    <label
+      htmlFor={id}
+      className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-ink sm:col-span-2"
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 shrink-0 accent-amber-700"
+      />
+      <span className="min-w-0 leading-snug">
+        <span className="font-semibold text-amber-900">{classe}</span>
+        <span className="text-muted">
+          {' '}
+          — bouteille collerette rouge + pas à gauche (LH)
+        </span>
+      </span>
+    </label>
   )
 }
 

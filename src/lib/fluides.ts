@@ -262,6 +262,26 @@ export function sameFluideCode(a: string, b: string): boolean {
   return normalizeFluideCode(a) === normalizeFluideCode(b)
 }
 
+/** Bouteille récup. créée vide sans gaz — fluide fixé au 1er CERFA. */
+export function isFluideNonAssigne(fluide?: string | null): boolean {
+  return !(fluide || '').trim()
+}
+
+/** Libellé affichage stock / listes. */
+export function labelFluideStock(fluide?: string | null): string {
+  return isFluideNonAssigne(fluide) ? 'Non assigné' : (fluide || '').trim()
+}
+
+/**
+ * Compatible avec le fluide CERFA ?
+ * Non assigné = OK (sera verrouillé au 1er remplissage).
+ */
+export function fluideCompatibleAvecCerfa(bottleFluide: string, cerfaFluide: string): boolean {
+  if (!(cerfaFluide || '').trim()) return false
+  if (isFluideNonAssigne(bottleFluide)) return true
+  return sameFluideCode(bottleFluide, cerfaFluide)
+}
+
 export function findFluide(code: string): FluideRef | undefined {
   if (!code.trim()) return undefined
   const n = normalizeFluideCode(code)

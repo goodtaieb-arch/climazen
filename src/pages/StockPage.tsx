@@ -18,7 +18,18 @@ import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
-import { adrInfoForFluide, findFluide, formatGwp, isFluideInflammableA2LOrA3 } from '../lib/fluides'
+import {
+  adrInfoForFluide,
+  findFluide,
+  formatGwp,
+  isFluideInflammableA2LOrA3,
+  isFluideNonAssigne,
+  labelFluideStock,
+} from '../lib/fluides'
+import {
+  applyBouteilleDefaults,
+  bouteilleDefaultsForFluide,
+} from '../lib/bouteilleDefaults'
 import { TIP_ADR, TIP_BSFF, TIP_BOUTEILLE, TIP_RETOUR_CONSIGNE, TIP_UN } from '../lib/fieldTips'
 import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
@@ -29,7 +40,7 @@ import {
   isBouteilleReepreuveExpiree,
   type TypeHuile,
 } from '../lib/stockBouteilleExtras'
-import { A2lConformiteCheckbox, A2lRecupAlert } from '../components/A2lRecupAlert'
+import { A2lConformiteLigne } from '../components/A2lRecupAlert'
 import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
 import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
@@ -46,26 +57,27 @@ const blank = (opts?: {
   fluide?: string
   contenantType?: ContenantType
 }): Omit<StockItem, 'id' | 'updatedAt'> => {
-  const fluide = opts?.fluide?.trim() || 'R-32'
-  const adr = adrInfoForFluide(fluide)
   const contenantType = opts?.contenantType || 'vierge'
+  const fluide =
+    opts?.fluide?.trim() || (contenantType === 'recuperation' ? '' : 'R-32')
+  const adr = fluide ? adrInfoForFluide(fluide) : null
+  const defs = bouteilleDefaultsForFluide(fluide)
   return {
     fluide,
     contenantType,
     numeroContenant: '',
     quantiteKg: contenantDemarreVide(contenantType) ? 0 : 0,
     quantiteInitialeKg: 0,
-    capaciteMaxKg:
-      contenantType === 'recuperation' || contenantType === 'recycle' ? 12.5 : undefined,
+    capaciteMaxKg: defs.capaciteMaxKg,
     emplacement: contenantType === 'transfert' ? 'atelier' : undefined,
     bsffReference: '',
     codeUn: adr?.codeUn || '',
     denominationAdr: adr?.denominationAdr || '',
     notes: '',
     conformeA2LA3: false,
-    pressionEpreuveBar: undefined,
+    pressionEpreuveBar: defs.pressionEpreuveBar,
     dateReepreuvage: '',
-    tareKg: undefined,
+    tareKg: defs.tareKg,
     dateEntreePossession: today(),
     seuilAlerteConsigneJours: 30,
     typeHuile: contenantType === 'recuperation' ? 'inconnu' : undefined,
@@ -89,15 +101,23 @@ function applyFluideAdr(
   fluide: string,
   force = false,
 ): Omit<StockItem, 'id' | 'updatedAt'> {
+  if (!fluide.trim()) {
+    return {
+      ...form,
+      fluide: '',
+      codeUn: force ? '' : form.codeUn,
+      denominationAdr: force ? '' : form.denominationAdr,
+    }
+  }
   const adr = adrInfoForFluide(fluide)
-  if (!adr) return { ...form, fluide }
+  const withDefaults = applyBouteilleDefaults(form, fluide, force)
+  if (!adr) return withDefaults
   const prevAdr = adrInfoForFluide(form.fluide)
   const unWasAuto = !form.codeUn || (prevAdr && form.codeUn === prevAdr.codeUn)
   const denomWasAuto =
     !form.denominationAdr || (prevAdr && form.denominationAdr === prevAdr.denominationAdr)
   return {
-    ...form,
-    fluide,
+    ...withDefaults,
     codeUn: force || unWasAuto ? adr.codeUn : form.codeUn,
     denominationAdr: force || denomWasAuto ? adr.denominationAdr : form.denominationAdr,
   }
@@ -137,6 +157,7 @@ export function StockPage() {
   const [open, setOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [regsOpen, setRegsOpen] = useState(false)
+  const [techOpen, setTechOpen] = useState(false)
   const [retourId, setRetourId] = useState<string | null>(null)
   const [retourForm, setRetourForm] = useState({
     bonRetourConsigne: '',
@@ -183,7 +204,8 @@ export function StockPage() {
       }),
     )
     setOpen(true)
-    setRegsOpen(wantRecup)
+    setRegsOpen(false)
+    setTechOpen(false)
     const next = new URLSearchParams(searchParams)
     next.delete('type')
     next.delete('fluide')
@@ -220,7 +242,7 @@ export function StockPage() {
   const groups = useMemo(() => {
     const map = new Map<string, StockItem[]>()
     for (const s of actifStock) {
-      const key = s.fluide || '—'
+      const key = labelFluideStock(s.fluide)
       const list = map.get(key) || []
       list.push(s)
       map.set(key, list)
@@ -259,20 +281,32 @@ export function StockPage() {
     }
     let qty = Number(form.quantiteKg) || 0
     let contenantType = form.contenantType
-    let capaciteMaxKg = Number(form.capaciteMaxKg) || undefined
+    const fluide = form.fluide.trim()
+    const defs = bouteilleDefaultsForFluide(fluide)
+    let capaciteMaxKg = Number(form.capaciteMaxKg) || defs.capaciteMaxKg
+
+    if (contenantType !== 'recuperation' && !fluide) {
+      alert('Indiquez le fluide de la bouteille (sauf récupération vide non assignée).')
+      return
+    }
 
     // Récupération / Recyclé site : démarrent toujours vides à la création
     if (!editId && contenantDemarreVide(contenantType)) {
       qty = 0
     }
 
-    if (!editId && qty <= 0 && !isContenantDestination(contenantType) && contenantType !== 'transfert') {
+    if (
+      !editId &&
+      qty <= 0 &&
+      !isContenantDestination(contenantType) &&
+      contenantType !== 'transfert'
+    ) {
       const ok = window.confirm(
         'Quantité à 0 kg : une bouteille Vierge / Régénérée doit arriver pleine (achat). Pour une destination de vidange, choisissez Récupération ou Recyclé site.\n\nPasser en Récupération vide ?',
       )
       if (ok) {
         contenantType = 'recuperation'
-        capaciteMaxKg = capaciteMaxKg || 10
+        capaciteMaxKg = capaciteMaxKg || defs.capaciteMaxKg
         qty = 0
       } else {
         return
@@ -302,7 +336,7 @@ export function StockPage() {
         )
         return
       }
-      if (isFluideInflammableA2LOrA3(form.fluide) && !form.conformeA2LA3) {
+      if (fluide && isFluideInflammableA2LOrA3(fluide) && !form.conformeA2LA3) {
         alert(
           'Fluide inflammable (A2L/A3) : cochez la confirmation « bouteille certifiée A2L/A3 » (collerette rouge + pas à gauche).',
         )
@@ -312,14 +346,18 @@ export function StockPage() {
 
     upsertStock({
       ...form,
+      fluide,
       contenantType,
       capaciteMaxKg:
         contenantType === 'recuperation' ||
         contenantType === 'recycle' ||
         contenantType === 'regenere' ||
-        contenantType === 'transfert'
+        contenantType === 'transfert' ||
+        contenantType === 'vierge'
           ? capaciteMaxKg
           : form.capaciteMaxKg,
+      tareKg: form.tareKg ?? defs.tareKg,
+      pressionEpreuveBar: form.pressionEpreuveBar ?? defs.pressionEpreuveBar,
       emplacement: contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement,
       emplacementLabel:
         (contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement) ===
@@ -335,12 +373,21 @@ export function StockPage() {
     setOpen(false)
     setEditId(null)
     setRegsOpen(false)
+    setTechOpen(false)
   }
 
   const startEdit = (s: StockItem) => {
     setEditId(s.id)
     setForm({ ...s })
     setRegsOpen(Boolean(s.bsffReference || s.codeUn || s.denominationAdr))
+    setTechOpen(
+      Boolean(
+        s.dateReepreuvage ||
+          (s.tareKg != null && s.tareKg > 0) ||
+          (s.pressionEpreuveBar != null && s.pressionEpreuveBar > 0) ||
+          (s.typeHuile && s.typeHuile !== 'inconnu'),
+      ),
+    )
     setOpen(true)
   }
 
@@ -479,7 +526,8 @@ export function StockPage() {
             onClick={() => {
               setEditId(null)
               setForm(blank({ contenantType: 'recuperation' }))
-              setRegsOpen(true)
+              setRegsOpen(false)
+              setTechOpen(false)
               setOpen(true)
             }}
             className="hidden min-h-12 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 text-sm font-semibold text-orange-900 hover:bg-orange-100 md:inline-flex"
@@ -492,6 +540,7 @@ export function StockPage() {
               setEditId(null)
               setForm(blank())
               setRegsOpen(false)
+              setTechOpen(false)
               setOpen(true)
             }}
             className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
@@ -513,34 +562,67 @@ export function StockPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
+          <p className="rounded-xl bg-mist/50 px-3 py-2 text-xs text-muted sm:col-span-2">
+            Saisie rapide : <strong className="text-ink">fluide</strong>,{' '}
+            <strong className="text-ink">type</strong>, <strong className="text-ink">n° bouteille</strong>
+            {form.contenantType === 'vierge' || form.contenantType === 'regenere' ? (
+              <>
+                {' '}
+                + <strong className="text-ink">quantité</strong>
+              </>
+            ) : null}
+            . Capacité / tare / PH préremplis selon le fluide.
+            {form.contenantType === 'recuperation' ? (
+              <> Fluide optionnel (non assigné jusqu’au 1er CERFA).</>
+            ) : null}
+          </p>
           <FluideSelect
             label="Fluide"
             value={form.fluide}
             onChange={(v) =>
               setForm((f) => ({
-                ...applyFluideAdr(f, v),
+                ...applyFluideAdr(f, v, true),
                 conformeA2LA3: isFluideInflammableA2LOrA3(v) ? f.conformeA2LA3 : false,
               }))
             }
-            required
+            required={form.contenantType !== 'recuperation'}
+            allowUnassigned={form.contenantType === 'recuperation'}
+            disabled={
+              !!editId &&
+              form.contenantType === 'recuperation' &&
+              !isFluideNonAssigne(form.fluide) &&
+              (Number(form.quantiteKg) || 0) > 0
+            }
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Type de contenant</span>
+            <span className="mb-1 block text-muted">Type de contenant *</span>
             <select
               value={form.contenantType}
               onChange={(e) => {
                 const contenantType = e.target.value as ContenantType
-                const demarreVide = contenantDemarreVide(contenantType)
-                setForm((f) => ({
-                  ...f,
-                  contenantType,
-                  quantiteKg: !editId && demarreVide ? 0 : f.quantiteKg,
-                  quantiteInitialeKg: !editId && demarreVide ? 0 : f.quantiteInitialeKg,
-                  capaciteMaxKg:
-                    demarreVide && !f.capaciteMaxKg ? 12.5 : f.capaciteMaxKg,
-                  emplacement:
-                    contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
-                }))
+                setForm((f) => {
+                  const demarreVide = contenantDemarreVide(contenantType)
+                  const nextFluide =
+                    contenantType === 'recuperation' && !editId && !f.fluide.trim()
+                      ? ''
+                      : contenantType !== 'recuperation' && !f.fluide.trim()
+                        ? 'R-32'
+                        : f.fluide
+                  const base = {
+                    ...f,
+                    contenantType,
+                    quantiteKg: demarreVide && !editId ? 0 : f.quantiteKg,
+                    capaciteMaxKg:
+                      f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg,
+                    emplacement:
+                      contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
+                    typeHuile:
+                      contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
+                  }
+                  return nextFluide === f.fluide
+                    ? base
+                    : { ...applyFluideAdr(base, nextFluide, true), conformeA2LA3: false }
+                })
               }}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
@@ -551,114 +633,108 @@ export function StockPage() {
               ))}
             </select>
             <p className="mt-1 text-xs text-muted">{resumeRegleContenant(form.contenantType)}</p>
-            {contenantDemarreVide(form.contenantType) ? (
-              <p className="mt-1 text-xs text-orange-800">
-                Bouteille vide à l’entrée (0 kg) — elle se remplit sur le CERFA (vidange / recyclage).
-              </p>
-            ) : form.contenantType === 'vierge' || form.contenantType === 'regenere' ? (
-              <p className="mt-1 text-xs text-amber-800">
-                Achat distributeur : quantité d’entrée &gt; 0 obligatoire.
-              </p>
-            ) : null}
           </label>
 
-          {(form.contenantType === 'recuperation' ||
-            form.contenantType === 'recycle' ||
-            form.contenantType === 'regenere' ||
-            form.contenantType === 'transfert') && (
+          <div className="sm:col-span-2">
+            <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
+              <div className="flex gap-2">
+                <input
+                  required
+                  value={form.numeroContenant}
+                  onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
+                  placeholder="ex. BOT-R32-001 (gravé / distributeur)"
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
+                />
+                <BarcodeScanButton
+                  onDetected={(value) => setForm({ ...form, numeroContenant: value })}
+                />
+              </div>
+            </LabelHint>
+          </div>
+
+          <DecimalField
+            label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
+            value={
+              !editId && contenantDemarreVide(form.contenantType) ? 0 : form.quantiteKg
+            }
+            onChange={(n) => {
+              if (!editId && contenantDemarreVide(form.contenantType)) return
+              setForm({
+                ...form,
+                quantiteKg: n,
+                quantiteInitialeKg: editId ? form.quantiteInitialeKg : n,
+              })
+            }}
+            placeholder={
+              contenantDemarreVide(form.contenantType) ? '0 (vide)' : 'ex. 10,5'
+            }
+            disabled={!editId && contenantDemarreVide(form.contenantType)}
+          />
+          {editId ? (
+            <DecimalField
+              label="Quantité d’entrée (kg)"
+              value={
+                contenantDemarreVide(form.contenantType)
+                  ? 0
+                  : (form.quantiteInitialeKg ?? form.quantiteKg)
+              }
+              onChange={(n) => {
+                if (contenantDemarreVide(form.contenantType)) return
+                setForm({ ...form, quantiteInitialeKg: n })
+              }}
+              placeholder="capacité / entrée"
+              disabled={contenantDemarreVide(form.contenantType)}
+            />
+          ) : (
             <DecimalField
               label={
                 form.contenantType === 'recuperation'
-                  ? 'Capacité nominale (kg) *'
-                  : 'Capacité max (kg)'
+                  ? 'Capacité nominale (kg)'
+                  : form.contenantType === 'recycle'
+                    ? 'Capacité max (kg)'
+                    : 'Capacité (kg)'
               }
-              value={form.capaciteMaxKg ?? 0}
+              value={form.capaciteMaxKg ?? bouteilleDefaultsForFluide(form.fluide).capaciteMaxKg}
               onChange={(n) => setForm({ ...form, capaciteMaxKg: n })}
-              placeholder="ex. 12,5"
+              placeholder="12,5"
               emptyZero
             />
           )}
 
-          {form.contenantType === 'recuperation' && Number(form.capaciteMaxKg) > 0 && (
-            <p className="text-xs text-orange-900 sm:col-span-2">
-              Poids max autorisé (sécurité 80 %) :{' '}
+          {(form.contenantType === 'recuperation' || form.contenantType === 'recycle') &&
+            Number(form.capaciteMaxKg) > 0 && (
+            <p className="text-xs text-muted sm:col-span-2">
+              Max sécurité 80 % :{' '}
               <strong>
                 {Math.round(Number(form.capaciteMaxKg) * 0.8 * 1000) / 1000} kg
-              </strong>{' '}
-              de fluide. Même fluide uniquement ; accumulation sur plusieurs sites clients jusqu’à
-              ce plafond, puis BSFF / retour distributeur.
+              </strong>
             </p>
           )}
 
-          <DecimalField
-            label="Tare (poids vide, kg)"
-            value={form.tareKg ?? 0}
-            onChange={(n) => setForm({ ...form, tareKg: n || undefined })}
-            placeholder="ex. 8,5"
-            emptyZero
-          />
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date de rééprouvage / fin de validité</span>
-            <input
-              type="date"
-              value={form.dateReepreuvage || ''}
-              onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">Entrée en possession (consigne)</span>
-            <input
-              type="date"
-              value={form.dateEntreePossession || ''}
-              onChange={(e) => setForm({ ...form, dateEntreePossession: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            />
-          </label>
-          <DecimalField
-            label="Alerte consigne après (jours)"
-            value={form.seuilAlerteConsigneJours ?? 30}
-            onChange={(n) => setForm({ ...form, seuilAlerteConsigneJours: n || 30 })}
-            placeholder="30"
-            emptyZero
-          />
-          {form.contenantType === 'recuperation' && (
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-muted">Type d’huile (récupération)</span>
-              <select
-                value={form.typeHuile || 'inconnu'}
-                onChange={(e) => setForm({ ...form, typeHuile: e.target.value as TypeHuile })}
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                {(Object.keys(TYPE_HUILE_LABELS) as TypeHuile[]).map((k) => (
-                  <option key={k} value={k}>
-                    {TYPE_HUILE_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-muted">
-                Évite le mélange MO / POE sur la même bouteille (recyclage).
-              </p>
+          {form.contenantType === 'recuperation' && isFluideNonAssigne(form.fluide) && (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-ink sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={!!form.conformeA2LA3}
+                onChange={(e) => setForm({ ...form, conformeA2LA3: e.target.checked })}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-amber-700"
+              />
+              <span className="min-w-0 leading-snug">
+                Bouteille adaptée A2L/A3 (collerette rouge + pas à gauche) — à cocher si le 1er
+                CERFA sera un gaz inflammable (ex. R-32).
+              </span>
             </label>
           )}
 
-          {form.contenantType === 'recuperation' && isFluideInflammableA2LOrA3(form.fluide) && (
-            <div className="space-y-2 sm:col-span-2">
-              <A2lRecupAlert fluide={form.fluide} />
-              <A2lConformiteCheckbox
-                fluide={form.fluide}
-                checked={!!form.conformeA2LA3}
-                onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
-                id="stock-conforme-a2l"
-              />
-              <DecimalField
-                label="Pression d’épreuve PH (bar)"
-                value={form.pressionEpreuveBar ?? 0}
-                onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
-                placeholder="ex. 48"
-                emptyZero
-              />
-            </div>
+          {form.contenantType === 'recuperation' &&
+            !isFluideNonAssigne(form.fluide) &&
+            isFluideInflammableA2LOrA3(form.fluide) && (
+            <A2lConformiteLigne
+              fluide={form.fluide}
+              checked={!!form.conformeA2LA3}
+              onChange={(v) => setForm({ ...form, conformeA2LA3: v })}
+              id="stock-conforme-a2l"
+            />
           )}
 
           {form.contenantType === 'transfert' && (
@@ -693,70 +769,92 @@ export function StockPage() {
             </>
           )}
 
-          <div className="sm:col-span-2">
-            <LabelHint label="N° de bouteille / contenant *" tip={TIP_BOUTEILLE}>
-              <div className="flex gap-2">
-                <input
-                  required
-                  value={form.numeroContenant}
-                  onChange={(e) => setForm({ ...form, numeroContenant: e.target.value })}
-                  placeholder="ex. BOT-R32-001 (gravé / distributeur)"
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
+          <div className="sm:col-span-2 overflow-hidden rounded-xl border border-line">
+            <button
+              type="button"
+              onClick={() => setTechOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 bg-mist/40 px-4 py-3 text-left text-sm font-semibold"
+            >
+              <span>Caractéristiques techniques avancées (optionnel)</span>
+              {techOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted" />
+              )}
+            </button>
+            {techOpen && (
+              <div className="grid gap-3 border-t border-line p-4 sm:grid-cols-2">
+                <p className="text-xs text-muted sm:col-span-2">
+                  Préremplis selon le fluide (ex. R-32 → tare 10 kg, PH 48 bar). Modifiables si la
+                  bouteille diffère.
+                </p>
+                <DecimalField
+                  label="Tare (poids vide, kg)"
+                  value={form.tareKg ?? 0}
+                  onChange={(n) => setForm({ ...form, tareKg: n || undefined })}
+                  placeholder="ex. 10"
+                  emptyZero
                 />
-                <BarcodeScanButton
-                  onDetected={(value) => setForm({ ...form, numeroContenant: value })}
+                <DecimalField
+                  label="Pression d’épreuve PH (bar)"
+                  value={form.pressionEpreuveBar ?? 0}
+                  onChange={(n) => setForm({ ...form, pressionEpreuveBar: n || undefined })}
+                  placeholder="ex. 48"
+                  emptyZero
                 />
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Date de rééprouvage / fin de validité</span>
+                  <input
+                    type="date"
+                    value={form.dateReepreuvage || ''}
+                    onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-muted">Entrée en possession (consigne)</span>
+                  <input
+                    type="date"
+                    value={form.dateEntreePossession || ''}
+                    onChange={(e) => setForm({ ...form, dateEntreePossession: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+                <DecimalField
+                  label="Alerte consigne après (jours)"
+                  value={form.seuilAlerteConsigneJours ?? 30}
+                  onChange={(n) => setForm({ ...form, seuilAlerteConsigneJours: n || 30 })}
+                  placeholder="30"
+                  emptyZero
+                />
+                {form.contenantType === 'recuperation' && (
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-muted">Type d’huile (récupération)</span>
+                    <select
+                      value={form.typeHuile || 'inconnu'}
+                      onChange={(e) => setForm({ ...form, typeHuile: e.target.value as TypeHuile })}
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                    >
+                      {(Object.keys(TYPE_HUILE_LABELS) as TypeHuile[]).map((k) => (
+                        <option key={k} value={k}>
+                          {TYPE_HUILE_LABELS[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {editId && (
+                  <DecimalField
+                    label="Capacité nominale / max (kg)"
+                    value={form.capaciteMaxKg ?? 0}
+                    onChange={(n) => setForm({ ...form, capaciteMaxKg: n })}
+                    placeholder="12,5"
+                    emptyZero
+                  />
+                )}
               </div>
-            </LabelHint>
-            <p className="mt-1 text-xs text-muted">
-              Sur mobile : scannez le code-barres / QR fournisseur au lieu de taper le n°.
-            </p>
+            )}
           </div>
-
-          <DecimalField
-            label={editId ? 'Quantité restante (kg)' : "Quantité à l'entrée (kg)"}
-            value={
-              !editId && contenantDemarreVide(form.contenantType) ? 0 : form.quantiteKg
-            }
-            onChange={(n) => {
-              if (!editId && contenantDemarreVide(form.contenantType)) return
-              setForm({
-                ...form,
-                quantiteKg: n,
-                quantiteInitialeKg: editId ? form.quantiteInitialeKg : n,
-              })
-            }}
-            placeholder="ex. 10,5"
-            disabled={!editId && contenantDemarreVide(form.contenantType)}
-            hint={
-              !editId && contenantDemarreVide(form.contenantType)
-                ? 'Forcé à 0 kg — la bouteille démarre vide.'
-                : undefined
-            }
-          />
-          {editId ? (
-            <DecimalField
-              label="Quantité d’entrée (kg)"
-              value={
-                contenantDemarreVide(form.contenantType)
-                  ? 0
-                  : (form.quantiteInitialeKg ?? form.quantiteKg)
-              }
-              onChange={(n) => {
-                if (contenantDemarreVide(form.contenantType)) return
-                setForm({ ...form, quantiteInitialeKg: n })
-              }}
-              placeholder="capacité / entrée"
-              disabled={contenantDemarreVide(form.contenantType)}
-              hint={
-                contenantDemarreVide(form.contenantType)
-                  ? 'Entrée à 0 kg (récupération / recyclé site).'
-                  : undefined
-              }
-            />
-          ) : (
-            <div className="hidden sm:block" aria-hidden />
-          )}
 
           <div className="sm:col-span-2 overflow-hidden rounded-xl border border-line">
             <button
@@ -824,6 +922,7 @@ export function StockPage() {
               onClick={() => {
                 setOpen(false)
                 setRegsOpen(false)
+                setTechOpen(false)
               }}
               className="rounded-full border border-line px-5 py-2.5 text-sm"
             >
@@ -1133,7 +1232,7 @@ export function StockPage() {
 
       <div className="space-y-4">
         {groups.map((group) => {
-          const f = findFluide(group.fluide)
+          const f = findFluide(group.fluide === 'Non assigné' ? '' : group.fluide)
           return (
             <section
               key={group.fluide}
@@ -1212,6 +1311,11 @@ export function StockPage() {
                               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
                                 {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
+                              {isFluideNonAssigne(s.fluide) && s.contenantType === 'recuperation' && (
+                                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-800">
+                                  Non assigné
+                                </span>
+                              )}
                               {s.contenantType === 'recuperation' && current > 0 && (
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
                                   BSFF seul
@@ -1546,6 +1650,7 @@ export function StockPage() {
           setEditId(null)
           setForm(blank())
           setRegsOpen(false)
+          setTechOpen(false)
           setOpen(true)
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }}

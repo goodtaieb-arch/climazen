@@ -14,7 +14,6 @@ export function DecimalField({
   placeholder = 'ex. 2,2',
   emptyZero = true,
   disabled = false,
-  hint,
 }: {
   label: string
   value: number
@@ -25,7 +24,6 @@ export function DecimalField({
   /** Si true, 0 s’affiche vide pour faciliter la saisie */
   emptyZero?: boolean
   disabled?: boolean
-  hint?: string
 }) {
   const focused = useRef(false)
   const toText = (n: number) => (emptyZero && (!n || n === 0) ? '' : formatDecimalFr(n))
@@ -78,7 +76,6 @@ export function DecimalField({
             : 'bg-white focus:border-accent',
         ].join(' ')}
       />
-      {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
     </label>
   )
 }
