@@ -195,8 +195,8 @@ export function resumeRegleContenant(type: ContenantType): string {
   switch (type) {
     case 'vierge':
       return 'Neuf distributeur : stock positif au départ, uniquement des sorties (charge). N° bouteille obligatoire.'
-      case 'recuperation':
-      return 'Déchet usagé : accumulation multi-sites (même fluide), max 80 % capacité. Jamais de réinjection — BSFF / distributeur quand pleine.'
+    case 'recuperation':
+      return 'Déchet usagé : peut démarrer sans fluide (non assigné). Verrouillé au 1er CERFA, max 80 % capacité, multi-sites même gaz. Jamais de réinjection — BSFF / distributeur quand pleine.'
     case 'regenere':
       return 'Recyclé site = même détenteur uniquement. Régénéré usine (sans client d’origine) = utilisable partout après achat distributeur.'
     case 'transfert':
