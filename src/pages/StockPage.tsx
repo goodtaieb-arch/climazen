@@ -711,7 +711,7 @@ export function StockPage() {
             }
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Type de contenant *</span>
+            <span className="mb-1 block font-semibold text-ink">Type de contenant *</span>
             <select
               value={form.contenantType}
               onChange={(e) => {
@@ -783,7 +783,7 @@ export function StockPage() {
           </div>
 
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Surnom / libellé interne (optionnel)</span>
+            <span className="mb-1 block font-semibold text-ink">Surnom / libellé interne (optionnel)</span>
             <input
               value={form.surnom || ''}
               onChange={(e) => setForm({ ...form, surnom: e.target.value })}
@@ -888,7 +888,7 @@ export function StockPage() {
           {form.contenantType === 'transfert' && (
             <>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Emplacement</span>
+                <span className="mb-1 block font-semibold text-ink">Emplacement</span>
                 <select
                   value={form.emplacement || 'atelier'}
                   onChange={(e) =>
@@ -905,7 +905,7 @@ export function StockPage() {
               </label>
               {form.emplacement === 'vehicule' && (
                 <label className="block text-sm">
-                  <span className="mb-1 block text-muted">Nom du véhicule</span>
+                  <span className="mb-1 block font-semibold text-ink">Nom du véhicule</span>
                   <input
                     value={form.emplacementLabel || ''}
                     onChange={(e) => setForm({ ...form, emplacementLabel: e.target.value })}
@@ -951,7 +951,7 @@ export function StockPage() {
                   emptyZero
                 />
                 <label className="block text-sm">
-                  <span className="mb-1 block text-muted">Date de rééprouvage / fin de validité</span>
+                  <span className="mb-1 block font-semibold text-ink">Date de rééprouvage / fin de validité</span>
                   <input
                     type="date"
                     value={form.dateReepreuvage || ''}
@@ -960,7 +960,7 @@ export function StockPage() {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block text-muted">Entrée en possession (consigne)</span>
+                  <span className="mb-1 block font-semibold text-ink">Entrée en possession (consigne)</span>
                   <input
                     type="date"
                     value={form.dateEntreePossession || ''}
@@ -977,7 +977,7 @@ export function StockPage() {
                 />
                 {form.contenantType === 'recuperation' && (
                   <label className="block text-sm">
-                    <span className="mb-1 block text-muted">Type d’huile (récupération)</span>
+                    <span className="mb-1 block font-semibold text-ink">Type d’huile (récupération)</span>
                     <select
                       value={form.typeHuile || 'inconnu'}
                       onChange={(e) => setForm({ ...form, typeHuile: e.target.value as TypeHuile })}
@@ -1103,7 +1103,7 @@ export function StockPage() {
             />
           </LabelHint>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date de retour *</span>
+            <span className="mb-1 block font-semibold text-ink">Date de retour *</span>
             <input
               required
               type="date"
@@ -1113,7 +1113,7 @@ export function StockPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Fournisseur</span>
+            <span className="mb-1 block font-semibold text-ink">Fournisseur</span>
             <input
               value={retourForm.bonRetourFournisseur}
               onChange={(e) =>
@@ -1124,7 +1124,7 @@ export function StockPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Notes</span>
+            <span className="mb-1 block font-semibold text-ink">Notes</span>
             <input
               value={retourForm.bonRetourNotes}
               onChange={(e) => setRetourForm({ ...retourForm, bonRetourNotes: e.target.value })}
@@ -1166,7 +1166,7 @@ export function StockPage() {
             emptyZero
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date *</span>
+            <span className="mb-1 block font-semibold text-ink">Date *</span>
             <input
               required
               type="date"
@@ -1185,7 +1185,7 @@ export function StockPage() {
             />
           </LabelHint>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Centre / installation agréée</span>
+            <span className="mb-1 block font-semibold text-ink">Centre / installation agréée</span>
             <input
               value={destrForm.centreDestruction}
               onChange={(e) => setDestrForm({ ...destrForm, centreDestruction: e.target.value })}
@@ -1194,7 +1194,7 @@ export function StockPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Notes</span>
+            <span className="mb-1 block font-semibold text-ink">Notes</span>
             <input
               value={destrForm.notes}
               onChange={(e) => setDestrForm({ ...destrForm, notes: e.target.value })}
@@ -1246,7 +1246,7 @@ export function StockPage() {
             )}
           </div>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Destination *</span>
+            <span className="mb-1 block font-semibold text-ink">Destination *</span>
             <select
               value={trfForm.versEmplacement}
               onChange={(e) =>
@@ -1262,7 +1262,7 @@ export function StockPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date *</span>
+            <span className="mb-1 block font-semibold text-ink">Date *</span>
             <input
               required
               type="date"
@@ -1273,7 +1273,7 @@ export function StockPage() {
           </label>
           {trfForm.versEmplacement === 'vehicule' && (
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-muted">Nom du véhicule *</span>
+              <span className="mb-1 block font-semibold text-ink">Nom du véhicule *</span>
               <input
                 required
                 value={trfForm.versLabel}
@@ -1284,7 +1284,7 @@ export function StockPage() {
             </label>
           )}
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Réf. document ADR (optionnel)</span>
+            <span className="mb-1 block font-semibold text-ink">Réf. document ADR (optionnel)</span>
             <input
               value={trfForm.documentAdr}
               onChange={(e) => setTrfForm({ ...trfForm, documentAdr: e.target.value })}
@@ -1293,7 +1293,7 @@ export function StockPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Notes</span>
+            <span className="mb-1 block font-semibold text-ink">Notes</span>
             <input
               value={trfForm.notes}
               onChange={(e) => setTrfForm({ ...trfForm, notes: e.target.value })}
@@ -1335,7 +1335,7 @@ export function StockPage() {
             emptyZero
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date *</span>
+            <span className="mb-1 block font-semibold text-ink">Date *</span>
             <input
               required
               type="date"
@@ -1345,7 +1345,7 @@ export function StockPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Motif</span>
+            <span className="mb-1 block font-semibold text-ink">Motif</span>
             <input
               value={perteForm.motif}
               onChange={(e) => setPerteForm({ ...perteForm, motif: e.target.value })}
@@ -1353,7 +1353,7 @@ export function StockPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">Notes</span>
+            <span className="mb-1 block font-semibold text-ink">Notes</span>
             <input
               value={perteForm.notes}
               onChange={(e) => setPerteForm({ ...perteForm, notes: e.target.value })}

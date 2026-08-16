@@ -31,7 +31,7 @@ export function ContactPage() {
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4 rounded-2xl border border-line bg-white p-5 sm:p-6">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Nom</span>
+            <span className="mb-1 block font-semibold text-ink">Nom</span>
             <input
               required
               value={name}
@@ -40,7 +40,7 @@ export function ContactPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Email</span>
+            <span className="mb-1 block font-semibold text-ink">Email</span>
             <input
               required
               type="email"
@@ -50,7 +50,7 @@ export function ContactPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Message</span>
+            <span className="mb-1 block font-semibold text-ink">Message</span>
             <textarea
               required
               rows={5}

@@ -233,7 +233,7 @@ export function OperateurPage() {
           </p>
         </div>
         <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block text-muted">Logiciel de facturation (défaut : Tiime)</span>
+          <span className="mb-1 block font-semibold text-ink">Logiciel de facturation (défaut : Tiime)</span>
           <select
             value={form.facturationPlateforme || 'tiime'}
             onChange={(e) =>
@@ -278,7 +278,7 @@ export function OperateurPage() {
                 créer client / devis / facture.
               </p>
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">URL webhook Make (https://…)</span>
+                <span className="mb-1 block font-semibold text-ink">URL webhook Make (https://…)</span>
                 <input
                   type="url"
                   placeholder="https://hook.eu1.make.com/…"
@@ -288,7 +288,7 @@ export function OperateurPage() {
                 />
               </label>
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Action Make par défaut</span>
+                <span className="mb-1 block font-semibold text-ink">Action Make par défaut</span>
                 <select
                   value={form.facturationActionDefaut || 'create_devis'}
                   onChange={(e) =>

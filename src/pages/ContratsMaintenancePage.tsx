@@ -224,7 +224,7 @@ export function ContratsMaintenancePage() {
 
         <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-line bg-white p-4">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Titre</span>
+            <span className="mb-1 block font-semibold text-ink">Titre</span>
             <input
               value={form.titre}
               onChange={(e) => setForm({ ...form, titre: e.target.value })}
@@ -234,7 +234,7 @@ export function ContratsMaintenancePage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Client *</span>
+              <span className="mb-1 block font-semibold text-ink">Client *</span>
               <select
                 required
                 value={form.clientId}
@@ -258,7 +258,7 @@ export function ContratsMaintenancePage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Périodicité</span>
+              <span className="mb-1 block font-semibold text-ink">Périodicité</span>
               <select
                 value={form.periodicite}
                 onChange={(e) =>
@@ -328,7 +328,7 @@ export function ContratsMaintenancePage() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Début</span>
+              <span className="mb-1 block font-semibold text-ink">Début</span>
               <input
                 type="date"
                 value={form.dateDebut}
@@ -337,7 +337,7 @@ export function ContratsMaintenancePage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Fin</span>
+              <span className="mb-1 block font-semibold text-ink">Fin</span>
               <input
                 type="date"
                 value={form.dateFin}
@@ -346,7 +346,7 @@ export function ContratsMaintenancePage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Durée (libellé)</span>
+              <span className="mb-1 block font-semibold text-ink">Durée (libellé)</span>
               <input
                 value={form.dureeLabel}
                 onChange={(e) => setForm({ ...form, dureeLabel: e.target.value })}
@@ -357,7 +357,7 @@ export function ContratsMaintenancePage() {
           </div>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Prix (libellé)</span>
+            <span className="mb-1 block font-semibold text-ink">Prix (libellé)</span>
             <input
               value={form.prixLabel}
               onChange={(e) => setForm({ ...form, prixLabel: e.target.value })}
@@ -380,7 +380,7 @@ export function ContratsMaintenancePage() {
           </div>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Texte du contrat (modifiable)</span>
+            <span className="mb-1 block font-semibold text-ink">Texte du contrat (modifiable)</span>
             <textarea
               rows={14}
               value={form.corps}
@@ -390,7 +390,7 @@ export function ContratsMaintenancePage() {
           </label>
 
           <label className="block text-sm sm:w-56">
-            <span className="mb-1 block text-muted">Statut</span>
+            <span className="mb-1 block font-semibold text-ink">Statut</span>
             <select
               value={form.statut}
               onChange={(e) => setForm({ ...form, statut: e.target.value as StatutContrat })}

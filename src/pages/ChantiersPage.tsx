@@ -1084,7 +1084,7 @@ export function ChantiersPage() {
             inputMode="search"
           />
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Mode de gestion *</span>
+            <span className="mb-1 block font-semibold text-ink">Mode de gestion *</span>
             <select
               required
               value={form.modeGestion || 'contrat'}
@@ -1101,7 +1101,7 @@ export function ChantiersPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Nature typique</span>
+            <span className="mb-1 block font-semibold text-ink">Nature typique</span>
             <select
               value={form.typeTravaux || 'maintenance'}
               onChange={(e) =>
@@ -1124,7 +1124,7 @@ export function ChantiersPage() {
           />
           {(form.modeGestion || 'contrat') === 'contrat' && (
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-muted">Prochain contrôle d’étanchéité</span>
+              <span className="mb-1 block font-semibold text-ink">Prochain contrôle d’étanchéité</span>
               <input
                 type="date"
                 value={form.prochaineControleEtancheite || ''}

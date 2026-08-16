@@ -90,7 +90,7 @@ export function SmartSuggestField({
 
   return (
     <label ref={rootRef} className={`relative block text-sm ${className}`}>
-      <span className="mb-1 block text-muted">{label}</span>
+      <span className="mb-1 block font-semibold text-ink">{label}</span>
       <input
         type="text"
         required={required}

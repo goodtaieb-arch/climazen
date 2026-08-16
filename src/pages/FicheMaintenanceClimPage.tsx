@@ -641,7 +641,7 @@ export function FicheMaintenanceClimPage() {
       <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-line bg-white p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">N° OT</span>
+            <span className="mb-1 block font-semibold text-ink">N° OT</span>
             <input
               value={form.numero}
               onChange={(e) => setForm({ ...form, numero: e.target.value })}
@@ -650,7 +650,7 @@ export function FicheMaintenanceClimPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date</span>
+            <span className="mb-1 block font-semibold text-ink">Date</span>
             <input
               type="date"
               required
@@ -660,7 +660,7 @@ export function FicheMaintenanceClimPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Technicien</span>
+            <span className="mb-1 block font-semibold text-ink">Technicien</span>
             <input
               required
               value={form.technicien}
@@ -674,7 +674,7 @@ export function FicheMaintenanceClimPage() {
           <h2 className="font-display mb-2 text-base font-semibold">Client & matériel</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-muted">Client / Raison sociale</span>
+              <span className="mb-1 block font-semibold text-ink">Client / Raison sociale</span>
               <input
                 required
                 value={form.clientNom}
@@ -683,7 +683,7 @@ export function FicheMaintenanceClimPage() {
               />
             </label>
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-muted">Adresse du chantier</span>
+              <span className="mb-1 block font-semibold text-ink">Adresse du chantier</span>
               <input
                 value={form.adresse}
                 onChange={(e) => setForm({ ...form, adresse: e.target.value })}
@@ -691,7 +691,7 @@ export function FicheMaintenanceClimPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Marque / Modèle</span>
+              <span className="mb-1 block font-semibold text-ink">Marque / Modèle</span>
               <input
                 value={form.marqueModele}
                 onChange={(e) => setForm({ ...form, marqueModele: e.target.value })}
@@ -699,7 +699,7 @@ export function FicheMaintenanceClimPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">N° de série</span>
+              <span className="mb-1 block font-semibold text-ink">N° de série</span>
               <input
                 value={form.numeroSerie}
                 onChange={(e) => setForm({ ...form, numeroSerie: e.target.value })}
@@ -707,7 +707,7 @@ export function FicheMaintenanceClimPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Fluide</span>
+              <span className="mb-1 block font-semibold text-ink">Fluide</span>
               <input
                 value={form.fluide}
                 onChange={(e) => setForm({ ...form, fluide: e.target.value })}
@@ -867,7 +867,7 @@ export function FicheMaintenanceClimPage() {
         <div className="border-t border-line pt-3">
           <h2 className="font-display mb-2 text-base font-semibold">Validation & signatures</h2>
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Observations / pièces à prévoir</span>
               <VoiceDictationButton
                 value={form.observations}

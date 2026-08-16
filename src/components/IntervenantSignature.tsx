@@ -71,7 +71,7 @@ export function IntervenantSignature({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block text-muted">Nom *</span>
+          <span className="mb-1 block font-semibold text-ink">Nom *</span>
           <input
             value={nom}
             onChange={(e) => onNomChange(e.target.value)}
@@ -80,7 +80,7 @@ export function IntervenantSignature({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block text-muted">Qualité</span>
+          <span className="mb-1 block font-semibold text-ink">Qualité</span>
           <input
             value={qualite}
             onChange={(e) => onQualiteChange(e.target.value)}

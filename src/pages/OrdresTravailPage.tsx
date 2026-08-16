@@ -150,7 +150,7 @@ export function OrdresTravailPage() {
         <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-line bg-white p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">N° OT</span>
+              <span className="mb-1 block font-semibold text-ink">N° OT</span>
               <input
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
@@ -159,7 +159,7 @@ export function OrdresTravailPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Date</span>
+              <span className="mb-1 block font-semibold text-ink">Date</span>
               <input
                 type="date"
                 required
@@ -169,7 +169,7 @@ export function OrdresTravailPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Type d’OT</span>
+              <span className="mb-1 block font-semibold text-ink">Type d’OT</span>
               <select
                 value={form.typeOt}
                 onChange={(e) => setForm({ ...form, typeOt: e.target.value as TypeOt })}
@@ -186,7 +186,7 @@ export function OrdresTravailPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Site</span>
+              <span className="mb-1 block font-semibold text-ink">Site</span>
               <select
                 value={form.chantierId || ''}
                 onChange={(e) => {
@@ -212,7 +212,7 @@ export function OrdresTravailPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Équipement</span>
+              <span className="mb-1 block font-semibold text-ink">Équipement</span>
               <select
                 value={form.equipementId || ''}
                 onChange={(e) => setForm({ ...form, equipementId: e.target.value })}
@@ -230,7 +230,7 @@ export function OrdresTravailPage() {
           </div>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Technicien</span>
+            <span className="mb-1 block font-semibold text-ink">Technicien</span>
             <input
               required
               value={form.technicien}
@@ -240,7 +240,7 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Action / mission *</span>
               <VoiceDictationButton
                 value={form.action}
@@ -258,7 +258,7 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Rapport d’action</span>
               <VoiceDictationButton
                 value={form.rapportAction}
@@ -275,7 +275,7 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Observations</span>
               <VoiceDictationButton
                 value={form.observations}
@@ -292,7 +292,7 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm sm:w-56">
-            <span className="mb-1 block text-muted">Statut</span>
+            <span className="mb-1 block font-semibold text-ink">Statut</span>
             <select
               value={form.statut}
               onChange={(e) => setForm({ ...form, statut: e.target.value as StatutOt })}

@@ -111,7 +111,7 @@ export function ClientSiteSignature({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block text-muted">Nom du signataire *</span>
+          <span className="mb-1 block font-semibold text-ink">Nom du signataire *</span>
           <input
             value={nom}
             onChange={(e) => {
@@ -125,7 +125,7 @@ export function ClientSiteSignature({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block text-muted">Qualité / fonction</span>
+          <span className="mb-1 block font-semibold text-ink">Qualité / fonction</span>
           <input
             value={qualite}
             onChange={(e) => {

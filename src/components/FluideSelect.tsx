@@ -63,7 +63,7 @@ export function FluideSelect({
 
   return (
     <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block text-muted">
+      <span className="mb-1 block font-semibold text-ink">
         {label}
         {required && !allowUnassigned ? ' *' : ''}
         {allowUnassigned && !required ? ' (optionnel)' : ''}

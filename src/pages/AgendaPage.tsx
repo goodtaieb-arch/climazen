@@ -172,7 +172,7 @@ export function AgendaPage() {
 
         <form onSubmit={onSave} className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Titre *</span>
+            <span className="mb-1 block font-semibold text-ink">Titre *</span>
             <input
               required
               value={form.title}
@@ -183,7 +183,7 @@ export function AgendaPage() {
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Date rappel (appeler)</span>
+              <span className="mb-1 block font-semibold text-ink">Date rappel (appeler)</span>
               <input
                 type="date"
                 value={form.dateRappel || form.date}
@@ -192,7 +192,7 @@ export function AgendaPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Date visite / échéance</span>
+              <span className="mb-1 block font-semibold text-ink">Date visite / échéance</span>
               <input
                 type="date"
                 value={form.date}
@@ -203,7 +203,7 @@ export function AgendaPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Type</span>
+              <span className="mb-1 block font-semibold text-ink">Type</span>
               <select
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value as AgendaEventType })}
@@ -217,7 +217,7 @@ export function AgendaPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Statut</span>
+              <span className="mb-1 block font-semibold text-ink">Statut</span>
               <select
                 value={form.statut}
                 onChange={(e) => setForm({ ...form, statut: e.target.value as AgendaStatut })}
@@ -232,7 +232,7 @@ export function AgendaPage() {
             </label>
           </div>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Client</span>
+            <span className="mb-1 block font-semibold text-ink">Client</span>
             <select
               value={form.clientId || ''}
               onChange={(e) =>
@@ -249,7 +249,7 @@ export function AgendaPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Site</span>
+            <span className="mb-1 block font-semibold text-ink">Site</span>
             <select
               value={form.chantierId || ''}
               onChange={(e) => setForm({ ...form, chantierId: e.target.value || undefined })}
@@ -267,7 +267,7 @@ export function AgendaPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Notes</span>
+            <span className="mb-1 block font-semibold text-ink">Notes</span>
             <textarea
               rows={3}
               value={form.notes || ''}

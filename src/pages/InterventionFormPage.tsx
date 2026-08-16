@@ -1353,7 +1353,7 @@ export function InterventionFormPage() {
       <form onSubmit={onSubmit} className="space-y-5">
         <Section title="[3] Chantier & équipement (auto)">
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Chantier / site *</span>
+            <span className="mb-1 block font-semibold text-ink">Chantier / site *</span>
             <select
               required
               value={chantierId}
@@ -1428,7 +1428,7 @@ export function InterventionFormPage() {
           )}
           {chantier && !isMultiBatch && equipementsForCerfa(chantier).length > 0 && (
             <label className="mt-3 block text-sm">
-              <span className="mb-1 block text-muted">Équipement précis *</span>
+              <span className="mb-1 block font-semibold text-ink">Équipement précis *</span>
               <select
                 required
                 value={equipementId || equipement?.id || ''}
@@ -1607,7 +1607,7 @@ export function InterventionFormPage() {
 
           {ctrlPeriodique.obligatoire ? (
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Périodicité de contrôle *</span>
+              <span className="mb-1 block font-semibold text-ink">Périodicité de contrôle *</span>
               <select
                 required
                 value={periodiciteControle || ctrlPeriodique.periodeSuggeree || ''}
@@ -1810,7 +1810,7 @@ export function InterventionFormPage() {
                   {item && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm">
-                        <span className="mb-1 block text-muted">Type de mouvement *</span>
+                        <span className="mb-1 block font-semibold text-ink">Type de mouvement *</span>
                         <select
                           value={autorises.includes(m.sens) ? m.sens : autorises[0]}
                           onChange={(e) =>
@@ -1869,7 +1869,7 @@ export function InterventionFormPage() {
                   )}
                   {item?.contenantType === 'recuperation' && m.sens === 'entree' && (
                     <label className="block text-sm">
-                      <span className="mb-1 block text-muted">Type d’huile de l’équipement</span>
+                      <span className="mb-1 block font-semibold text-ink">Type d’huile de l’équipement</span>
                       <select
                         value={m.typeHuile || item.typeHuile || 'inconnu'}
                         onChange={(e) =>
@@ -2133,7 +2133,7 @@ export function InterventionFormPage() {
 
         <Section title="[14] Observations & signatures">
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Observations</span>
               <VoiceDictationButton value={observations} onChange={setObservations} />
             </span>
@@ -2172,7 +2172,7 @@ export function InterventionFormPage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">N° OT (ordre de travail)</span>
+              <span className="mb-1 block font-semibold text-ink">N° OT (ordre de travail)</span>
               <input
                 value={numeroIntervention}
                 onChange={(e) => setNumeroIntervention(e.target.value)}
@@ -2181,7 +2181,7 @@ export function InterventionFormPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Statut</span>
+              <span className="mb-1 block font-semibold text-ink">Statut</span>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as CerfaDraft['status'])}

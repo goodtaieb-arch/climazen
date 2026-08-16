@@ -12,7 +12,7 @@ export function PasswordField({ label, dark, className = '', id, ...inputProps }
   const [visible, setVisible] = useState(false)
   const inputId = id || `pwd-${label.replace(/\s+/g, '-').toLowerCase()}`
 
-  const labelCls = dark ? 'mb-1 block text-white/70' : 'mb-1 block text-muted'
+  const labelCls = dark ? 'mb-1 block text-white/70' : 'mb-1 block font-semibold text-ink'
   const inputCls = dark
     ? 'h-11 w-full rounded-xl border border-white/15 bg-ink/40 py-2 pl-3 pr-11 text-white outline-none focus:border-accent'
     : 'h-11 w-full rounded-xl border border-line bg-white py-2 pl-3 pr-11 outline-none focus:border-accent'

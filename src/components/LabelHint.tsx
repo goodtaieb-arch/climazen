@@ -16,7 +16,7 @@ export function LabelHint({ label, tip, children, className = '' }: Props) {
 
   return (
     <label className={`relative block text-sm ${className}`}>
-      <span className="mb-1 flex items-center gap-1.5 text-muted">
+      <span className="mb-1 flex items-center gap-1.5 font-semibold text-ink">
         <span>{label}</span>
         <button
           type="button"

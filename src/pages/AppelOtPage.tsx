@@ -736,7 +736,7 @@ export function AppelOtPage() {
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">N° OT</span>
+              <span className="mb-1 block font-semibold text-ink">N° OT</span>
               <input
                 value={otForm.numero}
                 onChange={(e) => setOtForm({ ...otForm, numero: e.target.value })}
@@ -744,7 +744,7 @@ export function AppelOtPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Date (auto, modifiable)</span>
+              <span className="mb-1 block font-semibold text-ink">Date (auto, modifiable)</span>
               <input
                 type="date"
                 value={otForm.date}
@@ -753,7 +753,7 @@ export function AppelOtPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Type</span>
+              <span className="mb-1 block font-semibold text-ink">Type</span>
               <select
                 value={otForm.typeOt}
                 onChange={(e) => setOtForm({ ...otForm, typeOt: e.target.value as TypeOt })}
@@ -768,7 +768,7 @@ export function AppelOtPage() {
             </label>
           </div>
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Description — panne / installation / demande *</span>
               <VoiceDictationButton
                 value={otForm.action}
@@ -785,7 +785,7 @@ export function AppelOtPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Observations (appel)</span>
               <VoiceDictationButton
                 value={otForm.observations}
@@ -801,7 +801,7 @@ export function AppelOtPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Technicien</span>
+            <span className="mb-1 block font-semibold text-ink">Technicien</span>
             <input
               value={otForm.technicien}
               onChange={(e) => setOtForm({ ...otForm, technicien: e.target.value })}
@@ -886,7 +886,7 @@ export function AppelOtPage() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Raison sociale *</span>
+                <span className="mb-1 block font-semibold text-ink">Raison sociale *</span>
                 <input
                   value={clientForm.raisonSociale}
                   onChange={(e) => setClientForm({ ...clientForm, raisonSociale: e.target.value })}
@@ -894,7 +894,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Téléphone</span>
+                <span className="mb-1 block font-semibold text-ink">Téléphone</span>
                 <input
                   value={clientForm.telephone}
                   onChange={(e) => setClientForm({ ...clientForm, telephone: e.target.value })}
@@ -903,7 +903,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Contact</span>
+                <span className="mb-1 block font-semibold text-ink">Contact</span>
                 <input
                   value={clientForm.nomContact}
                   onChange={(e) => setClientForm({ ...clientForm, nomContact: e.target.value })}
@@ -911,7 +911,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Adresse</span>
+                <span className="mb-1 block font-semibold text-ink">Adresse</span>
                 <input
                   value={clientForm.adresse}
                   onChange={(e) => setClientForm({ ...clientForm, adresse: e.target.value })}
@@ -919,7 +919,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Code postal</span>
+                <span className="mb-1 block font-semibold text-ink">Code postal</span>
                 <input
                   value={clientForm.codePostal}
                   onChange={(e) => setClientForm({ ...clientForm, codePostal: e.target.value })}
@@ -927,7 +927,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Ville</span>
+                <span className="mb-1 block font-semibold text-ink">Ville</span>
                 <input
                   value={clientForm.ville}
                   onChange={(e) => setClientForm({ ...clientForm, ville: e.target.value })}
@@ -1017,7 +1017,7 @@ export function AppelOtPage() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Nom du site *</span>
+                <span className="mb-1 block font-semibold text-ink">Nom du site *</span>
                 <input
                   value={siteForm.nom}
                   onChange={(e) => setSiteForm({ ...siteForm, nom: e.target.value })}
@@ -1026,7 +1026,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Adresse</span>
+                <span className="mb-1 block font-semibold text-ink">Adresse</span>
                 <input
                   value={siteForm.adresse}
                   onChange={(e) => setSiteForm({ ...siteForm, adresse: e.target.value })}
@@ -1034,7 +1034,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Code postal</span>
+                <span className="mb-1 block font-semibold text-ink">Code postal</span>
                 <input
                   value={siteForm.codePostal}
                   onChange={(e) => setSiteForm({ ...siteForm, codePostal: e.target.value })}
@@ -1042,7 +1042,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Ville</span>
+                <span className="mb-1 block font-semibold text-ink">Ville</span>
                 <input
                   value={siteForm.ville}
                   onChange={(e) => setSiteForm({ ...siteForm, ville: e.target.value })}
@@ -1211,7 +1211,7 @@ export function AppelOtPage() {
                 />
               </div>
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block text-muted">Nom / repère *</span>
+                <span className="mb-1 block font-semibold text-ink">Nom / repère *</span>
                 <input
                   value={equipForm.nom}
                   onChange={(e) => setEquipForm({ ...equipForm, nom: e.target.value })}
@@ -1234,7 +1234,7 @@ export function AppelOtPage() {
                 )}
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Type</span>
+                <span className="mb-1 block font-semibold text-ink">Type</span>
                 <input
                   value={equipForm.type}
                   onChange={(e) => setEquipForm({ ...equipForm, type: e.target.value })}
@@ -1242,7 +1242,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">N° série</span>
+                <span className="mb-1 block font-semibold text-ink">N° série</span>
                 <input
                   value={equipForm.numeroSerie}
                   onChange={(e) => setEquipForm({ ...equipForm, numeroSerie: e.target.value })}
@@ -1250,7 +1250,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Marque</span>
+                <span className="mb-1 block font-semibold text-ink">Marque</span>
                 <input
                   value={equipForm.marque}
                   onChange={(e) => setEquipForm({ ...equipForm, marque: e.target.value })}
@@ -1258,7 +1258,7 @@ export function AppelOtPage() {
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block text-muted">Modèle</span>
+                <span className="mb-1 block font-semibold text-ink">Modèle</span>
                 <input
                   value={equipForm.modele}
                   onChange={(e) => setEquipForm({ ...equipForm, modele: e.target.value })}
@@ -1355,7 +1355,7 @@ export function AppelOtPage() {
           </div>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Date d’intervention (modifiable)</span>
+            <span className="mb-1 block font-semibold text-ink">Date d’intervention (modifiable)</span>
             <input
               type="date"
               value={otForm.date}
@@ -1369,7 +1369,7 @@ export function AppelOtPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+            <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Rapport d’action (sur place)</span>
               <VoiceDictationButton
                 value={otForm.rapportAction}

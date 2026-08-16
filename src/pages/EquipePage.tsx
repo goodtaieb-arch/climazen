@@ -143,7 +143,7 @@ export function EquipePage() {
           Ajouter un opérateur
         </h2>
         <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block text-muted">Nom complet *</span>
+          <span className="mb-1 block font-semibold text-ink">Nom complet *</span>
           <input
             required
             value={fullName}
@@ -152,7 +152,7 @@ export function EquipePage() {
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block text-muted">E-mail (identifiant) *</span>
+          <span className="mb-1 block font-semibold text-ink">E-mail (identifiant) *</span>
           <input
             type="email"
             required

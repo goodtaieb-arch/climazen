@@ -36,7 +36,7 @@ export function DecimalField({
 
   return (
     <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block text-muted">{label}</span>
+      <span className="mb-1 block font-semibold text-ink">{label}</span>
       <input
         type="text"
         inputMode="decimal"

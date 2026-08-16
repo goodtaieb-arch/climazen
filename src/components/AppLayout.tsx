@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Mic,
   Package,
   PenLine,
   Settings,
@@ -159,6 +160,16 @@ export function AppLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [voiceListening, setVoiceListening] = useState(false)
+
+  useEffect(() => {
+    const onVoice = (e: Event) => {
+      const detail = (e as CustomEvent<{ listening?: boolean }>).detail
+      setVoiceListening(Boolean(detail?.listening))
+    }
+    window.addEventListener('climazen:voice-state', onVoice)
+    return () => window.removeEventListener('climazen:voice-state', onVoice)
+  }, [])
 
   const links = isOwner ? baseLinksOwner : baseLinksOperator
 
@@ -306,6 +317,24 @@ export function AppLayout() {
           <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('climazen:toggle-voice'))}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                window.dispatchEvent(new CustomEvent('climazen:voice-help'))
+              }}
+              className={
+                voiceListening
+                  ? 'touch-target inline-flex items-center justify-center rounded-full bg-rose-600 px-2.5 text-white sm:px-3'
+                  : 'touch-target inline-flex items-center justify-center rounded-full border border-line bg-white/80 px-2.5 text-[#0f766e] hover:bg-white sm:px-3'
+              }
+              aria-label={voiceListening ? 'Arrêter la commande vocale' : 'Commande vocale'}
+              aria-pressed={voiceListening}
+              title="Commande vocale (appui long : liste des commandes)"
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('climazen:open-aide'))}
               className="touch-target inline-flex items-center gap-1.5 rounded-full border border-[#0f766e]/30 bg-[#0f766e]/10 px-2.5 text-sm font-semibold text-[#0f766e] hover:bg-[#0f766e]/15 sm:px-3"
               aria-label="Aide IA"
@@ -415,6 +444,21 @@ export function AppLayout() {
             </div>
             <p className="mb-3 text-sm text-muted">Clients, signature, aide et réglages.</p>
             <ul className="space-y-2">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false)
+                    window.dispatchEvent(new CustomEvent('climazen:toggle-voice'))
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-line px-4 py-3 font-semibold text-ink active:bg-mist"
+                >
+                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#0f766e]/10 text-[#0f766e]">
+                    <Mic className="h-5 w-5" />
+                  </span>
+                  Commande vocale
+                </button>
+              </li>
               <li>
                 <button
                   type="button"

@@ -382,7 +382,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
           required
         />
         <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block text-muted">Attribué au technicien</span>
+          <span className="mb-1 block font-semibold text-ink">Attribué au technicien</span>
           <select
             className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
             value={assigneeUserId}
