@@ -16,6 +16,7 @@ import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { DecimalField } from '../components/DecimalField'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
+import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 
 function today() {
@@ -866,7 +867,13 @@ export function FicheMaintenanceClimPage() {
         <div className="border-t border-line pt-3">
           <h2 className="font-display mb-2 text-base font-semibold">Validation & signatures</h2>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Observations / pièces à prévoir</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Observations / pièces à prévoir</span>
+              <VoiceDictationButton
+                value={form.observations}
+                onChange={(v) => setForm({ ...form, observations: v })}
+              />
+            </span>
             <textarea
               value={form.observations}
               onChange={(e) => setForm({ ...form, observations: e.target.value })}

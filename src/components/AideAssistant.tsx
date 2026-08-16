@@ -37,6 +37,12 @@ export function AideAssistant() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lines, open, busy])
 
+  useEffect(() => {
+    const openFromVoice = () => setOpen(true)
+    window.addEventListener('climazen:open-aide', openFromVoice)
+    return () => window.removeEventListener('climazen:open-aide', openFromVoice)
+  }, [])
+
   const send = async (text: string) => {
     const q = text.trim()
     if (!q || busy) return

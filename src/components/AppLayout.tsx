@@ -16,10 +16,13 @@ import {
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
 import { AideAssistant } from './AideAssistant'
+import { VoiceCommandsFab } from './VoiceCommandsFab'
 import { Nav3dIcon } from './Nav3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
+import { formatLastSyncLabel } from '../lib/speech'
+import { getLastSyncAt } from '../lib/offlineSync'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -170,6 +173,7 @@ export function AppLayout() {
   const companyLogo =
     data.operateur.logoImage || loadCompanyLogoLocal(user?.organizationId) || null
   const companyName = data.operateur.raisonSociale || organization?.name || ''
+  const lastSyncLabel = formatLastSyncLabel(getLastSyncAt(user?.organizationId))
 
   /** Sur Travaux, recliquer le menu ferme le formulaire et revient à la liste. */
   const goNav = (to: string) => (e: React.MouseEvent) => {
@@ -327,13 +331,20 @@ export function AppLayout() {
                 Vous pouvez travailler normalement. Les saisies sont enregistrées sur cet appareil
                 et seront envoyées dès que le réseau revient.
               </p>
+              {lastSyncLabel && (
+                <p className="mt-1 text-[11px] text-muted">Dernière sync réussie : {lastSyncLabel}</p>
+              )}
             </div>
           )}
           {!offline && pendingSync && (
             <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-slate">
-              <p>
-                Saisies hors ligne en attente — synchronisation avec le cloud…
-              </p>
+              <div>
+                <p className="font-medium">Saisies hors ligne en attente</p>
+                <p className="text-muted">Synchronisation avec le cloud…</p>
+                {lastSyncLabel && (
+                  <p className="mt-0.5 text-[11px] text-muted">Dernière sync : {lastSyncLabel}</p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => void flushPendingSync()}
@@ -487,6 +498,7 @@ export function AppLayout() {
         </div>
       </nav>
 
+      <VoiceCommandsFab />
       <AideAssistant />
     </div>
   )

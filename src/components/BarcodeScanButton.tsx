@@ -9,6 +9,8 @@ type Props = {
   onDetected: (value: string) => void
   className?: string
   title?: string
+  /** Ouvre automatiquement le scan (ex. ?scan=1 depuis commande vocale) */
+  autoStart?: boolean
 }
 
 function getBarcodeDetector(): BarcodeDetectorLike | null {
@@ -44,6 +46,7 @@ export function BarcodeScanButton({
   onDetected,
   className = '',
   title = 'Scanner code-barres / QR',
+  autoStart = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -52,6 +55,7 @@ export function BarcodeScanButton({
   const [error, setError] = useState('')
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
+  const autoStartedRef = useRef(false)
 
   const stopCamera = () => {
     if (rafRef.current != null) {
@@ -84,7 +88,7 @@ export function BarcodeScanButton({
     const detector = getBarcodeDetector()
     if (!detector) {
       setError(
-        'Scan live non disponible sur ce navigateur — utilisez la photo du code-barres ci-dessous.',
+        'Scan live non disponible ici (souvent iPhone) — utilisez « Photo du code » ci-dessous, ou saisissez le n°.',
       )
       setOpen(true)
       return
@@ -126,6 +130,13 @@ export function BarcodeScanButton({
       setError('Caméra inaccessible — autorisez l’accès ou prenez une photo du code.')
     }
   }
+
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current) return
+    autoStartedRef.current = true
+    void startLive()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart])
 
   const onFile = async (file: File | null) => {
     if (!file) return

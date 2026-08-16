@@ -144,7 +144,17 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
     title: 'Hors ligne / sync',
     keywords: ['offline', 'hors ligne', 'sync', 'synchron', 'reseau', 'réseau', 'connexion'],
     paths: ['/app'],
-    answer: `ClimaZEN est une PWA : vous pouvez travailler terrain hors ligne puis synchroniser quand le réseau revient. Les brouillons CERFA se sauvent localement.`,
+    answer: `ClimaZEN est une PWA : vous pouvez travailler terrain hors ligne puis synchroniser quand le réseau revient. Les brouillons CERFA se sauvent localement. Le bandeau affiche la dernière sync réussie et un bouton « Synchroniser » si des saisies sont en attente.`,
+  },
+  {
+    id: 'vocal',
+    title: 'Dictée et commandes vocales',
+    keywords: ['vocal', 'voix', 'dicter', 'micro', 'microphone', 'commande vocale', 'parler'],
+    paths: ['/app'],
+    answer: `Sur mobile (Chrome / Android) :
+- Bouton « Dicter » sur panne, observations, rapport d’action, CERFA.
+- Micro en bas à gauche : dites « stock », « appel », « OT », « scan », « GPS », « CERFA », « sites » ou « aide ».
+Sur iPhone, la dictée peut être limitée selon Safari.`,
   },
 ]
 

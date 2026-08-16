@@ -250,6 +250,21 @@ export function StockPage() {
     setSearchParams(next, { replace: true })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Commande vocale « scan » → ouvrir formulaire + caméra code-barres
+  const [autoScan, setAutoScan] = useState(false)
+  useEffect(() => {
+    if (searchParams.get('scan') !== '1') return
+    setEditId(null)
+    setForm(blank())
+    setOpen(true)
+    setRegsOpen(false)
+    setTechOpen(false)
+    setAutoScan(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('scan')
+    setSearchParams(next, { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const actifStock = useMemo(
     () =>
       data.stock.filter(
@@ -724,7 +739,11 @@ export function StockPage() {
                   className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3"
                 />
                 <BarcodeScanButton
-                  onDetected={(value) => setForm({ ...form, numeroContenant: value })}
+                  autoStart={autoScan}
+                  onDetected={(value) => {
+                    setForm({ ...form, numeroContenant: value })
+                    setAutoScan(false)
+                  }}
                 />
               </div>
             </LabelHint>

@@ -7,6 +7,7 @@ import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
+import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import { DocsPackButton, DocsPackPanel } from '../components/DocsPackPanel'
 import {
@@ -239,7 +240,13 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Action / mission *</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Action / mission *</span>
+              <VoiceDictationButton
+                value={form.action}
+                onChange={(v) => setForm({ ...form, action: v })}
+              />
+            </span>
             <textarea
               required
               rows={2}
@@ -251,7 +258,13 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Rapport d’action</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Rapport d’action</span>
+              <VoiceDictationButton
+                value={form.rapportAction}
+                onChange={(v) => setForm({ ...form, rapportAction: v })}
+              />
+            </span>
             <textarea
               rows={4}
               value={form.rapportAction}
@@ -262,7 +275,13 @@ export function OrdresTravailPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Observations</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Observations</span>
+              <VoiceDictationButton
+                value={form.observations}
+                onChange={(v) => setForm({ ...form, observations: v })}
+              />
+            </span>
             <textarea
               rows={3}
               value={form.observations}

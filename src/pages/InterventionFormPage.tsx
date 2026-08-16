@@ -26,6 +26,7 @@ import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { LabelHint } from '../components/LabelHint'
+import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import {
   adrInfoForFluide,
   calcTeqCO2FromFluide,
@@ -2131,7 +2132,19 @@ export function InterventionFormPage() {
         </Section>
 
         <Section title="[14] Observations & signatures">
-          <Field label="Observations" value={observations} onChange={setObservations} />
+          <label className="block text-sm">
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Observations</span>
+              <VoiceDictationButton value={observations} onChange={setObservations} />
+            </span>
+            <textarea
+              rows={3}
+              value={observations}
+              onChange={(e) => setObservations(e.target.value)}
+              className="w-full rounded-xl border border-line bg-white px-3 py-2 text-base md:text-sm"
+              placeholder="Remarques terrain, réserves, accès…"
+            />
+          </label>
 
           <div className="mt-5 space-y-5">
             <IntervenantSignature

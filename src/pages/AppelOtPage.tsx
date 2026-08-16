@@ -22,6 +22,7 @@ import { IntervenantSignature } from '../components/IntervenantSignature'
 import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
+import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, equipementsForCerfa, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
@@ -767,7 +768,13 @@ export function AppelOtPage() {
             </label>
           </div>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Description — panne / installation / demande *</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Description — panne / installation / demande *</span>
+              <VoiceDictationButton
+                value={otForm.action}
+                onChange={(v) => setOtForm({ ...otForm, action: v })}
+              />
+            </span>
             <textarea
               rows={3}
               value={otForm.action}
@@ -778,7 +785,13 @@ export function AppelOtPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Observations (appel)</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Observations (appel)</span>
+              <VoiceDictationButton
+                value={otForm.observations}
+                onChange={(v) => setOtForm({ ...otForm, observations: v })}
+              />
+            </span>
             <textarea
               rows={2}
               value={otForm.observations}
@@ -1356,7 +1369,15 @@ export function AppelOtPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-muted">Rapport d’action (sur place)</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>Rapport d’action (sur place)</span>
+              <VoiceDictationButton
+                value={otForm.rapportAction}
+                onChange={(v) => {
+                  setOtForm({ ...otForm, rapportAction: v })
+                }}
+              />
+            </span>
             <textarea
               rows={3}
               value={otForm.rapportAction}

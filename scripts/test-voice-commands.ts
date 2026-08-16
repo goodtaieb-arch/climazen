@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict'
+import { parseVoiceCommand } from '../src/lib/speech'
+
+const cases: Array<[string, string | null]> = [
+  ['ouvre le stock', 'stock'],
+  ['scanner la bouteille', 'scan'],
+  ['nouvel appel', 'appel'],
+  ['créer un OT', 'appel'],
+  ['ordres de travail', 'ot'],
+  ['ouvre le GPS', 'gps'],
+  ['Waze', 'gps'],
+  ['CERFA', 'cerfa'],
+  ['sites', 'sites'],
+  ['aide', 'aide'],
+  ['accueil', 'accueil'],
+  ['bonjour le chat', null],
+]
+
+for (const [input, expected] of cases) {
+  const got = parseVoiceCommand(input)
+  assert.equal(got?.id ?? null, expected, `« ${input} » → ${got?.id ?? null}, attendu ${expected}`)
+}
+
+console.log(`OK ${cases.length} commandes vocales`)
