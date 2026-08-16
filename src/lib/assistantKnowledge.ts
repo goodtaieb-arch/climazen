@@ -95,6 +95,8 @@ Dans Stock, il apparaît dans le bloc orange « Récupération déchet », sépa
 • Vert — Stock utilisable (charge / appoint / service)
 • Orange — Récupération déchet (BSFF uniquement)
 
+Ajout rapide : photo de l’étiquette bouteille ou scan QR / code-barres pour préremplir n°, fluide, UN, capacité / tare si lisibles. Vérifiez toujours avant d’enregistrer.
+
 Totaux kg séparés pour ne pas mélanger gaz utilisable et déchet.`,
   },
   {
@@ -116,6 +118,7 @@ Totaux kg séparés pour ne pas mélanger gaz utilisable et déchet.`,
 • N° de série / contenant (obligatoire) → imprimé sur le CERFA (ex. BOT-32-4890).
 • Surnom (optionnel) → aide interne (ex. « Transfert camion Luc »).
 
+Le n° se remplit par scan QR/code-barres ou photo d’étiquette ; le surnom reste manuel.
 Dans les menus : « Surnom (N° de série : BOT-XXX) ». Jamais mettre « Transfert » à la place du n° officiel.`,
   },
   {

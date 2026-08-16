@@ -18,6 +18,7 @@ import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
+import { BouteillePhotoButton } from '../components/BouteillePhotoButton'
 import {
   adrInfoForFluide,
   findFluide,
@@ -30,6 +31,12 @@ import {
   applyBouteilleDefaults,
   bouteilleDefaultsForFluide,
 } from '../lib/bouteilleDefaults'
+import {
+  mergeBouteilleScanIntoForm,
+  parseBarcodePayload,
+  summarizeBouteilleScan,
+  type BouteilleScanFields,
+} from '../lib/bouteilleOcr'
 import {
   assertNumeroContenantCerfa,
   labelBouteilleAffichage,
@@ -226,6 +233,25 @@ export function StockPage() {
     notes: '',
   })
   const [q, setQ] = useState('')
+  const [scanHint, setScanHint] = useState('')
+
+  const applyScanFields = (fields: BouteilleScanFields, forceNumero = false) => {
+    setForm((f) => {
+      const merged = mergeBouteilleScanIntoForm(f, fields, { force: forceNumero })
+      const fluideChanged = Boolean(merged.fluide && merged.fluide !== f.fluide)
+      const withAdr = merged.fluide
+        ? applyFluideAdr(merged, merged.fluide, fluideChanged)
+        : merged
+      return {
+        ...withAdr,
+        conformeA2LA3:
+          isFluideInflammableA2LOrA3(withAdr.fluide) || isFluideNonAssigne(withAdr.fluide)
+            ? withAdr.conformeA2LA3
+            : false,
+      }
+    })
+    setScanHint(summarizeBouteilleScan(fields))
+  }
 
   // Prefill depuis CERFA / lien « bouteille de récupération / transfert »
   useEffect(() => {
@@ -260,6 +286,7 @@ export function StockPage() {
     setRegsOpen(false)
     setTechOpen(false)
     setAutoScan(true)
+    setScanHint('')
     const next = new URLSearchParams(searchParams)
     next.delete('scan')
     setSearchParams(next, { replace: true })
@@ -645,19 +672,22 @@ export function StockPage() {
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
           <p className="rounded-xl bg-mist/50 px-3 py-2 text-xs text-muted sm:col-span-2">
-            Saisie rapide : <strong className="text-ink">fluide</strong>,{' '}
-            <strong className="text-ink">type</strong>, <strong className="text-ink">n° bouteille</strong>
-            {form.contenantType === 'vierge' || form.contenantType === 'regenere' ? (
-              <>
-                {' '}
-                + <strong className="text-ink">quantité</strong>
-              </>
-            ) : null}
-            . Capacité / tare / PH préremplis selon le fluide.
+            Saisie rapide : <strong className="text-ink">photo étiquette</strong> ou{' '}
+            <strong className="text-ink">scan QR / code-barres</strong>, puis vérifiez fluide,
+            type et n°. Capacité / tare / PH / ADR se complètent si lisibles ou selon le fluide.
             {form.contenantType === 'recuperation' ? (
               <> Fluide optionnel (non assigné jusqu’au 1er CERFA).</>
             ) : null}
           </p>
+
+          <BouteillePhotoButton onParsed={(fields) => applyScanFields(fields)} />
+
+          {scanHint ? (
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 sm:col-span-2">
+              Données détectées : <strong>{scanHint}</strong> — vérifiez avant d’enregistrer.
+            </p>
+          ) : null}
+
           <FluideSelect
             label="Fluide"
             value={form.fluide}
@@ -741,14 +771,14 @@ export function StockPage() {
                 <BarcodeScanButton
                   autoStart={autoScan}
                   onDetected={(value) => {
-                    setForm({ ...form, numeroContenant: value })
+                    applyScanFields(parseBarcodePayload(value), true)
                     setAutoScan(false)
                   }}
                 />
               </div>
             </LabelHint>
             <p className="mt-1 text-[11px] text-muted">
-              Numéro officiel imprimé sur le CERFA — pas le type (« Transfert », etc.).
+              Numéro officiel imprimé sur le CERFA — scan QR / code-barres ou photo d’étiquette.
             </p>
           </div>
 
