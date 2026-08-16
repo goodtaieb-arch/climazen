@@ -13,6 +13,7 @@ import {
 } from '../lib/ficheMaintenanceClim'
 import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
+import { otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
 import { DecimalField } from '../components/DecimalField'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
@@ -118,6 +119,7 @@ export function FicheMaintenanceClimPage() {
   const equipementId = params.get('equipement') || ''
   const editId = params.get('id') || ''
   const numeroFromQuery = params.get('numero') || ''
+  const otFromQuery = params.get('ot') || ''
   const batchIds = useMemo(
     () =>
       (params.get('batch') || '')
@@ -134,6 +136,50 @@ export function FicheMaintenanceClimPage() {
     () => (data.fichesMaintenanceClim || []).find((f) => f.id === editId) || null,
     [data.fichesMaintenanceClim, editId],
   )
+
+  /** OT lié (query ?ot=, ficheMaintenanceId, ou même n°) — pour revenir signer. */
+  const linkedOt = useMemo(() => {
+    const list = data.ordresTravail || []
+    if (otFromQuery) {
+      const byId = list.find((o) => o.id === otFromQuery || o.numero === otFromQuery)
+      if (byId) return byId
+    }
+    const ficheId = editId || existing?.id
+    if (ficheId) {
+      const byFiche = list.find((o) => o.ficheMaintenanceId === ficheId)
+      if (byFiche) return byFiche
+    }
+    if (batchIds.length > 0) {
+      const byBatch = list.find((o) => o.ficheMaintenanceId && batchIds.includes(o.ficheMaintenanceId))
+      if (byBatch) return byBatch
+    }
+    const nums = [numeroFromQuery, existing?.numero].filter(Boolean) as string[]
+    for (const n of nums) {
+      const base = otBaseNumero(n) || n
+      const found = list.find(
+        (o) => o.numero === n || o.numero === base || sameOtNumero(o.numero, n),
+      )
+      if (found) return found
+    }
+    return null
+  }, [
+    data.ordresTravail,
+    otFromQuery,
+    editId,
+    existing?.id,
+    existing?.numero,
+    batchIds,
+    numeroFromQuery,
+  ])
+
+  const otReturnHref = linkedOt
+    ? `/app/appel?ot=${encodeURIComponent(linkedOt.id)}`
+    : null
+  const otQuery = linkedOt
+    ? `&ot=${encodeURIComponent(linkedOt.id)}`
+    : otFromQuery
+      ? `&ot=${encodeURIComponent(otFromQuery)}`
+      : ''
   const site = data.chantiers.find((c) => c.id === chantierId || c.id === existing?.chantierId)
   const client = data.clients.find(
     (c) => c.id === (site?.clientId || existing?.clientId || ''),
@@ -333,7 +379,7 @@ export function FicheMaintenanceClimPage() {
     }
     loadedEditId.current = null
     navigate(
-      `/app/fiche-maintenance-clim?id=${encodeURIComponent(ficheId)}${batchQuery}`,
+      `/app/fiche-maintenance-clim?id=${encodeURIComponent(ficheId)}${batchQuery}${otQuery}`,
     )
   }
 
@@ -542,12 +588,29 @@ export function FicheMaintenanceClimPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link
-            to={site ? '/app/chantiers' : '/app'}
-            className="text-sm font-semibold text-accent hover:underline"
-          >
-            ← Retour
-          </Link>
+          {otReturnHref ? (
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  persist()
+                } catch {
+                  /* ignore */
+                }
+                navigate(otReturnHref)
+              }}
+              className="text-sm font-semibold text-accent hover:underline"
+            >
+              ← Retour à l’OT {linkedOt?.numero || ''}
+            </button>
+          ) : (
+            <Link
+              to={site ? '/app/chantiers' : '/app'}
+              className="text-sm font-semibold text-accent hover:underline"
+            >
+              ← Retour
+            </Link>
+          )}
           <h1 className="font-display mt-1 text-2xl font-bold">
             Fiche de Maintenance Climatisation / PAC
           </h1>
@@ -560,6 +623,32 @@ export function FicheMaintenanceClimPage() {
           ) : null}
         </div>
       </div>
+
+      {otReturnHref && (
+        <div className="sticky top-[6.5rem] z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-[#0f766e] bg-[#0f766e] px-4 py-3 text-white shadow-lg md:top-[5.5rem]">
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold">Retour signatures OT</p>
+            <p className="text-xs text-white/85">
+              OT {linkedOt?.numero || ''} — signez et clôturez après la fiche checklist
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                persist()
+              } catch {
+                /* ignore */
+              }
+              navigate(otReturnHref)
+            }}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-white px-4 text-sm font-extrabold text-[#0f766e]"
+          >
+            <Check className="h-4 w-4" />
+            Retour à l’OT — signer
+          </button>
+        </div>
+      )}
 
       {batchItems.length > 1 && (
         <div className="space-y-2 rounded-2xl border border-accent/40 bg-accent-soft/30 p-4">
@@ -624,7 +713,7 @@ export function FicheMaintenanceClimPage() {
             {relatedFiches.map((f) => (
               <li key={f.id}>
                 <Link
-                  to={`/app/fiche-maintenance-clim?id=${encodeURIComponent(f.id)}`}
+                  to={`/app/fiche-maintenance-clim?id=${encodeURIComponent(f.id)}${otQuery}`}
                   className="flex flex-wrap items-center gap-2 text-sm text-accent hover:underline"
                 >
                   <span className="font-medium">{f.date || '—'}</span>
@@ -962,6 +1051,23 @@ export function FicheMaintenanceClimPage() {
               {busy
                 ? 'Régénération…'
                 : `Régénérer l’ensemble (${Math.max(markedOk.length, batchItems.filter((b) => b.hasPdf).length) || batchItems.length} fiches)`}
+            </button>
+          ) : null}
+          {otReturnHref ? (
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  persist()
+                } catch {
+                  /* ignore */
+                }
+                navigate(otReturnHref)
+              }}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border-2 border-[#0f766e] px-5 py-2.5 text-sm font-extrabold text-[#0f766e] hover:bg-emerald-50"
+            >
+              <Check className="h-4 w-4" />
+              Retour à l’OT — signer
             </button>
           ) : null}
         </div>

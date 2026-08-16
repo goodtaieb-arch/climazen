@@ -587,8 +587,8 @@ export function AppelOtPage() {
     }
     const q =
       ficheIds.length > 1
-        ? `id=${encodeURIComponent(ficheIds[0])}&batch=${encodeURIComponent(ficheIds.join(','))}`
-        : `id=${encodeURIComponent(ficheIds[0])}`
+        ? `id=${encodeURIComponent(ficheIds[0])}&batch=${encodeURIComponent(ficheIds.join(','))}&ot=${encodeURIComponent(id)}`
+        : `id=${encodeURIComponent(ficheIds[0])}&ot=${encodeURIComponent(id)}`
     navigate(`/app/fiche-maintenance-clim?${q}`)
   }
 
