@@ -72,6 +72,7 @@ import { findEquipement } from '../lib/migrate'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
 import { nomSignataireClient } from '../lib/signataireClient'
+import { stockKgAfterCerfaRevert } from '../lib/stockMouvements'
 
 const ALL_NATURES = Object.keys(NATURE_LABELS) as NatureIntervention[]
 
@@ -1019,13 +1020,24 @@ export function InterventionFormPage() {
           `La bouteille ${item.numeroContenant} est déjà utilisée sur une autre ligne — choisissez une bouteille encore disponible.`,
         )
       }
-      if (m.sens === 'sortie' && m.quantiteKg > item.quantiteKg + 1e-9) {
+      // Re-validation : compter le stock comme si l’ancien mouvement CERFA était déjà annulé
+      const stockDispo = stockKgAfterCerfaRevert(
+        data,
+        {
+          id: draftId || existing?.id || 'pending',
+          ordreTravailId: ordreTravailId || existing?.ordreTravailId,
+          equipementId: equipementId || existing?.equipementId || equipement?.id,
+          numeroIntervention: otBaseNumero(numeroIntervention) || numeroIntervention || undefined,
+        },
+        item.id,
+      )
+      if (m.sens === 'sortie' && m.quantiteKg > stockDispo + 1e-9) {
         throw new Error(
-          `Stock insuffisant sur ${item.numeroContenant} : reste ${item.quantiteKg} kg.`,
+          `Stock insuffisant sur ${item.numeroContenant} : reste ${stockDispo} kg.`,
         )
       }
       assertMouvementCerfaLegal({
-        item,
+        item: { ...item, quantiteKg: stockDispo },
         sens: m.sens,
         quantiteKg: m.quantiteKg,
         clientId: client?.id || chantier?.clientId,

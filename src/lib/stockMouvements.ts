@@ -4,6 +4,7 @@ import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from 
 import { adrInfoForFluide, findFluide, isFluideNonAssigne, sameFluideCode } from './fluides'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { assertMouvementCerfaLegal } from './stockRegles'
+import { sameOtNumero } from './ordreTravail'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -14,6 +15,68 @@ function resolveSens(
   explicit?: StockMouvementSens,
 ): StockMouvementSens {
   return explicit || sensMouvementPourContenant(type)
+}
+
+function isCerfaMouvement(m: StockMouvement): boolean {
+  return m.kind === 'cerfa' || (!m.kind && Boolean(m.interventionId))
+}
+
+/**
+ * Fiches CERFA « même logique » : même OT + même équipement (ou même n° OT).
+ * Sert à annuler le stock déjà déduit si on revalide après correction / doublon.
+ */
+export function relatedCerfaInterventionIds(
+  data: AppData,
+  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
+): Set<string> {
+  const ids = new Set<string>([intervention.id])
+  const otId = intervention.ordreTravailId
+  const eqId = intervention.equipementId
+  const num = (intervention.numeroIntervention || '').trim()
+
+  for (const i of data.interventions || []) {
+    if (i.id === intervention.id) continue
+    // Multi-équipements : ne pas annuler le CERFA du voisin
+    if (eqId && i.equipementId && i.equipementId !== eqId) continue
+    if (otId && i.ordreTravailId === otId) {
+      ids.add(i.id)
+      continue
+    }
+    if (num && sameOtNumero(i.numeroIntervention, num)) {
+      ids.add(i.id)
+    }
+  }
+  return ids
+}
+
+/** Mouvements CERFA déjà appliqués pour cette fiche (y compris doublons OT+équipement). */
+export function previousCerfaMouvements(
+  data: AppData,
+  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
+): StockMouvement[] {
+  const related = relatedCerfaInterventionIds(data, intervention)
+  return (data.stockMouvements || []).filter(
+    (m) => m.interventionId && related.has(m.interventionId) && isCerfaMouvement(m),
+  )
+}
+
+/**
+ * Quantité disponible sur une bouteille après annulation des mouvements CERFA
+ * déjà liés à cette fiche (pour contrôle avant re-validation).
+ */
+export function stockKgAfterCerfaRevert(
+  data: AppData,
+  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
+  stockItemId: string,
+): number {
+  const item = data.stock.find((s) => s.id === stockItemId)
+  if (!item) return 0
+  let qty = Number(item.quantiteKg) || 0
+  for (const m of previousCerfaMouvements(data, intervention)) {
+    if (m.stockItemId !== stockItemId) continue
+    qty += m.sens === 'sortie' ? m.quantiteKg : -m.quantiteKg
+  }
+  return roundKg(Math.max(0, qty))
 }
 
 /**
@@ -29,13 +92,13 @@ export function applyStockFromIntervention(
   const manip = (intervention.manipulations || []).filter(
     (m) => m.stockItemId && m.quantiteKg > 0,
   )
-  const hadPrevious = (data.stockMouvements || []).some((m) => m.interventionId === intervention.id)
-  if (manip.length === 0 && !hadPrevious) return data
+  const previous = previousCerfaMouvements(data, intervention)
+  const relatedIds = relatedCerfaInterventionIds(data, intervention)
+  if (manip.length === 0 && previous.length === 0) return data
 
   let stock = data.stock.map((s) => ({ ...s }))
 
-  // 1) Annuler les mouvements déjà liés à cette intervention
-  const previous = (data.stockMouvements || []).filter((m) => m.interventionId === intervention.id)
+  // 1) Annuler les mouvements déjà liés à cette fiche (même id OU doublon OT+équipement)
   for (const m of previous) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
     if (idx < 0) continue
@@ -47,7 +110,11 @@ export function applyStockFromIntervention(
     }
   }
 
-  let mouvements = (data.stockMouvements || []).filter((m) => m.interventionId !== intervention.id)
+  let mouvements = (data.stockMouvements || []).filter((m) => {
+    if (!m.interventionId || !relatedIds.has(m.interventionId)) return true
+    if (!isCerfaMouvement(m)) return true
+    return false
+  })
   const label = cerfaLabelFor(intervention)
   const now = new Date().toISOString()
   const date = intervention.dateIntervention || now.slice(0, 10)

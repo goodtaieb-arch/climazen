@@ -431,22 +431,29 @@ export function AppelOtPage() {
     for (let i = 0; i < withFluide.length; i++) {
       const eqId = withFluide[i]
       const eq = eqs.find((e) => e.id === eqId)
-      const existingDraft =
+      const candidates = data.interventions.filter(
+        (interv) =>
+          interv.chantierId === otForm.chantierId &&
+          interv.equipementId === eqId &&
+          (interv.ordreTravailId === id ||
+            interv.ordreTravailId === otId ||
+            interv.numeroIntervention === otForm.numero ||
+            (otForm.numero &&
+              (interv.numeroIntervention || '').startsWith(`${otForm.numero}-`))),
+      )
+      // Même OT + équipement : reprendre la fiche existante (même signée) — évite double déduction stock
+      let existingDraft =
+        candidates.find((c) =>
+          (data.stockMouvements || []).some((m) => m.interventionId === c.id),
+        ) ||
+        candidates.find((c) => c.hasCerfaPdf) ||
+        candidates.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0] ||
         data.interventions.find(
           (interv) =>
             interv.status === 'brouillon' &&
             interv.chantierId === otForm.chantierId &&
             interv.equipementId === eqId &&
-            (interv.ordreTravailId === id ||
-              interv.ordreTravailId === otId ||
-              interv.numeroIntervention === otForm.numero ||
-              (interv.numeroIntervention || '').startsWith(`${otForm.numero}-`)),
-        ) ||
-        data.interventions.find(
-          (interv) =>
-            interv.status === 'brouillon' &&
-            interv.chantierId === otForm.chantierId &&
-            interv.equipementId === eqId,
+            !interv.ordreTravailId,
         )
       if (existingDraft) {
         // Harmoniser le n° sur celui de l’OT (unique, sans -1/-2)
@@ -458,6 +465,11 @@ export function AppelOtPage() {
             ...existingDraft,
             numeroIntervention: otForm.numero,
             ordreTravailId: existingDraft.ordreTravailId || id,
+          })
+        } else if (!existingDraft.ordreTravailId) {
+          upsertIntervention({
+            ...existingDraft,
+            ordreTravailId: id,
           })
         }
         draftIds.push(existingDraft.id)
