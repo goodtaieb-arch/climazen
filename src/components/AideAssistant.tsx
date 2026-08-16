@@ -108,7 +108,12 @@ export function AideAssistant() {
                 Assistant ClimaZEN
               </div>
               <p className="truncate text-[11px] text-white/80">
-                {source === 'local' ? 'Guide intégré' : 'IA cloud'} · page {location.pathname}
+                {source === 'api'
+                  ? 'IA cloud (OpenAI)'
+                  : source === 'local'
+                    ? 'Guide local (mots-clés)'
+                    : 'Prêt'}{' '}
+                · {location.pathname}
               </p>
             </div>
             <button
