@@ -1028,14 +1028,6 @@ export function InterventionFormPage() {
           ordreTravailId: ordreTravailId || existing?.ordreTravailId,
           equipementId: equipementId || existing?.equipementId || equipement?.id,
           numeroIntervention: otBaseNumero(numeroIntervention) || numeroIntervention || undefined,
-          manipulations: manips
-            .filter((x) => x.stockItemId && x.quantiteKg > 0)
-            .map((x) => ({
-              stockItemId: x.stockItemId,
-              quantiteKg: x.quantiteKg,
-              type: 'vierge' as const,
-              sens: x.sens,
-            })),
         },
         item.id,
       )

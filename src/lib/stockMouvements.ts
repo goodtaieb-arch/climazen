@@ -4,7 +4,6 @@ import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from 
 import { adrInfoForFluide, findFluide, isFluideNonAssigne, sameFluideCode } from './fluides'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { assertMouvementCerfaLegal } from './stockRegles'
-import { sameOtNumero, otBaseNumero, formatOtNumero } from './ordreTravail'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -22,8 +21,8 @@ function isCerfaMouvement(m: StockMouvement): boolean {
 }
 
 /**
- * Fiches CERFA « même logique » : même OT + même équipement (ou même n° OT).
- * Sert à annuler le stock déjà déduit si on revalide après correction / doublon.
+ * Fiches CERFA « même logique » : même id, ou même OT + même équipement
+ * (reprise / re-validation de la même fiche — pas 2 CERFA distincts qui partagent juste le n°).
  */
 export function relatedCerfaInterventionIds(
   data: AppData,
@@ -32,60 +31,26 @@ export function relatedCerfaInterventionIds(
   const ids = new Set<string>([intervention.id])
   const otId = intervention.ordreTravailId
   const eqId = intervention.equipementId
-  const num = (intervention.numeroIntervention || '').trim()
+  if (!otId || !eqId) return ids
 
   for (const i of data.interventions || []) {
     if (i.id === intervention.id) continue
-    // Multi-équipements : ne pas annuler le CERFA du voisin
-    if (eqId && i.equipementId && i.equipementId !== eqId) continue
-    if (otId && i.ordreTravailId === otId) {
-      ids.add(i.id)
-      continue
-    }
-    if (num && sameOtNumero(i.numeroIntervention, num)) {
+    if (i.ordreTravailId === otId && i.equipementId === eqId) {
       ids.add(i.id)
     }
   }
   return ids
 }
 
-/** Mouvements CERFA déjà appliqués pour cette fiche (y compris doublons OT+équipement). */
+/** Mouvements CERFA déjà appliqués pour cette fiche (re-validation = annuler puis recalculer). */
 export function previousCerfaMouvements(
   data: AppData,
-  intervention: Pick<
-    CerfaDraft,
-    'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention' | 'manipulations'
-  >,
+  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
 ): StockMouvement[] {
   const related = relatedCerfaInterventionIds(data, intervention)
-  const otKey =
-    otBaseNumero(intervention.numeroIntervention) ||
-    otBaseNumero(cerfaLabelFor(intervention as CerfaDraft))
-  const bottleIds = new Set(
-    (intervention.manipulations || [])
-      .map((m) => m.stockItemId)
-      .filter((id): id is string => Boolean(id)),
+  return (data.stockMouvements || []).filter(
+    (m) => m.interventionId && related.has(m.interventionId) && isCerfaMouvement(m),
   )
-
-  const seen = new Set<string>()
-  const out: StockMouvement[] = []
-  for (const m of data.stockMouvements || []) {
-    if (!isCerfaMouvement(m)) continue
-    let match = Boolean(m.interventionId && related.has(m.interventionId))
-    // Doublons orphelins : même n° OT sur la même bouteille (re-validation / ancienne fiche)
-    if (
-      !match &&
-      otKey &&
-      bottleIds.has(m.stockItemId) &&
-      otBaseNumero(m.cerfaLabel) === otKey
-    ) {
-      match = true
-    }
-    if (!match || seen.has(m.id)) continue
-    seen.add(m.id)
-    out.push(m)
-  }
-  return out
 }
 
 /**
@@ -94,10 +59,7 @@ export function previousCerfaMouvements(
  */
 export function stockKgAfterCerfaRevert(
   data: AppData,
-  intervention: Pick<
-    CerfaDraft,
-    'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention' | 'manipulations'
-  >,
+  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
   stockItemId: string,
 ): number {
   const item = data.stock.find((s) => s.id === stockItemId)
@@ -108,88 +70,6 @@ export function stockKgAfterCerfaRevert(
     qty += m.sens === 'sortie' ? m.quantiteKg : -m.quantiteKg
   }
   return roundKg(Math.max(0, qty))
-}
-
-/**
- * Fusionne les sorties CERFA en double pour une bouteille (même OT plusieurs fois).
- * Garde le dernier mouvement de chaque OT et recalcule le stock.
- */
-export function consolidateCerfaMouvementsOnBottle(
-  data: AppData,
-  stockItemId: string,
-): { data: AppData; removed: number } {
-  const all = data.stockMouvements || []
-  const cerfa = all.filter((m) => m.stockItemId === stockItemId && isCerfaMouvement(m))
-  const groups = new Map<string, StockMouvement[]>()
-  for (const m of cerfa) {
-    const key = otBaseNumero(m.cerfaLabel) || m.interventionId || m.id
-    const list = groups.get(key) || []
-    list.push(m)
-    groups.set(key, list)
-  }
-
-  const removeIds = new Set<string>()
-  const keepers: StockMouvement[] = []
-  for (const [, list] of groups) {
-    if (list.length < 2) continue
-    const sorted = [...list].sort(
-      (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
-    )
-    const keep = sorted[sorted.length - 1]
-    for (const m of sorted) removeIds.add(m.id)
-    keepers.push(keep)
-  }
-  if (removeIds.size === 0) return { data, removed: 0 }
-
-  let stock = data.stock.map((s) => ({ ...s }))
-  const idx = stock.findIndex((s) => s.id === stockItemId)
-  if (idx < 0) return { data, removed: 0 }
-
-  // 1) Annuler tous les doublons
-  for (const m of all) {
-    if (!removeIds.has(m.id)) continue
-    const delta = m.sens === 'sortie' ? m.quantiteKg : -m.quantiteKg
-    stock[idx] = {
-      ...stock[idx],
-      quantiteKg: roundKg(Math.max(0, stock[idx].quantiteKg + delta)),
-      updatedAt: new Date().toISOString(),
-    }
-  }
-
-  let mouvements = all.filter((m) => !removeIds.has(m.id))
-
-  // 2) Réappliquer uniquement le dernier de chaque OT
-  for (const keep of keepers) {
-    const item = stock[idx]
-    const avant = item.quantiteKg
-    const qty = roundKg(keep.quantiteKg)
-    if (keep.sens === 'sortie') {
-      const apres = roundKg(Math.max(0, avant - qty))
-      stock[idx] = { ...item, quantiteKg: apres, updatedAt: new Date().toISOString() }
-      mouvements.push({
-        ...keep,
-        id: uuid(),
-        quantiteAvantKg: avant,
-        quantiteApresKg: apres,
-        cerfaLabel: formatOtNumero(keep.cerfaLabel) || keep.cerfaLabel,
-      })
-    } else {
-      const apres = roundKg(avant + qty)
-      stock[idx] = { ...item, quantiteKg: apres, updatedAt: new Date().toISOString() }
-      mouvements.push({
-        ...keep,
-        id: uuid(),
-        quantiteAvantKg: avant,
-        quantiteApresKg: apres,
-        cerfaLabel: formatOtNumero(keep.cerfaLabel) || keep.cerfaLabel,
-      })
-    }
-  }
-
-  return {
-    data: { ...data, stock, stockMouvements: mouvements },
-    removed: removeIds.size - keepers.length,
-  }
 }
 
 /**
@@ -211,7 +91,7 @@ export function applyStockFromIntervention(
 
   let stock = data.stock.map((s) => ({ ...s }))
 
-  // 1) Annuler les mouvements déjà liés à cette fiche (même id, doublon OT+équipement, ou même OT sur la bouteille)
+  // 1) Annuler les mouvements déjà liés à CETTE fiche (pas les autres CERFA du même n° OT)
   for (const m of previous) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
     if (idx < 0) continue

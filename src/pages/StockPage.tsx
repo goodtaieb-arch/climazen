@@ -209,7 +209,6 @@ export function StockPage() {
     enregistrerDestructionBouteille,
     enregistrerTransfertInterneBouteille,
     enregistrerPerteEmissionBouteille,
-    consolidateStockBottleCerfa,
   } = useStore()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1686,42 +1685,6 @@ export function StockPage() {
 
                       {openHist && (
                         <div className="border-t border-line bg-mist/40 px-4 py-3">
-                          {(() => {
-                            const cerfaHist = hist.filter(
-                              (m) => m.kind === 'cerfa' || Boolean(m.interventionId),
-                            )
-                            const otKeys = new Map<string, number>()
-                            for (const m of cerfaHist) {
-                              const k = otBaseNumero(m.cerfaLabel) || m.interventionId || m.id
-                              otKeys.set(k, (otKeys.get(k) || 0) + 1)
-                            }
-                            const hasDupOt = [...otKeys.values()].some((n) => n > 1)
-                            return hasDupOt ? (
-                              <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm">
-                                <p className="font-semibold text-amber-950">
-                                  Plusieurs sorties pour le même OT
-                                </p>
-                                <p className="mt-0.5 text-xs text-amber-900/90">
-                                  Ancienne re-validation a empilé les kg. Gardez seulement le
-                                  dernier mouvement de chaque OT et corrigez le stock.
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const n = consolidateStockBottleCerfa(s.id)
-                                    alert(
-                                      n > 0
-                                        ? `Corrigé : ${n} doublon${n > 1 ? 's' : ''} retiré${n > 1 ? 's' : ''}. Stock recalculé.`
-                                        : 'Rien à corriger.',
-                                    )
-                                  }}
-                                  className="mt-2 inline-flex min-h-10 items-center rounded-xl bg-amber-600 px-3 text-xs font-bold text-white"
-                                >
-                                  Corriger — garder le dernier par OT
-                                </button>
-                              </div>
-                            ) : null
-                          })()}
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                             Historique des mouvements
                           </div>

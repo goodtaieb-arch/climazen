@@ -29,7 +29,7 @@ import {
 import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
 import { deleteCerfaPdf } from './pdfStore'
 import { useAuth } from './AuthContext'
-import { applyStockFromIntervention, consolidateCerfaMouvementsOnBottle, enregistrerDestruction, enregistrerPerteEmission, enregistrerRetourConsigne, enregistrerTransfertInterne, revertStockForIntervention } from './stockMouvements'
+import { applyStockFromIntervention, enregistrerDestruction, enregistrerPerteEmission, enregistrerRetourConsigne, enregistrerTransfertInterne, revertStockForIntervention } from './stockMouvements'
 import {
   buildMaintenanceCerfaDrafts,
   syncEquipementsFromFlat,
@@ -162,8 +162,6 @@ type Store = {
     notes?: string
     createdByName?: string
   }) => void
-  /** Fusionne les sorties CERFA en double (même OT) sur une bouteille. */
-  consolidateStockBottleCerfa: (stockItemId: string) => number
   upsertIntervention: (
     i: Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
@@ -1143,16 +1141,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const consolidateStockBottleCerfa = useCallback((stockItemId: string) => {
-    let removed = 0
-    setData((d) => {
-      const result = consolidateCerfaMouvementsOnBottle(d, stockItemId)
-      removed = result.removed
-      return result.data
-    })
-    return removed
-  }, [])
-
   const upsertIntervention = useCallback(
     (i: Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
       const id = i.id ?? uuid()
@@ -1443,7 +1431,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       enregistrerDestructionBouteille,
       enregistrerTransfertInterneBouteille,
       enregistrerPerteEmissionBouteille,
-      consolidateStockBottleCerfa,
       upsertIntervention,
       saveInterventionWithStock,
       deleteIntervention,
@@ -1484,7 +1471,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       enregistrerDestructionBouteille,
       enregistrerTransfertInterneBouteille,
       enregistrerPerteEmissionBouteille,
-      consolidateStockBottleCerfa,
       upsertIntervention,
       saveInterventionWithStock,
       deleteIntervention,
