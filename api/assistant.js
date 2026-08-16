@@ -1,10 +1,9 @@
 /**
- * Vercel Serverless — POST /api/assistant
- * Variable d’environnement : OPENAI_API_KEY (optionnel).
- * Sans clé → { source: 'local' } pour que le client utilise le guide intégré.
+ * Vercel Serverless — /api/assistant
+ * OPENAI_API_KEY (optionnel). Sans clé → source local côté client.
  */
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -13,9 +12,10 @@ export default async function handler(req, res) {
     return res.status(204).end()
   }
 
-  // Health : savoir si l’IA cloud est configurée (sans appeler OpenAI)
-  if (req.method === 'GET') {
-    const key = process.env.OPENAI_API_KEY || process.env.CLIMAZEN_OPENAI_KEY
+  const key = process.env.OPENAI_API_KEY || process.env.CLIMAZEN_OPENAI_KEY
+
+  // Health : IA cloud configurée ? (sans appeler OpenAI)
+  if (req.method === 'GET' || req.method === 'HEAD') {
     return res.status(200).json({ cloud: Boolean(key) })
   }
 
@@ -23,7 +23,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const key = process.env.OPENAI_API_KEY || process.env.CLIMAZEN_OPENAI_KEY
   if (!key) {
     return res.status(200).json({
       reply: '',
@@ -74,7 +73,7 @@ export default async function handler(req, res) {
     }
 
     const data = await aiRes.json()
-    const reply = data?.choices?.[0]?.message?.content?.trim() || ''
+    const reply = (data?.choices?.[0]?.message?.content || '').trim()
     return res.status(200).json({ reply, source: 'api' })
   } catch (err) {
     console.error('assistant api', err)
