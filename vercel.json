@@ -9,7 +9,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|robots\\.txt|sitemap\\.xml).*)",
+      "source": "/((?!api/|assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ],

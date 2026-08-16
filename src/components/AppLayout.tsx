@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
+import { AideAssistant } from './AideAssistant'
 import { Nav3dIcon } from './Nav3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
@@ -485,6 +486,8 @@ export function AppLayout() {
           })}
         </div>
       </nav>
+
+      <AideAssistant />
     </div>
   )
 }
