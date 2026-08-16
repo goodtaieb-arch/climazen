@@ -1875,7 +1875,7 @@ export function StockPage() {
                           <li key={m.id} className="px-3 py-2.5 text-muted">
                             {m.kind === 'retour_consigne'
                               ? `Retour consigne ${m.bonRetourReference || ''} · ${m.date}`
-                              : `${m.sens === 'sortie' ? '−' : '+'}${m.quantiteKg} kg · ${m.cerfaLabel} · ${m.date}`}
+                              : `${m.sens === 'sortie' ? '−' : '+'}${m.quantiteKg} kg · ${displayMouvementLabel(m.cerfaLabel)} · ${m.date}`}
                           </li>
                         ))}
                       </ul>
