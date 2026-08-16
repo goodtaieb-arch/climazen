@@ -209,6 +209,7 @@ export function StockPage() {
     enregistrerDestructionBouteille,
     enregistrerTransfertInterneBouteille,
     enregistrerPerteEmissionBouteille,
+    consolidateStockBottleCerfa,
   } = useStore()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1499,8 +1500,6 @@ export function StockPage() {
                     Number(s.quantiteKg) ||
                     0
                   const current = Number(s.quantiteKg) || 0
-                  const lastCerfa = hist.find((m) => m.interventionId || m.kind === 'cerfa')
-                  const lastCtx = lastCerfa ? mouvementContext(lastCerfa) : null
                   const canDestroy =
                     s.contenantType === 'recuperation' && current > 0 && !isBouteilleRetournee(s)
                   const canTransfer = !isBouteilleRetournee(s)
@@ -1687,31 +1686,42 @@ export function StockPage() {
 
                       {openHist && (
                         <div className="border-t border-line bg-mist/40 px-4 py-3">
-                          {lastCerfa && (
-                            <div className="mb-3 rounded-xl border border-accent/30 bg-white px-3 py-2.5 text-sm">
-                              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                                Dernier mouvement CERFA
-                              </div>
-                              <div className="mt-1 font-semibold text-ink">
-                                {lastCerfa.sens === 'sortie' ? '−' : '+'}
-                                {lastCerfa.quantiteKg} kg
-                                {lastCtx?.cerfa ? ` · ${lastCtx.cerfa}` : ''}
-                              </div>
-                              <div className="mt-0.5 text-xs text-muted">
-                                {[lastCtx?.client, lastCtx?.site, lastCerfa.date]
-                                  .filter(Boolean)
-                                  .join(' · ') || lastCerfa.date}
-                              </div>
-                              {lastCerfa.interventionId && (
-                                <Link
-                                  to={`/app/interventions/${lastCerfa.interventionId}`}
-                                  className="mt-1 inline-block text-xs font-semibold text-accent hover:underline"
+                          {(() => {
+                            const cerfaHist = hist.filter(
+                              (m) => m.kind === 'cerfa' || Boolean(m.interventionId),
+                            )
+                            const otKeys = new Map<string, number>()
+                            for (const m of cerfaHist) {
+                              const k = otBaseNumero(m.cerfaLabel) || m.interventionId || m.id
+                              otKeys.set(k, (otKeys.get(k) || 0) + 1)
+                            }
+                            const hasDupOt = [...otKeys.values()].some((n) => n > 1)
+                            return hasDupOt ? (
+                              <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm">
+                                <p className="font-semibold text-amber-950">
+                                  Plusieurs sorties pour le même OT
+                                </p>
+                                <p className="mt-0.5 text-xs text-amber-900/90">
+                                  Ancienne re-validation a empilé les kg. Gardez seulement le
+                                  dernier mouvement de chaque OT et corrigez le stock.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const n = consolidateStockBottleCerfa(s.id)
+                                    alert(
+                                      n > 0
+                                        ? `Corrigé : ${n} doublon${n > 1 ? 's' : ''} retiré${n > 1 ? 's' : ''}. Stock recalculé.`
+                                        : 'Rien à corriger.',
+                                    )
+                                  }}
+                                  className="mt-2 inline-flex min-h-10 items-center rounded-xl bg-amber-600 px-3 text-xs font-bold text-white"
                                 >
-                                  Ouvrir la fiche →
-                                </Link>
-                              )}
-                            </div>
-                          )}
+                                  Corriger — garder le dernier par OT
+                                </button>
+                              </div>
+                            ) : null
+                          })()}
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                             Historique des mouvements
                           </div>
@@ -1721,67 +1731,80 @@ export function StockPage() {
                             <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white text-sm">
                               {hist.map((m) => {
                                 const ctx = mouvementContext(m)
+                                const otLabel =
+                                  m.kind === 'cerfa' || m.interventionId
+                                    ? displayMouvementLabel(
+                                        m.cerfaLabel || ctx?.cerfa || '',
+                                      )
+                                    : displayMouvementLabel(m.cerfaLabel)
+                                const isCerfa = m.kind === 'cerfa' || Boolean(m.interventionId)
                                 return (
-                                  <li
-                                    key={m.id}
-                                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
-                                  >
-                                    <div>
-                                      {m.kind === 'retour_consigne' ? (
-                                        <span className="font-semibold text-accent">
-                                          Retour consigne
-                                          {m.bonRetourReference
-                                            ? ` · ${m.bonRetourReference}`
+                                  <li key={m.id} className="space-y-1 px-3 py-2.5">
+                                    {isCerfa && otLabel ? (
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-extrabold text-emerald-900">
+                                          {otLabel}
+                                        </span>
+                                        {m.interventionId ? (
+                                          <Link
+                                            to={`/app/interventions/${m.interventionId}`}
+                                            className="text-xs font-semibold text-accent hover:underline"
+                                          >
+                                            Ouvrir CERFA →
+                                          </Link>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                      <div>
+                                        {m.kind === 'retour_consigne' ? (
+                                          <span className="font-semibold text-accent">
+                                            Retour consigne
+                                            {m.bonRetourReference
+                                              ? ` · ${m.bonRetourReference}`
+                                              : ''}
+                                          </span>
+                                        ) : m.kind === 'transfert_interne' ? (
+                                          <span className="font-semibold text-sky-800">
+                                            Transfert interne
+                                          </span>
+                                        ) : m.kind === 'perte_emission' ? (
+                                          <span className="font-semibold text-rose-800">
+                                            Perte / émission −{m.quantiteKg} kg
+                                          </span>
+                                        ) : m.kind === 'destruction' ? (
+                                          <span className="font-semibold text-orange-800">
+                                            Évacuation BSFF −{m.quantiteKg} kg
+                                          </span>
+                                        ) : (
+                                          <span
+                                            className={
+                                              m.sens === 'sortie'
+                                                ? 'font-semibold text-danger'
+                                                : 'font-semibold text-emerald-700'
+                                            }
+                                          >
+                                            {m.sens === 'sortie' ? '−' : '+'}
+                                            {m.quantiteKg} kg
+                                            {m.sens === 'sortie' ? ' sortis' : ' entrés'}
+                                          </span>
+                                        )}
+                                        <span className="text-muted">
+                                          {' '}
+                                          · {m.date}
+                                          {ctx?.client ? ` · ${ctx.client}` : ''}
+                                          {ctx?.site ? ` · ${ctx.site}` : ''}
+                                          {m.note ? ` · ${m.note}` : ''}
+                                          {m.kind !== 'retour_consigne' &&
+                                          m.kind !== 'transfert_interne'
+                                            ? ` · stock ${m.quantiteAvantKg} → ${m.quantiteApresKg} kg`
                                             : ''}
                                         </span>
-                                      ) : m.kind === 'transfert_interne' ? (
-                                        <span className="font-semibold text-sky-800">
-                                          Transfert interne
-                                        </span>
-                                      ) : m.kind === 'perte_emission' ? (
-                                        <span className="font-semibold text-rose-800">
-                                          Perte / émission −{m.quantiteKg} kg
-                                        </span>
-                                      ) : m.kind === 'destruction' ? (
-                                        <span className="font-semibold text-orange-800">
-                                          Évacuation BSFF −{m.quantiteKg} kg
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className={
-                                            m.sens === 'sortie'
-                                              ? 'font-semibold text-danger'
-                                              : 'font-semibold text-accent'
-                                          }
-                                        >
-                                          {m.sens === 'sortie' ? '−' : '+'}
-                                          {m.quantiteKg} kg
-                                        </span>
-                                      )}
-                                      <span className="text-muted">
-                                        {' '}
-                                        · {m.date}
-                                        {ctx?.client ? ` · ${ctx.client}` : ''}
-                                        {ctx?.site ? ` · ${ctx.site}` : ''}
-                                        {m.note ? ` · ${m.note}` : ''}
-                                        {m.kind !== 'retour_consigne' &&
-                                        m.kind !== 'transfert_interne'
-                                          ? ` · ${m.quantiteAvantKg} → ${m.quantiteApresKg} kg`
-                                          : ''}
-                                      </span>
+                                      </div>
+                                      {!isCerfa && otLabel ? (
+                                        <span className="font-medium text-muted">{otLabel}</span>
+                                      ) : null}
                                     </div>
-                                    {m.interventionId ? (
-                                      <Link
-                                        to={`/app/interventions/${m.interventionId}`}
-                                        className="font-medium text-accent hover:underline"
-                                      >
-                                        {displayMouvementLabel(m.cerfaLabel)}
-                                      </Link>
-                                    ) : (
-                                      <span className="font-medium text-muted">
-                                        {displayMouvementLabel(m.cerfaLabel)}
-                                      </span>
-                                    )}
                                   </li>
                                 )
                               })}

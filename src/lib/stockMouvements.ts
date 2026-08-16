@@ -4,7 +4,7 @@ import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from 
 import { adrInfoForFluide, findFluide, isFluideNonAssigne, sameFluideCode } from './fluides'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { assertMouvementCerfaLegal } from './stockRegles'
-import { sameOtNumero } from './ordreTravail'
+import { sameOtNumero, otBaseNumero, formatOtNumero } from './ordreTravail'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -52,12 +52,40 @@ export function relatedCerfaInterventionIds(
 /** Mouvements CERFA déjà appliqués pour cette fiche (y compris doublons OT+équipement). */
 export function previousCerfaMouvements(
   data: AppData,
-  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
+  intervention: Pick<
+    CerfaDraft,
+    'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention' | 'manipulations'
+  >,
 ): StockMouvement[] {
   const related = relatedCerfaInterventionIds(data, intervention)
-  return (data.stockMouvements || []).filter(
-    (m) => m.interventionId && related.has(m.interventionId) && isCerfaMouvement(m),
+  const otKey =
+    otBaseNumero(intervention.numeroIntervention) ||
+    otBaseNumero(cerfaLabelFor(intervention as CerfaDraft))
+  const bottleIds = new Set(
+    (intervention.manipulations || [])
+      .map((m) => m.stockItemId)
+      .filter((id): id is string => Boolean(id)),
   )
+
+  const seen = new Set<string>()
+  const out: StockMouvement[] = []
+  for (const m of data.stockMouvements || []) {
+    if (!isCerfaMouvement(m)) continue
+    let match = Boolean(m.interventionId && related.has(m.interventionId))
+    // Doublons orphelins : même n° OT sur la même bouteille (re-validation / ancienne fiche)
+    if (
+      !match &&
+      otKey &&
+      bottleIds.has(m.stockItemId) &&
+      otBaseNumero(m.cerfaLabel) === otKey
+    ) {
+      match = true
+    }
+    if (!match || seen.has(m.id)) continue
+    seen.add(m.id)
+    out.push(m)
+  }
+  return out
 }
 
 /**
@@ -66,7 +94,10 @@ export function previousCerfaMouvements(
  */
 export function stockKgAfterCerfaRevert(
   data: AppData,
-  intervention: Pick<CerfaDraft, 'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention'>,
+  intervention: Pick<
+    CerfaDraft,
+    'id' | 'ordreTravailId' | 'equipementId' | 'numeroIntervention' | 'manipulations'
+  >,
   stockItemId: string,
 ): number {
   const item = data.stock.find((s) => s.id === stockItemId)
@@ -77,6 +108,88 @@ export function stockKgAfterCerfaRevert(
     qty += m.sens === 'sortie' ? m.quantiteKg : -m.quantiteKg
   }
   return roundKg(Math.max(0, qty))
+}
+
+/**
+ * Fusionne les sorties CERFA en double pour une bouteille (même OT plusieurs fois).
+ * Garde le dernier mouvement de chaque OT et recalcule le stock.
+ */
+export function consolidateCerfaMouvementsOnBottle(
+  data: AppData,
+  stockItemId: string,
+): { data: AppData; removed: number } {
+  const all = data.stockMouvements || []
+  const cerfa = all.filter((m) => m.stockItemId === stockItemId && isCerfaMouvement(m))
+  const groups = new Map<string, StockMouvement[]>()
+  for (const m of cerfa) {
+    const key = otBaseNumero(m.cerfaLabel) || m.interventionId || m.id
+    const list = groups.get(key) || []
+    list.push(m)
+    groups.set(key, list)
+  }
+
+  const removeIds = new Set<string>()
+  const keepers: StockMouvement[] = []
+  for (const [, list] of groups) {
+    if (list.length < 2) continue
+    const sorted = [...list].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
+    )
+    const keep = sorted[sorted.length - 1]
+    for (const m of sorted) removeIds.add(m.id)
+    keepers.push(keep)
+  }
+  if (removeIds.size === 0) return { data, removed: 0 }
+
+  let stock = data.stock.map((s) => ({ ...s }))
+  const idx = stock.findIndex((s) => s.id === stockItemId)
+  if (idx < 0) return { data, removed: 0 }
+
+  // 1) Annuler tous les doublons
+  for (const m of all) {
+    if (!removeIds.has(m.id)) continue
+    const delta = m.sens === 'sortie' ? m.quantiteKg : -m.quantiteKg
+    stock[idx] = {
+      ...stock[idx],
+      quantiteKg: roundKg(Math.max(0, stock[idx].quantiteKg + delta)),
+      updatedAt: new Date().toISOString(),
+    }
+  }
+
+  let mouvements = all.filter((m) => !removeIds.has(m.id))
+
+  // 2) Réappliquer uniquement le dernier de chaque OT
+  for (const keep of keepers) {
+    const item = stock[idx]
+    const avant = item.quantiteKg
+    const qty = roundKg(keep.quantiteKg)
+    if (keep.sens === 'sortie') {
+      const apres = roundKg(Math.max(0, avant - qty))
+      stock[idx] = { ...item, quantiteKg: apres, updatedAt: new Date().toISOString() }
+      mouvements.push({
+        ...keep,
+        id: uuid(),
+        quantiteAvantKg: avant,
+        quantiteApresKg: apres,
+        cerfaLabel: formatOtNumero(keep.cerfaLabel) || keep.cerfaLabel,
+      })
+    } else {
+      const apres = roundKg(avant + qty)
+      stock[idx] = { ...item, quantiteKg: apres, updatedAt: new Date().toISOString() }
+      mouvements.push({
+        ...keep,
+        id: uuid(),
+        quantiteAvantKg: avant,
+        quantiteApresKg: apres,
+        cerfaLabel: formatOtNumero(keep.cerfaLabel) || keep.cerfaLabel,
+      })
+    }
+  }
+
+  return {
+    data: { ...data, stock, stockMouvements: mouvements },
+    removed: removeIds.size - keepers.length,
+  }
 }
 
 /**
@@ -93,12 +206,12 @@ export function applyStockFromIntervention(
     (m) => m.stockItemId && m.quantiteKg > 0,
   )
   const previous = previousCerfaMouvements(data, intervention)
-  const relatedIds = relatedCerfaInterventionIds(data, intervention)
+  const previousIds = new Set(previous.map((m) => m.id))
   if (manip.length === 0 && previous.length === 0) return data
 
   let stock = data.stock.map((s) => ({ ...s }))
 
-  // 1) Annuler les mouvements déjà liés à cette fiche (même id OU doublon OT+équipement)
+  // 1) Annuler les mouvements déjà liés à cette fiche (même id, doublon OT+équipement, ou même OT sur la bouteille)
   for (const m of previous) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
     if (idx < 0) continue
@@ -110,11 +223,7 @@ export function applyStockFromIntervention(
     }
   }
 
-  let mouvements = (data.stockMouvements || []).filter((m) => {
-    if (!m.interventionId || !relatedIds.has(m.interventionId)) return true
-    if (!isCerfaMouvement(m)) return true
-    return false
-  })
+  let mouvements = (data.stockMouvements || []).filter((m) => !previousIds.has(m.id))
   const label = cerfaLabelFor(intervention)
   const now = new Date().toISOString()
   const date = intervention.dateIntervention || now.slice(0, 10)
