@@ -3,7 +3,15 @@
  * GEMINI_API_KEY (optionnel, Google AI Studio). Sans clé → guide local côté client.
  *
  * Important : le projet est "type": "module" → export ESM (pas module.exports).
+ * gemini-2.0-flash est arrêté (juin 2026) → défaut gemini-2.5-flash.
  */
+
+const DEFAULT_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-1.5-flash',
+]
 
 export default async function handler(req, res) {
   try {
@@ -50,7 +58,6 @@ export default async function handler(req, res) {
         parts: [{ text: String(m.content).slice(0, 4000) }],
       }))
 
-    // Gemini exige souvent un dernier message "user"
     if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
       contents.push({
         role: 'user',
@@ -58,64 +65,85 @@ export default async function handler(req, res) {
       })
     }
 
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
+    const preferred = process.env.GEMINI_MODEL || DEFAULT_MODELS[0]
+    const models = [preferred, ...DEFAULT_MODELS.filter((m) => m !== preferred)]
 
-    const aiRes = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: `${system}\n\nContexte page :\n${context}\n\nURL : ${pathname}`,
-            },
-          ],
+    const payload = {
+      systemInstruction: {
+        parts: [
+          {
+            text: `${system}\n\nContexte page :\n${context}\n\nURL : ${pathname}`,
+          },
+        ],
+      },
+      contents,
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 700,
+      },
+    }
+
+    let lastStatus = 0
+    let lastErr = ''
+
+    for (const model of models) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+      const aiRes = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key,
         },
-        contents,
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 700,
-        },
-      }),
+        body: JSON.stringify(payload),
+      })
+
+      if (!aiRes.ok) {
+        lastStatus = aiRes.status
+        lastErr = await aiRes.text()
+        console.error('Gemini error', model, aiRes.status, lastErr.slice(0, 400))
+        // 404 = modèle indisponible → essayer le suivant
+        if (aiRes.status === 404) continue
+        const hint =
+          aiRes.status === 429
+            ? 'Quota Gemini atteint. Réessayez plus tard — en attendant, guide local.'
+            : aiRes.status === 400 || aiRes.status === 403
+              ? 'Clé Gemini invalide ou modèle non autorisé. Vérifiez GEMINI_API_KEY / GEMINI_MODEL sur Vercel.'
+              : `Erreur Gemini (${aiRes.status}). Guide local utilisé.`
+        return res.status(200).json({
+          reply: '',
+          source: 'local',
+          error: `gemini_${aiRes.status}`,
+          hint,
+        })
+      }
+
+      const data = await aiRes.json()
+      const parts = data?.candidates?.[0]?.content?.parts
+      const reply = Array.isArray(parts)
+        ? parts
+            .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+            .join('')
+            .trim()
+        : ''
+
+      if (!reply) {
+        lastStatus = 200
+        lastErr = 'empty'
+        continue
+      }
+
+      return res.status(200).json({ reply, source: 'api', provider: 'gemini', model })
+    }
+
+    return res.status(200).json({
+      reply: '',
+      source: 'local',
+      error: lastStatus ? `gemini_${lastStatus}` : 'gemini_empty',
+      hint:
+        lastStatus === 404
+          ? 'Aucun modèle Gemini disponible. Définissez GEMINI_MODEL sur Vercel (ex. gemini-2.5-flash).'
+          : 'Réponse Gemini vide. Guide local utilisé.',
     })
-
-    if (!aiRes.ok) {
-      const errText = await aiRes.text()
-      console.error('Gemini error', aiRes.status, errText.slice(0, 800))
-      const hint =
-        aiRes.status === 429
-          ? 'Quota Gemini atteint. Réessayez plus tard — en attendant, guide local.'
-          : aiRes.status === 400 || aiRes.status === 403
-            ? 'Clé Gemini invalide ou modèle non autorisé. Vérifiez GEMINI_API_KEY / GEMINI_MODEL sur Vercel.'
-            : `Erreur Gemini (${aiRes.status}). Guide local utilisé.`
-      return res.status(200).json({
-        reply: '',
-        source: 'local',
-        error: `gemini_${aiRes.status}`,
-        hint,
-      })
-    }
-
-    const data = await aiRes.json()
-    const parts = data?.candidates?.[0]?.content?.parts
-    const reply = Array.isArray(parts)
-      ? parts
-          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-          .join('')
-          .trim()
-      : ''
-
-    if (!reply) {
-      return res.status(200).json({
-        reply: '',
-        source: 'local',
-        error: 'gemini_empty',
-        hint: 'Réponse Gemini vide. Guide local utilisé.',
-      })
-    }
-
-    return res.status(200).json({ reply, source: 'api', provider: 'gemini' })
   } catch (err) {
     console.error('assistant api', err)
     return res.status(200).json({
