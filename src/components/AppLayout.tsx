@@ -10,6 +10,7 @@ import {
   Package,
   PenLine,
   Settings,
+  Sparkles,
   Users,
   X,
 } from 'lucide-react'
@@ -305,6 +306,16 @@ export function AppLayout() {
           <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('climazen:open-aide'))}
+              className="touch-target inline-flex items-center gap-1.5 rounded-full border border-[#0f766e]/30 bg-[#0f766e]/10 px-2.5 text-sm font-semibold text-[#0f766e] hover:bg-[#0f766e]/15 sm:px-3"
+              aria-label="Aide IA"
+              title="Aide IA"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Aide</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setMoreOpen(true)}
               className="touch-target inline-flex items-center justify-center rounded-full border border-line bg-white/80 px-3 text-sm font-semibold text-ink hover:bg-white md:hidden"
               aria-label="Menu Plus"
@@ -402,8 +413,23 @@ export function AppLayout() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mb-3 text-sm text-muted">Clients, signature et réglages.</p>
+            <p className="mb-3 text-sm text-muted">Clients, signature, aide et réglages.</p>
             <ul className="space-y-2">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false)
+                    window.dispatchEvent(new CustomEvent('climazen:open-aide'))
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[#0f766e]/25 bg-[#0f766e]/5 px-4 py-3 font-semibold text-[#0f766e] active:bg-[#0f766e]/10"
+                >
+                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#0f766e]/15 text-[#0f766e]">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  Aide IA
+                </button>
+              </li>
               {moreLinks.map(({ to, label, icon: Icon, tone }) => {
                 const t = tones[tone] || tones.more
                 return (

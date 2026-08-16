@@ -89,21 +89,9 @@ export function AideAssistant() {
 
   return (
     <>
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="fixed bottom-[4.75rem] right-4 z-30 inline-flex items-center gap-2 rounded-full bg-[#0f766e] px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-teal-800 md:bottom-6"
-          aria-label="Ouvrir l’assistant IA ClimaZEN"
-        >
-          <Sparkles className="h-5 w-5" />
-          Aide IA
-        </button>
-      )}
-
       {open && (
         <div
-          className="fixed inset-x-3 bottom-[4.5rem] z-40 flex max-h-[min(70vh,560px)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-2xl sm:inset-x-auto sm:right-4 sm:bottom-6 sm:w-[380px] md:bottom-6"
+          className="fixed inset-x-3 top-[4.25rem] z-40 flex max-h-[min(72vh,560px)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-2xl sm:inset-x-auto sm:right-4 sm:top-16 sm:w-[380px] md:top-20"
           role="dialog"
           aria-label="Assistant d’aide ClimaZEN"
         >
