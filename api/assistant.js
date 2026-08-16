@@ -70,10 +70,17 @@ export default async function handler(req, res) {
     if (!aiRes.ok) {
       const errText = await aiRes.text()
       console.error('OpenAI error', aiRes.status, errText.slice(0, 800))
+      const hint =
+        aiRes.status === 429
+          ? 'Quota / limite OpenAI atteint. Vérifiez la facturation sur platform.openai.com — en attendant, guide local.'
+          : aiRes.status === 401
+            ? 'Clé OpenAI invalide. Vérifiez OPENAI_API_KEY sur Vercel.'
+            : `Erreur OpenAI (${aiRes.status}). Guide local utilisé.`
       return res.status(200).json({
         reply: '',
         source: 'local',
         error: `openai_${aiRes.status}`,
+        hint,
       })
     }
 

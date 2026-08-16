@@ -8,6 +8,8 @@ export type AideMessage = {
 export type AideReply = {
   reply: string
   source: 'api' | 'local'
+  /** Raison du fallback local (quota OpenAI, clé, etc.) */
+  fallbackHint?: string
 }
 
 /**
@@ -22,6 +24,8 @@ export async function askAideAssistant(opts: {
   const question = lastUser?.content || ''
   const pathname = opts.pathname || '/app'
 
+  let fallbackHint: string | undefined
+
   try {
     const res = await fetch('/api/assistant', {
       method: 'POST',
@@ -34,20 +38,32 @@ export async function askAideAssistant(opts: {
       }),
     })
     if (res.ok) {
-      const data = (await res.json()) as { reply?: string; source?: string }
+      const data = (await res.json()) as {
+        reply?: string
+        source?: string
+        hint?: string
+        error?: string
+      }
       if (data.reply?.trim()) {
         return {
           reply: data.reply.trim(),
           source: data.source === 'local' ? 'local' : 'api',
         }
       }
+      if (data.hint?.trim()) fallbackHint = data.hint.trim()
+      else if (data.error === 'openai_429') {
+        fallbackHint =
+          'Quota OpenAI atteint — réponses en guide local pour l’instant.'
+      }
     }
   } catch {
     /* réseau / pas d’API → fallback local */
   }
 
+  const local = answerAideLocal(question, pathname)
   return {
-    reply: answerAideLocal(question, pathname),
+    reply: fallbackHint ? `${local}\n\n—\n${fallbackHint}` : local,
     source: 'local',
+    fallbackHint,
   }
 }
