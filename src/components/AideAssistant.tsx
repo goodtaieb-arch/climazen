@@ -12,7 +12,7 @@ function newId() {
 
 /**
  * Assistant d’aide ClimaZEN — bulle flottante dans l’app.
- * Mode guide local toujours actif ; IA cloud si OPENAI_API_KEY côté Vercel.
+ * Mode guide local toujours actif ; IA cloud si GEMINI_API_KEY côté Vercel.
  */
 export function AideAssistant() {
   const location = useLocation()
@@ -109,7 +109,7 @@ export function AideAssistant() {
               </div>
               <p className="truncate text-[11px] text-white/80">
                 {source === 'api'
-                  ? 'IA cloud (OpenAI)'
+                  ? 'IA cloud (Gemini)'
                   : source === 'local'
                     ? 'Guide local (mots-clés)'
                     : 'Prêt'}{' '}

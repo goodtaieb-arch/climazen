@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless — /api/assistant
- * OPENAI_API_KEY (optionnel). Sans clé → source local côté client.
+ * GEMINI_API_KEY (optionnel, Google AI Studio). Sans clé → guide local côté client.
  *
  * Important : le projet est "type": "module" → export ESM (pas module.exports).
  */
@@ -15,10 +15,13 @@ export default async function handler(req, res) {
       return res.status(204).end()
     }
 
-    const key = process.env.OPENAI_API_KEY || process.env.CLIMAZEN_OPENAI_KEY
+    const key =
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_AI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY
 
     if (req.method === 'GET' || req.method === 'HEAD') {
-      return res.status(200).json({ cloud: Boolean(key), ok: true })
+      return res.status(200).json({ cloud: Boolean(key), ok: true, provider: 'gemini' })
     }
 
     if (req.method !== 'POST') {
@@ -29,7 +32,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         reply: '',
         source: 'local',
-        hint: 'Ajoutez OPENAI_API_KEY dans Vercel pour activer l’IA cloud.',
+        hint: 'Ajoutez GEMINI_API_KEY dans Vercel (Google AI Studio) pour activer l’IA cloud.',
       })
     }
 
@@ -39,54 +42,80 @@ export default async function handler(req, res) {
     const context = String(body.context || '')
     const pathname = String(body.pathname || '')
 
-    const openaiMessages = [
-      {
-        role: 'system',
-        content: `${system}\n\nContexte page :\n${context}\n\nURL : ${pathname}`,
-      },
-      ...messages
-        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
-        .slice(-12)
-        .map((m) => ({
-          role: m.role,
-          content: String(m.content).slice(0, 4000),
-        })),
-    ]
+    const contents = messages
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
+      .slice(-12)
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: String(m.content).slice(0, 4000) }],
+      }))
 
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Gemini exige souvent un dernier message "user"
+    if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+      contents.push({
+        role: 'user',
+        parts: [{ text: 'Peux-tu m’aider sur ClimaZEN ?' }],
+      })
+    }
+
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
+
+    const aiRes = await fetch(url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        temperature: 0.4,
-        max_tokens: 700,
-        messages: openaiMessages,
+        systemInstruction: {
+          parts: [
+            {
+              text: `${system}\n\nContexte page :\n${context}\n\nURL : ${pathname}`,
+            },
+          ],
+        },
+        contents,
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 700,
+        },
       }),
     })
 
     if (!aiRes.ok) {
       const errText = await aiRes.text()
-      console.error('OpenAI error', aiRes.status, errText.slice(0, 800))
+      console.error('Gemini error', aiRes.status, errText.slice(0, 800))
       const hint =
         aiRes.status === 429
-          ? 'Quota / limite OpenAI atteint. Vérifiez la facturation sur platform.openai.com — en attendant, guide local.'
-          : aiRes.status === 401
-            ? 'Clé OpenAI invalide. Vérifiez OPENAI_API_KEY sur Vercel.'
-            : `Erreur OpenAI (${aiRes.status}). Guide local utilisé.`
+          ? 'Quota Gemini atteint. Réessayez plus tard — en attendant, guide local.'
+          : aiRes.status === 400 || aiRes.status === 403
+            ? 'Clé Gemini invalide ou modèle non autorisé. Vérifiez GEMINI_API_KEY / GEMINI_MODEL sur Vercel.'
+            : `Erreur Gemini (${aiRes.status}). Guide local utilisé.`
       return res.status(200).json({
         reply: '',
         source: 'local',
-        error: `openai_${aiRes.status}`,
+        error: `gemini_${aiRes.status}`,
         hint,
       })
     }
 
     const data = await aiRes.json()
-    const reply = (data?.choices?.[0]?.message?.content || '').trim()
-    return res.status(200).json({ reply, source: 'api' })
+    const parts = data?.candidates?.[0]?.content?.parts
+    const reply = Array.isArray(parts)
+      ? parts
+          .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+          .join('')
+          .trim()
+      : ''
+
+    if (!reply) {
+      return res.status(200).json({
+        reply: '',
+        source: 'local',
+        error: 'gemini_empty',
+        hint: 'Réponse Gemini vide. Guide local utilisé.',
+      })
+    }
+
+    return res.status(200).json({ reply, source: 'api', provider: 'gemini' })
   } catch (err) {
     console.error('assistant api', err)
     return res.status(200).json({

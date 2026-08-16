@@ -8,13 +8,13 @@ export type AideMessage = {
 export type AideReply = {
   reply: string
   source: 'api' | 'local'
-  /** Raison du fallback local (quota OpenAI, clé, etc.) */
+  /** Raison du fallback local (quota Gemini, clé, etc.) */
   fallbackHint?: string
 }
 
 /**
  * Demande une réponse à l’assistant.
- * Essaie /api/assistant (OpenAI si clé serveur), sinon guide local.
+ * Essaie /api/assistant (Gemini si clé serveur), sinon guide local.
  */
 export async function askAideAssistant(opts: {
   messages: AideMessage[]
@@ -51,9 +51,9 @@ export async function askAideAssistant(opts: {
         }
       }
       if (data.hint?.trim()) fallbackHint = data.hint.trim()
-      else if (data.error === 'openai_429') {
+      else if (data.error === 'gemini_429' || data.error === 'openai_429') {
         fallbackHint =
-          'Quota OpenAI atteint — réponses en guide local pour l’instant.'
+          'Quota IA cloud atteint — réponses en guide local pour l’instant.'
       }
     }
   } catch {

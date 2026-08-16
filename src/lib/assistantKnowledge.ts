@@ -1,6 +1,6 @@
 /**
  * Base de connaissances ClimaZEN — assistant d’aide terrain.
- * Utilisée en local (sans clé API) et comme contexte pour l’API OpenAI.
+ * Utilisée en local (sans clé API) et comme contexte pour l’API Gemini.
  */
 
 export type AideTopic = {
