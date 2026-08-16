@@ -70,7 +70,7 @@ import { detecteurForUser, assertDetecteurValidePourCerfa } from '../lib/detecte
 import { equipementsForCerfa, equipmentLabel } from '../lib/cerfaBatch'
 import { findEquipement } from '../lib/migrate'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
-import { otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
+import { otBaseNumero, sameOtNumero, formatOtNumero } from '../lib/ordreTravail'
 import { nomSignataireClient } from '../lib/signataireClient'
 import { stockKgAfterCerfaRevert } from '../lib/stockMouvements'
 
@@ -1309,7 +1309,7 @@ export function InterventionFormPage() {
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink"
         >
           <ArrowLeft className="h-4 w-4" />
-          {otReturnHref ? `Retour OT ${linkedOt?.numero || ''}`.trim() : 'Interventions'}
+          {otReturnHref ? `Retour ${formatOtNumero(linkedOt?.numero) || 'OT'}`.trim() : 'Interventions'}
         </button>
         {hasPdf && pdfUrl && (
           <button
@@ -1333,7 +1333,7 @@ export function InterventionFormPage() {
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {numeroIntervention ? (
             <p className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
-              OT {numeroIntervention}
+              {formatOtNumero(numeroIntervention)}
             </p>
           ) : null}
           {(status === 'brouillon' || draftHint) && (
@@ -1349,7 +1349,7 @@ export function InterventionFormPage() {
           <div className="min-w-0">
             <p className="text-sm font-extrabold">Retour signatures OT</p>
             <p className="text-xs text-white/85">
-              OT {linkedOt?.numero || ''} — signez et clôturez après le CERFA
+              {formatOtNumero(linkedOt?.numero) || 'OT'} — signez et clôturez après le CERFA
             </p>
           </div>
           <button
@@ -2211,12 +2211,19 @@ export function InterventionFormPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">N° OT (ordre de travail)</span>
-              <input
-                value={numeroIntervention}
-                onChange={(e) => setNumeroIntervention(e.target.value)}
-                className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold tracking-wide"
-                placeholder="OT20260001"
-              />
+              <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
+                <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
+                  OT
+                </span>
+                <input
+                  value={otBaseNumero(numeroIntervention) || numeroIntervention}
+                  onChange={(e) =>
+                    setNumeroIntervention(e.target.value.replace(/^OT\s*/i, '').trim())
+                  }
+                  className="h-full min-w-0 flex-1 border-0 px-3 font-semibold tracking-wide outline-none"
+                  placeholder="26081702"
+                />
+              </div>
             </label>
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">Statut</span>

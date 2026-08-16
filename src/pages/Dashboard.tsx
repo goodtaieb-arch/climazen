@@ -25,6 +25,7 @@ import {
   telHref,
   mailtoHref,
 } from '../lib/agenda'
+import { formatOtNumero } from '../lib/ordreTravail'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -524,7 +525,7 @@ export function Dashboard() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                        {o.numero}
+                        {formatOtNumero(o.numero)}
                       </span>
                       <span className="font-display text-base font-bold text-ink">
                         {o.action || 'OT en cours'}
@@ -591,7 +592,7 @@ export function Dashboard() {
                         </span>
                         {i.numeroIntervention ? (
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                            {i.numeroIntervention}
+                            {formatOtNumero(i.numeroIntervention)}
                           </span>
                         ) : null}
                         <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-900">

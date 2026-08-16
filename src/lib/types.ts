@@ -562,7 +562,11 @@ export function cerfaLabelFor(
   >,
 ) {
   if (intervention.numeroIntervention?.trim()) {
-    return intervention.numeroIntervention.trim()
+    const base = intervention.numeroIntervention
+      .trim()
+      .replace(/^OT\s*/i, '')
+      .replace(/-\d+$/, '')
+    return base ? `OT${base}` : intervention.numeroIntervention.trim()
   }
   if (intervention.cerfaPdfFileName) {
     return intervention.cerfaPdfFileName.replace(/\.pdf$/i, '')

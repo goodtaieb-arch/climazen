@@ -23,7 +23,7 @@ import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { Cerfa3dIcon } from '../components/Cerfa3dIcon'
 import { cerfaLabelFor, type CerfaDraft } from '../lib/types'
-import { isOtCloture, otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
+import { isOtCloture, otBaseNumero, sameOtNumero, formatOtNumero } from '../lib/ordreTravail'
 import { findEquipement } from '../lib/migrate'
 import {
   annuelMailtoForPack,
@@ -426,7 +426,7 @@ export function InterventionsPage() {
                     <div className="font-display text-base font-semibold">{label}</div>
                     {otNum ? (
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                        {otNum}
+                        {formatOtNumero(otNum)}
                       </span>
                     ) : null}
                   </div>

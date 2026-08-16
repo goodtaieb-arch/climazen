@@ -14,6 +14,7 @@ import {
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { OrdreTravail } from '../lib/ordreTravail'
+import { formatOtNumero } from '../lib/ordreTravail'
 import {
   clientMailtoForPack,
   collectOtDocsPack,
@@ -65,7 +66,7 @@ export function DocsPackPanel({
   const [reloadKey, setReloadKey] = useState(0)
 
   const zipName = useMemo(
-    () => packZipFileName(ot.numero || ot.id.slice(0, 8), client?.raisonSociale),
+    () => packZipFileName(formatOtNumero(ot.numero) || ot.id.slice(0, 8), client?.raisonSociale),
     [ot.numero, ot.id, client?.raisonSociale],
   )
 
@@ -201,8 +202,8 @@ export function DocsPackPanel({
     setError('')
     setHint('')
     try {
-      const title = `Docs ${ot.numero}`
-      const text = `Documents ClimaZEN — intervention ${ot.numero}`
+      const title = `Docs ${formatOtNumero(ot.numero) || 'OT'}`
+      const text = `Documents ClimaZEN — intervention ${formatOtNumero(ot.numero) || ot.numero}`
       const shareResult = await shareDocsPack({
         docs: chosen,
         title,
@@ -220,7 +221,7 @@ export function DocsPackPanel({
       await downloadDocsPack(chosen, zipName)
       const mail = clientMailtoForPack({
         email: client?.email,
-        otNumero: ot.numero || '',
+        otNumero: formatOtNumero(ot.numero) || ot.numero || '',
         clientName: client?.raisonSociale,
         docCount: chosen.length,
         zipName,
@@ -251,7 +252,7 @@ export function DocsPackPanel({
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wide text-muted">Docs groupés</p>
           <h3 className="font-display text-base font-bold text-ink">
-            Envoyer / enregistrer · {ot.numero || 'OT'}
+            Envoyer / enregistrer · {formatOtNumero(ot.numero) || 'OT'}
           </h3>
           <p className="mt-0.5 text-xs text-muted">
             Lisez le PDF, cochez, supprimez les doublons — puis ZIP / envoi.

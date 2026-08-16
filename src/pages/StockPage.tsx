@@ -13,6 +13,22 @@ import {
   type StockItem,
   type StockMouvement,
 } from '../lib/types'
+import { formatOtNumero, otBaseNumero } from '../lib/ordreTravail'
+
+/** Affiche OT26081702 pour un n° OT ; laisse ACHAT- / BON-RETOUR- inchangés. */
+function displayMouvementLabel(label?: string) {
+  if (!label) return ''
+  const t = label.trim()
+  const base = otBaseNumero(t)
+  if (/^OT/i.test(t) || /^\d{6,}$/.test(base)) {
+    // Évite de préfixer DEST- / ACHAT- si le label contient des lettres hors OT
+    const withoutOt = t.replace(/^OT\s*/i, '')
+    if (/^\d{6,}(-\d+)?$/.test(withoutOt) || /^\d{6,}$/.test(base)) {
+      return formatOtNumero(t)
+    }
+  }
+  return t
+}
 import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { LabelHint } from '../components/LabelHint'
@@ -340,11 +356,13 @@ export function StockPage() {
   const mouvementContext = (m: StockMouvement) => {
     if (!m.interventionId) return null
     const intervention = data.interventions.find((i) => i.id === m.interventionId)
-    if (!intervention) return { cerfa: m.cerfaLabel, client: '', site: '' }
+    if (!intervention) return { cerfa: displayMouvementLabel(m.cerfaLabel), client: '', site: '' }
     const client = data.clients.find((c) => c.id === intervention.clientId)
     const site = data.chantiers.find((c) => c.id === intervention.chantierId)
     return {
-      cerfa: m.cerfaLabel || intervention.cerfaPdfFileName || `CERFA`,
+      cerfa: displayMouvementLabel(
+        m.cerfaLabel || intervention.numeroIntervention || intervention.cerfaPdfFileName || 'CERFA',
+      ),
       client: client?.raisonSociale || '',
       site: site?.nom || '',
     }
@@ -1757,10 +1775,12 @@ export function StockPage() {
                                         to={`/app/interventions/${m.interventionId}`}
                                         className="font-medium text-accent hover:underline"
                                       >
-                                        {m.cerfaLabel}
+                                        {displayMouvementLabel(m.cerfaLabel)}
                                       </Link>
                                     ) : (
-                                      <span className="font-medium text-muted">{m.cerfaLabel}</span>
+                                      <span className="font-medium text-muted">
+                                        {displayMouvementLabel(m.cerfaLabel)}
+                                      </span>
                                     )}
                                   </li>
                                 )

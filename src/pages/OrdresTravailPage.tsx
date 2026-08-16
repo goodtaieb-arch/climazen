@@ -16,6 +16,8 @@ import {
   blankOrdreTravail,
   nextNumeroOt,
   isOtCloture,
+  formatOtNumero,
+  otBaseNumero,
   type TypeOt,
   type StatutOt,
 } from '../lib/ordreTravail'
@@ -122,7 +124,7 @@ export function OrdresTravailPage() {
         form.signatureClientImage || site?.signatureDetenteurImage || '',
     })
     navigate(`/app/ot?id=${encodeURIComponent(id)}`, { replace: true })
-    alert(`OT enregistré — ${form.numero}`)
+    alert(`OT enregistré — ${formatOtNumero(form.numero)}`)
   }
 
   const openNew = () => {
@@ -143,7 +145,7 @@ export function OrdresTravailPage() {
             <ArrowLeft className="h-4 w-4" /> Liste OT
           </button>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
-            {form.numero || 'Nouvel OT'}
+            {form.numero ? formatOtNumero(form.numero) : 'Nouvel OT'}
           </span>
         </div>
 
@@ -151,12 +153,19 @@ export function OrdresTravailPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">N° OT</span>
-              <input
-                value={form.numero}
-                onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3 font-bold tracking-wide"
-                placeholder="26081501"
-              />
+              <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
+                <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
+                  OT
+                </span>
+                <input
+                  value={otBaseNumero(form.numero) || form.numero}
+                  onChange={(e) =>
+                    setForm({ ...form, numero: e.target.value.replace(/^OT\s*/i, '').trim() })
+                  }
+                  className="h-full min-w-0 flex-1 border-0 px-3 font-bold tracking-wide outline-none"
+                  placeholder="26081702"
+                />
+              </div>
             </label>
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">Date</span>
@@ -439,7 +448,7 @@ export function OrdresTravailPage() {
               <Link to={`/app/ot?id=${encodeURIComponent(o.id)}`} className="block min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                    {o.numero}
+                    {formatOtNumero(o.numero)}
                   </span>
                   <span className="font-display text-base font-semibold">
                     {TYPE_OT_LABELS[o.typeOt]}
@@ -486,7 +495,7 @@ export function OrdresTravailPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm(`Supprimer ${o.numero} ?`)) deleteOrdreTravail(o.id)
+                    if (confirm(`Supprimer ${formatOtNumero(o.numero)} ?`)) deleteOrdreTravail(o.id)
                   }}
                   className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-line px-3 text-xs font-semibold text-danger"
                 >

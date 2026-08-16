@@ -13,7 +13,7 @@ import {
 } from '../lib/ficheMaintenanceClim'
 import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
-import { otBaseNumero, sameOtNumero } from '../lib/ordreTravail'
+import { otBaseNumero, sameOtNumero, formatOtNumero } from '../lib/ordreTravail'
 import { DecimalField } from '../components/DecimalField'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
@@ -601,7 +601,7 @@ export function FicheMaintenanceClimPage() {
               }}
               className="text-sm font-semibold text-accent hover:underline"
             >
-              ← Retour à l’OT {linkedOt?.numero || ''}
+              ← Retour à l’{formatOtNumero(linkedOt?.numero) || 'OT'}
             </button>
           ) : (
             <Link
@@ -629,7 +629,7 @@ export function FicheMaintenanceClimPage() {
           <div className="min-w-0">
             <p className="text-sm font-extrabold">Retour signatures OT</p>
             <p className="text-xs text-white/85">
-              OT {linkedOt?.numero || ''} — signez et clôturez après la fiche checklist
+              {formatOtNumero(linkedOt?.numero) || 'OT'} — signez et clôturez après la fiche checklist
             </p>
           </div>
           <button
@@ -718,7 +718,7 @@ export function FicheMaintenanceClimPage() {
                 >
                   <span className="font-medium">{f.date || '—'}</span>
                   <span className="text-muted">
-                    {f.numero ? `N° ${f.numero}` : f.resultat || 'brouillon'}
+                    {f.numero ? formatOtNumero(f.numero) : f.resultat || 'brouillon'}
                   </span>
                 </Link>
               </li>
@@ -731,12 +731,19 @@ export function FicheMaintenanceClimPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">N° OT</span>
-            <input
-              value={form.numero}
-              onChange={(e) => setForm({ ...form, numero: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line px-3"
-              placeholder="26081501"
-            />
+            <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
+              <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
+                OT
+              </span>
+              <input
+                value={otBaseNumero(form.numero) || form.numero}
+                onChange={(e) =>
+                  setForm({ ...form, numero: e.target.value.replace(/^OT\s*/i, '').trim() })
+                }
+                className="h-full min-w-0 flex-1 border-0 px-3 outline-none"
+                placeholder="26081702"
+              />
+            </div>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">Date</span>

@@ -97,13 +97,23 @@ export function naturesCerfaPourTypeOt(typeOt: TypeOt): string[] {
 }
 
 /**
- * N° OT « de base » : enlève un suffixe historique -1, -2…
+ * N° OT « de base » : enlève préfixe OT et suffixe historique -1, -2…
  * (anciens CERFA multi-équipements). Le n° OT reste unique par intervention.
  */
 export function otBaseNumero(raw?: string | null): string {
-  const v = (raw || '').trim()
+  let v = (raw || '').trim()
   if (!v) return ''
+  v = v.replace(/^OT\s*/i, '')
   return v.replace(/-\d+$/, '')
+}
+
+/**
+ * Affichage utilisateur : OT26081702 (toujours avec le préfixe OT).
+ * Accepte un n° brut ou déjà préfixé.
+ */
+export function formatOtNumero(raw?: string | null): string {
+  const base = otBaseNumero(raw)
+  return base ? `OT${base}` : ''
 }
 
 /** True si deux n° désignent la même intervention OT (avec ou sans suffixe -N). */
@@ -145,7 +155,8 @@ function maxSeqDay(dayKey: string, values: (string | undefined)[]): number {
 
 /**
  * Prochain n° OT unique.
- * Format : aammjjxx — ex. 26081501 (année, mois, jour, séquence du jour).
+ * Format stocké : aammjjxx — ex. 26081501 (année, mois, jour, séquence du jour).
+ * Affichage : OT26081501 via formatOtNumero().
  * Un seul n° par intervention, même multi-équipements / multi-jours.
  */
 export function nextNumeroOt(

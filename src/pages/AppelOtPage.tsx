@@ -36,6 +36,8 @@ import {
   naturesCerfaPourTypeOt,
   inferParcoursStep,
   isOtCloture,
+  formatOtNumero,
+  otBaseNumero,
   type TypeOt,
   type ParcoursAppelStepId,
   type OrdreTravail,
@@ -274,7 +276,7 @@ export function AppelOtPage() {
       statut: 'en_cours',
       parcoursStep: 'client',
     })
-    setMsg(`OT ${otForm.numero} créé — complètez le client.`)
+    setMsg(`${formatOtNumero(otForm.numero)} créé — complètez le client.`)
     setOtId(id)
     setStep('client')
   }
@@ -647,8 +649,8 @@ export function AppelOtPage() {
     }
     setMsg(
       linked.length > 0
-        ? `OT ${otForm.numero} clôturé — ${linked.length} CERFA classé${linked.length > 1 ? 's' : ''} signé${linked.length > 1 ? 's' : ''}.`
-        : `OT ${otForm.numero} clôturé.`,
+        ? `${formatOtNumero(otForm.numero)} clôturé — ${linked.length} CERFA classé${linked.length > 1 ? 's' : ''} signé${linked.length > 1 ? 's' : ''}.`
+        : `${formatOtNumero(otForm.numero)} clôturé.`,
     )
     navigate(`/app/ot?id=${encodeURIComponent(id)}`)
   }
@@ -686,7 +688,7 @@ export function AppelOtPage() {
             Client appelle
           </h1>
           <p className="truncate text-xs text-muted">
-            {otForm.numero || 'Nouvel OT'} · date {otForm.date || '—'}
+            {otForm.numero ? formatOtNumero(otForm.numero) : 'Nouvel OT'} · date {otForm.date || '—'}
           </p>
         </div>
       </div>
@@ -749,11 +751,22 @@ export function AppelOtPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">N° OT</span>
-              <input
-                value={otForm.numero}
-                onChange={(e) => setOtForm({ ...otForm, numero: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3 font-bold tracking-wide"
-              />
+              <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
+                <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
+                  OT
+                </span>
+                <input
+                  value={otBaseNumero(otForm.numero) || otForm.numero}
+                  onChange={(e) =>
+                    setOtForm({
+                      ...otForm,
+                      numero: e.target.value.replace(/^OT\s*/i, '').trim(),
+                    })
+                  }
+                  className="h-full min-w-0 flex-1 border-0 px-3 font-bold tracking-wide outline-none"
+                  placeholder="26081702"
+                />
+              </div>
             </label>
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">Date (auto, modifiable)</span>
@@ -1340,7 +1353,7 @@ export function AppelOtPage() {
         <section className="space-y-4 rounded-2xl border border-line bg-white p-4">
           <div className="rounded-xl bg-mist/60 px-3 py-2 text-sm">
             <p className="font-semibold text-ink">
-              {TYPE_OT_LABELS[otForm.typeOt]} · {otForm.numero}
+              {TYPE_OT_LABELS[otForm.typeOt]} · {formatOtNumero(otForm.numero)}
             </p>
             <p className="text-muted">{otForm.action}</p>
             <p className="mt-1 text-xs text-muted">
@@ -1413,7 +1426,7 @@ export function AppelOtPage() {
                   <span className="block text-sm font-medium text-muted">
                     {fluideCount > 1
                       ? `${fluideCount} équipements → 1 CERFA chacun`
-                      : `Document utile — n° ${otForm.numero}, date reprise`}
+                      : `Document utile — ${formatOtNumero(otForm.numero)}, date reprise`}
                   </span>
                 </span>
               </button>
