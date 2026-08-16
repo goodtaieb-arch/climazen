@@ -24,7 +24,7 @@ registerSW({
     }
     window.addEventListener('online', check)
     window.addEventListener('focus', check)
-    setInterval(check, 60_000)
+    setInterval(check, 15_000)
 
     // Si un SW waiting existe déjà (onglet ouvert depuis longtemps), active-le
     if (registration.waiting) {

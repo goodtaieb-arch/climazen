@@ -25,7 +25,8 @@ import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
 import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
-import { APP_BUILD, APP_VERSION } from '../lib/buildStamp'
+import { VersionBadge, VersionUpdateBar, forceLatestAppVersion } from './AppVersion'
+import { APP_VERSION } from '../lib/buildStamp'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -182,21 +183,7 @@ export function AppLayout() {
   }
 
   /** Force le rechargement de la dernière version (contre cache PWA). */
-  const forceLatestVersion = async () => {
-    try {
-      if ('caches' in window) {
-        const keys = await caches.keys()
-        await Promise.all(keys.map((k) => caches.delete(k)))
-      }
-      const regs = (await navigator.serviceWorker?.getRegistrations?.()) || []
-      await Promise.all(regs.map((r) => r.unregister()))
-    } catch {
-      /* ignore */
-    }
-    const url = new URL(window.location.href)
-    url.searchParams.set('v', APP_VERSION)
-    window.location.replace(url.toString())
-  }
+  const forceLatestVersion = () => void forceLatestAppVersion()
 
   const roleLabel = isOwner ? 'Administrateur' : 'Employé'
   const orgLabel = organization?.name || data.operateur.raisonSociale || 'Société'
@@ -333,15 +320,10 @@ export function AppLayout() {
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-              <span
-                className="inline-flex items-center rounded-full bg-ink px-2.5 py-1 text-[11px] font-extrabold tracking-wide text-white"
-                title={`Build technique : ${APP_BUILD}`}
-              >
-                {APP_VERSION}
-              </span>
+              <VersionBadge />
               <button
                 type="button"
-                onClick={() => void forceLatestVersion()}
+                onClick={forceLatestVersion}
                 className="touch-target inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-100 px-2.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-950 hover:bg-amber-200 sm:px-3"
                 aria-label="Charger la dernière version"
                 title="Efface le cache et recharge la dernière version"
@@ -396,18 +378,8 @@ export function AppLayout() {
               </button>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-2 border-t border-line/70 bg-[#0f766e] px-3 py-1.5 text-white sm:px-6">
-            <p className="text-[11px] font-semibold sm:text-xs">
-              Version <span className="font-extrabold">{APP_VERSION}</span>
-              <span className="opacity-80"> — si ce n’est pas {APP_VERSION}, appuyez sur MAJ</span>
-            </p>
-            <button
-              type="button"
-              onClick={() => void forceLatestVersion()}
-              className="shrink-0 rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/30"
-            >
-              Actualiser
-            </button>
+          <div className="border-t border-line/70 bg-[#0f766e] px-3 py-1.5 sm:px-6">
+            <VersionUpdateBar dark />
           </div>
         </div>
         <div className="overflow-x-hidden p-4 sm:p-6 lg:p-8">

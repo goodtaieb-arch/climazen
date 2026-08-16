@@ -2,7 +2,9 @@ import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
+import { VersionBadge, VersionUpdateBar } from '../components/AppVersion'
 import { useAuth } from '../lib/AuthContext'
+import { APP_VERSION } from '../lib/buildStamp'
 
 const CLOUD_HOST = (() => {
   try {
@@ -51,8 +53,12 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10 text-white">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-8 flex flex-col items-center gap-3">
           <BrandLogo onDark size="md" />
+          <VersionBadge />
+        </div>
+        <div className="mb-4">
+          <VersionUpdateBar dark />
         </div>
         <form
           onSubmit={onSubmit}
@@ -63,6 +69,7 @@ export function LoginPage() {
           <p className="mt-1 text-sm text-white/60">
             Compte <strong>cloud</strong> — tape le MDP à la main (évite l’auto-remplissage).
           </p>
+          <p className="mt-2 text-[11px] font-bold text-accent">Version attendue : {APP_VERSION}</p>
           {configured && CLOUD_HOST ? (
             <p className="mt-2 text-[11px] text-white/35">Cloud : {CLOUD_HOST}</p>
           ) : null}
