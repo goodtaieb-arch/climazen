@@ -46,9 +46,27 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /version\.json$/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp}'],
+        globIgnores: ['**/version.json'],
         runtimeCaching: [
+          {
+            urlPattern: /\/version\.json$/i,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-pages',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

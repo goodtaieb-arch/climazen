@@ -15,6 +15,11 @@ export async function forceLatestAppVersion() {
   const url = new URL(window.location.href)
   url.searchParams.set('v', APP_VERSION)
   url.searchParams.set('_', String(Date.now()))
+  try {
+    localStorage.setItem('climazen_boot_v', APP_VERSION)
+  } catch {
+    /* ignore */
+  }
   window.location.replace(url.toString())
 }
 
