@@ -26,6 +26,7 @@ import { loadCompanyLogoLocal } from '../lib/companyLogo'
 import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
 import { VersionBadge, VersionUpdateBar, forceLatestAppVersion } from './AppVersion'
+import { APP_VERSION } from '../lib/buildStamp'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -387,12 +388,24 @@ export function AppLayout() {
             <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-slate">
               <p className="font-semibold">Mode hors ligne</p>
               <p className="mt-0.5 text-muted">
-                Vous pouvez travailler normalement. Les saisies sont enregistrées sur cet appareil
-                et seront envoyées dès que le réseau revient.
+                Vous pouvez travailler : les saisies restent sur cet appareil. En revanche,{' '}
+                <strong className="text-ink">les mises à jour de l’app ne se chargent pas</strong>{' '}
+                sans réseau — d’où une interface parfois « ancienne ».
+              </p>
+              <p className="mt-2 text-xs font-semibold text-amber-950">
+                Dès que le Wi‑Fi / 4G revient : appuyez sur <span className="rounded bg-amber-200 px-1">MAJ</span> en
+                haut pour charger la version {APP_VERSION}.
               </p>
               {lastSyncLabel && (
                 <p className="mt-1 text-[11px] text-muted">Dernière sync réussie : {lastSyncLabel}</p>
               )}
+              <button
+                type="button"
+                onClick={forceLatestVersion}
+                className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-amber-500 px-4 text-xs font-extrabold uppercase tracking-wide text-amber-950"
+              >
+                Réessayer MAJ / réseau
+              </button>
             </div>
           )}
           {!offline && pendingSync && (
