@@ -20,6 +20,7 @@ export function AideAssistant() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [cloudReady, setCloudReady] = useState(false)
   const [source, setSource] = useState<'api' | 'local' | null>(null)
   const [lines, setLines] = useState<ChatLine[]>(() => [
     {
@@ -31,6 +32,21 @@ export function AideAssistant() {
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
   const suggestions = suggestQuestionsForPath(location.pathname)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/assistant', { method: 'GET' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { cloud?: boolean } | null) => {
+        if (!cancelled && data?.cloud) setCloudReady(true)
+      })
+      .catch(() => {
+        /* guide local */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -90,8 +106,8 @@ export function AideAssistant() {
           className="fixed bottom-[4.75rem] right-4 z-30 inline-flex items-center gap-2 rounded-full bg-[#0f766e] px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-teal-800 md:bottom-6"
           aria-label="Ouvrir l’assistant ClimaZEN"
         >
-          <Bot className="h-5 w-5" />
-          Aide
+          {cloudReady ? <Sparkles className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+          {cloudReady ? 'Aide IA' : 'Aide'}
         </button>
       )}
 
@@ -108,7 +124,8 @@ export function AideAssistant() {
                 Assistant ClimaZEN
               </div>
               <p className="truncate text-[11px] text-white/80">
-                {source === 'api' ? 'IA cloud' : 'Guide intégré'} · page {location.pathname}
+                {source === 'api' || cloudReady ? 'IA cloud' : 'Guide intégré'} · page{' '}
+                {location.pathname}
               </p>
             </div>
             <button

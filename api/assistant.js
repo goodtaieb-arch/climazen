@@ -6,12 +6,19 @@
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end()
   }
+
+  // Health : savoir si l’IA cloud est configurée (sans appeler OpenAI)
+  if (req.method === 'GET') {
+    const key = process.env.OPENAI_API_KEY || process.env.CLIMAZEN_OPENAI_KEY
+    return res.status(200).json({ cloud: Boolean(key) })
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
