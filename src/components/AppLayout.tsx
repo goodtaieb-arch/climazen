@@ -26,7 +26,6 @@ import { loadCompanyLogoLocal } from '../lib/companyLogo'
 import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
 import { VersionBadge, VersionUpdateBar, forceLatestAppVersion } from './AppVersion'
-import { APP_VERSION } from '../lib/buildStamp'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
