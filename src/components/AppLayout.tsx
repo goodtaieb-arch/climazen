@@ -25,6 +25,7 @@ import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
 import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
+import { APP_BUILD } from '../lib/buildStamp'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -180,6 +181,23 @@ export function AppLayout() {
     void logout().then(() => navigate('/login'))
   }
 
+  /** Force le rechargement de la dernière version (contre cache PWA). */
+  const forceLatestVersion = async () => {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k)))
+      }
+      const regs = (await navigator.serviceWorker?.getRegistrations?.()) || []
+      await Promise.all(regs.map((r) => r.unregister()))
+    } catch {
+      /* ignore */
+    }
+    const url = new URL(window.location.href)
+    url.searchParams.set('v', APP_BUILD)
+    window.location.replace(url.toString())
+  }
+
   const roleLabel = isOwner ? 'Administrateur' : 'Employé'
   const orgLabel = organization?.name || data.operateur.raisonSociale || 'Société'
   const companyLogo =
@@ -307,14 +325,26 @@ export function AppLayout() {
         >
           <div className="min-w-0 md:hidden">
             <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
+            <p className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-wide text-muted">
+              Build {APP_BUILD.replace(/^2026-08-16-/, '')}
+            </p>
           </div>
           <div className="hidden min-w-0 md:block">
             <div className="truncate text-sm font-medium text-ink">{orgLabel}</div>
             <div className="truncate text-xs text-muted">
-              {user?.fullName || user?.email} · {roleLabel} · {user?.email || user?.username}
+              {user?.fullName || user?.email} · {roleLabel} · Build {APP_BUILD}
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void forceLatestVersion()}
+              className="touch-target inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-bold uppercase tracking-wide text-amber-900 hover:bg-amber-100 sm:px-3"
+              aria-label="Charger la dernière version"
+              title="Efface le cache et recharge la dernière version"
+            >
+              MAJ
+            </button>
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('climazen:toggle-voice'))}
