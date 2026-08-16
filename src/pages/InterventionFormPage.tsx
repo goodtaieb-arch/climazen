@@ -1332,6 +1332,32 @@ export function InterventionFormPage() {
         </div>
       </div>
 
+      {otReturnHref && (
+        <div className="sticky top-[6.5rem] z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-[#0f766e] bg-[#0f766e] px-4 py-3 text-white shadow-lg md:top-[5.5rem]">
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold">Retour signatures OT</p>
+            <p className="text-xs text-white/85">
+              OT {linkedOt?.numero || ''} — signez et clôturez après le CERFA
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                saveDraftQuiet({ navigateToDraft: false })
+              } catch {
+                /* ignore */
+              }
+              navigate(otReturnHref)
+            }}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-white px-4 text-sm font-extrabold text-[#0f766e]"
+          >
+            <Check className="h-4 w-4" />
+            Retour à l’OT — signer
+          </button>
+        </div>
+      )}
+
       {savedMsg && (
         <div className="space-y-3 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3 text-sm text-slate">
           <div className="flex items-start gap-2">

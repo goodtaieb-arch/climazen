@@ -1435,10 +1435,10 @@ export function StockPage() {
                     <div className="font-display text-xl font-bold text-ink">{group.fluide}</div>
                     {isFluideInflammableA2LOrA3(group.fluide) && (
                       <span
-                        className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                        className="inline-flex items-center gap-1 rounded-md border-2 border-amber-700 bg-amber-400 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-amber-950 shadow-sm"
                         title="Fluide inflammable (A2L/A3)"
                       >
-                        <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        <AlertTriangle className="h-4 w-4" strokeWidth={2.75} />
                         {findFluide(group.fluide)?.classeSecurite || 'A2L'}
                       </span>
                     )}
@@ -1511,11 +1511,11 @@ export function StockPage() {
                               )}
                               {(s.conformeA2LA3 || isFluideInflammableA2LOrA3(s.fluide)) && (
                                 <span
-                                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-md border-2 border-amber-700 bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-950"
                                   title="Bouteille destinée aux fluides inflammables (A2L/A3)"
                                   aria-label="Avertissement : fluide inflammable A2L/A3"
                                 >
-                                  <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                  <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.75} />
                                   {findFluide(s.fluide)?.classeSecurite || 'A2L'}
                                 </span>
                               )}

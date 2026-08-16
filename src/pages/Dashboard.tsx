@@ -16,7 +16,7 @@ import { useStore } from '../lib/store'
 import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
-import { APP_BUILD } from '../lib/buildStamp'
+import { APP_BUILD, APP_VERSION } from '../lib/buildStamp'
 import { ICON3D } from '../lib/icons3d'
 import {
   agendaSortDate,
@@ -200,8 +200,9 @@ export function Dashboard() {
             <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
               Suivez le guide 3D pour gérer vos interventions rapidement.
             </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
-              Build {APP_BUILD}
+            <p className="mt-1 text-[11px] font-extrabold tracking-wide text-[#0f766e]">
+              Version {APP_VERSION}
+              <span className="ml-2 font-semibold text-muted">({APP_BUILD})</span>
             </p>
           </div>
           <label className="relative block w-full md:w-80">

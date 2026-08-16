@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
-import { APP_BUILD } from './lib/buildStamp'
+import { APP_BUILD, APP_VERSION } from './lib/buildStamp'
 
 // Visible dans la console / DevTools pour confirmer la version chargée
-console.info(`[ClimaZEN] build ${APP_BUILD}`)
+console.info(`[ClimaZEN] ${APP_VERSION} (${APP_BUILD})`)
+document.documentElement.dataset.climazenVersion = APP_VERSION
 
 registerSW({
   immediate: true,

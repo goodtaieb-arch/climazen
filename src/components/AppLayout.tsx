@@ -25,7 +25,7 @@ import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
 import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
-import { APP_BUILD } from '../lib/buildStamp'
+import { APP_BUILD, APP_VERSION } from '../lib/buildStamp'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -194,7 +194,7 @@ export function AppLayout() {
       /* ignore */
     }
     const url = new URL(window.location.href)
-    url.searchParams.set('v', APP_BUILD)
+    url.searchParams.set('v', APP_VERSION)
     window.location.replace(url.toString())
   }
 
@@ -316,79 +316,97 @@ export function AppLayout() {
 
       <main className="min-w-0 overflow-x-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <div
-          className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2 sm:px-6 lg:px-8"
+          className="sticky top-0 z-20 border-b bg-white"
           style={{
-            backgroundColor: '#ffffff',
             backgroundImage: `linear-gradient(${pageTone.card}, ${pageTone.card})`,
             borderColor: pageTone.border,
           }}
         >
-          <div className="min-w-0 md:hidden">
-            <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
-            <p className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-wide text-muted">
-              Build {APP_BUILD.replace(/^2026-08-16-/, '')}
-            </p>
-          </div>
-          <div className="hidden min-w-0 md:block">
-            <div className="truncate text-sm font-medium text-ink">{orgLabel}</div>
-            <div className="truncate text-xs text-muted">
-              {user?.fullName || user?.email} · {roleLabel} · Build {APP_BUILD}
+          <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-6 lg:px-8">
+            <div className="min-w-0 flex-1 md:hidden">
+              <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
+            </div>
+            <div className="hidden min-w-0 flex-1 md:block">
+              <div className="truncate text-sm font-semibold text-ink">{orgLabel}</div>
+              <div className="truncate text-xs text-muted">
+                {user?.fullName || user?.email} · {roleLabel}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              <span
+                className="inline-flex items-center rounded-full bg-ink px-2.5 py-1 text-[11px] font-extrabold tracking-wide text-white"
+                title={`Build technique : ${APP_BUILD}`}
+              >
+                {APP_VERSION}
+              </span>
+              <button
+                type="button"
+                onClick={() => void forceLatestVersion()}
+                className="touch-target inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-100 px-2.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-950 hover:bg-amber-200 sm:px-3"
+                aria-label="Charger la dernière version"
+                title="Efface le cache et recharge la dernière version"
+              >
+                MAJ
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('climazen:toggle-voice'))}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  window.dispatchEvent(new CustomEvent('climazen:voice-help'))
+                }}
+                className={
+                  voiceListening
+                    ? 'touch-target inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 text-sm font-bold text-white sm:px-3'
+                    : 'touch-target inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 text-sm font-bold text-[#0f766e] hover:bg-mist sm:px-3'
+                }
+                aria-label={voiceListening ? 'Arrêter la commande vocale' : 'Commande vocale'}
+                aria-pressed={voiceListening}
+                title="Commande vocale"
+              >
+                <Mic className="h-4 w-4" />
+                <span className="hidden lg:inline">Micro</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('climazen:open-aide'))}
+                className="touch-target inline-flex items-center gap-1.5 rounded-full bg-[#0f766e] px-2.5 text-sm font-bold text-white hover:bg-teal-800 sm:px-3"
+                aria-label="Aide IA"
+                title="Aide IA"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Aide IA</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMoreOpen(true)}
+                className="touch-target inline-flex items-center justify-center rounded-full border border-line bg-white px-3 text-sm font-semibold text-ink hover:bg-mist md:hidden"
+                aria-label="Menu Plus"
+                title="Clients & réglages"
+              >
+                <Ellipsis className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={doLogout}
+                className="touch-target inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white px-3 text-sm font-semibold text-ink hover:bg-mist sm:px-4"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Se déconnecter</span>
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2 border-t border-line/70 bg-[#0f766e] px-3 py-1.5 text-white sm:px-6">
+            <p className="text-[11px] font-semibold sm:text-xs">
+              Version <span className="font-extrabold">{APP_VERSION}</span>
+              <span className="opacity-80"> — si ce n’est pas {APP_VERSION}, appuyez sur MAJ</span>
+            </p>
             <button
               type="button"
               onClick={() => void forceLatestVersion()}
-              className="touch-target inline-flex items-center justify-center rounded-full border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-bold uppercase tracking-wide text-amber-900 hover:bg-amber-100 sm:px-3"
-              aria-label="Charger la dernière version"
-              title="Efface le cache et recharge la dernière version"
+              className="shrink-0 rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide hover:bg-white/30"
             >
-              MAJ
-            </button>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('climazen:toggle-voice'))}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                window.dispatchEvent(new CustomEvent('climazen:voice-help'))
-              }}
-              className={
-                voiceListening
-                  ? 'touch-target inline-flex items-center justify-center rounded-full bg-rose-600 px-2.5 text-white sm:px-3'
-                  : 'touch-target inline-flex items-center justify-center rounded-full border border-line bg-white/80 px-2.5 text-[#0f766e] hover:bg-white sm:px-3'
-              }
-              aria-label={voiceListening ? 'Arrêter la commande vocale' : 'Commande vocale'}
-              aria-pressed={voiceListening}
-              title="Commande vocale (appui long : liste des commandes)"
-            >
-              <Mic className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('climazen:open-aide'))}
-              className="touch-target inline-flex items-center gap-1.5 rounded-full border border-[#0f766e]/30 bg-[#0f766e]/10 px-2.5 text-sm font-semibold text-[#0f766e] hover:bg-[#0f766e]/15 sm:px-3"
-              aria-label="Aide IA"
-              title="Aide IA"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span className="hidden sm:inline">Aide</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMoreOpen(true)}
-              className="touch-target inline-flex items-center justify-center rounded-full border border-line bg-white/80 px-3 text-sm font-semibold text-ink hover:bg-white md:hidden"
-              aria-label="Menu Plus"
-              title="Clients & réglages"
-            >
-              <Ellipsis className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={doLogout}
-              className="touch-target inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-white/80 px-3 text-sm font-semibold text-ink hover:bg-white sm:px-4"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Se déconnecter</span>
+              Actualiser
             </button>
           </div>
         </div>
