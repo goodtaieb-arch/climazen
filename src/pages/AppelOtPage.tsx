@@ -117,6 +117,8 @@ export function AppelOtPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const otIdParam = params.get('ot') || params.get('id') || ''
+  const clientFromQuery = params.get('client') || ''
+  const chantierFromQuery = params.get('chantier') || ''
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === otIdParam) || null,
@@ -124,15 +126,21 @@ export function AppelOtPage() {
   )
 
   const [otId, setOtId] = useState(existing?.id || '')
-  const [step, setStep] = useState<ParcoursAppelStepId>(() =>
-    existing ? inferParcoursStep(existing) : 'ot',
-  )
+  const [step, setStep] = useState<ParcoursAppelStepId>(() => {
+    if (existing) return inferParcoursStep(existing)
+    if (clientFromQuery && chantierFromQuery) return 'equipement'
+    if (clientFromQuery) return 'site'
+    return 'ot'
+  })
 
   const [otForm, setOtForm] = useState(() => {
     if (existing) {
       const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = existing
       return rest
     }
+    const site = chantierFromQuery
+      ? data.chantiers.find((c) => c.id === chantierFromQuery)
+      : undefined
     return {
       ...blankOrdreTravail(),
       numero: nextNumeroOt(data),
@@ -141,6 +149,8 @@ export function AppelOtPage() {
       signatureTechnicienImage: user?.signatureImage || '',
       typeOt: 'depanage' as TypeOt,
       parcoursStep: 'ot' as ParcoursAppelStepId,
+      clientId: clientFromQuery || site?.clientId || undefined,
+      chantierId: chantierFromQuery || undefined,
     }
   })
 

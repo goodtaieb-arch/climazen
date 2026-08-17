@@ -14,7 +14,7 @@ export type AgendaEventType =
 export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   maintenance: 'Maintenance',
   controle_etancheite: 'Contrôle étanchéité',
-  rdv: 'RDV',
+  rdv: 'Intervention / RDV',
   rappel_appel: 'Rappel appel client',
   autre: 'Autre',
 }
@@ -39,6 +39,8 @@ export interface AgendaEvent {
    * Si absent = même jour que `date`.
    */
   dateRappel?: string
+  /** Heure de début prévue (HH:mm) — programme jour / semaine */
+  heure?: string
   type: AgendaEventType
   clientId?: string
   chantierId?: string
@@ -177,6 +179,7 @@ export function blankAgendaEvent(): Omit<AgendaEvent, 'id' | 'createdAt' | 'upda
     title: '',
     date: todayIso(),
     dateRappel: todayIso(),
+    heure: '',
     type: 'rdv',
     statut: 'a_faire',
     notes: '',
@@ -214,4 +217,55 @@ export function mailtoHref(email?: string, subject?: string, body?: string): str
   if (body) q.set('body', body)
   const qs = q.toString()
   return qs ? `mailto:${e}?${qs}` : `mailto:${e}`
+}
+
+export function todayIsoLocal(): string {
+  return todayIso()
+}
+
+export function addDaysToIso(iso: string, days: number): string {
+  return addDaysIso(iso, days)
+}
+
+/** Lundi de la semaine (ISO, Europe) pour une date aaaa-mm-jj. */
+export function startOfWeekMonday(iso: string): string {
+  const d = new Date(iso.slice(0, 10) + 'T12:00:00')
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
+  const day = d.getDay() // 0 dim … 6 sam
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+export function weekDatesFrom(iso: string): string[] {
+  const start = startOfWeekMonday(iso)
+  return Array.from({ length: 7 }, (_, i) => addDaysIso(start, i))
+}
+
+const JOUR_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const
+
+export function formatJourCourt(iso: string): string {
+  const d = new Date(iso.slice(0, 10) + 'T12:00:00')
+  if (Number.isNaN(d.getTime())) return iso
+  const wd = (d.getDay() + 6) % 7 // lun=0
+  const jj = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${JOUR_LABELS[wd]} ${jj}/${mm}`
+}
+
+export function formatHeure(h?: string): string {
+  const v = (h || '').trim()
+  if (!v) return ''
+  return v.slice(0, 5)
+}
+
+/** Tri programme du jour : heure puis titre. */
+export function compareProgrammeHeure(
+  a: { heure?: string; title?: string },
+  b: { heure?: string; title?: string },
+): number {
+  const ha = formatHeure(a.heure) || '99:99'
+  const hb = formatHeure(b.heure) || '99:99'
+  if (ha !== hb) return ha.localeCompare(hb)
+  return (a.title || '').localeCompare(b.title || '')
 }
