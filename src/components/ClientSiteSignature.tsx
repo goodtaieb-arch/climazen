@@ -56,6 +56,10 @@ export function ClientSiteSignature({
   const [remoteBusy, setRemoteBusy] = useState(false)
   const [openLink, setOpenLink] = useState<string | null>(null)
   const [pendingRemote, setPendingRemote] = useState<SignatureRequestRow[]>([])
+  /** Mode client absent — signature à distance */
+  const [clientAbsent, setClientAbsent] = useState(false)
+  /** Accord explicite du client avant envoi e-mail / SMS */
+  const [clientAgrees, setClientAgrees] = useState(false)
   const importedIds = useRef(new Set<string>())
 
   // Préremplir depuis le site si le doc n’a pas encore de signature
@@ -151,14 +155,18 @@ export function ClientSiteSignature({
     onQualiteChange(nextQual)
   }
 
-  const sendRemoteLink = async () => {
+  const createRemoteLink = async (): Promise<string | null> => {
     if (!siteId) {
       alert('Site manquant — choisissez d’abord le site.')
-      return
+      return null
     }
     if (!user?.organizationId) {
       alert('Connexion cloud requise pour envoyer un lien.')
-      return
+      return null
+    }
+    if (!clientAgrees) {
+      alert('Demandez d’abord l’accord du client (case à cocher).')
+      return null
     }
     setRemoteBusy(true)
     setRemoteMsg('')
@@ -175,39 +183,55 @@ export function ClientSiteSignature({
         createdByName: user.fullName || user.email || user.username,
       })
       setOpenLink(url)
-      setRemoteMsg('Lien créé — envoyez-le au client (SMS / e-mail / partage).')
-      setPendingRemote(await listOpenSignatureRequests({
-        organizationId: user.organizationId,
-        siteId,
-      }))
-
-      const mail = mailtoSignatureLink({
-        email: client?.email,
-        url,
-        siteNom: site?.nom,
-        techName: user.fullName || user.email,
-      })
-      if (mail) {
-        window.location.href = mail
-      } else if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'Signature ClimaZEN',
-            text: smsSignatureBody({ url, siteNom: site?.nom }),
-            url,
-          })
-        } catch {
-          /* annulé */
-        }
-      } else {
-        await navigator.clipboard.writeText(url)
-        setRemoteMsg('Lien copié — collez-le dans un SMS ou WhatsApp au client.')
-      }
+      setPendingRemote(
+        await listOpenSignatureRequests({
+          organizationId: user.organizationId,
+          siteId,
+        }),
+      )
+      setRemoteMsg('Lien prêt — envoyez-le seulement au client qui a donné son accord.')
+      return url
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Impossible de créer le lien.')
+      return null
     } finally {
       setRemoteBusy(false)
     }
+  }
+
+  const sendByEmail = async () => {
+    if (!client?.email?.trim()) {
+      alert('Pas d’e-mail sur la fiche client — ajoutez-le ou utilisez SMS / WhatsApp.')
+      return
+    }
+    const url = openLink || (await createRemoteLink())
+    if (!url) return
+    const mail = mailtoSignatureLink({
+      email: client.email,
+      url,
+      siteNom: site?.nom,
+      techName: user?.fullName || user?.email,
+    })
+    if (mail) window.location.href = mail
+  }
+
+  const sendByShareOrSms = async () => {
+    const url = openLink || (await createRemoteLink())
+    if (!url) return
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Signature ClimaZEN',
+          text: smsSignatureBody({ url, siteNom: site?.nom }),
+          url,
+        })
+        return
+      } catch {
+        /* annulé ou non supporté → copie */
+      }
+    }
+    await navigator.clipboard.writeText(url)
+    setRemoteMsg('Lien copié — collez-le dans un SMS ou WhatsApp au client (avec son accord).')
   }
 
   return (
@@ -238,56 +262,107 @@ export function ClientSiteSignature({
       ) : null}
 
       {!siteHasSig && siteId ? (
-        <div className="space-y-2 rounded-xl border border-teal-200 bg-teal-50/80 p-3">
-          <p className="text-xs font-semibold text-teal-950">Client absent ?</p>
-          <p className="text-[11px] text-teal-900/90">
-            Envoyez un lien : le client signe sur son téléphone. La signature revient ici
-            automatiquement.
-          </p>
-          <button
-            type="button"
-            disabled={remoteBusy || !isSupabaseConfigured()}
-            onClick={() => void sendRemoteLink()}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-3 text-xs font-extrabold text-white disabled:opacity-60"
-          >
-            <Link2 className="h-4 w-4" />
-            {remoteBusy ? 'Création du lien…' : 'Signature à distance — envoyer un lien'}
-          </button>
-          {openLink ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(openLink)
-                  setRemoteMsg('Lien copié.')
-                }}
-                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl border border-teal-300 bg-white px-2 text-[11px] font-bold text-teal-900"
-              >
-                <Share2 className="h-3.5 w-3.5" /> Copier le lien
-              </button>
-              {client?.email ? (
-                <a
-                  href={
-                    mailtoSignatureLink({
-                      email: client.email,
-                      url: openLink,
-                      siteNom: site?.nom,
-                      techName: user?.fullName || user?.email,
-                    }) || '#'
+        <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/80 p-3">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={clientAbsent}
+              onChange={(e) => {
+                setClientAbsent(e.target.checked)
+                if (!e.target.checked) {
+                  setClientAgrees(false)
+                  setRemoteMsg('')
+                }
+              }}
+              className="mt-1 h-4 w-4 accent-emerald-700"
+            />
+            <span>
+              <span className="block text-sm font-extrabold text-teal-950">Client absent</span>
+              <span className="block text-[11px] text-teal-900/90">
+                Pas sur place — signature à distance sur son téléphone.
+              </span>
+            </span>
+          </label>
+
+          {clientAbsent ? (
+            <div className="space-y-2 border-t border-teal-200/80 pt-2">
+              <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-teal-300 bg-white px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={clientAgrees}
+                  onChange={(e) => setClientAgrees(e.target.checked)}
+                  className="mt-1 h-4 w-4 accent-emerald-700"
+                />
+                <span className="text-xs font-semibold text-ink">
+                  Le client est d’accord pour signer à distance (accord oral / SMS obtenu).
+                  <span className="mt-0.5 block font-normal text-muted">
+                    Sans cet accord, n’envoyez pas de lien par e-mail.
+                  </span>
+                </span>
+              </label>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={remoteBusy || !clientAgrees || !isSupabaseConfigured()}
+                  onClick={() => void sendByEmail()}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-3 text-xs font-extrabold text-white disabled:opacity-50"
+                  title={
+                    !clientAgrees
+                      ? 'Cochez d’abord l’accord du client'
+                      : !client?.email
+                        ? 'Ajoutez un e-mail sur la fiche client'
+                        : undefined
                   }
-                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl border border-teal-300 bg-white px-2 text-[11px] font-bold text-teal-900"
                 >
-                  <Mail className="h-3.5 w-3.5" /> E-mail
-                </a>
+                  <Mail className="h-4 w-4" />
+                  {remoteBusy ? 'Préparation…' : 'Envoyer le lien par e-mail'}
+                </button>
+                <button
+                  type="button"
+                  disabled={remoteBusy || !clientAgrees || !isSupabaseConfigured()}
+                  onClick={() => void sendByShareOrSms()}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-teal-400 bg-white px-3 text-xs font-extrabold text-teal-950 disabled:opacity-50"
+                >
+                  <Share2 className="h-4 w-4" />
+                  SMS / WhatsApp
+                </button>
+              </div>
+
+              {!client?.email?.trim() ? (
+                <p className="text-[11px] text-amber-900">
+                  Pas d’e-mail sur la fiche client — utilisez SMS / WhatsApp, ou ajoutez l’e-mail
+                  avant.
+                </p>
+              ) : null}
+
+              {openLink ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(openLink)
+                    setRemoteMsg('Lien copié.')
+                  }}
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-xl border border-teal-300 bg-white px-2 text-[11px] font-bold text-teal-900"
+                >
+                  <Link2 className="h-3.5 w-3.5" /> Copier le lien
+                </button>
+              ) : null}
+
+              {pendingRemote.length > 0 ? (
+                <p className="text-[11px] font-medium text-teal-900">
+                  En attente de la signature du client — cette page se met à jour toute seule.
+                </p>
+              ) : null}
+              {remoteMsg ? (
+                <p className="text-[11px] font-semibold text-teal-900">{remoteMsg}</p>
               ) : null}
             </div>
-          ) : null}
-          {pendingRemote.length > 0 ? (
-            <p className="text-[11px] font-medium text-teal-900">
-              Lien en attente — le client n’a pas encore signé. Cette page se met à jour toute seule.
+          ) : (
+            <p className="text-[11px] text-teal-900/80">
+              Client présent : faites-le signer dans le cadre ci-dessous.
             </p>
-          ) : null}
-          {remoteMsg ? <p className="text-[11px] font-semibold text-teal-900">{remoteMsg}</p> : null}
+          )}
         </div>
       ) : null}
 
