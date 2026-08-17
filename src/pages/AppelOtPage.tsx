@@ -170,6 +170,7 @@ export function AppelOtPage() {
   const [equipForm, setEquipForm] = useState(() => blankEquip(true))
   const [clientSignNom, setClientSignNom] = useState('')
   const [clientSignQualite, setClientSignQualite] = useState('Représentant client')
+  const [awaitingRemoteSignature, setAwaitingRemoteSignature] = useState(false)
 
   const [msg, setMsg] = useState('')
 
@@ -646,7 +647,22 @@ export function AppelOtPage() {
       return
     }
     if (!otForm.signatureClientImage) {
-      alert('Signature client requise sur l’OT.')
+      if (awaitingRemoteSignature) {
+        alert(
+          'Client absent : la signature n’est pas encore arrivée.\n\n' +
+            '1) Envoyez le lien (SMS ou e-mail)\n' +
+            '2) Le client signe sur son téléphone\n' +
+            '3) La signature apparaît ici automatiquement\n' +
+            '4) Ensuite seulement « Clôturer signé »\n\n' +
+            'Gardez cette page ouverte (rafraîchissement auto).',
+        )
+        return
+      }
+      alert(
+        'Signature client requise sur l’OT.\n\n' +
+          'Si le client est absent : cochez « Client absent », envoyez le lien SMS/e-mail, ' +
+          'attendez qu’il signe, puis recliquez sur Clôturer.',
+      )
       return
     }
     const id = persistOt({
@@ -1597,6 +1613,7 @@ export function AppelOtPage() {
               onNomChange={setClientSignNom}
               onQualiteChange={setClientSignQualite}
               onImageChange={(v) => setOtForm({ ...otForm, signatureClientImage: v })}
+              onAwaitingRemoteChange={setAwaitingRemoteSignature}
               height={140}
             />
           </div>
@@ -1627,16 +1644,24 @@ export function AppelOtPage() {
             <button
               type="button"
               onClick={finishWithSignatures}
-              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
+              disabled={awaitingRemoteSignature && !otForm.signatureClientImage}
+              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white disabled:opacity-50 sm:flex-none"
             >
-              <Check className="h-4 w-4" /> {otCloture ? 'Re-clôturer' : 'Clôturer signé'}
+              <Check className="h-4 w-4" />{' '}
+              {awaitingRemoteSignature && !otForm.signatureClientImage
+                ? 'En attente signature client…'
+                : otCloture
+                  ? 'Re-clôturer'
+                  : 'Clôturer signé'}
             </button>
           </div>
 
           <p className="text-xs text-muted">
-            {otCloture
-              ? 'OT déjà clôturé — modification exceptionnelle en cas d’erreur.'
-              : 'Signatures technicien + client sur l’OT (reprises sur le CERFA si besoin). La fiche checklist n’est pas exigée pour clôturer.'}
+            {awaitingRemoteSignature && !otForm.signatureClientImage
+              ? 'Client absent : attendez que le client signe via le lien SMS/e-mail. La signature arrive seule — ensuite le bouton Clôturer se réactive.'
+              : otCloture
+                ? 'OT déjà clôturé — modification exceptionnelle en cas d’erreur.'
+                : 'Signatures technicien + client sur l’OT (reprises sur le CERFA si besoin). La fiche checklist n’est pas exigée pour clôturer.'}
           </p>
         </section>
       )}

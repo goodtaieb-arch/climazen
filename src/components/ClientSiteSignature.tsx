@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Link2, Mail, PenLine, Share2 } from 'lucide-react'
+import { Check, Link2, Mail, MessageSquare, PenLine, Share2 } from 'lucide-react'
 import { SignaturePad } from './SignaturePad'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -29,6 +29,8 @@ type Props = {
   autosaveSite?: boolean
   /** OT lié (optionnel, pour le lien distant) */
   otId?: string
+  /** true = lien distant envoyé, signature pas encore reçue */
+  onAwaitingRemoteChange?: (awaiting: boolean) => void
 }
 
 /**
@@ -46,6 +48,7 @@ export function ClientSiteSignature({
   height = 160,
   autosaveSite = true,
   otId,
+  onAwaitingRemoteChange,
 }: Props) {
   const { data, applySiteClientSignature } = useStore()
   const { user } = useAuth()
@@ -61,6 +64,13 @@ export function ClientSiteSignature({
   /** Accord explicite du client avant envoi e-mail / SMS */
   const [clientAgrees, setClientAgrees] = useState(false)
   const importedIds = useRef(new Set<string>())
+
+  /** Client absent sans signature encore reçue → ne pas clôturer */
+  const awaitingRemote = clientAbsent && !image
+
+  useEffect(() => {
+    onAwaitingRemoteChange?.(awaitingRemote)
+  }, [awaitingRemote, onAwaitingRemoteChange])
 
   // Préremplir depuis le site si le doc n’a pas encore de signature
   useEffect(() => {
@@ -132,19 +142,20 @@ export function ClientSiteSignature({
   }
 
   useEffect(() => {
-    if (!siteId || !user?.organizationId || siteHasSig) return
+    if (!siteId || !user?.organizationId || (siteHasSig && image)) return
     void importCompleted()
-    const t = window.setInterval(() => void importCompleted(), 12000)
+    const ms = pendingRemote.length > 0 || openLink || clientAbsent ? 4000 : 12000
+    const timer = window.setInterval(() => void importCompleted(), ms)
     const onVis = () => {
       if (document.visibilityState === 'visible') void importCompleted()
     }
     document.addEventListener('visibilitychange', onVis)
     return () => {
-      window.clearInterval(t)
+      window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVis)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, user?.organizationId, siteHasSig])
+  }, [siteId, user?.organizationId, siteHasSig, image, clientAbsent, pendingRemote.length, openLink])
 
   const reuseSite = () => {
     if (!site?.signatureDetenteurImage) return
@@ -228,20 +239,43 @@ export function ClientSiteSignature({
   const sendByShareOrSms = async () => {
     const url = openLink || (await createRemoteLink())
     if (!url) return
+    const body = smsSignatureBody({ url, siteNom: site?.nom })
+    const tel = (client?.telephone || '').replace(/[\s.\-()]/g, '')
+
+    // 1) SMS natif si téléphone sur la fiche client
+    if (tel) {
+      const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent)
+      const href = isApple
+        ? `sms:${tel}&body=${encodeURIComponent(body)}`
+        : `sms:${tel}?body=${encodeURIComponent(body)}`
+      window.location.href = href
+      setRemoteMsg(
+        'SMS ouvert avec le lien. Envoyez-le, puis attendez que le client signe — ne cliquez pas encore sur « Clôturer signé ».',
+      )
+      return
+    }
+
+    // 2) Partage système (WhatsApp, Messages…)
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Signature ClimaZEN',
-          text: smsSignatureBody({ url, siteNom: site?.nom }),
+          text: body,
           url,
         })
+        setRemoteMsg(
+          'Lien partagé. Dès que le client signe sur son téléphone, la signature apparaît ici automatiquement — ensuite seulement « Clôturer signé ».',
+        )
         return
       } catch {
-        /* annulé ou non supporté → copie */
+        /* annulé → copie */
       }
     }
+
     await navigator.clipboard.writeText(url)
-    setRemoteMsg('Lien copié — collez-le dans un SMS ou WhatsApp au client (avec son accord).')
+    setRemoteMsg(
+      'Lien copié. Collez-le dans un SMS / WhatsApp au client. Attendez sa signature avant de clôturer l’OT.',
+    )
   }
 
   return (
@@ -334,8 +368,12 @@ export function ClientSiteSignature({
                   onClick={() => void sendByShareOrSms()}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-teal-400 bg-white px-3 text-xs font-extrabold text-teal-950 disabled:opacity-50"
                 >
-                  <Share2 className="h-4 w-4" />
-                  SMS / WhatsApp
+                  {client?.telephone?.trim() ? (
+                    <MessageSquare className="h-4 w-4" />
+                  ) : (
+                    <Share2 className="h-4 w-4" />
+                  )}
+                  {client?.telephone?.trim() ? 'Envoyer par SMS' : 'SMS / WhatsApp'}
                 </button>
               </div>
 
@@ -364,9 +402,25 @@ export function ClientSiteSignature({
                 </button>
               ) : null}
 
-              {pendingRemote.length > 0 ? (
+              {clientAbsent ? (
+                <ol className="list-decimal space-y-1 rounded-xl border border-teal-300 bg-white px-3 py-2 pl-7 text-[11px] text-teal-950">
+                  <li>Cochez l’accord du client, puis SMS ou e-mail.</li>
+                  <li>Le client ouvre le lien et signe sur son téléphone.</li>
+                  <li>La signature arrive ici toute seule (gardez la page ouverte).</li>
+                  <li>Seulement après : bouton « Clôturer signé ».</li>
+                </ol>
+              ) : null}
+
+              {awaitingRemote ? (
+                <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-950">
+                  En attente de la signature à distance — ne cliquez pas encore sur « Clôturer
+                  signé », sinon le message « Signature client requise » apparaît.
+                </p>
+              ) : null}
+
+              {pendingRemote.length > 0 && !image ? (
                 <p className="text-[11px] font-medium text-teal-900">
-                  En attente de la signature du client — cette page se met à jour toute seule.
+                  Lien envoyé — en attente du client. Cette page se met à jour toute seule.
                 </p>
               ) : null}
               {remoteMsg ? (
