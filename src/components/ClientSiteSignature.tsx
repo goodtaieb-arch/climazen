@@ -9,7 +9,7 @@ import {
   createSignatureRequest,
   listCompletedSignatureRequests,
   listOpenSignatureRequests,
-  mailtoSignatureLink,
+  sendSignatureEmailViaClimazen,
   smsSignatureBody,
   type SignatureRequestRow,
 } from '../lib/signatureDistance'
@@ -206,13 +206,23 @@ export function ClientSiteSignature({
     }
     const url = openLink || (await createRemoteLink())
     if (!url) return
-    const mail = mailtoSignatureLink({
-      email: client.email,
-      url,
-      siteNom: site?.nom,
-      techName: user?.fullName || user?.email,
-    })
-    if (mail) window.location.href = mail
+    setRemoteBusy(true)
+    setRemoteMsg('')
+    try {
+      const result = await sendSignatureEmailViaClimazen({
+        email: client.email,
+        url,
+        siteNom: site?.nom,
+        techName: user?.fullName || user?.email,
+      })
+      if (!result.ok) {
+        alert(result.error)
+        return
+      }
+      setRemoteMsg(`E-mail envoyé par ClimaZEN (${result.from}) à ${client.email.trim()}.`)
+    } finally {
+      setRemoteBusy(false)
+    }
   }
 
   const sendByShareOrSms = async () => {
@@ -316,7 +326,7 @@ export function ClientSiteSignature({
                   }
                 >
                   <Mail className="h-4 w-4" />
-                  {remoteBusy ? 'Préparation…' : 'Envoyer le lien par e-mail'}
+                  {remoteBusy ? 'Envoi…' : 'Envoyer par ClimaZEN'}
                 </button>
                 <button
                   type="button"
@@ -329,12 +339,17 @@ export function ClientSiteSignature({
                 </button>
               </div>
 
-              {!client?.email?.trim() ? (
+              {client?.email?.trim() ? (
+                <p className="text-[11px] text-teal-900/80">
+                  L’e-mail part de <strong className="font-semibold">contact@climazen.fr</strong> via
+                  ClimaZEN (pas votre boîte perso).
+                </p>
+              ) : (
                 <p className="text-[11px] text-amber-900">
                   Pas d’e-mail sur la fiche client — utilisez SMS / WhatsApp, ou ajoutez l’e-mail
                   avant.
                 </p>
-              ) : null}
+              )}
 
               {openLink ? (
                 <button

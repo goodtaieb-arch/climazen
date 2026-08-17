@@ -179,32 +179,62 @@ export async function listOpenSignatureRequests(opts: {
   return (data || []) as SignatureRequestRow[]
 }
 
-export function mailtoSignatureLink(opts: {
-  email?: string
+/** Envoi réel depuis ClimaZEN (API Resend / Vercel) — pas la boîte perso du tech. */
+export async function sendSignatureEmailViaClimazen(opts: {
+  email: string
   url: string
   siteNom?: string
   techName?: string
-}): string | null {
-  const e = (opts.email || '').trim()
-  if (!e) return null
-  const q = new URLSearchParams()
-  q.set('subject', `Signature ClimaZEN — ${opts.siteNom || 'intervention'}`)
-  q.set(
-    'body',
-    [
-      'Bonjour,',
-      '',
-      `${opts.techName || 'Votre technicien'} vous demande de signer à distance (client absent sur site).`,
-      '',
-      `Ouvrez ce lien sur votre téléphone :`,
-      opts.url,
-      '',
-      'Le lien est valable 72 heures.',
-      '',
-      'Cordialement',
-    ].join('\n'),
-  )
-  return `mailto:${e}?${q.toString()}`
+}): Promise<{ ok: true; from: string } | { ok: false; error: string }> {
+  const to = opts.email.trim()
+  if (!to) return { ok: false, error: 'Pas d’e-mail client.' }
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: 'Connexion cloud requise.' }
+  }
+  try {
+    const sb = getSupabase()
+    const { data: sessionData } = await sb.auth.getSession()
+    const token = sessionData.session?.access_token
+    if (!token) {
+      return { ok: false, error: 'Session expirée — reconnectez-vous.' }
+    }
+    const res = await fetch('/api/send-signature-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        to,
+        url: opts.url,
+        siteNom: opts.siteNom || '',
+        techName: opts.techName || '',
+      }),
+    })
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      from?: string
+      hint?: string
+      error?: string
+    }
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error:
+          data.hint ||
+          data.error ||
+          (res.status === 503
+            ? 'Envoi ClimaZEN non configuré (RESEND_API_KEY sur Vercel).'
+            : `Envoi impossible (${res.status}).`),
+      }
+    }
+    return { ok: true, from: data.from || 'ClimaZEN <contact@climazen.fr>' }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Envoi impossible.',
+    }
+  }
 }
 
 export function smsSignatureBody(opts: { url: string; siteNom?: string }): string {
