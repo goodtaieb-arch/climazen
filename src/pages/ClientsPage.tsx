@@ -16,8 +16,8 @@ import {
 import { formatAddressQuery, openAddressInGps } from '../lib/mapsNav'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import type { Client, FacturationAction } from '../lib/types'
-import { FACTURATION_PLATEFORMES } from '../lib/types'
+import type { Client, FacturationAction, TypeClient } from '../lib/types'
+import { clientDisplayName, FACTURATION_PLATEFORMES, syncClientRaisonSociale } from '../lib/types'
 import { allEquipements } from '../lib/cerfaBatch'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
@@ -31,8 +31,11 @@ import {
 import { contratsActifsForClient } from '../lib/contratMaintenance'
 
 const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
+  typeClient: 'entreprise',
   raisonSociale: '',
   nomContact: '',
+  nom: '',
+  prenom: '',
   adresse: '',
   codePostal: '',
   ville: '',
@@ -71,6 +74,8 @@ export function ClientsPage() {
           [
             c.raisonSociale,
             c.nomContact,
+            c.nom,
+            c.prenom,
             c.ville,
             c.telephone,
             c.email,
@@ -99,8 +104,26 @@ export function ClientsPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    upsertClient({
+    const typeClient: TypeClient = form.typeClient || 'entreprise'
+    if (typeClient === 'particulier') {
+      if (!(form.nom || '').trim() || !(form.prenom || '').trim()) {
+        alert('Indiquez le nom et le prénom du particulier.')
+        return
+      }
+    } else if (!form.raisonSociale.trim()) {
+      alert('Indiquez la raison sociale.')
+      return
+    }
+    const payload = syncClientRaisonSociale({
       ...form,
+      typeClient,
+      nomContact: typeClient === 'entreprise' ? form.nomContact : '',
+      nom: typeClient === 'particulier' ? (form.nom || '').trim() : '',
+      prenom: typeClient === 'particulier' ? (form.prenom || '').trim() : '',
+      siret: typeClient === 'entreprise' ? form.siret : '',
+    })
+    upsertClient({
+      ...payload,
       id: editId ?? undefined,
       createdByUserId: editId ? form.createdByUserId : user?.id,
       createdByName: editId
@@ -115,8 +138,11 @@ export function ClientsPage() {
   const startEdit = (c: Client) => {
     setEditId(c.id)
     setForm({
+      typeClient: c.typeClient || 'entreprise',
       raisonSociale: c.raisonSociale,
       nomContact: c.nomContact,
+      nom: c.nom || '',
+      prenom: c.prenom || '',
       adresse: c.adresse,
       codePostal: c.codePostal,
       ville: c.ville,
@@ -135,7 +161,7 @@ export function ClientsPage() {
 
   const voirFiche = (c: Client) => {
     navigate('/app/chantiers', {
-      state: { search: c.raisonSociale },
+      state: { search: clientDisplayName(c) },
     })
   }
 
@@ -231,17 +257,76 @@ export function ClientsPage() {
           onSubmit={onSubmit}
           className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
         >
-          <Field
-            label="Raison sociale *"
-            value={form.raisonSociale}
-            onChange={(v) => setForm({ ...form, raisonSociale: v })}
-            required
-          />
-          <Field
-            label="Contact"
-            value={form.nomContact}
-            onChange={(v) => setForm({ ...form, nomContact: v })}
-          />
+          <fieldset className="sm:col-span-2">
+            <legend className="mb-2 block text-sm font-semibold text-ink">Type de client</legend>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['entreprise', 'Entreprise'],
+                  ['particulier', 'Particulier'],
+                ] as const
+              ).map(([id, label]) => {
+                const on = (form.typeClient || 'entreprise') === id
+                return (
+                  <label
+                    key={id}
+                    className={[
+                      'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 text-sm font-semibold',
+                      on ? 'border-emerald-400 bg-emerald-50 text-emerald-950' : 'border-line bg-white',
+                    ].join(' ')}
+                  >
+                    <input
+                      type="radio"
+                      name="typeClient"
+                      checked={on}
+                      onChange={() =>
+                        setForm({
+                          ...form,
+                          typeClient: id,
+                          ...(id === 'particulier'
+                            ? { raisonSociale: '', nomContact: '', siret: '' }
+                            : { nom: '', prenom: '' }),
+                        })
+                      }
+                      className="accent-emerald-700"
+                    />
+                    {label}
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          {(form.typeClient || 'entreprise') === 'entreprise' ? (
+            <>
+              <Field
+                label="Raison sociale *"
+                value={form.raisonSociale}
+                onChange={(v) => setForm({ ...form, raisonSociale: v })}
+                required
+              />
+              <Field
+                label="Contact"
+                value={form.nomContact}
+                onChange={(v) => setForm({ ...form, nomContact: v })}
+              />
+            </>
+          ) : (
+            <>
+              <Field
+                label="Nom *"
+                value={form.nom || ''}
+                onChange={(v) => setForm({ ...form, nom: v })}
+                required
+              />
+              <Field
+                label="Prénom *"
+                value={form.prenom || ''}
+                onChange={(v) => setForm({ ...form, prenom: v })}
+                required
+              />
+            </>
+          )}
           <Field
             label="Adresse"
             value={form.adresse}
@@ -270,11 +355,13 @@ export function ClientsPage() {
             inputMode="email"
             autoComplete="email"
           />
-          <Field
-            label="SIRET (facturation)"
-            value={form.siret || ''}
-            onChange={(v) => setForm({ ...form, siret: v })}
-          />
+          {(form.typeClient || 'entreprise') === 'entreprise' ? (
+            <Field
+              label="SIRET (facturation)"
+              value={form.siret || ''}
+              onChange={(v) => setForm({ ...form, siret: v })}
+            />
+          ) : null}
           <div className="flex gap-2 sm:col-span-2">
             <button
               type="submit"
@@ -316,8 +403,13 @@ export function ClientsPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="truncate font-display text-base font-semibold text-ink">
-                      {c.raisonSociale}
+                      {clientDisplayName(c)}
                     </div>
+                    {c.typeClient === 'particulier' ? (
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                        Particulier
+                      </span>
+                    ) : null}
                     {contratsActifs.length > 0 ? (
                       <Link
                         to={`/app/contrats?id=${encodeURIComponent(contratsActifs[0].id)}`}
@@ -415,7 +507,12 @@ export function ClientsPage() {
                 </div>
 
                 <div className="min-w-0 space-y-1 text-sm">
-                  {c.nomContact ? (
+                  {c.typeClient === 'particulier' && (c.nom || c.prenom) ? (
+                    <div className="flex items-center gap-1.5 text-ink">
+                      <User className="h-3.5 w-3.5 shrink-0 text-muted" />
+                      <span className="truncate">{clientDisplayName(c)}</span>
+                    </div>
+                  ) : c.nomContact ? (
                     <div className="flex items-center gap-1.5 text-ink">
                       <User className="h-3.5 w-3.5 shrink-0 text-muted" />
                       <span className="truncate">{c.nomContact}</span>
@@ -439,7 +536,10 @@ export function ClientsPage() {
                       <span className="truncate">{c.email}</span>
                     </a>
                   ) : null}
-                  {!c.nomContact && !c.telephone && !c.email ? (
+                  {!c.nomContact &&
+                  !(c.typeClient === 'particulier' && (c.nom || c.prenom)) &&
+                  !c.telephone &&
+                  !c.email ? (
                     <span className="text-xs text-muted">Pas de contact</span>
                   ) : null}
                 </div>

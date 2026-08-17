@@ -28,6 +28,7 @@ import { allEquipements, equipementsForCerfa, findDuplicateEquipNom } from '../l
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import type { Client, Equipement, Site } from '../lib/types'
+import { clientDisplayName, syncClientRaisonSociale } from '../lib/types'
 import {
   TYPE_OT_LABELS,
   PARCOURS_APPEL_STEPS,
@@ -49,8 +50,11 @@ function today() {
 
 function blankClient(): Omit<Client, 'id' | 'createdAt'> {
   return {
+    typeClient: 'entreprise',
     raisonSociale: '',
     nomContact: '',
+    nom: '',
+    prenom: '',
     adresse: '',
     codePostal: '',
     ville: '',
@@ -62,9 +66,10 @@ function blankClient(): Omit<Client, 'id' | 'createdAt'> {
 }
 
 function blankSite(clientId: string, from?: Partial<Client>): Omit<Site, 'id' | 'createdAt'> {
+  const label = from ? clientDisplayName(from as Client) : ''
   return {
     clientId,
-    nom: from?.raisonSociale ? `Site ${from.raisonSociale}` : '',
+    nom: label && label !== '—' ? `Site ${label}` : '',
     adresse: from?.adresse || '',
     codePostal: from?.codePostal || '',
     ville: from?.ville || '',
@@ -232,7 +237,12 @@ export function AppelOtPage() {
   const clientsFiltered = useMemo(
     () =>
       data.clients.filter((c) =>
-        matchesQuery([c.raisonSociale, c.ville, c.telephone, c.nomContact].join(' '), clientQ),
+        matchesQuery(
+          [clientDisplayName(c), c.ville, c.telephone, c.nomContact, c.nom, c.prenom]
+            .filter(Boolean)
+            .join(' '),
+          clientQ,
+        ),
       ),
     [data.clients, clientQ],
   )
@@ -294,12 +304,26 @@ export function AppelOtPage() {
   const saveClientStep = () => {
     let clientId = otForm.clientId || ''
     if (clientMode === 'new' || !clientId) {
-      if (!clientForm.raisonSociale.trim()) {
+      const typeClient = clientForm.typeClient || 'entreprise'
+      if (typeClient === 'particulier') {
+        if (!(clientForm.nom || '').trim() || !(clientForm.prenom || '').trim()) {
+          alert('Indiquez le nom et le prénom du particulier.')
+          return
+        }
+      } else if (!clientForm.raisonSociale.trim()) {
         alert('Indiquez la raison sociale / nom du client.')
         return
       }
-      clientId = upsertClient({
+      const payload = syncClientRaisonSociale({
         ...clientForm,
+        typeClient,
+        nomContact: typeClient === 'entreprise' ? clientForm.nomContact : '',
+        nom: typeClient === 'particulier' ? (clientForm.nom || '').trim() : '',
+        prenom: typeClient === 'particulier' ? (clientForm.prenom || '').trim() : '',
+        siret: typeClient === 'entreprise' ? clientForm.siret : '',
+      })
+      clientId = upsertClient({
+        ...payload,
         createdByUserId: user?.id,
         createdByName: user?.fullName || user?.email,
       })
@@ -892,8 +916,11 @@ export function AppelOtPage() {
                       onClick={() => {
                         setOtForm({ ...otForm, clientId: c.id })
                         setClientForm({
+                          typeClient: c.typeClient || 'entreprise',
                           raisonSociale: c.raisonSociale,
                           nomContact: c.nomContact || '',
+                          nom: c.nom || '',
+                          prenom: c.prenom || '',
                           adresse: c.adresse || '',
                           codePostal: c.codePostal || '',
                           ville: c.ville || '',
@@ -911,7 +938,9 @@ export function AppelOtPage() {
                       ].join(' ')}
                     >
                       <User className="h-4 w-4 shrink-0 text-muted" />
-                      <span className="min-w-0 flex-1 truncate font-semibold">{c.raisonSociale}</span>
+                      <span className="min-w-0 flex-1 truncate font-semibold">
+                        {clientDisplayName(c)}
+                      </span>
                       <span className="truncate text-xs text-muted">{c.ville}</span>
                     </button>
                   </li>
@@ -920,14 +949,90 @@ export function AppelOtPage() {
             </>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold text-ink">Raison sociale *</span>
-                <input
-                  value={clientForm.raisonSociale}
-                  onChange={(e) => setClientForm({ ...clientForm, raisonSociale: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-line px-3"
-                />
-              </label>
+              <fieldset className="sm:col-span-2">
+                <legend className="mb-2 block text-sm font-semibold text-ink">Type de client</legend>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['entreprise', 'Entreprise'],
+                      ['particulier', 'Particulier'],
+                    ] as const
+                  ).map(([id, label]) => {
+                    const on = (clientForm.typeClient || 'entreprise') === id
+                    return (
+                      <label
+                        key={id}
+                        className={[
+                          'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 text-sm font-semibold',
+                          on
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-950'
+                            : 'border-line bg-white',
+                        ].join(' ')}
+                      >
+                        <input
+                          type="radio"
+                          name="appelTypeClient"
+                          checked={on}
+                          onChange={() =>
+                            setClientForm({
+                              ...clientForm,
+                              typeClient: id,
+                              ...(id === 'particulier'
+                                ? { raisonSociale: '', nomContact: '', siret: '' }
+                                : { nom: '', prenom: '' }),
+                            })
+                          }
+                          className="accent-emerald-700"
+                        />
+                        {label}
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+              {(clientForm.typeClient || 'entreprise') === 'entreprise' ? (
+                <>
+                  <label className="block text-sm sm:col-span-2">
+                    <span className="mb-1 block font-semibold text-ink">Raison sociale *</span>
+                    <input
+                      value={clientForm.raisonSociale}
+                      onChange={(e) =>
+                        setClientForm({ ...clientForm, raisonSociale: e.target.value })
+                      }
+                      className="h-11 w-full rounded-xl border border-line px-3"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-semibold text-ink">Contact</span>
+                    <input
+                      value={clientForm.nomContact}
+                      onChange={(e) =>
+                        setClientForm({ ...clientForm, nomContact: e.target.value })
+                      }
+                      className="h-11 w-full rounded-xl border border-line px-3"
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-semibold text-ink">Nom *</span>
+                    <input
+                      value={clientForm.nom || ''}
+                      onChange={(e) => setClientForm({ ...clientForm, nom: e.target.value })}
+                      className="h-11 w-full rounded-xl border border-line px-3"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-semibold text-ink">Prénom *</span>
+                    <input
+                      value={clientForm.prenom || ''}
+                      onChange={(e) => setClientForm({ ...clientForm, prenom: e.target.value })}
+                      className="h-11 w-full rounded-xl border border-line px-3"
+                    />
+                  </label>
+                </>
+              )}
               <label className="block text-sm">
                 <span className="mb-1 block font-semibold text-ink">Téléphone</span>
                 <input
@@ -937,14 +1042,9 @@ export function AppelOtPage() {
                   inputMode="tel"
                 />
               </label>
-              <label className="block text-sm">
-                <span className="mb-1 block font-semibold text-ink">Contact</span>
-                <input
-                  value={clientForm.nomContact}
-                  onChange={(e) => setClientForm({ ...clientForm, nomContact: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-line px-3"
-                />
-              </label>
+              {(clientForm.typeClient || 'entreprise') === 'entreprise' ? null : (
+                <div className="hidden sm:block" />
+              )}
               <label className="block text-sm sm:col-span-2">
                 <span className="mb-1 block font-semibold text-ink">Adresse</span>
                 <input
@@ -995,7 +1095,7 @@ export function AppelOtPage() {
       {step === 'site' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <p className="text-sm text-muted">
-            Client : <strong>{client?.raisonSociale || '—'}</strong>
+            Client : <strong>{client ? clientDisplayName(client) : '—'}</strong>
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -1368,7 +1468,7 @@ export function AppelOtPage() {
             <p className="text-muted">{otForm.action}</p>
             <p className="mt-1 text-xs text-muted">
               {[
-                client?.raisonSociale,
+                client ? clientDisplayName(client) : '',
                 site?.nom,
                 selectedEqs.length > 1
                   ? `${selectedEqs.length} équipements`
@@ -1554,7 +1654,7 @@ export function AppelOtPage() {
         ) : null}
         {client ? (
           <span className="inline-flex items-center gap-1 text-muted">
-            <Building2 className="h-3.5 w-3.5" /> {client.raisonSociale}
+            <Building2 className="h-3.5 w-3.5" /> {clientDisplayName(client)}
           </span>
         ) : null}
       </div>

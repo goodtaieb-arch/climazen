@@ -148,11 +148,20 @@ export const FACTURATION_PLATEFORMES: {
   { id: 'autre', label: 'Autre', makeHint: 'N’importe quel module Make', openUrl: '' },
 ]
 
+export type TypeClient = 'entreprise' | 'particulier'
+
 export interface Client {
   id: string
-  /** Cadre [2] Détenteur */
+  /** Entreprise (défaut) ou particulier */
+  typeClient?: TypeClient
+  /** Cadre [2] Détenteur — raison sociale (entreprise) ou « Prénom Nom » (particulier) */
   raisonSociale: string
+  /** Contact (entreprise) */
   nomContact: string
+  /** Nom de famille (particulier) */
+  nom?: string
+  /** Prénom (particulier) */
+  prenom?: string
   adresse: string
   codePostal: string
   ville: string
@@ -171,6 +180,27 @@ export interface Client {
   factureLien?: string
   /** Dernier envoi vers Make (ISO) */
   facturationSyncedAt?: string
+}
+
+/** Libellé d’affichage client (entreprise ou particulier). */
+export function clientDisplayName(
+  c: Pick<Client, 'typeClient' | 'raisonSociale' | 'nom' | 'prenom' | 'nomContact'>,
+): string {
+  if (c.typeClient === 'particulier') {
+    const n = [c.prenom, c.nom].filter((x) => (x || '').trim()).join(' ').trim()
+    return n || (c.raisonSociale || '').trim() || '—'
+  }
+  return (c.raisonSociale || '').trim() || '—'
+}
+
+/** Normalise raisonSociale pour un particulier (CERFA / listes). */
+export function syncClientRaisonSociale<
+  T extends Pick<Client, 'typeClient' | 'raisonSociale' | 'nom' | 'prenom'>,
+>(c: T): T {
+  if (c.typeClient !== 'particulier') return c
+  const label = [c.prenom, c.nom].filter((x) => (x || '').trim()).join(' ').trim()
+  if (!label) return c
+  return { ...c, raisonSociale: label }
 }
 
 export interface Equipement {
