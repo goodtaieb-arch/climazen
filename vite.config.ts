@@ -49,6 +49,8 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
+        // Bundle app ~2.1 Mo — au-dessus du défaut 2 MiB sinon le build Vercel échoue
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /version\.json$/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp}'],
