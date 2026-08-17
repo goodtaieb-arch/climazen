@@ -1,8 +1,19 @@
-import { useEffect } from 'react'
-import { Check, PenLine } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Link2, Mail, PenLine, Share2 } from 'lucide-react'
 import { SignaturePad } from './SignaturePad'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import { nomSignataireClient } from '../lib/signataireClient'
+import { clientDisplayName } from '../lib/types'
+import {
+  createSignatureRequest,
+  listCompletedSignatureRequests,
+  listOpenSignatureRequests,
+  mailtoSignatureLink,
+  smsSignatureBody,
+  type SignatureRequestRow,
+} from '../lib/signatureDistance'
+import { isSupabaseConfigured } from '../lib/supabase'
 
 type Props = {
   siteId?: string
@@ -16,11 +27,13 @@ type Props = {
   height?: number
   /** Si true, enregistre immédiatement sur le site (tous docs) */
   autosaveSite?: boolean
+  /** OT lié (optionnel, pour le lien distant) */
+  otId?: string
 }
 
 /**
  * Signature client du site — une seule fois, réutilisée sur CERFA / OT / fiches.
- * Le nom / qualité sont libres (technicien de site, responsable, etc.).
+ * Si client absent : envoi d’un lien de signature à distance.
  */
 export function ClientSiteSignature({
   siteId,
@@ -32,10 +45,18 @@ export function ClientSiteSignature({
   onImageChange,
   height = 160,
   autosaveSite = true,
+  otId,
 }: Props) {
   const { data, applySiteClientSignature } = useStore()
+  const { user } = useAuth()
   const site = siteId ? data.chantiers.find((c) => c.id === siteId) : undefined
+  const client = site ? data.clients.find((c) => c.id === site.clientId) : undefined
   const siteHasSig = !!(site?.signatureDetenteurImage)
+  const [remoteMsg, setRemoteMsg] = useState('')
+  const [remoteBusy, setRemoteBusy] = useState(false)
+  const [openLink, setOpenLink] = useState<string | null>(null)
+  const [pendingRemote, setPendingRemote] = useState<SignatureRequestRow[]>([])
+  const importedIds = useRef(new Set<string>())
 
   // Préremplir depuis le site si le doc n’a pas encore de signature
   useEffect(() => {
@@ -46,7 +67,6 @@ export function ClientSiteSignature({
       nomContact: undefined,
       raisonSociale: undefined,
     })
-    // Toujours préférer le nom enregistré sur le site s’il n’est pas vide
     if (!nom.trim() && site.signatureDetenteurNom?.trim()) {
       onNomChange(site.signatureDetenteurNom.trim())
     } else if (nextNom && !nom.trim()) {
@@ -69,6 +89,59 @@ export function ClientSiteSignature({
     })
   }
 
+  const importCompleted = async () => {
+    if (!siteId || !user?.organizationId || !isSupabaseConfigured()) return
+    const rows = await listCompletedSignatureRequests({
+      organizationId: user.organizationId,
+      siteId,
+    })
+    for (const r of rows) {
+      if (!r.signature_image || importedIds.current.has(r.id)) continue
+      // Ne pas écraser une signature locale plus récente sans besoin — importer si pas encore d’image
+      if (site?.signatureDetenteurImage && site.signatureDetenteurImage === r.signature_image) {
+        importedIds.current.add(r.id)
+        continue
+      }
+      if (site?.signatureDetenteurImage && image && image === site.signatureDetenteurImage) {
+        // déjà une signature site : n’importe que si on n’a pas encore cette image
+        if (site.signatureDetenteurAt && r.used_at && site.signatureDetenteurAt >= r.used_at) {
+          importedIds.current.add(r.id)
+          continue
+        }
+      }
+      const nextNom = (r.signature_nom || '').trim() || 'Signataire site'
+      const nextQual = (r.signature_qualite || '').trim() || 'Représentant client'
+      onNomChange(nextNom)
+      onQualiteChange(nextQual)
+      onImageChange(r.signature_image)
+      persistToSite({ nom: nextNom, qualite: nextQual, image: r.signature_image })
+      importedIds.current.add(r.id)
+      setRemoteMsg(`Signature reçue à distance (${nextNom}).`)
+      setOpenLink(null)
+      break
+    }
+    const open = await listOpenSignatureRequests({
+      organizationId: user.organizationId,
+      siteId,
+    })
+    setPendingRemote(open)
+  }
+
+  useEffect(() => {
+    if (!siteId || !user?.organizationId || siteHasSig) return
+    void importCompleted()
+    const t = window.setInterval(() => void importCompleted(), 12000)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void importCompleted()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId, user?.organizationId, siteHasSig])
+
   const reuseSite = () => {
     if (!site?.signatureDetenteurImage) return
     const nextNom = nom.trim() || site.signatureDetenteurNom?.trim() || ''
@@ -78,8 +151,67 @@ export function ClientSiteSignature({
     onQualiteChange(nextQual)
   }
 
+  const sendRemoteLink = async () => {
+    if (!siteId) {
+      alert('Site manquant — choisissez d’abord le site.')
+      return
+    }
+    if (!user?.organizationId) {
+      alert('Connexion cloud requise pour envoyer un lien.')
+      return
+    }
+    setRemoteBusy(true)
+    setRemoteMsg('')
+    try {
+      const { url } = await createSignatureRequest({
+        organizationId: user.organizationId,
+        siteId,
+        siteNom: site?.nom,
+        clientId: site?.clientId,
+        clientNom: client ? clientDisplayName(client) : undefined,
+        otId,
+        nomPrefill: nom.trim() || client?.nomContact || '',
+        qualitePrefill: qualite.trim() || 'Représentant client',
+        createdByName: user.fullName || user.email || user.username,
+      })
+      setOpenLink(url)
+      setRemoteMsg('Lien créé — envoyez-le au client (SMS / e-mail / partage).')
+      setPendingRemote(await listOpenSignatureRequests({
+        organizationId: user.organizationId,
+        siteId,
+      }))
+
+      const mail = mailtoSignatureLink({
+        email: client?.email,
+        url,
+        siteNom: site?.nom,
+        techName: user.fullName || user.email,
+      })
+      if (mail) {
+        window.location.href = mail
+      } else if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Signature ClimaZEN',
+            text: smsSignatureBody({ url, siteNom: site?.nom }),
+            url,
+          })
+        } catch {
+          /* annulé */
+        }
+      } else {
+        await navigator.clipboard.writeText(url)
+        setRemoteMsg('Lien copié — collez-le dans un SMS ou WhatsApp au client.')
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Impossible de créer le lien.')
+    } finally {
+      setRemoteBusy(false)
+    }
+  }
+
   return (
-    <div className="rounded-xl border border-accent/30 bg-accent-soft/40 p-4 space-y-3">
+    <div className="space-y-3 rounded-xl border border-accent/30 bg-accent-soft/40 p-4">
       <div>
         <h3 className="font-display text-sm font-semibold">Signature client / site</h3>
         <p className="mt-0.5 text-xs text-muted">
@@ -98,14 +230,64 @@ export function ClientSiteSignature({
             automatiquement.
           </span>
           {!image && (
-            <button
-              type="button"
-              onClick={reuseSite}
-              className="font-bold underline"
-            >
+            <button type="button" onClick={reuseSite} className="font-bold underline">
               Appliquer
             </button>
           )}
+        </div>
+      ) : null}
+
+      {!siteHasSig && siteId ? (
+        <div className="space-y-2 rounded-xl border border-teal-200 bg-teal-50/80 p-3">
+          <p className="text-xs font-semibold text-teal-950">Client absent ?</p>
+          <p className="text-[11px] text-teal-900/90">
+            Envoyez un lien : le client signe sur son téléphone. La signature revient ici
+            automatiquement.
+          </p>
+          <button
+            type="button"
+            disabled={remoteBusy || !isSupabaseConfigured()}
+            onClick={() => void sendRemoteLink()}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-3 text-xs font-extrabold text-white disabled:opacity-60"
+          >
+            <Link2 className="h-4 w-4" />
+            {remoteBusy ? 'Création du lien…' : 'Signature à distance — envoyer un lien'}
+          </button>
+          {openLink ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(openLink)
+                  setRemoteMsg('Lien copié.')
+                }}
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl border border-teal-300 bg-white px-2 text-[11px] font-bold text-teal-900"
+              >
+                <Share2 className="h-3.5 w-3.5" /> Copier le lien
+              </button>
+              {client?.email ? (
+                <a
+                  href={
+                    mailtoSignatureLink({
+                      email: client.email,
+                      url: openLink,
+                      siteNom: site?.nom,
+                      techName: user?.fullName || user?.email,
+                    }) || '#'
+                  }
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl border border-teal-300 bg-white px-2 text-[11px] font-bold text-teal-900"
+                >
+                  <Mail className="h-3.5 w-3.5" /> E-mail
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          {pendingRemote.length > 0 ? (
+            <p className="text-[11px] font-medium text-teal-900">
+              Lien en attente — le client n’a pas encore signé. Cette page se met à jour toute seule.
+            </p>
+          ) : null}
+          {remoteMsg ? <p className="text-[11px] font-semibold text-teal-900">{remoteMsg}</p> : null}
         </div>
       ) : null}
 

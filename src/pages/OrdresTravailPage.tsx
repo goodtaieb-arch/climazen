@@ -328,6 +328,7 @@ export function OrdresTravailPage() {
             />
             <ClientSiteSignature
               siteId={form.chantierId || undefined}
+              otId={existing?.id}
               nom={clientSignNom}
               qualite={clientSignQualite}
               image={form.signatureClientImage || ''}

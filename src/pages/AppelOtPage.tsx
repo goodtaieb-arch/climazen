@@ -1590,6 +1590,7 @@ export function AppelOtPage() {
             />
             <ClientSiteSignature
               siteId={otForm.chantierId || undefined}
+              otId={otId || undefined}
               nom={clientSignNom}
               qualite={clientSignQualite}
               image={otForm.signatureClientImage || ''}
