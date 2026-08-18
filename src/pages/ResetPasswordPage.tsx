@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 
 /** Page ouverte après le lien e-mail Supabase (recovery). */
@@ -133,13 +134,13 @@ export function ResetPasswordPage() {
             </div>
           ) : (
             <form onSubmit={onSubmit} className="mt-6 space-y-4">
-              <p className="text-sm text-white/60">Choisissez votre nouveau mot de passe (6 car. min.).</p>
+              <p className="text-sm text-white/60">Choisissez votre nouveau mot de passe. {PASSWORD_HINT}</p>
               <PasswordField
                 dark
                 label="Nouveau mot de passe *"
                 autoComplete="new-password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -148,7 +149,7 @@ export function ResetPasswordPage() {
                 label="Confirmer *"
                 autoComplete="new-password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 value={password2}
                 onChange={(e) => setPassword2(e.target.value)}
               />

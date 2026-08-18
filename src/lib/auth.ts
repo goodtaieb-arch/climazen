@@ -4,6 +4,7 @@ import type { AppData } from './types'
 import { emptyData } from './storage'
 import { migrateAppData } from './migrate'
 import { getSupabase } from './supabase'
+import { validatePasswordStrength } from './passwordPolicy'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -159,7 +160,8 @@ export async function registerCompany(opts: {
   const email = normalizeEmail(opts.email)
   if (!opts.companyName.trim()) throw new Error('Indiquez le nom de la société.')
   if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide (ex. contact@societe.fr).')
-  if (opts.password.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
+  const pwdErr = validatePasswordStrength(opts.password)
+  if (pwdErr) throw new Error(pwdErr)
   if (!opts.fullName.trim()) throw new Error('Indiquez votre nom.')
 
   const sb = getSupabase()
@@ -215,7 +217,8 @@ export async function createOperatorAccount(opts: {
   if (opts.owner.role !== 'owner') throw new Error('Seul le compte officiel peut ajouter des opérateurs.')
   const email = normalizeEmail(opts.email)
   if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide pour l’opérateur.')
-  if (opts.password.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
+  const pwdErr = validatePasswordStrength(opts.password)
+  if (pwdErr) throw new Error(pwdErr)
   if (!opts.fullName.trim()) throw new Error('Indiquez le nom de l’opérateur.')
 
   const sb = getSupabase()
@@ -382,7 +385,8 @@ export async function requestPasswordReset(email: string) {
 
 /** Après clic sur le lien e-mail : définir le nouveau mot de passe. */
 export async function updatePassword(newPassword: string) {
-  if (newPassword.length < 6) throw new Error('Mot de passe : au moins 6 caractères.')
+  const pwdErr = validatePasswordStrength(newPassword)
+  if (pwdErr) throw new Error(pwdErr)
   const sb = getSupabase()
   const { error } = await sb.auth.updateUser({ password: newPassword })
   if (error) throw new Error(authErrorMessage(error, 'Mise à jour impossible'))
@@ -422,8 +426,20 @@ export async function updateOrganizationName(organizationId: string, name: strin
 }
 
 export function generateTempPassword(): string {
-  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
+  const letters = 'abcdefghjkmnpqrstuvwxyz'
+  const digits = '23456789'
+  const pick = (s: string) => s[Math.floor(Math.random() * s.length)]
+  // 8 car. min. + lettres + chiffres (conforme passwordPolicy)
+  const chars = [
+    pick(letters),
+    pick(digits),
+    ...Array.from({ length: 6 }, () => pick(letters + digits)),
+  ]
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
 }
 
 /** Charge AppData depuis Supabase (fallback vide). */

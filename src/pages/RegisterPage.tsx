@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
 import { useAuth } from '../lib/AuthContext'
+import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 
 export function RegisterPage() {
   const { user, loading, registerCompany, configured } = useAuth()
@@ -123,10 +124,10 @@ export function RegisterPage() {
           <PasswordField
             dark
             className="mt-4"
-            label="Mot de passe (6 car. min.) *"
+            label={`Mot de passe (${PASSWORD_MIN_LENGTH} car. min.) *`}
             autoComplete="new-password"
             required
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -136,7 +137,7 @@ export function RegisterPage() {
             label="Confirmer le mot de passe *"
             autoComplete="new-password"
             required
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
             value={password2}
             onChange={(e) => setPassword2(e.target.value)}
           />

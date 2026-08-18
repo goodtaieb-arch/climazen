@@ -4,6 +4,7 @@ import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
+import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { useStore } from '../lib/store'
 
@@ -165,7 +166,7 @@ export function EquipePage() {
         <PasswordField
           label="Mot de passe temporaire *"
           required
-          minLength={6}
+          minLength={PASSWORD_MIN_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password"

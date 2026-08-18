@@ -6,6 +6,7 @@ import { SignaturePad } from '../components/SignaturePad'
 import { PasswordField } from '../components/PasswordField'
 import { DetecteursParc } from '../components/DetecteursParc'
 import { useAuth } from '../lib/AuthContext'
+import { PASSWORD_HINT, validatePasswordStrength } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 
 /**
@@ -62,8 +63,9 @@ export function ProfilPage() {
     e.preventDefault()
     setPwdError('')
     setPwdOk('')
-    if (newPassword.length < 6) {
-      setPwdError('Mot de passe : au moins 6 caractères.')
+    const pwdErr = validatePasswordStrength(newPassword)
+    if (pwdErr) {
+      setPwdError(pwdErr)
       return
     }
     if (newPassword !== newPassword2) {
@@ -169,14 +171,14 @@ export function ProfilPage() {
         <div className="sm:col-span-2">
           <h2 className="font-display mb-1 text-base font-semibold">Changer mon mot de passe</h2>
           <p className="mb-3 text-sm text-muted">
-            Utile pour synchroniser ordi et téléphone.
+            Utile pour synchroniser ordi et téléphone. {PASSWORD_HINT}
           </p>
         </div>
         <PasswordField
           label="Nouveau mot de passe *"
           autoComplete="new-password"
           required
-          minLength={6}
+          minLength={8}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
         />
@@ -184,7 +186,7 @@ export function ProfilPage() {
           label="Confirmer *"
           autoComplete="new-password"
           required
-          minLength={6}
+          minLength={8}
           value={newPassword2}
           onChange={(e) => setNewPassword2(e.target.value)}
         />

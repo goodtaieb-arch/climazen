@@ -137,6 +137,20 @@ export function ConfidentialitePage() {
           Supabase). Les données sont traitées dans le cadre du service.
         </p>
       </section>
+
+      <section className="space-y-2">
+        <H>Mesures de sécurité</H>
+        <p>
+          Accès par compte authentifié, isolation des données par société (règles d’accès
+          serveur), connexion HTTPS, mots de passe renforcés. Les clés secrètes d’administration
+          ne sont jamais exposées dans l’application. En cas d’incident, contactez{' '}
+          <a className="text-accent hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
+            {CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      </section>
+
       <section className="space-y-2">
         <H>Vos droits</H>
         <p>
