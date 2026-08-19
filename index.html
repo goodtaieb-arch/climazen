@@ -38,49 +38,61 @@
       rel="stylesheet"
     />
     <title>ClimaZEN by TAIEB — CERFA F-Gas conforme, hors ligne</title>
-    <meta name="climazen-build" content="v69" />
-    <meta name="climazen-version" content="v74" />
+    <meta name="climazen-build" content="v75" />
+    <meta name="climazen-version" content="v75" />
     <script>
-      /* Anti-ancien-cache : compare version.json (réseau) vs localStorage */
+      /* Anti-ancien-cache : compare version.json (réseau) vs localStorage.
+         Ne jamais écraser la clé boot avec l’ancien JS — seulement avec la version serveur. */
       (function () {
         try {
           var KEY = 'climazen_boot_v'
+          var RELOAD = 'climazen_reloading'
           fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
             .then(function (r) { return r.ok ? r.json() : null })
             .then(function (j) {
               if (!j || !j.version) return
               var server = String(j.version)
               var local = localStorage.getItem(KEY)
-              if (local && local !== server && sessionStorage.getItem('climazen_reloading') !== '1') {
-                sessionStorage.setItem('climazen_reloading', '1')
-                var done = function () {
-                  localStorage.setItem(KEY, server)
-                  var u = new URL(location.href)
-                  u.searchParams.set('v', server)
-                  u.searchParams.set('_', String(Date.now()))
-                  location.replace(u.toString())
-                }
-                var clear = Promise.resolve()
-                if (window.caches) {
-                  clear = caches.keys().then(function (keys) {
-                    return Promise.all(keys.map(function (k) { return caches.delete(k) }))
-                  })
-                }
-                clear
-                  .then(function () {
-                    return navigator.serviceWorker
-                      ? navigator.serviceWorker.getRegistrations()
-                      : []
-                  })
-                  .then(function (regs) {
-                    return Promise.all((regs || []).map(function (r) { return r.unregister() }))
-                  })
-                  .then(done)
-                  .catch(done)
-              } else {
+              var meta = document.querySelector('meta[name="climazen-version"]')
+              var pageV = meta ? String(meta.getAttribute('content') || '') : ''
+              /* Si le HTML servi est déjà à jour, mémoriser et sortir */
+              if (pageV && pageV === server) {
                 localStorage.setItem(KEY, server)
-                sessionStorage.removeItem('climazen_reloading')
+                sessionStorage.removeItem(RELOAD)
+                return
               }
+              if (local === server && pageV === server) {
+                sessionStorage.removeItem(RELOAD)
+                return
+              }
+              /* Déjà une tentative auto cette session → laisser le bouton MAJ */
+              if (sessionStorage.getItem(RELOAD) === '1') return
+
+              sessionStorage.setItem(RELOAD, '1')
+              var done = function () {
+                localStorage.setItem(KEY, server)
+                var u = new URL(location.href)
+                u.searchParams.set('v', server)
+                u.searchParams.set('_', String(Date.now()))
+                location.replace(u.toString())
+              }
+              var clear = Promise.resolve()
+              if (window.caches) {
+                clear = caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k) }))
+                })
+              }
+              clear
+                .then(function () {
+                  return navigator.serviceWorker
+                    ? navigator.serviceWorker.getRegistrations()
+                    : Promise.resolve([])
+                })
+                .then(function (regs) {
+                  return Promise.all((regs || []).map(function (r) { return r.unregister() }))
+                })
+                .then(done)
+                .catch(done)
             })
             .catch(function () {})
         } catch (e) {}

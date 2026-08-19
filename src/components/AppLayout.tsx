@@ -25,8 +25,7 @@ import { useStore } from '../lib/store'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
 import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
-import { VersionBadge, VersionUpdateBar, forceLatestAppVersion } from './AppVersion'
-import { APP_VERSION } from '../lib/buildStamp'
+import { VersionBadge, VersionUpdateBar, MajButton } from './AppVersion'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -184,7 +183,7 @@ export function AppLayout() {
   }
 
   /** Force le rechargement de la dernière version (contre cache PWA). */
-  const forceLatestVersion = () => void forceLatestAppVersion()
+  // (bouton MajButton + forceLatestAppVersion)
 
   const roleLabel = isOwner ? 'Administrateur' : 'Employé'
   const orgLabel = organization?.name || data.operateur.raisonSociale || 'Société'
@@ -322,15 +321,7 @@ export function AppLayout() {
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
               <VersionBadge />
-              <button
-                type="button"
-                onClick={forceLatestVersion}
-                className="touch-target inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-100 px-2.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-950 hover:bg-amber-200 sm:px-3"
-                aria-label="Charger la dernière version"
-                title="Efface le cache et recharge la dernière version"
-              >
-                MAJ
-              </button>
+              <MajButton />
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent('climazen:toggle-voice'))}
@@ -394,19 +385,16 @@ export function AppLayout() {
                 sans réseau — d’où une interface parfois « ancienne ».
               </p>
               <p className="mt-2 text-xs font-semibold text-amber-950">
-                Dès que le Wi‑Fi / 4G revient : appuyez sur <span className="rounded bg-amber-200 px-1">MAJ</span> en
-                haut pour charger la version {APP_VERSION}.
+                Dès que le Wi‑Fi / 4G revient : appuyez sur{' '}
+                <span className="rounded bg-amber-200 px-1">MAJ</span> en haut — le bouton
+                indique la version à installer (ex. MAJ v75).
               </p>
               {lastSyncLabel && (
                 <p className="mt-1 text-[11px] text-muted">Dernière sync réussie : {lastSyncLabel}</p>
               )}
-              <button
-                type="button"
-                onClick={forceLatestVersion}
-                className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-amber-500 px-4 text-xs font-extrabold uppercase tracking-wide text-amber-950"
-              >
-                Réessayer MAJ / réseau
-              </button>
+              <div className="mt-3">
+                <MajButton className="inline-flex min-h-10 items-center rounded-xl border border-amber-600 bg-amber-400 px-4 text-xs font-extrabold uppercase tracking-wide text-amber-950" />
+              </div>
             </div>
           )}
           {!offline && pendingSync && (
