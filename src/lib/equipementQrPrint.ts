@@ -11,6 +11,33 @@ export async function qrDataUrl(payload: string, size = 280): Promise<string> {
   })
 }
 
+export type EquipQrCard = {
+  hit: EquipQrHit
+  /** Texte encodé dans le QR (URL scan). */
+  payload: string
+  imgDataUrl: string
+  title: string
+  lines: string[]
+}
+
+/** Prépare les cartes QR (image + contenu écrit) pour aperçu ou impression. */
+export async function buildEquipQrCards(
+  hits: EquipQrHit[],
+  opts?: { origin?: string },
+): Promise<EquipQrCard[]> {
+  const origin =
+    opts?.origin ||
+    (typeof window !== 'undefined' ? window.location.origin : 'https://climazen.fr')
+  const cards: EquipQrCard[] = []
+  for (const hit of hits) {
+    const payload = buildEquipQrPayload(hit.equip.id, origin)
+    const imgDataUrl = await qrDataUrl(payload, 320)
+    const { title, lines } = equipQrPrintLines(hit)
+    cards.push({ hit, payload, imgDataUrl, title, lines })
+  }
+  return cards
+}
+
 /**
  * Impression sans pop-up (iframe cachée) — évite le blocage navigateur.
  */
@@ -88,7 +115,6 @@ function printHtmlViaIframe(html: string): Promise<void> {
             resolve()
           }
           win.addEventListener('afterprint', onAfter)
-          // Fallback si afterprint n’est pas supporté
           window.setTimeout(() => {
             cleanup()
             resolve()
@@ -115,24 +141,21 @@ export async function printEquipementLabels(
   opts?: { origin?: string; companyName?: string },
 ): Promise<void> {
   if (!hits.length) return
-  const origin = opts?.origin || window.location.origin
   const company = opts?.companyName || 'ClimaZEN'
+  const prepared = await buildEquipQrCards(hits, { origin: opts?.origin })
 
-  const cards: string[] = []
-  for (const hit of hits) {
-    const payload = buildEquipQrPayload(hit.equip.id, origin)
-    const img = await qrDataUrl(payload, 320)
-    const { title, lines } = equipQrPrintLines(hit)
-    cards.push(`
+  const cards = prepared.map(
+    (c) => `
       <article class="label">
         <div class="brand">${escapeHtml(company)}</div>
-        <img src="${img}" alt="QR" width="140" height="140" />
-        <h1>${escapeHtml(title)}</h1>
-        <p class="meta">${lines.map(escapeHtml).join('<br/>')}</p>
+        <img src="${c.imgDataUrl}" alt="QR" width="140" height="140" />
+        <h1>${escapeHtml(c.title)}</h1>
+        <p class="meta">${c.lines.map(escapeHtml).join('<br/>')}</p>
+        <p class="payload">${escapeHtml(c.payload)}</p>
         <p class="hint">Scanner avec ClimaZEN</p>
       </article>
-    `)
-  }
+    `,
+  )
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -182,6 +205,13 @@ export async function printEquipementLabels(
       color: #12303a;
       margin: 0;
       line-height: 1.35;
+    }
+    .payload {
+      margin: 6px 0 0;
+      font-size: 7px;
+      line-height: 1.25;
+      word-break: break-all;
+      color: #5a7880;
     }
     .hint {
       margin: 8px 0 0;

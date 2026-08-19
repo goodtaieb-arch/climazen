@@ -49,8 +49,12 @@ import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
-import { findEquipementById } from '../lib/equipementQr'
-import { printEquipementLabels } from '../lib/equipementQrPrint'
+import { findEquipementById, type EquipQrHit } from '../lib/equipementQr'
+import {
+  buildEquipQrCards,
+  printEquipementLabels,
+  type EquipQrCard,
+} from '../lib/equipementQrPrint'
 import { Sites3dIcon } from '../components/Sites3dIcon'
 
 type QuickTone = 'sites' | 'cerfa' | 'teal' | 'muted'
@@ -164,6 +168,7 @@ export function ChantiersPage() {
     null,
   )
   const [qrBusy, setQrBusy] = useState(false)
+  const [qrPreview, setQrPreview] = useState<EquipQrCard[] | null>(null)
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [equipFilter, setEquipFilter] = useState('')
@@ -873,11 +878,10 @@ export function ChantiersPage() {
     }
     setQrBusy(true)
     try {
-      await printEquipementLabels([hit], {
-        companyName: data.operateur?.raisonSociale || 'ClimaZEN',
-      })
+      const cards = await buildEquipQrCards([hit])
+      setQrPreview(cards)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Impression impossible')
+      alert(err instanceof Error ? err.message : 'Aperçu QR impossible')
     } finally {
       setQrBusy(false)
     }
@@ -890,16 +894,39 @@ export function ChantiersPage() {
       return
     }
     const client = data.clients.find((c) => c.id === site.clientId)
-    const hits = eqs.map((equip) => ({ site, equip, client }))
+    const hits: EquipQrHit[] = eqs.map((equip) => ({ site, equip, client }))
     setQrBusy(true)
     try {
-      await printEquipementLabels(hits, {
-        companyName: data.operateur?.raisonSociale || 'ClimaZEN',
-      })
+      const cards = await buildEquipQrCards(hits)
+      setQrPreview(cards)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Aperçu QR impossible')
+    } finally {
+      setQrBusy(false)
+    }
+  }
+
+  const confirmPrintQrPreview = async () => {
+    if (!qrPreview?.length) return
+    setQrBusy(true)
+    try {
+      await printEquipementLabels(
+        qrPreview.map((c) => c.hit),
+        { companyName: data.operateur?.raisonSociale || 'ClimaZEN' },
+      )
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Impression impossible')
     } finally {
       setQrBusy(false)
+    }
+  }
+
+  const copyQrPayload = async (payload: string) => {
+    try {
+      await navigator.clipboard.writeText(payload)
+      alert('Lien QR copié.')
+    } catch {
+      alert(payload)
     }
   }
 
@@ -1727,8 +1754,8 @@ export function ChantiersPage() {
                     disabled={qrBusy}
                     className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist disabled:opacity-60"
                   >
-                    <QrCode className="h-3.5 w-3.5" /> Imprimer QR de tous les équipements
-                  </button>
+                  <QrCode className="h-3.5 w-3.5" /> Voir / imprimer QR de tous
+                </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1913,7 +1940,7 @@ export function ChantiersPage() {
                   disabled={qrBusy}
                   className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist disabled:opacity-60"
                 >
-                  <QrCode className="h-4 w-4 text-accent" /> Étiquette QR (imprimer)
+                  <QrCode className="h-4 w-4 text-accent" /> Voir QR / imprimer
                 </button>
                 <button
                   type="button"
@@ -2439,6 +2466,69 @@ export function ChantiersPage() {
           setPendingDeleteSite(null)
         }}
       />
+
+      {qrPreview && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-xl">
+            <div className="border-b border-line px-5 py-4">
+              <h2 className="font-display text-lg font-semibold">QR équipements</h2>
+              <p className="mt-1 text-sm text-muted">
+                Voici ce qui est écrit dans le code (lien de scan) + l’étiquette.
+              </p>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {qrPreview.map((card) => (
+                <div
+                  key={card.hit.equip.id}
+                  className="rounded-xl border border-line bg-mist/40 p-4 text-center"
+                >
+                  <img
+                    src={card.imgDataUrl}
+                    alt={`QR ${card.title}`}
+                    className="mx-auto h-40 w-40 rounded-lg bg-white p-2"
+                  />
+                  <p className="mt-2 text-sm font-bold text-ink">{card.title}</p>
+                  {card.lines.length > 0 && (
+                    <p className="mt-1 text-xs leading-snug text-slate">
+                      {card.lines.join(' · ')}
+                    </p>
+                  )}
+                  <p className="mt-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    Contenu du QR
+                  </p>
+                  <p className="mt-1 break-all rounded-lg bg-white px-2.5 py-2 text-left font-mono text-[11px] leading-snug text-ink">
+                    {card.payload}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void copyQrPayload(card.payload)}
+                    className="mt-2 text-xs font-semibold text-accent underline"
+                  >
+                    Copier le lien
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 border-t border-line p-4">
+              <button
+                type="button"
+                disabled={qrBusy}
+                onClick={() => void confirmPrintQrPreview()}
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-ink disabled:opacity-50"
+              >
+                <QrCode className="h-4 w-4" /> Imprimer
+              </button>
+              <button
+                type="button"
+                onClick={() => setQrPreview(null)}
+                className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MobileFab
         label="Nouveau site"
