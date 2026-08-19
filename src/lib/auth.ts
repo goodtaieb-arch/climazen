@@ -517,6 +517,7 @@ export function normalizeAppData(raw: unknown): AppData {
     chantiers: parsed.chantiers || [],
     detecteurs: parsed.detecteurs,
     fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
+    fichesMaintenanceChaufferie: parsed.fichesMaintenanceChaufferie || [],
   })
 }
 
@@ -565,6 +566,7 @@ export function appDataWeight(data: AppData): number {
     (data.stock?.length || 0) * 2 +
     (data.detecteurs?.length || 0) * 15 +
     (data.fichesMaintenanceClim?.length || 0) * 2 +
+    (data.fichesMaintenanceChaufferie?.length || 0) * 2 +
     (data.ordresTravail?.length || 0) * 2 +
     (o?.raisonSociale?.trim() ? 25 : 0) +
     (o?.adresse?.trim() ? 5 : 0) +
@@ -691,6 +693,11 @@ export function resolveRemoteVsLocal(
     local.fichesMaintenanceClim,
     preferOnTie,
   )
+  const fichesMaintenanceChaufferie = mergeByIdLatest(
+    remote.fichesMaintenanceChaufferie,
+    local.fichesMaintenanceChaufferie,
+    preferOnTie,
+  )
   const ordresTravail = mergeByIdLatest(remote.ordresTravail, local.ordresTravail, preferOnTie)
   const contratsMaintenance = mergeByIdLatest(
     remote.contratsMaintenance,
@@ -711,6 +718,7 @@ export function resolveRemoteVsLocal(
     stock,
     stockMouvements,
     fichesMaintenanceClim,
+    fichesMaintenanceChaufferie,
     ordresTravail,
     contratsMaintenance,
     agendaEvents,

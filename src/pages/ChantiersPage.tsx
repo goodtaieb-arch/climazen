@@ -1794,7 +1794,17 @@ export function ChantiersPage() {
                   }}
                   className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
                 >
-                  <ClipboardList className="h-4 w-4 text-accent" /> Fiche checklist (optionnel)
+                  <ClipboardList className="h-4 w-4 text-accent" /> Fiche checklist clim
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-chaufferie?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`
+                    navigate(url)
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
+                >
+                  <ClipboardList className="h-4 w-4 text-amber-700" /> Fiche chaufferie P2/P3
                 </button>
                 {eqFluide && (
                   <button
@@ -2201,9 +2211,26 @@ export function ChantiersPage() {
                 >
                   <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
                   <span>
-                    <span className="block text-sm">Fiche checklist (optionnel)</span>
+                    <span className="block text-sm">Fiche checklist clim (optionnel)</span>
                     <span className="block text-xs font-medium text-muted">
                       Pas obligatoire pour une maintenance — utile si vous voulez un PDF détaillé
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-chaufferie?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
+                    setEquipWork(null)
+                    navigate(url)
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-left font-semibold text-ink active:bg-amber-50"
+                >
+                  <ClipboardList className="h-5 w-5 shrink-0 text-amber-800" />
+                  <span>
+                    <span className="block text-sm">Fiche chaufferie P2/P3</span>
+                    <span className="block text-xs font-medium text-muted">
+                      Mensuel · trimestriel · semestriel · annuel
                     </span>
                   </span>
                 </button>

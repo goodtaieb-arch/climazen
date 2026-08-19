@@ -77,6 +77,13 @@ type Store = {
     },
   ) => string
   deleteFicheMaintenanceClim: (id: string) => void
+  upsertFicheMaintenanceChaufferie: (
+    f: Omit<
+      import('./ficheMaintenanceChaufferie').FicheMaintenanceChaufferie,
+      'id' | 'createdAt' | 'updatedAt'
+    > & { id?: string },
+  ) => string
+  deleteFicheMaintenanceChaufferie: (id: string) => void
   upsertOrdreTravail: (
     o: Omit<import('./ordreTravail').OrdreTravail, 'id' | 'createdAt' | 'updatedAt'> & {
       id?: string
@@ -733,6 +740,83 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const upsertFicheMaintenanceChaufferie = useCallback(
+    (
+      f: Omit<
+        import('./ficheMaintenanceChaufferie').FicheMaintenanceChaufferie,
+        'id' | 'createdAt' | 'updatedAt'
+      > & { id?: string },
+    ) => {
+      const id = f.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.fichesMaintenanceChaufferie || []
+        const existing = list.find((x) => x.id === id)
+        const numero =
+          (f.numero || '').trim() ||
+          (existing?.numero || '').trim() ||
+          nextNumeroIntervention(d)
+        const next = {
+          ...f,
+          numero,
+          id,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        let ordres = [...(d.ordresTravail || [])]
+        const hasOt = ordres.some(
+          (o) => o.ficheChaufferieId === id || o.numero === numero,
+        )
+        if (!hasOt && !existing) {
+          ordres = [
+            ...ordres,
+            {
+              id: uuid(),
+              numero,
+              date: f.date || now.slice(0, 10),
+              typeOt: 'entretien' as const,
+              action: `Maintenance chaufferie ${f.periode} — ${f.marqueModele || 'équipement'}`,
+              rapportAction: f.observations || '',
+              observations: f.observations || '',
+              clientId: f.clientId,
+              chantierId: f.chantierId,
+              equipementId: f.equipementId,
+              technicien: f.technicien || '',
+              ficheChaufferieId: id,
+              signatureTechnicienImage: f.signatureTechnicienImage,
+              signatureClientImage: f.signatureClientImage,
+              statut: 'en_cours' as const,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ]
+        } else {
+          ordres = ordres.map((o) =>
+            o.numero === numero || o.ficheChaufferieId === id
+              ? { ...o, ficheChaufferieId: id, updatedAt: now }
+              : o,
+          )
+        }
+        return {
+          ...d,
+          ordresTravail: ordres,
+          fichesMaintenanceChaufferie: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteFicheMaintenanceChaufferie = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      fichesMaintenanceChaufferie: (d.fichesMaintenanceChaufferie || []).filter((f) => f.id !== id),
+    }))
+  }, [])
+
   const upsertOrdreTravail = useCallback(
     (
       o: Omit<OrdreTravail, 'id' | 'createdAt' | 'updatedAt'> & {
@@ -1089,6 +1173,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             updatedAt: now,
           }
         })
+        const fichesChauff = (d.fichesMaintenanceChaufferie || []).map((f) => {
+          if (f.chantierId !== opts.siteId) return f
+          count += 1
+          return {
+            ...f,
+            signatureClientImage: opts.signatureDetenteurImage,
+            updatedAt: now,
+          }
+        })
         const ordres = (d.ordresTravail || []).map((o) => {
           if (o.chantierId !== opts.siteId) return o
           count += 1
@@ -1113,6 +1206,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           chantiers: sites,
           interventions,
           fichesMaintenanceClim: fiches,
+          fichesMaintenanceChaufferie: fichesChauff,
           ordresTravail: ordres,
           contratsMaintenance: contrats,
         }
@@ -1526,6 +1620,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteChantier,
       upsertFicheMaintenanceClim,
       deleteFicheMaintenanceClim,
+      upsertFicheMaintenanceChaufferie,
+      deleteFicheMaintenanceChaufferie,
       upsertOrdreTravail,
       deleteOrdreTravail,
       upsertContratMaintenance,
@@ -1567,6 +1663,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteChantier,
       upsertFicheMaintenanceClim,
       deleteFicheMaintenanceClim,
+      upsertFicheMaintenanceChaufferie,
+      deleteFicheMaintenanceChaufferie,
       upsertOrdreTravail,
       deleteOrdreTravail,
       upsertContratMaintenance,

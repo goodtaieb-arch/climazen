@@ -1,6 +1,7 @@
 /** Référence réglementaire : CERFA FI 15497-04 (fiche d'intervention fluides). */
 
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
+import type { FicheMaintenanceChaufferie } from './ficheMaintenanceChaufferie'
 import type { OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
 
@@ -576,6 +577,8 @@ export interface AppData {
   detecteurs?: DetecteurManuel[]
   /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
   fichesMaintenanceClim?: FicheMaintenanceClim[]
+  /** Fiches maintenance chaufferie P2/P3 (registre périodique) */
+  fichesMaintenanceChaufferie?: FicheMaintenanceChaufferie[]
   /** Ordres de travail (OT) — n° unique OT2026xxxx */
   ordresTravail?: OrdreTravail[]
   /** Contrats de maintenance (documents signables) */

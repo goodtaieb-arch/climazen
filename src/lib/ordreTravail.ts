@@ -61,8 +61,10 @@ export interface OrdreTravail {
   technicien: string
   /** Lien CERFA si généré avec fluide */
   interventionId?: string
-  /** Lien fiche maintenance / rapport sans CERFA */
+  /** Lien fiche maintenance clim / rapport sans CERFA */
   ficheMaintenanceId?: string
+  /** Lien fiche maintenance chaufferie P2/P3 */
+  ficheChaufferieId?: string
   signatureTechnicienImage?: string
   signatureClientImage?: string
   statut: StatutOt
@@ -164,6 +166,7 @@ export function nextNumeroOt(
     ordresTravail?: Pick<OrdreTravail, 'numero'>[]
     interventions?: { numeroIntervention?: string }[]
     fichesMaintenanceClim?: { numero?: string }[]
+    fichesMaintenanceChaufferie?: { numero?: string }[]
   },
   offset = 0,
 ): string {
@@ -172,6 +175,7 @@ export function nextNumeroOt(
     ...(data.ordresTravail || []).map((o) => o.numero),
     ...(data.interventions || []).map((i) => i.numeroIntervention),
     ...(data.fichesMaintenanceClim || []).map((f) => f.numero),
+    ...(data.fichesMaintenanceChaufferie || []).map((f) => f.numero),
   ]
   // Dédupliquer par n° de base pour ne pas compter 2× le même OT (multi-CERFA)
   const unique = [...new Set(values.map((v) => otBaseNumero(v)).filter(Boolean))]

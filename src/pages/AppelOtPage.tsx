@@ -27,6 +27,7 @@ import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, equipementsForCerfa, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
+import { blankFicheMaintenanceChaufferie } from '../lib/ficheMaintenanceChaufferie'
 import type { Client, Equipement, Site } from '../lib/types'
 import { clientDisplayName, syncClientRaisonSociale } from '../lib/types'
 import {
@@ -116,7 +117,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertIntervention } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertIntervention } =
     useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -639,6 +640,72 @@ export function AppelOtPage() {
         ? `id=${encodeURIComponent(ficheIds[0])}&batch=${encodeURIComponent(ficheIds.join(','))}&ot=${encodeURIComponent(id)}`
         : `id=${encodeURIComponent(ficheIds[0])}&ot=${encodeURIComponent(id)}`
     navigate(`/app/fiche-maintenance-clim?${q}`)
+  }
+
+  const openFicheChaufferie = () => {
+    if (!otForm.chantierId) {
+      alert('Site requis pour la fiche chaufferie.')
+      return
+    }
+    const c = client
+    const s = site
+    const eqId =
+      selectedEquipIds[0] || otForm.equipementId || (eqs[0]?.id ?? '')
+    const eq = eqs.find((e) => e.id === eqId)
+    const adresse =
+      [s?.adresse, s?.codePostal, s?.ville].filter(Boolean).join(', ') ||
+      [c?.adresse, c?.codePostal, c?.ville].filter(Boolean).join(', ')
+
+    const id = persistOt(
+      {
+        parcoursStep: 'docs',
+        equipementId: eqId || otForm.equipementId,
+      },
+      otId,
+    )
+
+    const existingFiche =
+      (data.fichesMaintenanceChaufferie || []).find(
+        (f) =>
+          f.chantierId === otForm.chantierId &&
+          (!eqId || f.equipementId === eqId) &&
+          (f.numero === otForm.numero || !f.hasPdf),
+      ) || null
+
+    let ficheId = existingFiche?.id
+    if (existingFiche) {
+      if (otForm.numero && existingFiche.numero !== otForm.numero) {
+        upsertFicheMaintenanceChaufferie({
+          ...existingFiche,
+          numero: otForm.numero,
+        })
+      }
+    } else {
+      const base = blankFicheMaintenanceChaufferie('mensuel')
+      ficheId = upsertFicheMaintenanceChaufferie({
+        ...base,
+        numero: otForm.numero,
+        date: otForm.date || today(),
+        technicien: otForm.technicien,
+        clientId: otForm.clientId,
+        chantierId: otForm.chantierId,
+        equipementId: eqId || undefined,
+        clientNom: c?.raisonSociale || '',
+        adresse,
+        marqueModele: eq
+          ? [eq.marque, eq.modele].filter(Boolean).join(' / ') || eq.nom || eq.type || ''
+          : '',
+        numeroSerie: eq?.numeroSerie || '',
+        signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
+        signatureClientImage: otForm.signatureClientImage || s?.signatureDetenteurImage || '',
+        observations: otForm.observations || '',
+      })
+    }
+    if (!ficheId) return
+    persistOt({ ficheChaufferieId: ficheId, parcoursStep: 'docs' }, id)
+    navigate(
+      `/app/fiche-maintenance-chaufferie?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}`,
+    )
   }
 
   const finishWithSignatures = () => {
@@ -1564,13 +1631,26 @@ export function AppelOtPage() {
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
               <span>
-                <span className="block text-sm">Fiche checklist (optionnel)</span>
+                <span className="block text-sm">Fiche checklist clim (optionnel)</span>
                 <span className="block text-xs font-medium text-muted">
                   {selectedEquipIds.length > 1
                     ? `${selectedEquipIds.length} équipements → 1 fiche chacun`
                     : isMaint
                       ? 'Pas obligatoire en maintenance — le CERFA ou le rapport OT suffisent'
                       : 'Si vous voulez un PDF détaillé hors CERFA'}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={openFicheChaufferie}
+              className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 px-4 py-3 text-left font-semibold active:bg-amber-50"
+            >
+              <ClipboardList className="h-5 w-5 shrink-0 text-amber-800" />
+              <span>
+                <span className="block text-sm">Fiche chaufferie P2/P3</span>
+                <span className="block text-xs font-medium text-muted">
+                  Mensuel · trimestriel · semestriel · annuel (registre complet)
                 </span>
               </span>
             </button>

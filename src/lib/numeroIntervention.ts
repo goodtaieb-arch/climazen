@@ -1,5 +1,6 @@
 import type { CerfaDraft } from './types'
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
+import type { FicheMaintenanceChaufferie } from './ficheMaintenanceChaufferie'
 import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 
 /**
@@ -10,6 +11,7 @@ export function nextNumeroIntervention(
   data: {
     interventions?: Pick<CerfaDraft, 'numeroIntervention'>[]
     fichesMaintenanceClim?: Pick<FicheMaintenanceClim, 'numero'>[]
+    fichesMaintenanceChaufferie?: Pick<FicheMaintenanceChaufferie, 'numero'>[]
     ordresTravail?: Pick<OrdreTravail, 'numero'>[]
   },
   offset = 0,

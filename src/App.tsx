@@ -20,6 +20,7 @@ import { EquipePage } from './pages/EquipePage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { FicheMaintenanceClimPage } from './pages/FicheMaintenanceClimPage'
+import { FicheMaintenanceChaufferiePage } from './pages/FicheMaintenanceChaufferiePage'
 import { OrdresTravailPage } from './pages/OrdresTravailPage'
 import { AppelOtPage } from './pages/AppelOtPage'
 import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
@@ -42,6 +43,13 @@ function FicheMaintenanceClimRoute() {
   const batch = params.get('batch') || ''
   // key force le remount à chaque fiche du lot multi-équipements
   return <FicheMaintenanceClimPage key={`${id}::${batch}`} />
+}
+
+function FicheMaintenanceChaufferieRoute() {
+  const [params] = useSearchParams()
+  const id = params.get('id') || 'new'
+  const periode = params.get('periode') || ''
+  return <FicheMaintenanceChaufferiePage key={`${id}::${periode}`} />
 }
 
 export default function App() {
@@ -85,6 +93,10 @@ export default function App() {
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
                 <Route path="agenda" element={<AgendaPage />} />
                 <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimRoute />} />
+                <Route
+                  path="fiche-maintenance-chaufferie"
+                  element={<FicheMaintenanceChaufferieRoute />}
+                />
                 <Route path="equipe" element={<EquipePage />} />
                 <Route path="operateur" element={<OperateurPage />} />
                 <Route path="profil" element={<ProfilPage />} />
