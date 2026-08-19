@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ChevronDown, ChevronRight, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
+import type { UserAccount } from '../lib/auth'
 import {
   CONTENANT_TYPE_LABELS,
   contenantDemarreVide,
@@ -100,7 +101,9 @@ const blank = (opts?: {
     quantiteKg: contenantDemarreVide(contenantType) ? 0 : 0,
     quantiteInitialeKg: 0,
     capaciteMaxKg: defs.capaciteMaxKg,
-    emplacement: contenantType === 'transfert' ? 'atelier' : undefined,
+    emplacement: 'atelier',
+    assigneeUserId: undefined,
+    assigneeName: undefined,
     bsffReference: '',
     codeUn: adr?.codeUn || '',
     denominationAdr: adr?.denominationAdr || '',
@@ -211,8 +214,9 @@ export function StockPage() {
     enregistrerTransfertInterneBouteille,
     enregistrerPerteEmissionBouteille,
   } = useStore()
-  const { user } = useAuth()
+  const { user, listTeam } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [team, setTeam] = useState<UserAccount[]>([])
   const [form, setForm] = useState(blank)
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -238,6 +242,7 @@ export function StockPage() {
   const [trfForm, setTrfForm] = useState({
     versEmplacement: 'vehicule' as 'atelier' | 'vehicule',
     versLabel: '',
+    assigneeUserId: '',
     date: today(),
     documentAdr: '',
     notes: '',
@@ -251,6 +256,65 @@ export function StockPage() {
   })
   const [q, setQ] = useState('')
   const [scanHint, setScanHint] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    void listTeam()
+      .then((t) => {
+        if (cancelled) return
+        const active = t.filter((m) => m.active !== false)
+        if (user && !active.some((m) => m.id === user.id)) {
+          setTeam([
+            {
+              id: user.id,
+              organizationId: user.organizationId,
+              email: user.email,
+              username: user.username,
+              fullName: user.fullName || user.email || 'Moi',
+              role: user.role,
+              active: true,
+              createdAt: user.createdAt,
+            } as UserAccount,
+            ...active,
+          ])
+        } else {
+          setTeam(active)
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        if (user) {
+          setTeam([
+            {
+              id: user.id,
+              organizationId: user.organizationId,
+              email: user.email,
+              username: user.username,
+              fullName: user.fullName || user.email || 'Moi',
+              role: user.role,
+              active: true,
+              createdAt: user.createdAt,
+            } as UserAccount,
+          ])
+        } else {
+          setTeam([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [listTeam, user])
+
+  /** Solo (auto-entrepreneur) : pas d’affectation tech sur les bouteilles. */
+  const isSolo = team.length <= 1
+
+  const resolveStockAssigneeName = (uid: string) => {
+    if (!uid) return undefined
+    const member = team.find((m) => m.id === uid)
+    if (member?.fullName) return member.fullName
+    if (uid === user?.id) return user.fullName || user.email || 'Moi'
+    return undefined
+  }
 
   const applyScanFields = (fields: BouteilleScanFields, forceNumero = false) => {
     setForm((f) => {
@@ -401,6 +465,15 @@ export function StockPage() {
     }
 
     if (
+      !isSolo &&
+      (form.emplacement || 'atelier') === 'vehicule' &&
+      !form.assigneeUserId
+    ) {
+      alert('Indiquez le technicien qui a la bouteille (hors atelier / dépôt).')
+      return
+    }
+
+    if (
       !editId &&
       qty <= 0 &&
       !isContenantDestination(contenantType) &&
@@ -465,11 +538,21 @@ export function StockPage() {
           : form.capaciteMaxKg,
       tareKg: form.tareKg ?? defs.tareKg,
       pressionEpreuveBar: form.pressionEpreuveBar ?? defs.pressionEpreuveBar,
-      emplacement: contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement,
+      emplacement: form.emplacement || 'atelier',
       emplacementLabel:
-        (contenantType === 'transfert' ? form.emplacement || 'atelier' : form.emplacement) ===
-        'vehicule'
-          ? form.emplacementLabel?.trim() || undefined
+        (form.emplacement || 'atelier') === 'vehicule'
+          ? form.emplacementLabel?.trim() ||
+            (form.assigneeName?.trim() ? `Véhicule ${form.assigneeName.trim()}` : undefined)
+          : undefined,
+      assigneeUserId:
+        !isSolo && (form.emplacement || 'atelier') === 'vehicule'
+          ? form.assigneeUserId || undefined
+          : undefined,
+      assigneeName:
+        !isSolo && (form.emplacement || 'atelier') === 'vehicule'
+          ? form.assigneeName?.trim() ||
+            resolveStockAssigneeName(form.assigneeUserId || '') ||
+            undefined
           : undefined,
       quantiteKg: qty,
       quantiteInitialeKg: editId
@@ -557,6 +640,7 @@ export function StockPage() {
     setTrfForm({
       versEmplacement: from === 'vehicule' ? 'atelier' : 'vehicule',
       versLabel: from === 'vehicule' ? '' : s.emplacementLabel || '',
+      assigneeUserId: from === 'vehicule' ? '' : s.assigneeUserId || '',
       date: today(),
       documentAdr: '',
       notes: '',
@@ -567,10 +651,18 @@ export function StockPage() {
     e.preventDefault()
     if (!trfId) return
     try {
+      const assigneeUserId =
+        !isSolo && trfForm.versEmplacement === 'vehicule'
+          ? trfForm.assigneeUserId || undefined
+          : undefined
       enregistrerTransfertInterneBouteille({
         stockItemId: trfId,
         versEmplacement: trfForm.versEmplacement,
         versLabel: trfForm.versLabel,
+        assigneeUserId,
+        assigneeName: assigneeUserId
+          ? resolveStockAssigneeName(assigneeUserId)
+          : undefined,
         date: trfForm.date,
         documentAdr: trfForm.documentAdr,
         notes: trfForm.notes,
@@ -757,8 +849,7 @@ export function StockPage() {
                     capaciteMaxKg: contenantSansRecharge(contenantType)
                       ? qty || f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg
                       : f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg,
-                    emplacement:
-                      contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
+                    emplacement: f.emplacement || 'atelier',
                     typeHuile:
                       contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
                   }
@@ -925,35 +1016,69 @@ export function StockPage() {
             />
           )}
 
-          {form.contenantType === 'transfert' && (
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold text-ink">Emplacement</span>
+            <select
+              value={form.emplacement || 'atelier'}
+              onChange={(e) => {
+                const emplacement = e.target.value as 'atelier' | 'vehicule'
+                setForm({
+                  ...form,
+                  emplacement,
+                  ...(emplacement === 'atelier'
+                    ? { assigneeUserId: undefined, assigneeName: undefined, emplacementLabel: undefined }
+                    : {}),
+                })
+              }}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            >
+              <option value="atelier">Atelier / dépôt</option>
+              <option value="vehicule">Chez un technicien / véhicule</option>
+            </select>
+          </label>
+          {(form.emplacement || 'atelier') === 'vehicule' && (
             <>
-              <label className="block text-sm">
-                <span className="mb-1 block font-semibold text-ink">Emplacement</span>
-                <select
-                  value={form.emplacement || 'atelier'}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      emplacement: e.target.value as 'atelier' | 'vehicule',
-                    })
-                  }
-                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
-                >
-                  <option value="atelier">Atelier / dépôt</option>
-                  <option value="vehicule">Véhicule technicien</option>
-                </select>
-              </label>
-              {form.emplacement === 'vehicule' && (
+              {!isSolo && (
                 <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Nom du véhicule</span>
-                  <input
-                    value={form.emplacementLabel || ''}
-                    onChange={(e) => setForm({ ...form, emplacementLabel: e.target.value })}
-                    placeholder="ex. Véhicule A"
+                  <span className="mb-1 block font-semibold text-ink">Technicien *</span>
+                  <select
+                    value={form.assigneeUserId || ''}
+                    onChange={(e) => {
+                      const assigneeUserId = e.target.value
+                      setForm({
+                        ...form,
+                        assigneeUserId: assigneeUserId || undefined,
+                        assigneeName: resolveStockAssigneeName(assigneeUserId),
+                      })
+                    }}
+                    required
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
-                  />
+                  >
+                    <option value="">— Choisir le technicien —</option>
+                    {team.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.fullName || m.email}
+                        {m.id === user?.id ? ' (moi)' : ''}
+                        {m.role === 'owner' ? ' · gérant' : ' · opérateur'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-muted">
+                    Qui a la bouteille hors atelier — visible pour toute l’équipe.
+                  </p>
                 </label>
               )}
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">
+                  Nom du véhicule {isSolo ? '' : '(optionnel)'}
+                </span>
+                <input
+                  value={form.emplacementLabel || ''}
+                  onChange={(e) => setForm({ ...form, emplacementLabel: e.target.value })}
+                  placeholder="ex. Véhicule A"
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                />
+              </label>
             </>
           )}
 
@@ -1293,14 +1418,35 @@ export function StockPage() {
                 setTrfForm({
                   ...trfForm,
                   versEmplacement: e.target.value as 'atelier' | 'vehicule',
+                  assigneeUserId:
+                    e.target.value === 'atelier' ? '' : trfForm.assigneeUserId,
                 })
               }
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
               <option value="atelier">Atelier / dépôt</option>
-              <option value="vehicule">Véhicule</option>
+              <option value="vehicule">Chez un technicien / véhicule</option>
             </select>
           </label>
+          {trfForm.versEmplacement === 'vehicule' && !isSolo && (
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Technicien *</span>
+              <select
+                required
+                value={trfForm.assigneeUserId}
+                onChange={(e) => setTrfForm({ ...trfForm, assigneeUserId: e.target.value })}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="">— Choisir le technicien —</option>
+                {team.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.fullName || m.email}
+                    {m.id === user?.id ? ' (moi)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">Date *</span>
             <input
@@ -1313,9 +1459,11 @@ export function StockPage() {
           </label>
           {trfForm.versEmplacement === 'vehicule' && (
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-semibold text-ink">Nom du véhicule *</span>
+              <span className="mb-1 block font-semibold text-ink">
+                Nom du véhicule {!isSolo && trfForm.assigneeUserId ? '(optionnel)' : '*'}
+              </span>
               <input
-                required
+                required={isSolo || !trfForm.assigneeUserId}
                 value={trfForm.versLabel}
                 onChange={(e) => setTrfForm({ ...trfForm, versLabel: e.target.value })}
                 placeholder="ex. Véhicule A"
@@ -1572,6 +1720,11 @@ export function StockPage() {
                               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
                                 {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
+                              {s.assigneeName && (s.emplacement || 'atelier') === 'vehicule' && (
+                                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
+                                  {s.assigneeName}
+                                </span>
+                              )}
                               {isFluideNonAssigne(s.fluide) && s.contenantType === 'recuperation' && (
                                 <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-800">
                                   Non assigné

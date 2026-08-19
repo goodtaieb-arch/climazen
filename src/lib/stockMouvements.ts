@@ -567,6 +567,9 @@ export function enregistrerTransfertInterne(
     stockItemId: string
     versEmplacement: EmplacementStock
     versLabel?: string
+    /** Tech qui reçoit la bouteille (hors atelier) — multi-équipe. */
+    assigneeUserId?: string
+    assigneeName?: string
     date?: string
     notes?: string
     /** Réf. document ADR / déclaration transport (optionnel) */
@@ -584,15 +587,20 @@ export function enregistrerTransfertInterne(
   const fromEmp = item.emplacement || 'atelier'
   const fromLabel = item.emplacementLabel
   const toEmp = opts.versEmplacement
-  const toLabel = toEmp === 'vehicule' ? opts.versLabel?.trim() || '' : ''
+  const toLabel =
+    toEmp === 'vehicule'
+      ? opts.versLabel?.trim() || opts.assigneeName?.trim() || ''
+      : ''
 
-  if (toEmp === 'vehicule' && !toLabel) {
-    throw new Error('Indiquez le nom du véhicule (ex. Véhicule A, Camion 12).')
+  if (toEmp === 'vehicule' && !toLabel && !opts.assigneeUserId) {
+    throw new Error('Indiquez le technicien ou le nom du véhicule.')
   }
 
   const samePlace =
     fromEmp === toEmp &&
-    (fromEmp !== 'vehicule' || (fromLabel || '').trim() === toLabel)
+    (fromEmp !== 'vehicule' || (fromLabel || '').trim() === toLabel) &&
+    (toEmp !== 'vehicule' ||
+      (item.assigneeUserId || '') === (opts.assigneeUserId || ''))
   if (samePlace) {
     throw new Error('La bouteille est déjà à cet emplacement.')
   }
@@ -601,15 +609,24 @@ export function enregistrerTransfertInterne(
   const date = opts.date || now.slice(0, 10)
   const qty = roundKg(Number(item.quantiteKg) || 0)
   const fromTxt = labelEmplacement(fromEmp, fromLabel)
-  const toTxt = labelEmplacement(toEmp, toLabel)
+  const toTxt = labelEmplacement(toEmp, toLabel || undefined)
   const adr = opts.documentAdr?.trim()
 
   const nextItem: StockItem = {
     ...item,
     emplacement: toEmp,
-    emplacementLabel: toEmp === 'vehicule' ? toLabel : undefined,
+    emplacementLabel: toEmp === 'vehicule' ? toLabel || undefined : undefined,
+    assigneeUserId: toEmp === 'vehicule' ? opts.assigneeUserId || undefined : undefined,
+    assigneeName: toEmp === 'vehicule' ? opts.assigneeName?.trim() || undefined : undefined,
     updatedAt: now,
   }
+
+  const techTxt =
+    toEmp === 'vehicule' && opts.assigneeName
+      ? `Tech : ${opts.assigneeName}`
+      : toEmp === 'atelier' && item.assigneeName
+        ? `Retour dépôt (était chez ${item.assigneeName})`
+        : ''
 
   const mouvement = makeMouvement({
     item,
@@ -625,6 +642,7 @@ export function enregistrerTransfertInterne(
     documentReference: adr,
     note: [
       `Transfert interne (sans CERFA) : ${fromTxt} → ${toTxt}`,
+      techTxt,
       qty > 0 ? `Fluide suivi : ${qty} kg ${item.fluide}` : 'Bouteille vide déplacée',
       item.codeUn ? `ADR ${item.codeUn}` : '',
       item.denominationAdr || '',

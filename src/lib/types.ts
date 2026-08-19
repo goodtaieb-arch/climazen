@@ -380,6 +380,13 @@ export interface StockItem {
   /** Libellé véhicule / dépôt (ex. « Véhicule A », « Camion 12 »). */
   emplacementLabel?: string
   /**
+   * Technicien qui a la bouteille (hors atelier / dépôt).
+   * Utile si plusieurs techs — masqué en entreprise solo.
+   */
+  assigneeUserId?: string
+  /** Nom dénormalisé pour affichage liste / hors ligne. */
+  assigneeName?: string
+  /**
    * Récup. fluide A2L/A3 : technicien confirme bouteille adaptée
    * (collerette rouge, pas à gauche, pictogramme flamme).
    */

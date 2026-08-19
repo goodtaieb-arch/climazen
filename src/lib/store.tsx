@@ -161,6 +161,8 @@ type Store = {
     stockItemId: string
     versEmplacement: 'atelier' | 'vehicule'
     versLabel?: string
+    assigneeUserId?: string
+    assigneeName?: string
     date?: string
     notes?: string
     documentAdr?: string
@@ -1311,6 +1313,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       stockItemId: string
       versEmplacement: 'atelier' | 'vehicule'
       versLabel?: string
+      assigneeUserId?: string
+      assigneeName?: string
       date?: string
       notes?: string
       documentAdr?: string
