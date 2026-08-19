@@ -189,15 +189,36 @@ function applyContenantTypeChange(
 
 const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   vierge: { label: 'Vierge (neuf)', cls: 'bg-emerald-100 text-emerald-800' },
-  recuperation: { label: 'Récup. déchet', cls: 'bg-orange-100 text-orange-800' },
+  recuperation: { label: 'Récupération', cls: 'bg-orange-100 text-orange-800' },
   recycle: { label: 'Recyclé site', cls: 'bg-sky-100 text-sky-800' },
   regenere: { label: 'Régénéré', cls: 'bg-indigo-100 text-indigo-800' },
   transfert: { label: 'Transfert / Service', cls: 'bg-slate-100 text-slate-700' },
 }
 
-/** Récupération déchet = hors stock utilisable (traitement / destruction BSFF). */
-function isStockDechet(s: Pick<StockItem, 'contenantType'>): boolean {
-  return s.contenantType === 'recuperation'
+/** Fluide récupéré (chantier) — filières : régénération, recyclage site, destruction. */
+function isStockRecupere(s: Pick<StockItem, 'contenantType'>): boolean {
+  return s.contenantType === 'recuperation' || s.contenantType === 'recycle'
+}
+
+/** Stock propre utilisable en charge (hors fluide récupéré). */
+function isStockUtilisablePropre(s: Pick<StockItem, 'contenantType'>): boolean {
+  return !isStockRecupere(s)
+}
+
+type FiliereRecup = 'regeneration' | 'recyclage' | 'destruction'
+
+function filiereRecupOf(
+  s: Pick<StockItem, 'contenantType' | 'origineDestructionDistributeur'>,
+): FiliereRecup | null {
+  if (s.contenantType === 'recycle') return 'recyclage'
+  if (s.contenantType !== 'recuperation') return null
+  return s.origineDestructionDistributeur ? 'destruction' : 'regeneration'
+}
+
+const FILIERE_RECUP_LABELS: Record<FiliereRecup, string> = {
+  regeneration: 'Régénération / traitement distributeur',
+  recyclage: 'Recyclage sur site / même client',
+  destruction: 'Destruction / déchet (BSFF)',
 }
 
 type StockFluideGroup = {
@@ -466,22 +487,39 @@ export function StockPage() {
   )
 
   const stockUtilisable = useMemo(
-    () => actifStock.filter((s) => !isStockDechet(s)),
+    () => actifStock.filter((s) => isStockUtilisablePropre(s)),
     [actifStock],
   )
-  const stockDechet = useMemo(() => actifStock.filter((s) => isStockDechet(s)), [actifStock])
+  const stockRecupere = useMemo(() => actifStock.filter((s) => isStockRecupere(s)), [actifStock])
 
   const groupsUtilisable = useMemo(() => groupStockByFluide(stockUtilisable), [stockUtilisable])
-  const groupsDechet = useMemo(() => groupStockByFluide(stockDechet), [stockDechet])
+  const groupsRecupere = useMemo(() => groupStockByFluide(stockRecupere), [stockRecupere])
 
   const totalUtilisableKg = useMemo(
     () => roundKg(stockUtilisable.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
     [stockUtilisable],
   )
-  const totalDechetKg = useMemo(
-    () => roundKg(stockDechet.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
-    [stockDechet],
+  const totalRecupereKg = useMemo(
+    () => roundKg(stockRecupere.reduce((sum, b) => sum + (Number(b.quantiteKg) || 0), 0)),
+    [stockRecupere],
   )
+  const totauxFilieresRecup = useMemo(() => {
+    const acc: Record<FiliereRecup, number> = {
+      regeneration: 0,
+      recyclage: 0,
+      destruction: 0,
+    }
+    for (const b of stockRecupere) {
+      const f = filiereRecupOf(b)
+      if (!f) continue
+      acc[f] += Number(b.quantiteKg) || 0
+    }
+    return {
+      regeneration: roundKg(acc.regeneration),
+      recyclage: roundKg(acc.recyclage),
+      destruction: roundKg(acc.destruction),
+    }
+  }, [stockRecupere])
 
   const mouvementContext = (m: StockMouvement) => {
     if (!m.interventionId) return null
@@ -565,16 +603,24 @@ export function StockPage() {
       return
     }
 
-    if (contenantType === 'recuperation') {
-      if (!form.origineDestructionDistributeur && !form.origineClientId) {
+    if (contenantType === 'recuperation' || contenantType === 'recycle') {
+      if (contenantType === 'recycle' && !form.origineClientId) {
+        alert('Recyclage sur site : indiquez le site / client d’origine (même détenteur).')
+        return
+      }
+      if (
+        contenantType === 'recuperation' &&
+        !form.origineDestructionDistributeur &&
+        !form.origineClientId
+      ) {
         alert(
-          'Bouteille de récupération : indiquez le site / client d’origine, ou « Non attribué / Pour destruction chez le distributeur ».',
+          'Bouteille de récupération : indiquez le site / client d’origine, ou choisissez la filière Destruction.',
         )
         return
       }
       if (!capaciteMaxKg || capaciteMaxKg <= 0) {
         alert(
-          'Bouteille de récupération : capacité nominale (kg) obligatoire. Le plafond sécurité sera 80 % de cette valeur.',
+          'Capacité nominale (kg) obligatoire. Le plafond sécurité sera 80 % de cette valeur.',
         )
         return
       }
@@ -585,7 +631,12 @@ export function StockPage() {
         )
         return
       }
-      if (fluide && isFluideInflammableA2LOrA3(fluide) && !form.conformeA2LA3) {
+      if (
+        contenantType === 'recuperation' &&
+        fluide &&
+        isFluideInflammableA2LOrA3(fluide) &&
+        !form.conformeA2LA3
+      ) {
         alert(
           'Fluide inflammable (A2L/A3) : cochez la confirmation « bouteille certifiée A2L/A3 » (collerette rouge + pas à gauche).',
         )
@@ -626,9 +677,10 @@ export function StockPage() {
             undefined
           : undefined,
       origineClientId:
-        contenantType === 'recuperation' && !form.origineDestructionDistributeur
+        (contenantType === 'recuperation' || contenantType === 'recycle') &&
+        !form.origineDestructionDistributeur
           ? form.origineClientId || undefined
-          : contenantType === 'recuperation'
+          : contenantType === 'recuperation' || contenantType === 'recycle'
             ? undefined
             : form.origineClientId,
       origineDestructionDistributeur:
@@ -852,20 +904,32 @@ export function StockPage() {
             <span className="text-base font-semibold text-emerald-800/80">kg</span>
           </div>
           <p className="mt-1 text-xs text-emerald-900/80">
-            Vierge, régénéré, recyclé site — pour charge / appoint.
+            Vierge, régénéré, transfert / service — pour charge / appoint.
           </p>
         </div>
         <div className="rounded-2xl border border-orange-200 bg-orange-50/80 px-4 py-3">
           <div className="text-[11px] font-bold uppercase tracking-wide text-orange-900">
-            Récupération déchet
+            Fluide récupéré
           </div>
           <div className="mt-0.5 font-display text-2xl font-bold text-orange-950">
-            {totalDechetKg}{' '}
+            {totalRecupereKg}{' '}
             <span className="text-base font-semibold text-orange-800/80">kg</span>
           </div>
           <p className="mt-1 text-xs text-orange-950/80">
-            Destiné au traitement / destruction (BSFF) — pas de réinjection.
+            Destiné au traitement : Régénération usine, Recyclage ou Destruction (BSFF).
           </p>
+          <ul className="mt-2 space-y-0.5 text-[11px] text-orange-950/90">
+            <li>
+              Régénération / distributeur :{' '}
+              <strong>{totauxFilieresRecup.regeneration} kg</strong>
+            </li>
+            <li>
+              Recyclage sur site : <strong>{totauxFilieresRecup.recyclage} kg</strong>
+            </li>
+            <li>
+              Destruction (BSFF) : <strong>{totauxFilieresRecup.destruction} kg</strong>
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -988,11 +1052,41 @@ export function StockPage() {
 
             {familleFromType(form.contenantType) === 'recuperation' && (
               <div className="mt-2 space-y-2">
-                {editId && form.contenantType === 'recycle' ? (
-                  <p className="text-xs font-semibold text-sky-900">
-                    Type actuel : Recyclé site (même client) — validité 5 ans.
-                  </p>
-                ) : null}
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Filière de traitement *</span>
+                  <select
+                    value={filiereRecupOf(form) || 'regeneration'}
+                    onChange={(e) => {
+                      const filiere = e.target.value as FiliereRecup
+                      setForm((f) => {
+                        if (filiere === 'recyclage') {
+                          return {
+                            ...applyContenantTypeChange(f, 'recycle', editId),
+                            origineDestructionDistributeur: false,
+                          }
+                        }
+                        if (filiere === 'destruction') {
+                          return {
+                            ...applyContenantTypeChange(f, 'recuperation', editId),
+                            origineDestructionDistributeur: true,
+                            origineClientId: undefined,
+                          }
+                        }
+                        return {
+                          ...applyContenantTypeChange(f, 'recuperation', editId),
+                          origineDestructionDistributeur: false,
+                        }
+                      })
+                    }}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  >
+                    <option value="regeneration">
+                      Régénération / traitement chez le distributeur
+                    </option>
+                    <option value="recyclage">Recyclage sur site / même client</option>
+                    <option value="destruction">Destruction / déchet (BSFF)</option>
+                  </select>
+                </label>
                 <p className="rounded-xl border border-orange-200 bg-orange-50/90 px-3 py-2 text-xs leading-snug text-orange-950">
                   Les bouteilles de récupération sont soumises au{' '}
                   <strong>contrôle quinquennal (5 ans)</strong> en raison des risques de corrosion
@@ -1007,11 +1101,22 @@ export function StockPage() {
             )}
           </div>
 
-          {form.contenantType === 'recuperation' && (
+          {(form.contenantType === 'recuperation' || form.contenantType === 'recycle') && (
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-semibold text-ink">Site / Client d’origine *</span>
+              <span className="mb-1 block font-semibold text-ink">
+                Site / Client d’origine
+                {form.origineDestructionDistributeur ||
+                filiereRecupOf(form) === 'destruction'
+                  ? ''
+                  : ' *'}
+              </span>
               <select
-                required
+                required={
+                  !(
+                    form.origineDestructionDistributeur ||
+                    filiereRecupOf(form) === 'destruction'
+                  )
+                }
                 value={
                   form.origineDestructionDistributeur
                     ? ORIGINE_DESTRUCTION_VALUE
@@ -1022,6 +1127,7 @@ export function StockPage() {
                   if (v === ORIGINE_DESTRUCTION_VALUE) {
                     setForm({
                       ...form,
+                      contenantType: 'recuperation',
                       origineDestructionDistributeur: true,
                       origineClientId: undefined,
                     })
@@ -1051,7 +1157,7 @@ export function StockPage() {
                   ))}
               </select>
               <p className="mt-1 text-[11px] text-muted">
-                Obligatoire pour la traçabilité F-Gaz des bouteilles de récupération.
+                Obligatoire pour la traçabilité F-Gaz (sauf destruction non attribuée).
               </p>
             </label>
           )}
@@ -1795,7 +1901,7 @@ export function StockPage() {
             {
               id: 'utilisable' as const,
               title: 'Stock utilisable',
-              hint: 'Gaz pour charge / appoint / récup. temporaire — vierge, régénéré, recyclé site, transfert / service.',
+              hint: 'Gaz propre pour charge / appoint / service — vierge, régénéré, transfert.',
               groups: groupsUtilisable,
               empty: 'Aucune bouteille utilisable pour le moment.',
               border: 'border-emerald-200',
@@ -1803,14 +1909,14 @@ export function StockPage() {
               qtyLabel: 'Quantité utilisable',
             },
             {
-              id: 'dechet' as const,
-              title: 'Récupération déchet → traitement / destruction',
-              hint: 'Fluide usagé uniquement pour BSFF / retour distributeur — jamais réinjecté en charge.',
-              groups: groupsDechet,
-              empty: 'Aucune bouteille de récupération.',
+              id: 'recupere' as const,
+              title: 'Fluide récupéré → traitement',
+              hint: 'Régénération usine, recyclage sur site (même client), ou destruction (BSFF).',
+              groups: groupsRecupere,
+              empty: 'Aucune bouteille de fluide récupéré.',
               border: 'border-orange-200',
               head: 'border-orange-100 bg-orange-50/80',
-              qtyLabel: 'À évacuer (BSFF)',
+              qtyLabel: 'Quantité récupérée',
             },
           ] as const
         ).map((cat) => (
@@ -1840,7 +1946,7 @@ export function StockPage() {
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                     Type de gaz
-                    {cat.id === 'dechet' ? ' · déchet' : ' · utilisable'}
+                    {cat.id === 'recupere' ? ' · récupéré' : ' · utilisable'}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="font-display text-xl font-bold text-ink">{group.fluide}</div>
@@ -1853,9 +1959,9 @@ export function StockPage() {
                         {findFluide(group.fluide)?.classeSecurite || 'A2L'}
                       </span>
                     )}
-                    {cat.id === 'dechet' && (
+                    {cat.id === 'recupere' && (
                       <span className="rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                        Non utilisable
+                        À traiter
                       </span>
                     )}
                   </div>
@@ -1948,14 +2054,18 @@ export function StockPage() {
                                   {s.assigneeName}
                                 </span>
                               )}
+                              {(() => {
+                                const filiere = filiereRecupOf(s)
+                                if (!filiere) return null
+                                return (
+                                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-orange-950">
+                                    {FILIERE_RECUP_LABELS[filiere]}
+                                  </span>
+                                )
+                              })()}
                               {isFluideNonAssigne(s.fluide) && s.contenantType === 'recuperation' && (
                                 <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-800">
                                   Non assigné
-                                </span>
-                              )}
-                              {s.contenantType === 'recuperation' && current > 0 && (
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
-                                  BSFF seul
                                 </span>
                               )}
                               {s.contenantType === 'recuperation' &&
@@ -1964,7 +2074,8 @@ export function StockPage() {
                                     Non attribué / destruction
                                   </span>
                                 )}
-                              {s.contenantType === 'recuperation' &&
+                              {(s.contenantType === 'recuperation' ||
+                                s.contenantType === 'recycle') &&
                                 s.origineClientId &&
                                 !s.origineDestructionDistributeur && (
                                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
@@ -1977,11 +2088,6 @@ export function StockPage() {
                                     )}
                                   </span>
                                 )}
-                              {s.contenantType === 'recycle' && s.origineClientId && (
-                                <span className="rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-950">
-                                  Même client
-                                </span>
-                              )}
                               {isBouteilleReepreuveExpiree(s) && (
                                 <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                                   Périmée / Échéance dépassée
