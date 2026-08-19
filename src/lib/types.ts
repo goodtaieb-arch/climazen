@@ -585,6 +585,10 @@ export interface AppData {
   contratsMaintenance?: ContratMaintenance[]
   /** Agenda / rappels RDV maintenance */
   agendaEvents?: import('./agenda').AgendaEvent[]
+  /**
+   * Ids supprimés (tombstones) — la sync ne doit pas les réimporter depuis le cloud.
+   */
+  deletedEntityIds?: import('./deletedEntities').DeletedEntityIds
 }
 
 /** Libellé CERFA / intervention pour traçabilité stock */

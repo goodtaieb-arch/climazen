@@ -40,6 +40,7 @@ import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { SmartSuggestField, type SmartSuggestion } from '../components/SmartSuggestField'
 import { MobileFab } from '../components/MobileFab'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat, findDuplicateEquipNom, findFirstDuplicateEquipNom } from '../lib/cerfaBatch'
@@ -155,6 +156,9 @@ export function ChantiersPage() {
   /** Accordéon liste : client ouvert (null = seuls les noms clients) */
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
   const [siteMenuOpen, setSiteMenuOpen] = useState(false)
+  const [pendingDeleteSite, setPendingDeleteSite] = useState<{ id: string; name: string } | null>(
+    null,
+  )
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [equipFilter, setEquipFilter] = useState('')
@@ -1654,11 +1658,8 @@ export function ChantiersPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (confirm('Supprimer ce site et son parc d’équipements ?')) {
-                        deleteChantier(c.id)
-                        setFocusSiteId(null)
-                        setFocusEquipId(null)
-                      }
+                      setSiteMenuOpen(false)
+                      setPendingDeleteSite({ id: c.id, name: c.nom || 'ce site' })
                     }}
                     className="flex min-h-10 w-full items-center gap-2 px-3 text-left text-sm font-medium text-danger active:bg-red-50"
                   >
@@ -2326,6 +2327,26 @@ export function ChantiersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteSite)}
+        title="Supprimer ce site ?"
+        message={
+          pendingDeleteSite
+            ? `« ${pendingDeleteSite.name} » et son parc d’équipements seront retirés définitivement (sync PC / téléphone).`
+            : ''
+        }
+        confirmLabel="Oui, supprimer"
+        onCancel={() => setPendingDeleteSite(null)}
+        onConfirm={() => {
+          if (pendingDeleteSite) {
+            deleteChantier(pendingDeleteSite.id)
+            setFocusSiteId(null)
+            setFocusEquipId(null)
+          }
+          setPendingDeleteSite(null)
+        }}
+      />
 
       <MobileFab
         label="Nouveau site"

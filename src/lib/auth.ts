@@ -3,6 +3,11 @@
 import type { AppData } from './types'
 import { emptyData } from './storage'
 import { migrateAppData } from './migrate'
+import {
+  applyTombstones,
+  mergeIdLists,
+  pruneTombstones,
+} from './deletedEntities'
 import { getSupabase } from './supabase'
 import { validatePasswordStrength } from './passwordPolicy'
 
@@ -518,6 +523,7 @@ export function normalizeAppData(raw: unknown): AppData {
     detecteurs: parsed.detecteurs,
     fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: parsed.fichesMaintenanceChaufferie || [],
+    deletedEntityIds: parsed.deletedEntityIds || { clients: [], chantiers: [] },
   })
 }
 
@@ -672,20 +678,33 @@ export function resolveRemoteVsLocal(
 
   // Autre appareil a poussé plus récemment, et pas de brouillon local en attente → prendre le cloud
   if (remoteIsNewer && !hasPending) {
+    const deletedEntityIds = pruneTombstones(
+      {
+        clients: mergeIdLists(remote.deletedEntityIds?.clients, local.deletedEntityIds?.clients),
+        chantiers: mergeIdLists(remote.deletedEntityIds?.chantiers, local.deletedEntityIds?.chantiers),
+      },
+      remote,
+    )
     return {
       data: {
         ...remote,
         operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
+        clients: applyTombstones(remote.clients, deletedEntityIds.clients),
+        chantiers: applyTombstones(remote.chantiers, deletedEntityIds.chantiers),
+        deletedEntityIds,
       },
-      shouldPushLocal: false,
+      shouldPushLocal: Boolean(
+        (deletedEntityIds.clients?.length || 0) > 0 ||
+          (deletedEntityIds.chantiers?.length || 0) > 0,
+      ),
     }
   }
 
   const preferOnTie: 'remote' | 'local' = remoteIsNewer ? 'remote' : 'local'
   const operateur = mergeOperateurPreferFilled(remote.operateur, local.operateur)
   const detecteurs = mergeByIdLatest(remote.detecteurs, local.detecteurs, preferOnTie)
-  const clients = mergeByIdLatest(remote.clients, local.clients, preferOnTie)
-  const chantiers = mergeByIdLatest(remote.chantiers, local.chantiers, preferOnTie)
+  let clients = mergeByIdLatest(remote.clients, local.clients, preferOnTie)
+  let chantiers = mergeByIdLatest(remote.chantiers, local.chantiers, preferOnTie)
   const interventions = mergeByIdLatest(remote.interventions, local.interventions, preferOnTie)
   const stock = mergeByIdLatest(remote.stock, local.stock, preferOnTie)
   const fichesMaintenanceClim = mergeByIdLatest(
@@ -707,6 +726,16 @@ export function resolveRemoteVsLocal(
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
   const stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
+  const deletedEntityIds = pruneTombstones(
+    {
+      clients: mergeIdLists(remote.deletedEntityIds?.clients, local.deletedEntityIds?.clients),
+      chantiers: mergeIdLists(remote.deletedEntityIds?.chantiers, local.deletedEntityIds?.chantiers),
+    },
+    { clients, chantiers },
+  )
+  clients = applyTombstones(clients, deletedEntityIds.clients)
+  chantiers = applyTombstones(chantiers, deletedEntityIds.chantiers)
+
   const base = localW > remoteW ? local : remote
   const merged: AppData = {
     ...base,
@@ -722,6 +751,7 @@ export function resolveRemoteVsLocal(
     ordresTravail,
     contratsMaintenance,
     agendaEvents,
+    deletedEntityIds,
   }
 
   const mergedW = appDataWeight(merged)
@@ -731,7 +761,9 @@ export function resolveRemoteVsLocal(
     (detecteurs?.length || 0) > (remote.detecteurs?.length || 0) ||
     Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||
     Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
-    Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim())
+    Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim()) ||
+    (deletedEntityIds.clients?.length || 0) > 0 ||
+    (deletedEntityIds.chantiers?.length || 0) > 0
 
   return { data: merged, shouldPushLocal }
 }

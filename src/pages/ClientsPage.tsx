@@ -21,6 +21,7 @@ import { clientDisplayName, FACTURATION_PLATEFORMES, syncClientRaisonSociale } f
 import { allEquipements } from '../lib/cerfaBatch'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Clients3dIcon } from '../components/Clients3dIcon'
 import {
   buildMakeFacturationPayload,
@@ -61,6 +62,7 @@ export function ClientsPage() {
   const [q, setQ] = useState('')
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
 
   const plateformeId = data.operateur.facturationPlateforme || 'tiime'
   const plateforme =
@@ -602,13 +604,14 @@ export function ClientsPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm('Supprimer ce client ?')) deleteClient(c.id)
-                      }}
-                      className="touch-target grid place-items-center rounded-lg text-danger hover:bg-red-50"
+                      onClick={() =>
+                        setPendingDelete({ id: c.id, name: clientDisplayName(c) || 'ce client' })
+                      }
+                      className="touch-target inline-flex items-center gap-1 rounded-lg px-2 text-danger hover:bg-red-50"
                       title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
+                      <span className="text-[11px] font-bold lg:inline">Suppr.</span>
                     </button>
                   </div>
                 </div>
@@ -625,6 +628,22 @@ export function ClientsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Supprimer ce client ?"
+        message={
+          pendingDelete
+            ? `« ${pendingDelete.name} » et ses sites seront retirés définitivement de votre compte (sync PC / téléphone).`
+            : ''
+        }
+        confirmLabel="Oui, supprimer"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) deleteClient(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
 
       <MobileFab
         label="Ajouter"

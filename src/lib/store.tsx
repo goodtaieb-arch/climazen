@@ -49,6 +49,7 @@ import {
   setCloudUpdatedAt,
   setPendingSync,
 } from './offlineSync'
+import { withDeletedIds } from './deletedEntities'
 
 type Store = {
   data: AppData
@@ -609,11 +610,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const deleteClient = useCallback((id: string) => {
-    setData((d) => ({
-      ...d,
-      clients: d.clients.filter((c) => c.id !== id),
-      chantiers: d.chantiers.filter((c) => c.clientId !== id),
-    }))
+    setData((d) => {
+      const removedSites = (d.chantiers || [])
+        .filter((c) => c.clientId === id)
+        .map((c) => c.id)
+      return {
+        ...d,
+        clients: d.clients.filter((c) => c.id !== id),
+        chantiers: d.chantiers.filter((c) => c.clientId !== id),
+        deletedEntityIds: withDeletedIds(d.deletedEntityIds, {
+          clients: [id],
+          chantiers: removedSites,
+        }),
+      }
+    })
   }, [])
 
   const upsertChantier = useCallback(
@@ -667,6 +677,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({
       ...d,
       chantiers: d.chantiers.filter((c) => c.id !== id),
+      deletedEntityIds: withDeletedIds(d.deletedEntityIds, { chantiers: [id] }),
     }))
   }, [])
 
