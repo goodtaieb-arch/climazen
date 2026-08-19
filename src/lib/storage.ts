@@ -26,7 +26,7 @@ export function emptyData(): AppData {
     ordresTravail: [],
     contratsMaintenance: [],
     agendaEvents: [],
-    deletedEntityIds: { clients: [], chantiers: [] },
+    deletedEntityIds: { clients: [], chantiers: [], stock: [], stockMouvements: [] },
   }
 }
 
@@ -67,7 +67,12 @@ export function loadData(organizationId?: string | null): AppData {
       ordresTravail: parsed.ordresTravail || [],
       contratsMaintenance: parsed.contratsMaintenance || [],
       agendaEvents: parsed.agendaEvents || [],
-      deletedEntityIds: parsed.deletedEntityIds || { clients: [], chantiers: [] },
+      deletedEntityIds: parsed.deletedEntityIds || {
+        clients: [],
+        chantiers: [],
+        stock: [],
+        stockMouvements: [],
+      },
     })
   } catch {
     return emptyData()

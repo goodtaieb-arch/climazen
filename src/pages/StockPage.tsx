@@ -2202,14 +2202,21 @@ export function StockPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm('Supprimer cette bouteille et son historique ?'))
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (
+                                window.confirm(
+                                  'Supprimer définitivement cette bouteille et son historique ?',
+                                )
+                              ) {
                                 deleteStock(s.id)
+                              }
                             }}
-                            className="rounded-lg p-2 text-danger hover:bg-red-50"
-                            title="Supprimer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-red-100"
+                            title="Supprimer la bouteille"
                           >
                             <Trash2 className="h-4 w-4" />
+                            <span>Supprimer</span>
                           </button>
                         </div>
                       </div>
@@ -2352,14 +2359,21 @@ export function StockPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm('Supprimer cette archive et son historique ?'))
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (
+                          window.confirm(
+                            'Supprimer définitivement cette archive et son historique ?',
+                          )
+                        ) {
                           deleteStock(s.id)
+                        }
                       }}
-                      className="rounded-lg p-2 text-danger hover:bg-red-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-red-100"
                       title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
+                      <span>Supprimer</span>
                     </button>
                   </div>
                   {openHist && hist.length > 0 && (

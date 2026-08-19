@@ -212,6 +212,11 @@ export function migrateAppData(data: AppData): AppData {
     ordresTravail: data.ordresTravail || [],
     contratsMaintenance: data.contratsMaintenance || [],
     agendaEvents: data.agendaEvents || [],
-    deletedEntityIds: data.deletedEntityIds || { clients: [], chantiers: [] },
+    deletedEntityIds: data.deletedEntityIds || {
+      clients: [],
+      chantiers: [],
+      stock: [],
+      stockMouvements: [],
+    },
   }
 }

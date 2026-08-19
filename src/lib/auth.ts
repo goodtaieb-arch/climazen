@@ -523,7 +523,12 @@ export function normalizeAppData(raw: unknown): AppData {
     detecteurs: parsed.detecteurs,
     fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: parsed.fichesMaintenanceChaufferie || [],
-    deletedEntityIds: parsed.deletedEntityIds || { clients: [], chantiers: [] },
+    deletedEntityIds: parsed.deletedEntityIds || {
+      clients: [],
+      chantiers: [],
+      stock: [],
+      stockMouvements: [],
+    },
   })
 }
 
@@ -682,6 +687,11 @@ export function resolveRemoteVsLocal(
       {
         clients: mergeIdLists(remote.deletedEntityIds?.clients, local.deletedEntityIds?.clients),
         chantiers: mergeIdLists(remote.deletedEntityIds?.chantiers, local.deletedEntityIds?.chantiers),
+        stock: mergeIdLists(remote.deletedEntityIds?.stock, local.deletedEntityIds?.stock),
+        stockMouvements: mergeIdLists(
+          remote.deletedEntityIds?.stockMouvements,
+          local.deletedEntityIds?.stockMouvements,
+        ),
       },
       remote,
     )
@@ -691,11 +701,18 @@ export function resolveRemoteVsLocal(
         operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
         clients: applyTombstones(remote.clients, deletedEntityIds.clients),
         chantiers: applyTombstones(remote.chantiers, deletedEntityIds.chantiers),
+        stock: applyTombstones(remote.stock, deletedEntityIds.stock),
+        stockMouvements: applyTombstones(
+          remote.stockMouvements,
+          deletedEntityIds.stockMouvements,
+        ).filter((m) => !(deletedEntityIds.stock || []).includes(m.stockItemId)),
         deletedEntityIds,
       },
       shouldPushLocal: Boolean(
         (deletedEntityIds.clients?.length || 0) > 0 ||
-          (deletedEntityIds.chantiers?.length || 0) > 0,
+          (deletedEntityIds.chantiers?.length || 0) > 0 ||
+          (deletedEntityIds.stock?.length || 0) > 0 ||
+          (deletedEntityIds.stockMouvements?.length || 0) > 0,
       ),
     }
   }
@@ -706,7 +723,7 @@ export function resolveRemoteVsLocal(
   let clients = mergeByIdLatest(remote.clients, local.clients, preferOnTie)
   let chantiers = mergeByIdLatest(remote.chantiers, local.chantiers, preferOnTie)
   const interventions = mergeByIdLatest(remote.interventions, local.interventions, preferOnTie)
-  const stock = mergeByIdLatest(remote.stock, local.stock, preferOnTie)
+  let stock = mergeByIdLatest(remote.stock, local.stock, preferOnTie)
   const fichesMaintenanceClim = mergeByIdLatest(
     remote.fichesMaintenanceClim,
     local.fichesMaintenanceClim,
@@ -724,17 +741,26 @@ export function resolveRemoteVsLocal(
     preferOnTie,
   )
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
-  const stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
+  let stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
   const deletedEntityIds = pruneTombstones(
     {
       clients: mergeIdLists(remote.deletedEntityIds?.clients, local.deletedEntityIds?.clients),
       chantiers: mergeIdLists(remote.deletedEntityIds?.chantiers, local.deletedEntityIds?.chantiers),
+      stock: mergeIdLists(remote.deletedEntityIds?.stock, local.deletedEntityIds?.stock),
+      stockMouvements: mergeIdLists(
+        remote.deletedEntityIds?.stockMouvements,
+        local.deletedEntityIds?.stockMouvements,
+      ),
     },
-    { clients, chantiers },
+    { clients, chantiers, stock, stockMouvements },
   )
   clients = applyTombstones(clients, deletedEntityIds.clients)
   chantiers = applyTombstones(chantiers, deletedEntityIds.chantiers)
+  stock = applyTombstones(stock, deletedEntityIds.stock)
+  stockMouvements = applyTombstones(stockMouvements, deletedEntityIds.stockMouvements).filter(
+    (m) => !(deletedEntityIds.stock || []).includes(m.stockItemId),
+  )
 
   const base = localW > remoteW ? local : remote
   const merged: AppData = {
@@ -763,7 +789,9 @@ export function resolveRemoteVsLocal(
     Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
     Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim()) ||
     (deletedEntityIds.clients?.length || 0) > 0 ||
-    (deletedEntityIds.chantiers?.length || 0) > 0
+    (deletedEntityIds.chantiers?.length || 0) > 0 ||
+    (deletedEntityIds.stock?.length || 0) > 0 ||
+    (deletedEntityIds.stockMouvements?.length || 0) > 0
 
   return { data: merged, shouldPushLocal }
 }

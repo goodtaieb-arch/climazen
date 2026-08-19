@@ -1254,11 +1254,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const deleteStock = useCallback((id: string) => {
-    setData((d) => ({
-      ...d,
-      stock: d.stock.filter((s) => s.id !== id),
-      stockMouvements: (d.stockMouvements || []).filter((m) => m.stockItemId !== id),
-    }))
+    setData((d) => {
+      const mvtIds = (d.stockMouvements || [])
+        .filter((m) => m.stockItemId === id)
+        .map((m) => m.id)
+      return {
+        ...d,
+        stock: d.stock.filter((s) => s.id !== id),
+        stockMouvements: (d.stockMouvements || []).filter((m) => m.stockItemId !== id),
+        deletedEntityIds: withDeletedIds(d.deletedEntityIds, {
+          stock: [id],
+          stockMouvements: mvtIds,
+        }),
+      }
+    })
   }, [])
 
   const enregistrerRetourConsigneBouteille = useCallback(
