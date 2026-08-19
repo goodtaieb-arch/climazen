@@ -404,7 +404,7 @@ export function Dashboard() {
                 icon={QrCode}
                 img3d={ICON3D.search}
                 title="Scanner équipement"
-                subtitle="QR collé sur l’équipement → ouvrir la fiche"
+                subtitle="QR sur place → ouvre l’OT à remplir"
                 color="sites"
                 to="/app/scan-equip?camera=1"
               />

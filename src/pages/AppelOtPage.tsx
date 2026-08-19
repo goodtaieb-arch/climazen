@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -41,6 +41,7 @@ import {
   formatOtNumero,
   otBaseNumero,
   type TypeOt,
+  type StatutOt,
   type ParcoursAppelStepId,
   type OrdreTravail,
 } from '../lib/ordreTravail'
@@ -125,6 +126,8 @@ export function AppelOtPage() {
   const otIdParam = params.get('ot') || params.get('id') || ''
   const clientFromQuery = params.get('client') || ''
   const chantierFromQuery = params.get('chantier') || ''
+  const equipFromQuery = params.get('equipement') || ''
+  const fromScan = params.get('from') === 'scan'
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === otIdParam) || null,
@@ -134,6 +137,7 @@ export function AppelOtPage() {
   const [otId, setOtId] = useState(existing?.id || '')
   const [step, setStep] = useState<ParcoursAppelStepId>(() => {
     if (existing) return inferParcoursStep(existing)
+    if (clientFromQuery && chantierFromQuery && equipFromQuery) return 'docs'
     if (clientFromQuery && chantierFromQuery) return 'equipement'
     if (clientFromQuery) return 'site'
     return 'ot'
@@ -147,6 +151,12 @@ export function AppelOtPage() {
     const site = chantierFromQuery
       ? data.chantiers.find((c) => c.id === chantierFromQuery)
       : undefined
+    const eqs = site ? allEquipements(site) : []
+    const eq =
+      (equipFromQuery && eqs.find((e) => e.id === equipFromQuery)) || undefined
+    const label = eq
+      ? (eq.nom || eq.type || 'Équipement').trim()
+      : site?.nom || 'Intervention'
     return {
       ...blankOrdreTravail(),
       numero: nextNumeroOt(data),
@@ -154,9 +164,15 @@ export function AppelOtPage() {
       technicien: user?.signataireNom || user?.fullName || user?.email || '',
       signatureTechnicienImage: user?.signatureImage || '',
       typeOt: 'depanage' as TypeOt,
-      parcoursStep: 'ot' as ParcoursAppelStepId,
+      action: fromScan || equipFromQuery ? `Intervention — ${label}` : '',
+      statut: (fromScan || equipFromQuery ? 'en_cours' : 'brouillon') as StatutOt,
+      parcoursStep: (clientFromQuery && chantierFromQuery && equipFromQuery
+        ? 'docs'
+        : 'ot') as ParcoursAppelStepId,
       clientId: clientFromQuery || site?.clientId || undefined,
       chantierId: chantierFromQuery || undefined,
+      equipementId: equipFromQuery || undefined,
+      equipementIds: equipFromQuery ? [equipFromQuery] : undefined,
     }
   })
 
@@ -174,6 +190,7 @@ export function AppelOtPage() {
   const [awaitingRemoteSignature, setAwaitingRemoteSignature] = useState(false)
 
   const [msg, setMsg] = useState('')
+  const scanBootRef = useRef(false)
 
   useEffect(() => {
     if (!existing) return
@@ -182,6 +199,23 @@ export function AppelOtPage() {
     setOtId(existing.id)
     setStep(inferParcoursStep(existing))
   }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scan QR terrain : créer / persister l’OT tout de suite (client + site + équipement)
+  useEffect(() => {
+    if (scanBootRef.current) return
+    if (existing || otId || !fromScan) return
+    if (!otForm.clientId || !otForm.chantierId || !otForm.equipementId) return
+    scanBootRef.current = true
+    persistOt({
+      ...otForm,
+      statut: 'en_cours',
+      parcoursStep: 'docs',
+      action: otForm.action || 'Intervention terrain (scan QR)',
+    })
+    setMsg(`${formatOtNumero(otForm.numero)} ouvert depuis le scan — à compléter.`)
+    setStep('docs')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromScan, otForm.clientId, otForm.chantierId, otForm.equipementId])
 
   // OT déjà clôturé : classer les CERFA encore en « brouillon »
   useEffect(() => {

@@ -8,10 +8,11 @@ import {
   equipLabelForQr,
 } from '../lib/equipementQr'
 import { clientDisplayName } from '../lib/types'
+import { isOtCloture } from '../lib/ordreTravail'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
 
 /**
- * Scan QR étiquette équipement → ouvre le site / équipement dans Sites & Parc.
+ * Scan QR étiquette équipement → ouvre l’OT (Client appelle) déjà prérempli.
  * Aussi deep-link : /app/scan-equip?eq=…
  */
 export function ScanEquipementPage() {
@@ -20,6 +21,8 @@ export function ScanEquipementPage() {
   const [params] = useSearchParams()
   const eqFromUrl = params.get('eq') || ''
   const autoCamera = params.get('camera') === '1' || params.get('scan') === '1'
+  /** ?fiche=1 → ouvrir Sites & Parc au lieu de l’OT */
+  const openFicheOnly = params.get('fiche') === '1'
   const [error, setError] = useState('')
   const [resolvedMsg, setResolvedMsg] = useState('')
 
@@ -37,8 +40,30 @@ export function ScanEquipementPage() {
         hit.client ? ` · ${clientDisplayName(hit.client)}` : ''
       }`,
     )
+
+    if (openFicheOnly) {
+      navigate(
+        `/app/chantiers?site=${encodeURIComponent(hit.site.id)}&equipement=${encodeURIComponent(hit.equip.id)}`,
+        { replace: true },
+      )
+      return
+    }
+
+    // Reprendre un OT déjà ouvert sur ce site / équipement
+    const openOt = (data.ordresTravail || []).find(
+      (o) =>
+        !isOtCloture(o.statut) &&
+        o.chantierId === hit.site.id &&
+        (o.equipementId === hit.equip.id ||
+          (o.equipementIds || []).includes(hit.equip.id)),
+    )
+    if (openOt) {
+      navigate(`/app/appel?ot=${encodeURIComponent(openOt.id)}`, { replace: true })
+      return
+    }
+
     navigate(
-      `/app/chantiers?site=${encodeURIComponent(hit.site.id)}&equipement=${encodeURIComponent(hit.equip.id)}`,
+      `/app/appel?client=${encodeURIComponent(hit.site.clientId)}&chantier=${encodeURIComponent(hit.site.id)}&equipement=${encodeURIComponent(hit.equip.id)}&from=scan`,
       { replace: true },
     )
   }
@@ -47,7 +72,7 @@ export function ScanEquipementPage() {
     if (!eqFromUrl) return
     goToHit(eqFromUrl)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eqFromUrl, data.chantiers])
+  }, [eqFromUrl, data.chantiers, data.ordresTravail])
 
   const onScan = (raw: string) => {
     const id = parseEquipQrPayload(raw)
@@ -60,7 +85,7 @@ export function ScanEquipementPage() {
 
   const hint = useMemo(
     () =>
-      'Cadrez le QR collé sur l’équipement. Ou ouvrez directement le lien de l’étiquette.',
+      'Cadrez le QR collé sur l’équipement → l’OT s’ouvre prêt à remplir (CERFA / rapport).',
     [],
   )
 
@@ -85,7 +110,7 @@ export function ScanEquipementPage() {
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-ink">QR étiquette ClimaZEN</p>
             <p className="text-sm text-muted">
-              Imprimé depuis Sites &amp; Parc → équipement → Étiquette QR.
+              Sur place : scan → OT prérempli (client, site, équipement) pour CERFA / signature.
             </p>
           </div>
           <BarcodeScanButton
@@ -98,14 +123,15 @@ export function ScanEquipementPage() {
         </div>
         {error ? <p className="mt-3 text-sm font-semibold text-danger">{error}</p> : null}
         {resolvedMsg ? (
-          <p className="mt-3 text-sm font-semibold text-accent">Ouverture : {resolvedMsg}</p>
+          <p className="mt-3 text-sm font-semibold text-accent">Ouverture OT : {resolvedMsg}</p>
         ) : null}
       </div>
 
       <div className="rounded-2xl border border-dashed border-line bg-mist/50 p-4 text-sm text-slate">
-        <p className="font-semibold text-ink">Astuce terrain</p>
+        <p className="font-semibold text-ink">Où est le bouton ?</p>
         <p className="mt-1">
-          Sur l’accueil, utilisez « Scanner équipement », ou dites « scan équipement » au micro.
+          Accueil → <strong>Scanner QR</strong> (cercle) ou « Scanner équipement ». La caméra
+          s’ouvre tout de suite.
         </p>
       </div>
     </div>
