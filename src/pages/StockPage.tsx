@@ -5,7 +5,6 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { UserAccount } from '../lib/auth'
 import {
-  CONTENANT_TYPE_LABELS,
   clientDisplayName,
   contenantDemarreVide,
   contenantSansRecharge,
@@ -128,9 +127,65 @@ const blank = (opts?: {
   }
 }
 
-const TYPES: { value: ContenantType; label: string }[] = (
-  Object.keys(CONTENANT_TYPE_LABELS) as ContenantType[]
-).map((value) => ({ value, label: CONTENANT_TYPE_LABELS[value] }))
+/** Famille UI : charge (10 ans) vs récup chantier (5 ans). */
+type FamilleBouteille = 'charge' | 'recuperation'
+
+function familleFromType(t: ContenantType): FamilleBouteille {
+  return t === 'recuperation' || t === 'recycle' ? 'recuperation' : 'charge'
+}
+
+const CHARGE_SUBTYPES: ContenantType[] = ['vierge', 'regenere', 'transfert']
+
+function applyContenantTypeChange(
+  f: Omit<StockItem, 'id' | 'updatedAt'>,
+  contenantType: ContenantType,
+  editId: string | null,
+): Omit<StockItem, 'id' | 'updatedAt'> {
+  const demarreVide = contenantDemarreVide(contenantType)
+  const nextFluide =
+    contenantType === 'recuperation' && !editId && !f.fluide.trim()
+      ? ''
+      : contenantType !== 'recuperation' && !f.fluide.trim()
+        ? 'R-32'
+        : f.fluide
+  const qty = demarreVide && !editId ? 0 : f.quantiteKg
+  const epreuve = f.dateDerniereEpreuve || f.dateEntreePossession || ''
+  const prevAuto = dateReepreuveDepuisEpreuve(
+    epreuve,
+    anneesValiditeContenant(f.contenantType),
+  )
+  const wasAuto = !f.dateReepreuvage?.trim() || f.dateReepreuvage === prevAuto
+  const base: Omit<StockItem, 'id' | 'updatedAt'> = {
+    ...f,
+    contenantType,
+    quantiteKg: qty,
+    quantiteInitialeKg: demarreVide && !editId ? 0 : f.quantiteInitialeKg,
+    capaciteMaxKg: contenantSansRecharge(contenantType)
+      ? qty || f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg
+      : f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg,
+    emplacement: f.emplacement || 'atelier',
+    typeHuile: contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
+    dateReepreuvage: wasAuto
+      ? dateReepreuveDepuisEpreuve(epreuve, anneesValiditeContenant(contenantType))
+      : f.dateReepreuvage,
+    ...(contenantType !== 'recuperation' && contenantType !== 'recycle'
+      ? {
+          origineClientId: undefined,
+          origineDestructionDistributeur: false,
+        }
+      : {}),
+  }
+  return nextFluide === f.fluide
+    ? base
+    : {
+        ...applyFluideAdr(base, nextFluide, true),
+        conformeA2LA3:
+          isFluideInflammableA2LOrA3(nextFluide) ||
+          (contenantType === 'recuperation' && isFluideNonAssigne(nextFluide))
+            ? f.conformeA2LA3
+            : false,
+      }
+}
 
 const TYPE_BADGE: Record<ContenantType, { label: string; cls: string }> = {
   vierge: { label: 'Vierge (neuf)', cls: 'bg-emerald-100 text-emerald-800' },
@@ -858,78 +913,99 @@ export function StockPage() {
               (Number(form.quantiteKg) || 0) > 0
             }
           />
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Type de contenant *</span>
-            <select
-              value={form.contenantType}
-              onChange={(e) => {
-                const contenantType = e.target.value as ContenantType
-                setForm((f) => {
-                  const demarreVide = contenantDemarreVide(contenantType)
-                  const nextFluide =
-                    contenantType === 'recuperation' && !editId && !f.fluide.trim()
-                      ? ''
-                      : contenantType !== 'recuperation' && !f.fluide.trim()
-                        ? 'R-32'
-                        : f.fluide
-                  const qty = demarreVide && !editId ? 0 : f.quantiteKg
-                  const epreuve = f.dateDerniereEpreuve || f.dateEntreePossession || ''
-                  const prevAuto = dateReepreuveDepuisEpreuve(
-                    epreuve,
-                    anneesValiditeContenant(f.contenantType),
-                  )
-                  const wasAuto =
-                    !f.dateReepreuvage?.trim() || f.dateReepreuvage === prevAuto
-                  const base = {
-                    ...f,
-                    contenantType,
-                    quantiteKg: qty,
-                    quantiteInitialeKg: demarreVide && !editId ? 0 : f.quantiteInitialeKg,
-                    capaciteMaxKg: contenantSansRecharge(contenantType)
-                      ? qty || f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg
-                      : f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg,
-                    emplacement: f.emplacement || 'atelier',
-                    typeHuile:
-                      contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
-                    dateReepreuvage: wasAuto
-                      ? dateReepreuveDepuisEpreuve(epreuve, anneesValiditeContenant(contenantType))
-                      : f.dateReepreuvage,
-                    ...(contenantType !== 'recuperation'
-                      ? {
-                          origineClientId: undefined,
-                          origineDestructionDistributeur: false,
-                        }
-                      : {}),
+          <div className="sm:col-span-2 space-y-2">
+            <span className="mb-1 block text-sm font-semibold text-ink">Type de bouteille *</span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const nextType = CHARGE_SUBTYPES.includes(form.contenantType)
+                    ? form.contenantType
+                    : 'vierge'
+                  setForm((f) => applyContenantTypeChange(f, nextType, editId))
+                }}
+                className={[
+                  'rounded-xl border-2 px-3 py-3 text-left transition',
+                  familleFromType(form.contenantType) === 'charge'
+                    ? 'border-emerald-600 bg-emerald-50 shadow-sm'
+                    : 'border-line bg-white hover:border-emerald-300',
+                ].join(' ')}
+              >
+                <span className="block text-sm font-bold text-ink">
+                  Bouteille de charge / service
+                </span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  Fluide neuf ou régénéré propre — validité <strong>10 ans</strong>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm((f) => applyContenantTypeChange(f, 'recuperation', editId))
+                }
+                className={[
+                  'rounded-xl border-2 px-3 py-3 text-left transition',
+                  familleFromType(form.contenantType) === 'recuperation'
+                    ? 'border-orange-600 bg-orange-50 shadow-sm'
+                    : 'border-line bg-white hover:border-orange-300',
+                ].join(' ')}
+              >
+                <span className="block text-sm font-bold text-ink">
+                  Bouteille de récupération
+                </span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  Fluide usagé / chantier — validité <strong>5 ans</strong>
+                </span>
+              </button>
+            </div>
+
+            {familleFromType(form.contenantType) === 'charge' && (
+              <label className="mt-2 block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Précision (fluide propre)</span>
+                <select
+                  value={
+                    CHARGE_SUBTYPES.includes(form.contenantType) ? form.contenantType : 'vierge'
                   }
-                  return nextFluide === f.fluide
-                    ? base
-                    : {
-                        ...applyFluideAdr(base, nextFluide, true),
-                        conformeA2LA3:
-                          isFluideInflammableA2LOrA3(nextFluide) ||
-                          (contenantType === 'recuperation' && isFluideNonAssigne(nextFluide))
-                            ? f.conformeA2LA3
-                            : false,
-                      }
-                })
-              }}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              {TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-muted">{resumeRegleContenant(form.contenantType)}</p>
-            {form.contenantType === 'recuperation' && (
-              <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950">
-                ⚠️ <strong>Rappel F-Gaz :</strong> le fluide récupéré non régénéré en usine est
-                exclusivement réservé aux interventions sur le <strong>même site</strong> ou le{' '}
-                <strong>même détenteur</strong>.
-              </p>
+                  onChange={(e) => {
+                    const contenantType = e.target.value as ContenantType
+                    setForm((f) => applyContenantTypeChange(f, contenantType, editId))
+                  }}
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                >
+                  <option value="vierge">Vierge (neuf distributeur)</option>
+                  <option value="regenere">Régénéré (achat distributeur)</option>
+                  <option value="transfert">Transfert / service</option>
+                </select>
+                <p className="mt-1 text-xs text-muted">
+                  {resumeRegleContenant(
+                    CHARGE_SUBTYPES.includes(form.contenantType)
+                      ? form.contenantType
+                      : 'vierge',
+                  )}
+                </p>
+              </label>
             )}
-          </label>
+
+            {familleFromType(form.contenantType) === 'recuperation' && (
+              <div className="mt-2 space-y-2">
+                {editId && form.contenantType === 'recycle' ? (
+                  <p className="text-xs font-semibold text-sky-900">
+                    Type actuel : Recyclé site (même client) — validité 5 ans.
+                  </p>
+                ) : null}
+                <p className="rounded-xl border border-orange-200 bg-orange-50/90 px-3 py-2 text-xs leading-snug text-orange-950">
+                  Les bouteilles de récupération sont soumises au{' '}
+                  <strong>contrôle quinquennal (5 ans)</strong> en raison des risques de corrosion
+                  liés aux fluides usagés.
+                </p>
+                <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950">
+                  ⚠️ <strong>Rappel F-Gaz :</strong> le fluide récupéré non régénéré en usine est
+                  exclusivement réservé aux interventions sur le <strong>même site</strong> ou
+                  le <strong>même détenteur</strong>.
+                </p>
+              </div>
+            )}
+          </div>
 
           {form.contenantType === 'recuperation' && (
             <label className="block text-sm sm:col-span-2">
