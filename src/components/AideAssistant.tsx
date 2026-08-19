@@ -65,7 +65,7 @@ export function AideAssistant() {
       id: newId(),
       role: 'assistant',
       content:
-        'Bonjour — je peux préparer OT, CERFA, agenda, bouteilles, fiches et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Agenda RDV demain 14h pour Mr Martin site Atelier »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »\n• « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »',
+        'Bonjour — je peux préparer OT, CERFA, clients, agenda, bouteilles, fiches et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée un client Monsieur Albert Dupont, tél 06 15 53 38 54, mail …, adresse … Nice »\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Agenda RDV demain 14h pour Mr Martin site Atelier »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »',
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -132,6 +132,7 @@ export function AideAssistant() {
         data,
         userId: user?.id,
         userName: user?.fullName || user?.email,
+        upsertClient,
         upsertDetecteur,
         upsertStock,
         upsertFicheMaintenanceClim,

@@ -35,6 +35,7 @@ typeOt possible : controle_etancheite | maintenance | depanage | demantelement |
 L’app demandera ensuite confirmation (« oui ») avant de créer.
 
 Tu peux aussi expliquer que l’utilisateur peut dire :
+- « Crée un nouveau client Monsieur Albert Dupont, téléphone 06…, mail …, adresse … »
 - « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »
 - « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »
 - « Crée une fiche maintenance pour le site Atelier »
@@ -45,16 +46,17 @@ Tu peux aussi expliquer que l’utilisateur peut dire :
 Parcours principaux :
 1) Client appelle → /app/appel (OT) → client, site, équipements → docs (CERFA / fiche) → signatures → Clôturer.
 2) CERFA → /app/interventions ou depuis l’OT.
-3) Stock fluides → /app/stock (utilisable vs récupération déchet).
-4) Agenda → /app/agenda (RDV, rappels, maintenances).
-5) Mon entreprise → /app/operateur (logo, attestation, détecteurs).
+3) Stock fluides → /app/stock (utilisable vs fluide récupéré).
+4) Clients → /app/clients.
+5) Agenda → /app/agenda (RDV, rappels, maintenances).
+6) Mon entreprise → /app/operateur (logo, attestation, détecteurs).
 
 Règles stock / CERFA importantes :
 - Récupération temporaire (réinjection) → bouteilles Transfert / Service uniquement.
-- Démantèlement / récup. définitive → bouteilles Récupération (déchet) uniquement.
-- Jamais de bouteille déchet en charge / réinjection.
+- Démantèlement / récup. définitive → bouteilles Récupération uniquement.
+- Jamais de bouteille récupération déchet en charge / réinjection.
 - N° de série = officiel CERFA ; Surnom = affichage interne seulement.
-- Stock utilisable ≠ gaz récupéré (déchet → BSFF).
+- Stock utilisable ≠ fluide récupéré (régénération / recyclage / destruction BSFF).
 `
 
 export const AIDE_TOPICS: AideTopic[] = [

@@ -79,9 +79,22 @@ function detectAgendaType(n: string): AgendaEventType {
   return 'rdv'
 }
 
-export type TerrainActionKind = 'detecteur' | 'bouteille' | 'fiche_maintenance' | 'agenda'
+export type TerrainActionKind = 'detecteur' | 'bouteille' | 'fiche_maintenance' | 'agenda' | 'client'
 
 export type PendingTerrainAction =
+  | {
+      kind: 'client'
+      typeClient: 'particulier' | 'entreprise'
+      raisonSociale: string
+      nom: string
+      prenom: string
+      telephone: string
+      email: string
+      adresse: string
+      codePostal: string
+      ville: string
+      summary: string
+    }
   | {
       kind: 'detecteur'
       identification: string
@@ -117,10 +130,167 @@ export type PendingTerrainAction =
       summary: string
     }
 
+/** Nettoie un e-mail dicté (« good tayeb@gmail.com » → goodtayeb@gmail.com). */
+export function normalizeSpokenEmail(raw: string): string {
+  let e = (raw || '').trim().toLowerCase()
+  e = e.replace(/\s*@\s*/g, '@').replace(/\s*\.\s*/g, '.')
+  // Espaces dans la partie locale (avant @)
+  const at = e.indexOf('@')
+  if (at > 0) {
+    e = e.slice(0, at).replace(/\s+/g, '') + e.slice(at).replace(/\s+/g, '')
+  } else {
+    e = e.replace(/\s+/g, '')
+  }
+  return e
+}
+
+/** Téléphone dicté → chiffres (+ éventuel +33). */
+export function normalizeSpokenPhone(raw: string): string {
+  let t = (raw || '').trim()
+  t = t.replace(/[^\d+]/g, '')
+  if (t.startsWith('0033')) t = '+33' + t.slice(4)
+  if (t.startsWith('+33') && t.length > 3) {
+    const rest = t.slice(3).replace(/^0/, '')
+    return '0' + rest
+  }
+  return t
+}
+
+function parseCreateClientIntent(raw: string, n: string): PendingTerrainAction | null {
+  const wants =
+    /(?:creer|cree|ajouter|ajoute)\s+(un\s+|une\s+)?(nouveau\s+|nouvelle\s+)?client/.test(n) ||
+    /nouveau\s+client\b/.test(n) ||
+    /enregistre\s+(un\s+)?client/.test(n)
+  if (!wants) return null
+  // Ne pas voler une demande OT/CERFA
+  if (/\bot\b|ordre\s+de\s+travail|\bcerfa\b|intervention|controle\s+d?[' ]?etancheite/.test(n)) {
+    return null
+  }
+
+  const isParticulier = /(?:mr|m\.|monsieur|mme|madame)\s+/.test(n)
+  let prenom = ''
+  let nom = ''
+  let raisonSociale = ''
+
+  const civ =
+    raw.match(
+      /(?:mr|m\.|monsieur|mme|madame)\s+([A-Za-zÀ-ÿ'’-]+)(?:\s+([A-Za-zÀ-ÿ'’-]+))?/i,
+    ) || null
+  if (civ) {
+    prenom = (civ[1] || '').trim()
+    nom = (civ[2] || '').trim()
+    // Si un seul mot après Monsieur, c’est le nom
+    if (!nom && prenom) {
+      nom = prenom
+      prenom = ''
+    }
+  }
+
+  if (!isParticulier || (!nom && !prenom)) {
+    const after =
+      raw.match(
+        /(?:nouveau\s+)?client\s+(?:entreprise\s+|sarl\s+|sas\s+)?(.+?)(?:\s+num[eé]ro|\s+tel|\s+t[eé]l|\s+mail|\s+e-?mail|\s+adresse|\s*$)/i,
+      )?.[1] || ''
+    const cleaned = after
+      .replace(/^(mr|m\.|monsieur|mme|madame)\s+/i, '')
+      .trim()
+    if (cleaned) {
+      if (isParticulier) {
+        const parts = cleaned.split(/\s+/).filter(Boolean)
+        if (parts.length >= 2) {
+          prenom = parts[0]
+          nom = parts.slice(1).join(' ')
+        } else {
+          nom = cleaned
+        }
+      } else {
+        raisonSociale = cleaned
+      }
+    }
+  }
+
+  if (isParticulier && prenom && !nom) {
+    // « Monsieur Albert Dupont » déjà géré ; sinon nom seul
+  }
+
+  const telRaw =
+    raw.match(
+      /(?:num[eé]ro\s+(?:de\s+)?(?:t[eé]l[eé]phone)?|t[eé]l[eé]phone|t[eé]l\.?)\s*[:=]?\s*((?:\+?\d[\d\s.]{7,16}))/i,
+    )?.[1] ||
+    raw.match(/\b(0\d(?:[\s.]?\d{2}){4})\b/)?.[1] ||
+    ''
+  const telephone = normalizeSpokenPhone(telRaw)
+
+  const emailRaw =
+    raw.match(
+      /(?:e-?mail|mail|courriel)\s*[:=]?\s*([A-Za-z0-9._%+\-\s]+@[A-Za-z0-9.\-\s]+\.[A-Za-z]{2,})/i,
+    )?.[1] || ''
+  const email = normalizeSpokenEmail(emailRaw)
+
+  const addrBlock =
+    raw.match(/(?:adresse)\s*[:=]?\s*(.+)$/i)?.[1]?.trim() ||
+    raw.match(/\b(\d{1,4}\s*,?\s*rue\s+.+)$/i)?.[1]?.trim() ||
+    ''
+  let adresse = ''
+  let codePostal = ''
+  let ville = ''
+  if (addrBlock) {
+    const cpVille = addrBlock.match(/^(.*?)\s+(\d{5})\s+([A-Za-zÀ-ÿ'’\-\s]+)$/i)
+    if (cpVille) {
+      adresse = cpVille[1].replace(/,\s*$/, '').trim()
+      codePostal = cpVille[2]
+      ville = cpVille[3].trim()
+    } else {
+      adresse = addrBlock
+    }
+  }
+
+  if (isParticulier) {
+    if (!nom && !prenom) return null
+    raisonSociale = [prenom, nom].filter(Boolean).join(' ')
+  } else if (!raisonSociale.trim()) {
+    return null
+  }
+
+  const typeClient = isParticulier ? 'particulier' : 'entreprise'
+  const label =
+    typeClient === 'particulier'
+      ? [prenom, nom].filter(Boolean).join(' ')
+      : raisonSociale
+
+  return {
+    kind: 'client',
+    typeClient,
+    raisonSociale: typeClient === 'entreprise' ? raisonSociale : raisonSociale || label,
+    nom: typeClient === 'particulier' ? nom : '',
+    prenom: typeClient === 'particulier' ? prenom : '',
+    telephone,
+    email,
+    adresse,
+    codePostal,
+    ville,
+    summary: [
+      `Je peux créer le client :`,
+      `• ${typeClient === 'particulier' ? 'Particulier' : 'Entreprise'} : ${label}`,
+      telephone ? `• Téléphone : ${telephone}` : `• Téléphone : (non détecté)`,
+      email ? `• E-mail : ${email}` : `• E-mail : (non détecté)`,
+      adresse || codePostal || ville
+        ? `• Adresse : ${[adresse, codePostal, ville].filter(Boolean).join(', ')}`
+        : `• Adresse : (à compléter)`,
+      ``,
+      `Répondez « oui » pour créer, ou « non » pour annuler.`,
+    ].join('\n'),
+  }
+}
+
 export function parseTerrainIntent(text: string): PendingTerrainAction | null {
   const raw = (text || '').trim()
   const n = normalize(raw)
   if (!raw) return null
+
+  // Client (avant les autres : « créer un client » ne doit pas partir en Gemini)
+  const clientIntent = parseCreateClientIntent(raw, n)
+  if (clientIntent) return clientIntent
 
   // Détecteur
   if (/detecteur|detecteur de fuite|detecteur fuite/.test(n)) {
@@ -309,6 +479,9 @@ export type TerrainDeps = {
   data: AppData
   userId?: string
   userName?: string
+  upsertClient: (
+    c: Omit<import('./types').Client, 'id' | 'createdAt'> & { id?: string },
+  ) => string
   upsertDetecteur: (
     d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
@@ -327,6 +500,34 @@ export async function executeTerrainAction(
   action: PendingTerrainAction,
   deps: TerrainDeps,
 ): Promise<{ message: string; navigateTo: string }> {
+  if (action.kind === 'client') {
+    const id = deps.upsertClient({
+      typeClient: action.typeClient,
+      raisonSociale:
+        action.typeClient === 'particulier'
+          ? [action.prenom, action.nom].filter(Boolean).join(' ')
+          : action.raisonSociale,
+      nom: action.nom,
+      prenom: action.prenom,
+      nomContact: action.typeClient === 'entreprise' ? action.raisonSociale : '',
+      telephone: action.telephone,
+      email: action.email,
+      adresse: action.adresse,
+      codePostal: action.codePostal,
+      ville: action.ville,
+      createdByUserId: deps.userId,
+      createdByName: deps.userName,
+    })
+    const label =
+      action.typeClient === 'particulier'
+        ? [action.prenom, action.nom].filter(Boolean).join(' ')
+        : action.raisonSociale
+    return {
+      message: `Client « ${label} » créé. Vérifiez / complétez la fiche si besoin.`,
+      navigateTo: `/app/clients?highlight=${encodeURIComponent(id)}`,
+    }
+  }
+
   if (action.kind === 'detecteur') {
     await deps.upsertDetecteur({
       identification: action.identification,
