@@ -11,7 +11,105 @@ export async function qrDataUrl(payload: string, size = 280): Promise<string> {
   })
 }
 
-/** Ouvre une fenêtre d’impression d’étiquettes équipements. */
+/**
+ * Impression sans pop-up (iframe cachée) — évite le blocage navigateur.
+ */
+function printHtmlViaIframe(html: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('title', 'Impression étiquettes QR ClimaZEN')
+    iframe.setAttribute('aria-hidden', 'true')
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      right: '0',
+      bottom: '0',
+      width: '0',
+      height: '0',
+      border: '0',
+      opacity: '0',
+      pointerEvents: 'none',
+    })
+    document.body.appendChild(iframe)
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    let cleaned = false
+
+    const cleanup = () => {
+      if (cleaned) return
+      cleaned = true
+      try {
+        URL.revokeObjectURL(url)
+      } catch {
+        /* ignore */
+      }
+      try {
+        iframe.remove()
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const fail = (msg: string) => {
+      cleanup()
+      reject(new Error(msg))
+    }
+
+    iframe.onload = () => {
+      const win = iframe.contentWindow
+      if (!win) {
+        fail('Impossible d’ouvrir l’aperçu d’impression.')
+        return
+      }
+
+      const doc = win.document
+      const waitImages = Promise.all(
+        Array.from(doc.images).map((img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise<void>((res) => {
+                img.onload = () => res()
+                img.onerror = () => res()
+              }),
+        ),
+      )
+
+      void waitImages
+        .then(
+          () =>
+            new Promise<void>((res) => {
+              window.setTimeout(() => res(), 150)
+            }),
+        )
+        .then(() => {
+          const onAfter = () => {
+            win.removeEventListener('afterprint', onAfter)
+            cleanup()
+            resolve()
+          }
+          win.addEventListener('afterprint', onAfter)
+          // Fallback si afterprint n’est pas supporté
+          window.setTimeout(() => {
+            cleanup()
+            resolve()
+          }, 60_000)
+
+          try {
+            win.focus()
+            win.print()
+          } catch {
+            fail('Impression impossible sur cet appareil.')
+          }
+        })
+        .catch(() => fail('Impression impossible sur cet appareil.'))
+    }
+
+    iframe.onerror = () => fail('Impression impossible sur cet appareil.')
+    iframe.src = url
+  })
+}
+
+/** Imprime des étiquettes équipements (QR) — sans fenêtre pop-up. */
 export async function printEquipementLabels(
   hits: EquipQrHit[],
   opts?: { origin?: string; companyName?: string },
@@ -50,15 +148,11 @@ export async function printEquipementLabels(
       color: #071820;
       background: #fff;
     }
-    h2.sheet-title {
-      font-size: 14px;
-      margin: 0 0 12px;
-      color: #5a7880;
-    }
     .grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 10mm;
+      padding: 10mm;
     }
     .label {
       border: 1px solid #c5d9dc;
@@ -97,31 +191,14 @@ export async function printEquipementLabels(
       letter-spacing: 0.06em;
       font-weight: 700;
     }
-    @media print {
-      .no-print { display: none !important; }
-    }
   </style>
 </head>
 <body>
-  <p class="no-print" style="padding:12px;font-size:13px">
-    ${hits.length} étiquette${hits.length > 1 ? 's' : ''} — utilisez Imprimer → format étiquette / A4.
-    <button onclick="window.print()" style="margin-left:8px;padding:8px 14px;font-weight:700;cursor:pointer">
-      Imprimer
-    </button>
-  </p>
-  <h2 class="sheet-title no-print">Aperçu impression</h2>
   <div class="grid">${cards.join('')}</div>
-  <script>window.onload = function () { setTimeout(function () { window.print(); }, 250); };</script>
 </body>
 </html>`
 
-  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
-  if (!w) {
-    throw new Error('Autorisez les pop-ups pour imprimer les étiquettes.')
-  }
-  w.document.open()
-  w.document.write(html)
-  w.document.close()
+  await printHtmlViaIframe(html)
 }
 
 function escapeHtml(s: string): string {
