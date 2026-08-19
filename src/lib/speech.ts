@@ -20,11 +20,18 @@ export type SpeechRecognitionEventLike = {
   resultIndex: number
   results: ArrayLike<{
     isFinal: boolean
-    0: { transcript: string }
+    length?: number
+    0: { transcript: string; confidence?: number }
   }>
 }
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+/** Silence avant d’arrêter la dictée (ms) — laisse le temps de reformuler. */
+export const SPEECH_SILENCE_MS = 4800
+
+/** Silence pour une commande courte (micro en-tête). */
+export const SPEECH_COMMAND_SILENCE_MS = 2800
 
 export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null
@@ -47,6 +54,78 @@ export function normalizeSpeechText(raw: string): string {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function cleanupSpeechFillers(raw: string): string {
+  return (raw || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\b(euh+|hum+|heu+|bah|ben)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .trim()
+}
+
+/**
+ * Comprend les corrections à la voix :
+ * « non plutôt… », « je veux dire… », « en fait… », « pardon… », « correction… »
+ * → garde le sens corrigé au lieu d’empiler l’erreur.
+ */
+export function applySpeechCorrections(raw: string): string {
+  let text = cleanupSpeechFillers(raw)
+  if (!text) return ''
+
+  // Recommencer / effacer
+  const restart = text.match(
+    /(?:^|\s)(?:recommence(?:r)?|efface(?:r)?(?:\s+tout)?|annule(?:r)?(?:\s+tout)?|recommen[cç]ons)\s*[:,.]?\s*(.*)$/i,
+  )
+  if (restart) {
+    return cleanupSpeechFillers(restart[1] || '')
+  }
+
+  const markerRe =
+    /(?:^|\s)(?:non[, ]+(?:plut[oô]t|en fait)|plut[oô]t|je veux dire|en fait|pardon|correction|remplace(?:r)?(?:\s+par)?)\s*[:,.]?\s+/gi
+
+  let lastMatch: RegExpExecArray | null = null
+  let m: RegExpExecArray | null
+  const re = new RegExp(markerRe.source, 'gi')
+  while ((m = re.exec(text)) !== null) {
+    lastMatch = m
+  }
+  if (!lastMatch) return text
+
+  const after = text.slice(lastMatch.index + lastMatch[0].length).trim()
+  const before = text.slice(0, lastMatch.index).trim()
+  if (!after) return cleanupSpeechFillers(before)
+
+  // Garder le début d’action (« ajoute détecteur ») + la correction
+  const lead = before.match(
+    /^((?:ajoute[rz]?|cr[eé]e[rz]?|creer|cree|planifie|programme|agenda)\b(?:\s+(?:un|une|le|la|les|des|du|de|d)\b)?(?:\s+[A-Za-zÀ-ÿ0-9'’-]+)?)/i,
+  )
+  if (lead?.[1]) {
+    return cleanupSpeechFillers(`${lead[1]} ${after}`)
+  }
+
+  // Sinon : enlever la fin erronée (derniers mots)
+  const words = before.split(/\s+/).filter(Boolean)
+  let kept = ''
+  if (words.length > 2) {
+    const drop = Math.min(5, Math.max(2, Math.ceil(words.length / 3)))
+    kept = words.slice(0, -drop).join(' ')
+  }
+  // Couper à la dernière ponctuation seulement si elle raccourcit vraiment
+  const clause = before.replace(/[,;:—–\-]+\s*[^,;:—–\-]+$/, '').trim()
+  if (clause && clause.length < before.length && clause.length >= kept.length) {
+    kept = clause
+  }
+
+  return cleanupSpeechFillers([kept, after].filter(Boolean).join(' '))
+}
+
+/**
+ * Fusionne les morceaux finaux d’une dictée continue + corrections.
+ */
+export function mergeSpeechFinals(chunks: string[]): string {
+  return applySpeechCorrections(chunks.filter(Boolean).join(' '))
 }
 
 export type VoiceCommandId =
