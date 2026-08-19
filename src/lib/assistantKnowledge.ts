@@ -278,10 +278,11 @@ export function answerAideLocal(question: string, pathname = ''): string {
   return `Je peux vous aider sur :
 • Parcours OT / Client appelle
 • CERFA 15497 (récup. temporaire vs définitive, charge)
+• Agenda (RDV, rappels, maintenances)
 • Stock (utilisable vs déchet, A2L, n° série / surnom)
 • Signatures et clôture
 
-Exemple : « Quelle bouteille pour une récupération temporaire ? »
+Exemple : « Agenda RDV demain 14h pour Mr Martin »
 
 — Assistant ClimaZEN (mode guide)`
 }
