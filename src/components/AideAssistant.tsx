@@ -37,7 +37,7 @@ function stripActionJson(reply: string): string {
 }
 
 /**
- * Assistant ClimaZEN — OT/CERFA, bouteilles, fiches, détecteurs (avec confirmation).
+ * Assistant ClimaZEN — OT/CERFA, agenda, bouteilles, fiches, détecteurs (avec confirmation).
  */
 export function AideAssistant() {
   const location = useLocation()
@@ -51,6 +51,7 @@ export function AideAssistant() {
     upsertDetecteur,
     upsertStock,
     upsertFicheMaintenanceClim,
+    upsertAgendaEvent,
   } = useStore()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
@@ -64,7 +65,7 @@ export function AideAssistant() {
       id: newId(),
       role: 'assistant',
       content:
-        'Bonjour — je peux préparer OT, CERFA, bouteilles, fiches maintenance et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »\n• « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »',
+        'Bonjour — je peux préparer OT, CERFA, agenda, bouteilles, fiches et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Agenda RDV demain 14h pour Mr Martin site Atelier »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »\n• « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »',
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -134,6 +135,7 @@ export function AideAssistant() {
         upsertDetecteur,
         upsertStock,
         upsertFicheMaintenanceClim,
+        upsertAgendaEvent,
       })
       setPendingTerrain(null)
       pushAssistant(result.message)
@@ -164,7 +166,7 @@ export function AideAssistant() {
         return
       }
 
-      // 1) Actions terrain (détecteur, bouteille, fiche)
+      // 1) Actions terrain (détecteur, bouteille, fiche, agenda)
       const terrain = parseTerrainIntent(q)
       if (terrain) {
         setSource('local')
@@ -220,6 +222,7 @@ export function AideAssistant() {
     else if (content.includes('/app/operateur')) navigate('/app/operateur')
     else if (content.includes('/app/profil')) navigate('/app/profil')
     else if (content.includes('/app/fiche-maintenance')) navigate('/app/fiche-maintenance-clim')
+    else if (content.includes('/app/agenda')) navigate('/app/agenda')
   }
 
   return (
@@ -242,7 +245,7 @@ export function AideAssistant() {
                   : source === 'local'
                     ? 'Guide + actions locales'
                     : 'Prêt'}{' '}
-                · OT · CERFA · stock · fiches
+                · OT · CERFA · agenda · stock · fiches
               </p>
             </div>
             <button

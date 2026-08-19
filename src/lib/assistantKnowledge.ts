@@ -38,13 +38,16 @@ Tu peux aussi expliquer que l’utilisateur peut dire :
 - « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »
 - « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »
 - « Crée une fiche maintenance pour le site Atelier »
+- « Agenda RDV demain 14h pour Mr Martin site Atelier »
+- « Planifie un rappel appel client Mr Dupont demain »
 (ces actions sont gérées directement par l’app).
 
 Parcours principaux :
 1) Client appelle → /app/appel (OT) → client, site, équipements → docs (CERFA / fiche) → signatures → Clôturer.
 2) CERFA → /app/interventions ou depuis l’OT.
 3) Stock fluides → /app/stock (utilisable vs récupération déchet).
-4) Mon entreprise → /app/operateur (logo, attestation, détecteurs).
+4) Agenda → /app/agenda (RDV, rappels, maintenances).
+5) Mon entreprise → /app/operateur (logo, attestation, détecteurs).
 
 Règles stock / CERFA importantes :
 - Récupération temporaire (réinjection) → bouteilles Transfert / Service uniquement.
@@ -117,6 +120,20 @@ Dans Stock, il apparaît dans le bloc orange « Récupération déchet », sépa
 Ajout rapide : photo de l’étiquette bouteille ou scan QR / code-barres pour préremplir n°, fluide, UN, capacité / tare si lisibles. Vérifiez toujours avant d’enregistrer.
 
 Totaux kg séparés pour ne pas mélanger gaz utilisable et déchet.`,
+  },
+  {
+    id: 'agenda',
+    title: 'Agenda / RDV',
+    keywords: ['agenda', 'rdv', 'rendez-vous', 'rappel', 'planifie', 'programme', 'calendrier', 'visite'],
+    paths: ['/app/agenda'],
+    answer: `Agenda (/app/agenda) : RDV, maintenances, contrôles d’étanchéité, rappels d’appel.
+
+Via l’assistant, dites par ex. :
+• « Agenda RDV demain 14h pour Mr Martin site Atelier »
+• « Planifie un rappel appel client Mr Dupont demain »
+• « Programme maintenance le 20/08 »
+
+Répondez « oui » pour créer. Ouvrez ensuite l’événement pour ajuster heure / statut.`,
   },
   {
     id: 'a2l',
@@ -215,12 +232,19 @@ export function suggestQuestionsForPath(pathname: string): string[] {
       'Où signer technicien et client ?',
     ]
   }
+  if (p.includes('/agenda')) {
+    return [
+      'Agenda RDV demain 14h',
+      'Planifie un rappel appel client',
+      'Comment ajouter une visite ?',
+    ]
+  }
   if (p.includes('/operateur')) {
     return ['Où mettre le logo société ?', 'Détecteur de fuite obligatoire ?']
   }
   return [
     'Crée une OT + CERFA pour un client',
-    'Comment démarrer un OT ?',
+    'Agenda RDV demain 14h',
     'Stock utilisable vs déchet ?',
   ]
 }

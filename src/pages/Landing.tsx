@@ -500,15 +500,15 @@ export function Landing() {
               </div>
 
               <p className="mt-4 text-sm font-semibold leading-snug text-white">
-                L’IA remplit à votre place — OT, CERFA, stock &amp; fiches
+                L’IA remplit à votre place — OT, CERFA, agenda &amp; stock
               </p>
               <p className="mt-2 text-[13px] leading-relaxed text-teal-50/90">
-                Vous dictez. ClimaZEN prépare les documents et fiches terrain. Le technicien
-                vérifie et valide.
+                Vous dictez. ClimaZEN prépare les documents, l’agenda et les fiches terrain. Le
+                technicien vérifie et valide.
               </p>
 
               <blockquote className="mt-4 rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-[11px] italic leading-snug text-teal-50">
-                « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »
+                « Agenda RDV demain 14h pour Mr Martin site Atelier »
               </blockquote>
 
               <ul className="mt-4 space-y-1.5 text-[12px] font-medium text-teal-50/95">
@@ -518,15 +518,15 @@ export function Landing() {
                 </li>
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
+                  Agenda / RDV / rappels
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
                   Bouteilles / stock fluides
                 </li>
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
-                  Fiches maintenance clim
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
-                  Détecteurs de fuite (n° + date)
+                  Fiches maintenance &amp; détecteurs
                 </li>
               </ul>
 

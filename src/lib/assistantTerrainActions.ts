@@ -1,8 +1,10 @@
 /**
- * Actions terrain Assistant IA — détecteur, bouteille, fiche maintenance.
+ * Actions terrain Assistant IA — détecteur, bouteille, fiche maintenance, agenda.
  * Confirmation « oui » puis création ; le technicien valide ensuite.
  */
 
+import type { AgendaEvent, AgendaEventType } from './agenda'
+import { AGENDA_TYPE_LABELS, addDaysToIso, todayIsoLocal } from './agenda'
 import type { AppData, ContenantType, DetecteurManuel, StockItem } from './types'
 import { blankFicheMaintenanceClim } from './ficheMaintenanceClim'
 import { clientDisplayName } from './types'
@@ -33,7 +35,51 @@ export function parseFrDate(raw: string): string | null {
   return `${y}-${m}-${d}`
 }
 
-export type TerrainActionKind = 'detecteur' | 'bouteille' | 'fiche_maintenance'
+/** aujourd’hui / demain / après-demain / date FR → YYYY-MM-DD */
+export function parseAgendaDate(text: string): string | null {
+  const n = normalize(text)
+  const today = todayIsoLocal()
+  if (/\baujourd ?hui\b/.test(n)) return today
+  if (/\bapres[\s-]?demain\b/.test(n)) return addDaysToIso(today, 2)
+  if (/\bdemain\b/.test(n)) return addDaysToIso(today, 1)
+  const fr =
+    text.match(/\b(\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4})\b/)?.[1] ||
+    text.match(/\ble\s+(\d{1,2}[./\-]\d{1,2}(?:[./\-]\d{2,4})?)\b/i)?.[1] ||
+    ''
+  if (fr) {
+    const full = fr.includes('/') || fr.includes('.') || fr.includes('-')
+      ? fr.match(/^\d{1,2}[./\-]\d{1,2}$/)
+        ? `${fr}/${new Date().getFullYear()}`
+        : fr
+      : fr
+    const parsed = parseFrDate(full)
+    if (parsed) return parsed
+  }
+  // « le 20/08 » déjà couvert ; « le 20 aout » non géré
+  return null
+}
+
+/** 14h / 14h30 / 14:30 / à 9 h → HH:mm */
+export function parseAgendaHeure(text: string): string | undefined {
+  const m =
+    text.match(/\b(\d{1,2})\s*[h:]\s*(\d{2})\b/i) ||
+    text.match(/\b(\d{1,2})\s*h\b/i) ||
+    text.match(/\ba\s+(\d{1,2})\s*h(?:\s*(\d{2}))?\b/i)
+  if (!m) return undefined
+  const h = Math.min(23, Math.max(0, Number(m[1])))
+  const min = m[2] != null ? Math.min(59, Math.max(0, Number(m[2]))) : 0
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+function detectAgendaType(n: string): AgendaEventType {
+  if (/rappel\s+appel|appeler\s+le\s+client|rappel\s+client/.test(n)) return 'rappel_appel'
+  if (/controle\s+d?[' ]?etancheite|etancheite/.test(n)) return 'controle_etancheite'
+  if (/\bmaintenance\b|\bentretien\b/.test(n)) return 'maintenance'
+  if (/\brdv\b|rendez[\s-]?vous|intervention|visite/.test(n)) return 'rdv'
+  return 'rdv'
+}
+
+export type TerrainActionKind = 'detecteur' | 'bouteille' | 'fiche_maintenance' | 'agenda'
 
 export type PendingTerrainAction =
   | {
@@ -57,6 +103,17 @@ export type PendingTerrainAction =
       clientQuery: string
       siteQuery: string
       equipQuery: string
+      summary: string
+    }
+  | {
+      kind: 'agenda'
+      title: string
+      date: string
+      heure?: string
+      type: AgendaEventType
+      clientQuery: string
+      siteQuery: string
+      notes?: string
       summary: string
     }
 
@@ -187,6 +244,64 @@ export function parseTerrainIntent(text: string): PendingTerrainAction | null {
     }
   }
 
+  // Agenda / RDV / rappel
+  if (
+    /\bagenda\b|\bcalendrier\b|\brdv\b|rendez[\s-]?vous|\bplanifie\b|\bprogramme\b|rappel\s+appel|ajoute\s+(un\s+)?(rdv|rappel|visite)|cree\s+(un\s+)?(rdv|rappel|visite)|cr[eé]e\s+(un\s+)?(rdv|rappel|visite)/.test(
+      n,
+    )
+  ) {
+    const type = detectAgendaType(n)
+    const date = parseAgendaDate(raw) || todayIsoLocal()
+    const heure = parseAgendaHeure(raw)
+    const clientQuery =
+      raw.match(/(?:mr|m\.|monsieur|mme|madame|client|pour)\s+([A-Za-zÀ-ÿ0-9'’\-]+)/i)?.[1] || ''
+    const siteQuery =
+      raw
+        .match(
+          /site\s+(?:de\s+|du\s+)?(.+?)(?:\s+le\s+\d|\s+a\s+\d|\s+demain|\s+aujourd|\s+a\s+\d|\s*$)/i,
+        )?.[1]
+        ?.trim()
+        .replace(/[,.]$/, '') || ''
+    const titleFrom =
+      raw.match(
+        /(?:titre|intitule|intitulé)\s*[:=]?\s*([A-Za-zÀ-ÿ0-9'’\-\s]{2,60})/i,
+      )?.[1]?.trim() || ''
+    const title =
+      titleFrom ||
+      [
+        AGENDA_TYPE_LABELS[type],
+        clientQuery ? `— ${clientQuery}` : null,
+        siteQuery ? `(${siteQuery})` : null,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    const notes =
+      raw.match(/(?:note|notes|commentaire)\s*[:=]?\s*(.+)$/i)?.[1]?.trim() || undefined
+
+    return {
+      kind: 'agenda',
+      title,
+      date,
+      heure,
+      type,
+      clientQuery,
+      siteQuery,
+      notes,
+      summary: [
+        `Je peux ajouter à l’agenda :`,
+        `• ${title}`,
+        `• Type : ${AGENDA_TYPE_LABELS[type]}`,
+        `• Date : ${date}${heure ? ` à ${heure}` : ''}`,
+        clientQuery ? `• Client : ${clientQuery}` : null,
+        siteQuery ? `• Site : ${siteQuery}` : null,
+        ``,
+        `Répondez « oui » pour créer, ou « non » pour annuler.`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  }
+
   return null
 }
 
@@ -202,6 +317,9 @@ export type TerrainDeps = {
     f: Omit<import('./ficheMaintenanceClim').FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'> & {
       id?: string
     },
+  ) => string
+  upsertAgendaEvent: (
+    e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
 }
 
@@ -238,6 +356,38 @@ export async function executeTerrainAction(
     return {
       message: `Bouteille ${action.numeroContenant} ajoutée au stock. Complétez fluide / kg si besoin.`,
       navigateTo: `/app/stock?highlight=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind === 'agenda') {
+    const clients = deps.data.clients || []
+    const sites = deps.data.chantiers || []
+    const qClient = normalize(action.clientQuery)
+    const client =
+      (qClient &&
+        clients.find((c) => normalize(clientDisplayName(c)).includes(qClient))) ||
+      undefined
+    const qSite = normalize(action.siteQuery)
+    const siteList = client ? sites.filter((s) => s.clientId === client.id) : sites
+    const site =
+      (qSite && siteList.find((s) => normalize(s.nom).includes(qSite))) || undefined
+
+    const id = deps.upsertAgendaEvent({
+      title: action.title,
+      date: action.date,
+      dateRappel: action.date,
+      heure: action.heure,
+      type: action.type,
+      clientId: client?.id,
+      chantierId: site?.id,
+      notes: action.notes,
+      statut: 'a_faire',
+    })
+
+    const when = action.heure ? `${action.date} à ${action.heure}` : action.date
+    return {
+      message: `Agenda : « ${action.title} » ajouté pour le ${when}. Vérifiez dans Agenda.`,
+      navigateTo: `/app/agenda?id=${encodeURIComponent(id)}`,
     }
   }
 
