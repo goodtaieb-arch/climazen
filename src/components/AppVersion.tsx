@@ -17,6 +17,45 @@ export async function fetchServerVersion(): Promise<string | null> {
   }
 }
 
+/** Cache partagé — bandeau + bouton MAJ restent synchronisés. */
+let cachedServerVersion: string | null = null
+const serverVersionListeners = new Set<(v: string | null) => void>()
+
+function publishServerVersion(v: string | null) {
+  cachedServerVersion = v
+  for (const l of serverVersionListeners) l(v)
+}
+
+async function refreshServerVersion(): Promise<string | null> {
+  const v = await fetchServerVersion()
+  publishServerVersion(v)
+  return v
+}
+
+/** Version serveur + flag « mise à jour dispo » (partagé entre UI). */
+export function useServerAppVersion() {
+  const [server, setServer] = useState<string | null>(cachedServerVersion)
+
+  useEffect(() => {
+    const onUpdate = (v: string | null) => setServer(v)
+    serverVersionListeners.add(onUpdate)
+    void refreshServerVersion()
+    const onFocus = () => void refreshServerVersion()
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onFocus)
+    const t = window.setInterval(() => void refreshServerVersion(), 10_000)
+    return () => {
+      serverVersionListeners.delete(onUpdate)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onFocus)
+      window.clearInterval(t)
+    }
+  }, [])
+
+  const needsUpdate = Boolean(server && server !== APP_VERSION)
+  return { server, needsUpdate, local: APP_VERSION }
+}
+
 /**
  * Purge cache PWA + SW puis recharge vers la version **serveur**.
  * Important : ne pas utiliser seulement APP_VERSION (souvent l’ancien bundle).
@@ -57,11 +96,9 @@ export async function forceLatestAppVersion(knownTarget?: string) {
     /* ignore */
   }
 
-  // Recharge « dure » : même page avec bust de version serveur
   const url = new URL(window.location.href)
   url.searchParams.set('v', target)
   url.searchParams.set('_', String(Date.now()))
-  // Petit délai pour laisser le unregister SW se propager
   await new Promise((r) => setTimeout(r, 120))
   window.location.replace(url.toString())
 }
@@ -79,37 +116,13 @@ export function VersionBadge({ className = '' }: { className?: string }) {
 }
 
 /**
- * Bouton MAJ — affiche la version serveur manquante (ex. « MAJ v75 »).
+ * Bouton MAJ — affiche la version serveur manquante (ex. « MAJ v76 »).
  */
 export function MajButton({ className = '' }: { className?: string }) {
-  const [server, setServer] = useState<string | null>(null)
+  const { server, needsUpdate } = useServerAppVersion()
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    const check = async () => {
-      const v = await fetchServerVersion()
-      if (!cancelled) setServer(v)
-    }
-    void check()
-    const onFocus = () => void check()
-    window.addEventListener('focus', onFocus)
-    window.addEventListener('online', check)
-    const t = window.setInterval(() => void check(), 12_000)
-    return () => {
-      cancelled = true
-      window.removeEventListener('focus', onFocus)
-      window.removeEventListener('online', check)
-      window.clearInterval(t)
-    }
-  }, [])
-
-  const needsUpdate = Boolean(server && server !== APP_VERSION)
-  const label = busy
-    ? 'MAJ…'
-    : needsUpdate
-      ? `MAJ ${server}`
-      : 'MAJ'
+  const label = busy ? 'MAJ…' : needsUpdate ? `MAJ ${server}` : 'MAJ'
 
   return (
     <button
@@ -144,15 +157,9 @@ export function MajButton({ className = '' }: { className?: string }) {
   )
 }
 
-/** Bandeau forcé sur login / pages publiques si besoin de MAJ. */
+/** Bandeau version — texte aligné sur le bouton MAJ (jamais « à jour » si MAJ vXX). */
 export function VersionUpdateBar({ dark = false }: { dark?: boolean }) {
-  const [server, setServer] = useState<string | null>(null)
-
-  useEffect(() => {
-    void fetchServerVersion().then(setServer)
-  }, [])
-
-  const needsUpdate = Boolean(server && server !== APP_VERSION)
+  const { server, needsUpdate, local } = useServerAppVersion()
 
   return (
     <div
@@ -163,18 +170,16 @@ export function VersionUpdateBar({ dark = false }: { dark?: boolean }) {
       }
     >
       <p className="font-semibold">
-        Version <span className="font-extrabold">{APP_VERSION}</span>
+        Version <span className="font-extrabold">{local}</span>
         {needsUpdate ? (
-          <span className={dark ? 'opacity-90' : 'text-amber-900'}>
+          <span className={dark ? 'text-amber-100' : 'text-amber-950'}>
             {' '}
-            — nouvelle version <span className="font-extrabold">{server}</span> disponible
+            — mise à jour <span className="font-extrabold">{server}</span> disponible
           </span>
+        ) : server ? (
+          <span className={dark ? 'opacity-80' : 'text-muted'}> — à jour ({server})</span>
         ) : (
-          <span className={dark ? 'opacity-80' : 'text-muted'}>
-            {' '}
-            — à jour
-            {server ? ` (${server})` : ''}
-          </span>
+          <span className={dark ? 'opacity-80' : 'text-muted'}> — vérification…</span>
         )}
       </p>
       <MajButton
