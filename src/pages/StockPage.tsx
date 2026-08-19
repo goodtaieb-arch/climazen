@@ -788,6 +788,9 @@ export function StockPage() {
                 />
                 <BarcodeScanButton
                   autoStart={autoScan}
+                  title="Scanner code-barres / QR bouteille"
+                  dialogTitle="Scanner le contenant"
+                  hint="Cadrez le code-barres / QR du fournisseur (Gazechim, Westfalen, Climalife…)."
                   onDetected={(value) => {
                     applyScanFields(parseBarcodePayload(value), true)
                     setAutoScan(false)

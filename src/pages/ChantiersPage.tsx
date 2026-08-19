@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ClipboardList,
   FileCheck2,
@@ -15,6 +15,7 @@ import {
   Layers,
   FileSignature,
   Navigation,
+  QrCode,
   type LucideIcon,
 } from 'lucide-react'
 import { openAddressInGps, formatAddressQuery } from '../lib/mapsNav'
@@ -48,6 +49,8 @@ import { buildCerfaPdf } from '../lib/cerfaPdf'
 import { saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
+import { findEquipementById } from '../lib/equipementQr'
+import { printEquipementLabels } from '../lib/equipementQrPrint'
 import { Sites3dIcon } from '../components/Sites3dIcon'
 
 type QuickTone = 'sites' | 'cerfa' | 'teal' | 'muted'
@@ -146,6 +149,7 @@ export function ChantiersPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState(() => blank(data.clients[0]?.id || ''))
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -159,6 +163,7 @@ export function ChantiersPage() {
   const [pendingDeleteSite, setPendingDeleteSite] = useState<{ id: string; name: string } | null>(
     null,
   )
+  const [qrBusy, setQrBusy] = useState(false)
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [equipFilter, setEquipFilter] = useState('')
@@ -196,6 +201,36 @@ export function ChantiersPage() {
     setEquipFilter('')
     setSiteMenuOpen(false)
   }
+
+  // Deep-link / scan QR : ?site=&equipement=
+  useEffect(() => {
+    const siteId = searchParams.get('site') || ''
+    const equipId = searchParams.get('equipement') || searchParams.get('eq') || ''
+    if (!siteId && !equipId) return
+    if (equipId) {
+      const hit = findEquipementById(data, equipId)
+      if (hit) {
+        setOpen(false)
+        setFocusSiteId(hit.site.id)
+        setFocusEquipId(hit.equip.id)
+        setExpandedClientId(hit.site.clientId || null)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    } else if (siteId && data.chantiers.some((c) => c.id === siteId)) {
+      setOpen(false)
+      setFocusSiteId(siteId)
+      setFocusEquipId(null)
+    }
+    // Nettoyer l’URL pour éviter de re-forcer le focus
+    if (siteId || equipId) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('site')
+      next.delete('equipement')
+      next.delete('eq')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, data.chantiers])
 
   // Clic menu Sites → liste ; Accueil / Clients peuvent préremplir recherche ou ouvrir un nouveau site
   useEffect(() => {
@@ -828,6 +863,44 @@ export function ChantiersPage() {
         .getElementById('equipement-photo-plaque')
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 120)
+  }
+
+  const printEquipLabel = async (site: Chantier, equipementId: string) => {
+    const hit = findEquipementById(data, equipementId)
+    if (!hit || hit.site.id !== site.id) {
+      alert('Équipement introuvable.')
+      return
+    }
+    setQrBusy(true)
+    try {
+      await printEquipementLabels([hit], {
+        companyName: data.operateur?.raisonSociale || 'ClimaZEN',
+      })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Impression impossible')
+    } finally {
+      setQrBusy(false)
+    }
+  }
+
+  const printSiteLabels = async (site: Chantier) => {
+    const eqs = allEquipements(site)
+    if (eqs.length === 0) {
+      alert('Aucun équipement sur ce site.')
+      return
+    }
+    const client = data.clients.find((c) => c.id === site.clientId)
+    const hits = eqs.map((equip) => ({ site, equip, client }))
+    setQrBusy(true)
+    try {
+      await printEquipementLabels(hits, {
+        companyName: data.operateur?.raisonSociale || 'ClimaZEN',
+      })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Impression impossible')
+    } finally {
+      setQrBusy(false)
+    }
   }
 
   const removeEquipement = (site: Chantier, equipementId: string) => {
@@ -1649,6 +1722,17 @@ export function ChantiersPage() {
                     type="button"
                     onClick={() => {
                       setSiteMenuOpen(false)
+                      void printSiteLabels(c)
+                    }}
+                    disabled={qrBusy}
+                    className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist disabled:opacity-60"
+                  >
+                    <QrCode className="h-3.5 w-3.5" /> Imprimer QR de tous les équipements
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteMenuOpen(false)
                       startEdit(c)
                     }}
                     className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
@@ -1823,6 +1907,14 @@ export function ChantiersPage() {
                     <FileCheck2 className="h-4 w-4 text-accent" /> CERFA fluides
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => void printEquipLabel(c, eq.id)}
+                  disabled={qrBusy}
+                  className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist disabled:opacity-60"
+                >
+                  <QrCode className="h-4 w-4 text-accent" /> Étiquette QR (imprimer)
+                </button>
                 <button
                   type="button"
                   onClick={() => startEditEquip(c, eq.id)}

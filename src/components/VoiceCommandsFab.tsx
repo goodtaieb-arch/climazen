@@ -131,7 +131,7 @@ export function VoiceCommandsFab() {
     try {
       rec.start()
       emitState(true)
-      setHint('Dites : stock, OT, appel, scan, GPS…')
+      setHint('Dites : stock, OT, appel, scan équipement, GPS…')
     } catch {
       setHint('Micro indisponible')
       emitState(false)
@@ -192,6 +192,7 @@ export function VoiceCommandsFab() {
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>stock / fluides</li>
             <li>appel / OT</li>
+            <li>scan équipement</li>
             <li>scan bouteille</li>
             <li>GPS / Waze</li>
             <li>CERFA / sites / aide</li>

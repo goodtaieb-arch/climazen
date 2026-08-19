@@ -9,6 +9,7 @@ import {
   Package,
   PenLine,
   Phone,
+  QrCode,
   Search,
   X,
 } from 'lucide-react'
@@ -334,6 +335,12 @@ export function Dashboard() {
                 delay="0s"
               />
               <CircleHomeTile
+                title="Scanner QR"
+                img={ICON3D.search}
+                to="/app/scan-equip?camera=1"
+                delay="0.08s"
+              />
+              <CircleHomeTile
                 title="Agenda"
                 img={ICON3D.search}
                 to="/app/agenda"
@@ -392,6 +399,14 @@ export function Dashboard() {
                 }
                 color="sites"
                 onClick={() => goTravaux()}
+              />
+              <TerrainAction
+                icon={QrCode}
+                img3d={ICON3D.search}
+                title="Scanner équipement"
+                subtitle="QR collé sur l’équipement → ouvrir la fiche"
+                color="sites"
+                to="/app/scan-equip?camera=1"
               />
               <TerrainAction
                 icon={ClipboardList}

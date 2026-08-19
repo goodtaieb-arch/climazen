@@ -21,6 +21,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { FicheMaintenanceClimPage } from './pages/FicheMaintenanceClimPage'
 import { FicheMaintenanceChaufferiePage } from './pages/FicheMaintenanceChaufferiePage'
+import { ScanEquipementPage } from './pages/ScanEquipementPage'
 import { OrdresTravailPage } from './pages/OrdresTravailPage'
 import { AppelOtPage } from './pages/AppelOtPage'
 import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
@@ -97,6 +98,7 @@ export default function App() {
                   path="fiche-maintenance-chaufferie"
                   element={<FicheMaintenanceChaufferieRoute />}
                 />
+                <Route path="scan-equip" element={<ScanEquipementPage />} />
                 <Route path="equipe" element={<EquipePage />} />
                 <Route path="operateur" element={<OperateurPage />} />
                 <Route path="profil" element={<ProfilPage />} />

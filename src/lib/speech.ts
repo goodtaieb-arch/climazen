@@ -57,6 +57,7 @@ export type VoiceCommandId =
   | 'sites'
   | 'accueil'
   | 'scan'
+  | 'scan_equip'
   | 'gps'
   | 'aide'
 
@@ -73,11 +74,21 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
 
   const rules: Array<{ id: VoiceCommandId; label: string; path?: string; test: (s: string) => boolean }> = [
     {
+      id: 'scan_equip',
+      label: 'Scanner un équipement',
+      path: '/app/scan-equip?camera=1',
+      test: (s) =>
+        (/\b(scan|scanner|qr)\b/.test(s) && /\bequip/.test(s)) ||
+        /\betiquette\b/.test(s) ||
+        /\bqr\s+equip/.test(s),
+    },
+    {
       id: 'scan',
       label: 'Scanner une bouteille',
       path: '/app/stock?scan=1',
       test: (s) =>
-        /\b(scan|scanner|code barre|code barres|barcode|qr)\b/.test(s) ||
+        (/\b(scan|scanner|code barre|code barres|barcode|qr)\b/.test(s) &&
+          !/\bequip/.test(s)) ||
         (/\bbouteille\b/.test(s) && /\b(scan|lire|photo)\b/.test(s)),
     },
     {

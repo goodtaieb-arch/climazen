@@ -9,6 +9,10 @@ type Props = {
   onDetected: (value: string) => void
   className?: string
   title?: string
+  /** Titre de la fenêtre de scan */
+  dialogTitle?: string
+  /** Texte d’aide sous la caméra */
+  hint?: string
   /** Ouvre automatiquement le scan (ex. ?scan=1 depuis commande vocale) */
   autoStart?: boolean
 }
@@ -46,6 +50,8 @@ export function BarcodeScanButton({
   onDetected,
   className = '',
   title = 'Scanner code-barres / QR',
+  dialogTitle = 'Scanner le code',
+  hint = 'Cadrez le code-barres / QR.',
   autoStart = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -192,7 +198,7 @@ export function BarcodeScanButton({
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/50 p-3 sm:items-center">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <h3 className="font-display text-base font-semibold">Scanner le contenant</h3>
+              <h3 className="font-display text-base font-semibold">{dialogTitle}</h3>
               <button
                 type="button"
                 onClick={close}
@@ -217,9 +223,7 @@ export function BarcodeScanButton({
                 </p>
               )}
               {error && <p className="text-sm text-danger">{error}</p>}
-              <p className="text-xs text-muted">
-                Cadrez le code-barres / QR du fournisseur (Gazechim, Westfalen, Climalife…).
-              </p>
+              <p className="text-xs text-muted">{hint}</p>
               <button
                 type="button"
                 disabled={busy}
