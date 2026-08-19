@@ -16,6 +16,8 @@ type Props = {
   replace?: boolean
   className?: string
   title?: string
+  /** Icône seule (ex. pied de chat) — évite de chevaucher le bouton voisin */
+  iconOnly?: boolean
 }
 
 /**
@@ -28,6 +30,7 @@ export function VoiceDictationButton({
   replace = false,
   className = '',
   title = 'Dicter',
+  iconOnly = false,
 }: Props) {
   const [listening, setListening] = useState(false)
   const [interim, setInterim] = useState('')
@@ -204,16 +207,21 @@ export function VoiceDictationButton({
     }
   }
 
+  const idleClass = iconOnly
+    ? 'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-white text-ink hover:bg-mist'
+    : 'inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-white px-2 text-[11px] font-semibold text-ink hover:bg-mist'
+  const listenClass = iconOnly
+    ? 'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white'
+    : 'inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-lg bg-rose-600 px-2 text-[11px] font-bold text-white'
+
   return (
-    <span className={`inline-flex max-w-full items-center gap-1 ${className}`}>
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 ${iconOnly ? '' : 'max-w-full'} ${className}`}
+    >
       <button
         type="button"
         onClick={() => (listening ? (commitFinals(), stop()) : start())}
-        className={
-          listening
-            ? 'inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-lg bg-rose-600 px-2 text-[11px] font-bold text-white'
-            : 'inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-white px-2 text-[11px] font-semibold text-ink hover:bg-mist'
-        }
+        className={listening ? listenClass : idleClass}
         title={
           listening
             ? interim
@@ -225,18 +233,22 @@ export function VoiceDictationButton({
         aria-pressed={listening}
       >
         {listening ? (
-          <>
-            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-            <span className="truncate">{interim ? interim : 'Écoute…'}</span>
-          </>
+          iconOnly ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          ) : (
+            <>
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+              <span className="truncate">{interim ? interim : 'Écoute…'}</span>
+            </>
+          )
         ) : (
           <>
-            <Mic className="h-3.5 w-3.5" />
-            Dicter
+            <Mic className={iconOnly ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
+            {iconOnly ? null : 'Dicter'}
           </>
         )}
       </button>
-      {error ? (
+      {error && !iconOnly ? (
         <span className="max-w-[9rem] truncate text-[10px] text-rose-700" title={error}>
           <MicOff className="mr-0.5 inline h-3 w-3" />
           {error}

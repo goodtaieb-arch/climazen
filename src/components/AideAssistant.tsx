@@ -360,7 +360,10 @@ export function AideAssistant() {
             </div>
           ) : null}
 
-          <form onSubmit={onSubmit} className="flex gap-2 border-t border-line p-3">
+          <form
+            onSubmit={onSubmit}
+            className="flex items-center gap-2 border-t border-line p-3"
+          >
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -372,8 +375,8 @@ export function AideAssistant() {
               value={input}
               onChange={setInput}
               replace
+              iconOnly
               title="Dicter la demande"
-              className="h-11 w-11 shrink-0 rounded-xl border border-line"
             />
             <button
               type="submit"
