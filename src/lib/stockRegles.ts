@@ -256,13 +256,13 @@ export function assertMouvementCerfaLegal(opts: {
 export function resumeRegleContenant(type: ContenantType): string {
   switch (type) {
     case 'vierge':
-      return 'Neuf distributeur : stock positif au départ, uniquement des sorties (charge). N° bouteille obligatoire.'
+      return 'Neuf distributeur : stock = quantité à l’entrée, uniquement des sorties (charge). Pas de recharge — n° bouteille obligatoire.'
     case 'recuperation':
       return 'Déchet usagé : démarre vide, accumulation multi-sites (même fluide), max 80 % capacité. Jamais de réinjection — BSFF / distributeur quand pleine.'
     case 'recycle':
       return 'Recyclage sur site : démarre vide, remplissage puis réinjection uniquement chez le même détenteur / client.'
     case 'regenere':
-      return 'Régénéré usine (achat distributeur) : quantité d’entrée > 0, utilisable partout en charge — pas de vidange client.'
+      return 'Régénéré usine (achat distributeur) : quantité d’entrée > 0, uniquement des sorties — pas de recharge / vidange client.'
     case 'transfert':
       return 'Transfert / Service : récupération temporaire pour réparation, puis réinjection sur le même équipement / client. Pas de mise au rebut (utilisez Récupération déchet).'
     default:

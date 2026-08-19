@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import {
   CONTENANT_TYPE_LABELS,
   contenantDemarreVide,
+  contenantSansRecharge,
   isBouteilleRetournee,
   isContenantDestination,
   needsRetourConsigne,
@@ -394,6 +395,11 @@ export function StockPage() {
       qty = 0
     }
 
+    // Vierge / régénéré : pas de recharge → capacité = quantité à l’entrée
+    if (contenantSansRecharge(contenantType) && qty > 0) {
+      capaciteMaxKg = qty
+    }
+
     if (
       !editId &&
       qty <= 0 &&
@@ -742,12 +748,15 @@ export function StockPage() {
                       : contenantType !== 'recuperation' && !f.fluide.trim()
                         ? 'R-32'
                         : f.fluide
+                  const qty = demarreVide && !editId ? 0 : f.quantiteKg
                   const base = {
                     ...f,
                     contenantType,
-                    quantiteKg: demarreVide && !editId ? 0 : f.quantiteKg,
-                    capaciteMaxKg:
-                      f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg,
+                    quantiteKg: qty,
+                    quantiteInitialeKg: demarreVide && !editId ? 0 : f.quantiteInitialeKg,
+                    capaciteMaxKg: contenantSansRecharge(contenantType)
+                      ? qty || f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg
+                      : f.capaciteMaxKg || bouteilleDefaultsForFluide(nextFluide).capaciteMaxKg,
                     emplacement:
                       contenantType === 'transfert' ? f.emplacement || 'atelier' : undefined,
                     typeHuile:
@@ -832,6 +841,8 @@ export function StockPage() {
                 ...form,
                 quantiteKg: n,
                 quantiteInitialeKg: editId ? form.quantiteInitialeKg : n,
+                // Vierge / régénéré : la jauge suit l’entrée (pas de champ capacité)
+                ...(contenantSansRecharge(form.contenantType) ? { capaciteMaxKg: n } : {}),
               })
             }}
             placeholder={
@@ -849,11 +860,19 @@ export function StockPage() {
               }
               onChange={(n) => {
                 if (contenantDemarreVide(form.contenantType)) return
-                setForm({ ...form, quantiteInitialeKg: n })
+                setForm({
+                  ...form,
+                  quantiteInitialeKg: n,
+                  ...(contenantSansRecharge(form.contenantType) ? { capaciteMaxKg: n } : {}),
+                })
               }}
-              placeholder="capacité / entrée"
+              placeholder="entrée d’origine"
               disabled={contenantDemarreVide(form.contenantType)}
             />
+          ) : contenantSansRecharge(form.contenantType) ? (
+            <p className="text-xs text-muted sm:self-end sm:pb-2">
+              Capacité = quantité à l’entrée (bouteille neuve / régénérée : pas de recharge).
+            </p>
           ) : (
             <DecimalField
               label={
@@ -1012,7 +1031,7 @@ export function StockPage() {
                     </select>
                   </label>
                 )}
-                {editId && (
+                {editId && !contenantSansRecharge(form.contenantType) && (
                   <DecimalField
                     label="Capacité nominale / max (kg)"
                     value={form.capaciteMaxKg ?? 0}
@@ -1495,12 +1514,16 @@ export function StockPage() {
                   const badge = TYPE_BADGE[s.contenantType] || TYPE_BADGE.transfert
                   const awaitRetour = needsRetourConsigne(s)
                   const jauge = jaugeRemplissageRecup(s)
-                  const initial =
-                    (jauge ? jauge.maxAutoriseKg : 0) ||
-                    Number(s.capaciteMaxKg) ||
-                    Number(s.quantiteInitialeKg) ||
-                    Number(s.quantiteKg) ||
-                    0
+                  // Vierge / régénéré : jauge = reste / entrée (pas la capacité catalogue)
+                  const entreeKg =
+                    Number(s.quantiteInitialeKg) || Number(s.quantiteKg) || 0
+                  const initial = contenantSansRecharge(s.contenantType)
+                    ? entreeKg || Number(s.capaciteMaxKg) || 0
+                    : (jauge ? jauge.maxAutoriseKg : 0) ||
+                      Number(s.capaciteMaxKg) ||
+                      Number(s.quantiteInitialeKg) ||
+                      Number(s.quantiteKg) ||
+                      0
                   const current = Number(s.quantiteKg) || 0
                   const canDestroy =
                     s.contenantType === 'recuperation' && current > 0 && !isBouteilleRetournee(s)
@@ -1601,9 +1624,13 @@ export function StockPage() {
                             <span className="mt-0.5 block truncate text-xs text-muted">
                               {awaitRetour
                                 ? 'Vide — retour consigne'
-                                : initial > 0
-                                  ? `Entrée : ${roundKg(initial)} kg`
-                                  : 'Reste actuel'}
+                                : contenantSansRecharge(s.contenantType) && entreeKg > 0
+                                  ? `Entrée : ${roundKg(entreeKg)} kg`
+                                  : initial > 0
+                                    ? `Entrée : ${roundKg(
+                                        Number(s.quantiteInitialeKg) || initial,
+                                      )} kg`
+                                    : 'Reste actuel'}
                               {hist.length > 0
                                 ? ` · ${hist.length} mvt${hist.length > 1 ? 's' : ''}`
                                 : ''}

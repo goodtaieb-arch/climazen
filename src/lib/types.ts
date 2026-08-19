@@ -45,6 +45,14 @@ export function contenantDemarreVide(type: ContenantType): boolean {
   return type === 'recuperation' || type === 'recycle'
 }
 
+/**
+ * Achat distributeur (vierge / régénéré) : uniquement des sorties (charge).
+ * Pas de recharge → capacité = quantité à l’entrée (pas de champ séparé).
+ */
+export function contenantSansRecharge(type: ContenantType): boolean {
+  return type === 'vierge' || type === 'regenere'
+}
+
 /** Mouvement de fluide → n° de bouteille obligatoire (F-Gas / Cerfa). */
 export function natureImpliqueMouvementFluide(natures: NatureIntervention[]): boolean {
   // Obligatoire : charge, récupération, démantèlement.
