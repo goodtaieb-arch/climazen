@@ -67,6 +67,7 @@ import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
 import {
   TYPE_HUILE_LABELS,
   alerteConsigneJours,
+  dateReepreuveDepuisPossession,
   isBouteilleReepreuveBientot,
   isBouteilleReepreuveExpiree,
   type TypeHuile,
@@ -93,6 +94,7 @@ const blank = (opts?: {
     opts?.fluide?.trim() || (contenantType === 'recuperation' ? '' : 'R-32')
   const adr = fluide ? adrInfoForFluide(fluide) : null
   const defs = bouteilleDefaultsForFluide(fluide)
+  const entree = today()
   return {
     fluide,
     contenantType,
@@ -110,9 +112,10 @@ const blank = (opts?: {
     notes: '',
     conformeA2LA3: false,
     pressionEpreuveBar: defs.pressionEpreuveBar,
-    dateReepreuvage: '',
+    dateEntreePossession: entree,
+    /** Défaut : entrée + 10 ans — jamais la date du jour. */
+    dateReepreuvage: dateReepreuveDepuisPossession(entree, 10),
     tareKg: defs.tareKg,
-    dateEntreePossession: today(),
     seuilAlerteConsigneJours: 30,
     typeHuile: contenantType === 'recuperation' ? 'inconnu' : undefined,
   }
@@ -1116,22 +1119,42 @@ export function StockPage() {
                   emptyZero
                 />
                 <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Date de rééprouvage / fin de validité</span>
+                  <span className="mb-1 block font-semibold text-ink">Entrée en possession (consigne)</span>
+                  <input
+                    type="date"
+                    value={form.dateEntreePossession || ''}
+                    onChange={(e) => {
+                      const dateEntreePossession = e.target.value
+                      setForm((f) => {
+                        const prevAuto = dateReepreuveDepuisPossession(f.dateEntreePossession, 10)
+                        const wasAuto =
+                          !f.dateReepreuvage?.trim() || f.dateReepreuvage === prevAuto
+                        return {
+                          ...f,
+                          dateEntreePossession,
+                          dateReepreuvage: wasAuto
+                            ? dateReepreuveDepuisPossession(dateEntreePossession, 10)
+                            : f.dateReepreuvage,
+                        }
+                      })
+                    }}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">
+                    Date de rééprouvage / fin de validité
+                  </span>
                   <input
                     type="date"
                     value={form.dateReepreuvage || ''}
                     onChange={(e) => setForm({ ...form, dateReepreuvage: e.target.value })}
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
                   />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Entrée en possession (consigne)</span>
-                  <input
-                    type="date"
-                    value={form.dateEntreePossession || ''}
-                    onChange={(e) => setForm({ ...form, dateEntreePossession: e.target.value })}
-                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
-                  />
+                  <p className="mt-1 text-[11px] text-muted">
+                    Défaut : +10 ans après l’entrée en possession (ex. 19/08/2026 → 19/08/2036).
+                    Modifiable si la bouteille a été fabriquée / éprouvée plus tôt.
+                  </p>
                 </label>
                 <DecimalField
                   label="Alerte consigne après (jours)"

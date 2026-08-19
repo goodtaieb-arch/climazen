@@ -25,6 +25,26 @@ export function isBouteilleReepreuveExpiree(
   return ref > end
 }
 
+/**
+ * Fin de validité / prochain rééprouvage par défaut = entrée en possession + 10 ans.
+ * (ex. 2026-08-19 → 2036-08-19). Ne jamais renvoyer la date du jour.
+ */
+export function dateReepreuveDepuisPossession(
+  dateEntreePossession: string | undefined,
+  annees = 10,
+): string {
+  const raw = (dateEntreePossession || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return ''
+  const [y, m, d] = raw.split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const next = new Date(Date.UTC(y + annees, m - 1, d))
+  if (Number.isNaN(next.getTime())) return ''
+  const yy = next.getUTCFullYear()
+  const mm = String(next.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(next.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
 export function isBouteilleReepreuveBientot(
   item: Pick<StockItem, 'dateReepreuvage'>,
   jours = 90,
