@@ -34,6 +34,12 @@ Quand l’utilisateur demande de CRÉER un OT / CERFA :
 typeOt possible : controle_etancheite | maintenance | depanage | demantelement | entretien | installation
 L’app demandera ensuite confirmation (« oui ») avant de créer.
 
+Tu peux aussi expliquer que l’utilisateur peut dire :
+- « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »
+- « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »
+- « Crée une fiche maintenance pour le site Atelier »
+(ces actions sont gérées directement par l’app).
+
 Parcours principaux :
 1) Client appelle → /app/appel (OT) → client, site, équipements → docs (CERFA / fiche) → signatures → Clôturer.
 2) CERFA → /app/interventions ou depuis l’OT.

@@ -13,6 +13,11 @@ import {
   resolveCreateOtCerfa,
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
+import {
+  executeTerrainAction,
+  parseTerrainIntent,
+  type PendingTerrainAction,
+} from '../lib/assistantTerrainActions'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { VoiceDictationButton } from './VoiceDictationButton'
@@ -32,33 +37,44 @@ function stripActionJson(reply: string): string {
 }
 
 /**
- * Assistant ClimaZEN — guide + création OT/CERFA par phrase (avec confirmation).
+ * Assistant ClimaZEN — OT/CERFA, bouteilles, fiches, détecteurs (avec confirmation).
  */
 export function AideAssistant() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { data, createOtForAction, upsertIntervention, upsertClient, upsertChantier } = useStore()
+  const {
+    data,
+    createOtForAction,
+    upsertIntervention,
+    upsertClient,
+    upsertChantier,
+    upsertDetecteur,
+    upsertStock,
+    upsertFicheMaintenanceClim,
+  } = useStore()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [source, setSource] = useState<'api' | 'local' | null>(null)
   const [pendingCreate, setPendingCreate] = useState<ResolvedCreateOtCerfa | null>(null)
+  const [pendingTerrain, setPendingTerrain] = useState<PendingTerrainAction | null>(null)
   const [lines, setLines] = useState<ChatLine[]>(() => [
     {
       id: newId(),
       role: 'assistant',
       content:
-        'Bonjour — dites-moi quoi créer, je prépare OT + CERFA brouillon (et client / site / équipement si besoin). Vous validez ensuite.\n\nExemple de phrase :\n« Crée une OT pour Mr Martin sur le site Atelier pour contrôle d’étanchéité clim RDC et crée le CERFA »',
+        'Bonjour — je peux préparer OT, CERFA, bouteilles, fiches maintenance et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »\n• « Ajoute une bouteille R-32 transfert n° BOT-123 10 kg »',
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
   const suggestions = suggestQuestionsForPath(location.pathname)
+  const hasPending = Boolean(pendingCreate || pendingTerrain)
 
   useEffect(() => {
     if (!open) return
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines, open, busy, pendingCreate])
+  }, [lines, open, busy, pendingCreate, pendingTerrain])
 
   useEffect(() => {
     const openFromVoice = () => setOpen(true)
@@ -78,6 +94,7 @@ export function AideAssistant() {
       setPendingCreate(null)
       return true
     }
+    setPendingTerrain(null)
     setPendingCreate(resolved.resolved)
     pushAssistant(resolved.resolved.summary)
     return true
@@ -107,6 +124,26 @@ export function AideAssistant() {
     }
   }
 
+  const runTerrain = async () => {
+    if (!pendingTerrain) return
+    try {
+      const result = await executeTerrainAction(pendingTerrain, {
+        data,
+        userId: user?.id,
+        userName: user?.fullName || user?.email,
+        upsertDetecteur,
+        upsertStock,
+        upsertFicheMaintenanceClim,
+      })
+      setPendingTerrain(null)
+      pushAssistant(result.message)
+      setOpen(false)
+      navigate(result.navigateTo)
+    } catch (err) {
+      pushAssistant(err instanceof Error ? err.message : 'Création impossible.')
+    }
+  }
+
   const send = async (text: string) => {
     const q = text.trim()
     if (!q || busy) return
@@ -115,18 +152,29 @@ export function AideAssistant() {
     setLines((prev) => [...prev, userLine])
     setBusy(true)
     try {
-      // Confirmation / annulation d’une proposition en cours
-      if (pendingCreate && isConfirmPhrase(q)) {
-        runCreate()
+      if ((pendingCreate || pendingTerrain) && isConfirmPhrase(q)) {
+        if (pendingCreate) runCreate()
+        else await runTerrain()
         return
       }
-      if (pendingCreate && isCancelPhrase(q)) {
+      if ((pendingCreate || pendingTerrain) && isCancelPhrase(q)) {
         setPendingCreate(null)
+        setPendingTerrain(null)
         pushAssistant('Création annulée.')
         return
       }
 
-      // 1) Intent local (fonctionne hors ligne / sans Gemini)
+      // 1) Actions terrain (détecteur, bouteille, fiche)
+      const terrain = parseTerrainIntent(q)
+      if (terrain) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(terrain)
+        pushAssistant(terrain.summary)
+        return
+      }
+
+      // 2) OT + CERFA
       const localIntent = parseCreateOtCerfaIntent(q)
       if (localIntent) {
         setSource('local')
@@ -134,7 +182,7 @@ export function AideAssistant() {
         return
       }
 
-      // 2) Guide / Gemini (peut aussi proposer une ACTION JSON)
+      // 3) Guide / Gemini
       const nextMessages = [...lines, userLine]
       const { reply, source: src } = await askAideAssistant({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
@@ -171,6 +219,7 @@ export function AideAssistant() {
     else if (content.includes('/app/interventions')) navigate('/app/interventions')
     else if (content.includes('/app/operateur')) navigate('/app/operateur')
     else if (content.includes('/app/profil')) navigate('/app/profil')
+    else if (content.includes('/app/fiche-maintenance')) navigate('/app/fiche-maintenance-clim')
   }
 
   return (
@@ -193,7 +242,7 @@ export function AideAssistant() {
                   : source === 'local'
                     ? 'Guide + actions locales'
                     : 'Prêt'}{' '}
-                · OT / CERFA à la voix
+                · OT · CERFA · stock · fiches
               </p>
             </div>
             <button
@@ -237,7 +286,7 @@ export function AideAssistant() {
             <div ref={bottomRef} />
           </div>
 
-          {pendingCreate ? (
+          {hasPending ? (
             <div className="flex gap-2 border-t border-amber-200 bg-amber-50 px-3 py-2">
               <button
                 type="button"
@@ -258,7 +307,7 @@ export function AideAssistant() {
             </div>
           ) : null}
 
-          {suggestions.length > 0 && !pendingCreate ? (
+          {suggestions.length > 0 && !hasPending ? (
             <div className="flex flex-wrap gap-1.5 border-t border-line px-3 py-2">
               {suggestions.map((s) => (
                 <button
@@ -278,7 +327,7 @@ export function AideAssistant() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ex. crée une OT pour Mr …"
+              placeholder="Ex. ajoute détecteur… / crée OT…"
               className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-sm"
               disabled={busy}
             />

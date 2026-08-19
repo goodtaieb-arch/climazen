@@ -204,9 +204,9 @@ export function Landing() {
           </div>
 
           {/* Téléphone + PC + pub Assistant IA (à droite) */}
-          <div className="relative flex w-full flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-end lg:gap-5">
+          <div className="relative flex w-full flex-col items-center gap-8 lg:flex-row lg:items-center lg:justify-end lg:gap-8 xl:gap-10">
           {/* Composition : téléphone + aperçu site (navigateur) */}
-          <div className="relative mx-auto w-full max-w-[420px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[480px] lg:mx-0 lg:max-w-[460px] lg:shrink">
+          <div className="relative mx-auto w-full max-w-[400px] animate-[fadeUp_0.9s_ease-out] overflow-visible sm:max-w-[440px] lg:mx-0 lg:max-w-[400px] lg:shrink-0">
             <div
               className="pointer-events-none absolute -inset-8 rounded-[50%] bg-gradient-to-br from-accent/35 via-sky-300/25 to-transparent blur-3xl sm:-inset-12"
               aria-hidden
@@ -340,7 +340,7 @@ export function Landing() {
               </div>
 
               {/* Téléphone — Accueil 3D (premier plan) */}
-              <div className="relative z-10 order-1 w-full max-w-[260px] sm:absolute sm:bottom-0 sm:right-0 sm:order-none sm:w-[48%] sm:max-w-[280px] lg:right-[-4%] lg:w-[46%]">
+              <div className="relative z-10 order-1 w-full max-w-[240px] sm:absolute sm:bottom-0 sm:right-2 sm:order-none sm:w-[44%] sm:max-w-[250px] lg:right-0 lg:w-[42%]">
                 <div className="relative mx-auto rounded-[2.75rem] bg-gradient-to-b from-slate-800 via-ink to-slate-950 p-[11px] shadow-[0_28px_60px_-12px_rgba(7,24,32,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset] sm:rotate-[3deg]">
                   <span
                     className="pointer-events-none absolute -left-[3px] top-28 h-8 w-[3px] rounded-l-sm bg-slate-700"
@@ -477,7 +477,7 @@ export function Landing() {
 
           {/* Pub Assistant IA — à droite du mockup téléphone / PC */}
           <aside
-            className="relative z-20 w-full max-w-[320px] animate-[fadeUp_1.05s_ease-out] lg:w-[250px] lg:shrink-0 xl:w-[270px]"
+            className="relative z-20 w-full max-w-[340px] animate-[fadeUp_1.05s_ease-out] lg:w-[280px] lg:shrink-0 xl:w-[300px]"
             aria-label="Assistant IA ClimaZEN"
           >
             <div
@@ -500,30 +500,33 @@ export function Landing() {
               </div>
 
               <p className="mt-4 text-sm font-semibold leading-snug text-white">
-                L’IA remplit OT &amp; CERFA à votre place
+                L’IA remplit à votre place — OT, CERFA, stock &amp; fiches
               </p>
               <p className="mt-2 text-[13px] leading-relaxed text-teal-50/90">
-                Vous dictez. ClimaZEN prépare client, site, équipement, OT et CERFA brouillon.
-                Le technicien valide et signe.
+                Vous dictez. ClimaZEN prépare les documents et fiches terrain. Le technicien
+                vérifie et valide.
               </p>
 
-              <blockquote className="mt-4 rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-[12px] italic leading-snug text-teal-50">
-                « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC, et le
-                CERFA »
+              <blockquote className="mt-4 rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-[11px] italic leading-snug text-teal-50">
+                « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »
               </blockquote>
 
               <ul className="mt-4 space-y-1.5 text-[12px] font-medium text-teal-50/95">
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
-                  Dictez ou tapez — l’IA comprend
+                  OT + CERFA brouillon
                 </li>
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
-                  OT + CERFA prêts à valider
+                  Bouteilles / stock fluides
                 </li>
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
-                  Vous gardez le contrôle final
+                  Fiches maintenance clim
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
+                  Détecteurs de fuite (n° + date)
                 </li>
               </ul>
 
