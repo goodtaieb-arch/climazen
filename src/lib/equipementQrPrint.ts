@@ -2,6 +2,8 @@ import QRCode from 'qrcode'
 import type { EquipQrHit } from '../lib/equipementQr'
 import { buildEquipQrPayload, equipQrPrintLines } from '../lib/equipementQr'
 
+const LS_FORMAT_KEY = 'climazen.qrPrintFormat'
+
 export async function qrDataUrl(payload: string, size = 280): Promise<string> {
   return QRCode.toDataURL(payload, {
     errorCorrectionLevel: 'M',
@@ -36,6 +38,195 @@ export async function buildEquipQrCards(
     cards.push({ hit, payload, imgDataUrl, title, lines })
   }
   return cards
+}
+
+export type QrPrintLayout = 'sheet' | 'label'
+
+export type QrPrintFormat = {
+  id: string
+  /** Libellé affiché */
+  label: string
+  /** Groupe UI */
+  group: 'Feuille' | 'Brother' | 'Dymo' | 'Zebra / thermique' | 'Générique'
+  layout: QrPrintLayout
+  /** Largeur page mm (étiquette) */
+  widthMm?: number
+  /** Hauteur page mm (étiquette) */
+  heightMm?: number
+  /** Colonnes (feuille) */
+  cols?: number
+  /** Afficher l’URL sous le QR (utile A4) */
+  showPayload?: boolean
+  /** Taille QR mm */
+  qrMm?: number
+}
+
+/** Formats couvrant les imprimantes les plus courantes. */
+export const QR_PRINT_FORMATS: QrPrintFormat[] = [
+  {
+    id: 'a4-2',
+    label: 'Feuille A4 — 2 colonnes (laser / inkjet)',
+    group: 'Feuille',
+    layout: 'sheet',
+    cols: 2,
+    showPayload: true,
+    qrMm: 35,
+  },
+  {
+    id: 'a4-1',
+    label: 'Feuille A4 — 1 grande étiquette / page',
+    group: 'Feuille',
+    layout: 'sheet',
+    cols: 1,
+    showPayload: true,
+    qrMm: 55,
+  },
+  {
+    id: 'brother-62x100',
+    label: 'Brother QL — rouleau 62 mm (DK-22205…)',
+    group: 'Brother',
+    layout: 'label',
+    widthMm: 62,
+    heightMm: 100,
+    qrMm: 42,
+  },
+  {
+    id: 'brother-62x29',
+    label: 'Brother QL — 62 × 29 mm (adresse)',
+    group: 'Brother',
+    layout: 'label',
+    widthMm: 62,
+    heightMm: 29,
+    qrMm: 18,
+  },
+  {
+    id: 'brother-29x90',
+    label: 'Brother QL — 29 × 90 mm (étroit)',
+    group: 'Brother',
+    layout: 'label',
+    widthMm: 29,
+    heightMm: 90,
+    qrMm: 20,
+  },
+  {
+    id: 'brother-38x90',
+    label: 'Brother QL — 38 × 90 mm',
+    group: 'Brother',
+    layout: 'label',
+    widthMm: 38,
+    heightMm: 90,
+    qrMm: 26,
+  },
+  {
+    id: 'dymo-89x36',
+    label: 'Dymo LabelWriter — 89 × 36 mm (99012)',
+    group: 'Dymo',
+    layout: 'label',
+    widthMm: 89,
+    heightMm: 36,
+    qrMm: 24,
+  },
+  {
+    id: 'dymo-54x101',
+    label: 'Dymo LabelWriter — 54 × 101 mm (99014)',
+    group: 'Dymo',
+    layout: 'label',
+    widthMm: 54,
+    heightMm: 101,
+    qrMm: 38,
+  },
+  {
+    id: 'dymo-57x32',
+    label: 'Dymo LabelWriter — 57 × 32 mm',
+    group: 'Dymo',
+    layout: 'label',
+    widthMm: 57,
+    heightMm: 32,
+    qrMm: 20,
+  },
+  {
+    id: 'zebra-50x30',
+    label: 'Zebra / thermique — 50 × 30 mm',
+    group: 'Zebra / thermique',
+    layout: 'label',
+    widthMm: 50,
+    heightMm: 30,
+    qrMm: 18,
+  },
+  {
+    id: 'zebra-100x50',
+    label: 'Zebra / thermique — 100 × 50 mm',
+    group: 'Zebra / thermique',
+    layout: 'label',
+    widthMm: 100,
+    heightMm: 50,
+    qrMm: 32,
+  },
+  {
+    id: 'zebra-58x40',
+    label: 'Zebra / ticket 58 mm — 58 × 40 mm',
+    group: 'Zebra / thermique',
+    layout: 'label',
+    widthMm: 58,
+    heightMm: 40,
+    qrMm: 24,
+  },
+  {
+    id: 'gen-50x50',
+    label: 'Carré 50 × 50 mm (sticker QR)',
+    group: 'Générique',
+    layout: 'label',
+    widthMm: 50,
+    heightMm: 50,
+    qrMm: 28,
+  },
+  {
+    id: 'gen-60x40',
+    label: 'Générique 60 × 40 mm',
+    group: 'Générique',
+    layout: 'label',
+    widthMm: 60,
+    heightMm: 40,
+    qrMm: 24,
+  },
+  {
+    id: 'gen-70x50',
+    label: 'Générique 70 × 50 mm (extérieur)',
+    group: 'Générique',
+    layout: 'label',
+    widthMm: 70,
+    heightMm: 50,
+    qrMm: 30,
+  },
+]
+
+export function getQrPrintFormat(id: string): QrPrintFormat {
+  return QR_PRINT_FORMATS.find((f) => f.id === id) || QR_PRINT_FORMATS[0]
+}
+
+/** Alias anciens ids → nouveaux. */
+function normalizeFormatId(raw?: string): string {
+  if (!raw) return 'a4-2'
+  if (raw === 'a4') return 'a4-2'
+  if (raw === 'rouleau') return 'brother-62x100'
+  if (QR_PRINT_FORMATS.some((f) => f.id === raw)) return raw
+  return 'a4-2'
+}
+
+export function loadSavedQrPrintFormatId(): string {
+  try {
+    return normalizeFormatId(localStorage.getItem(LS_FORMAT_KEY) || undefined)
+  } catch {
+    return 'a4-2'
+  }
+}
+
+export function saveQrPrintFormatId(id: string): void {
+  try {
+    localStorage.setItem(LS_FORMAT_KEY, normalizeFormatId(id))
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -135,48 +326,36 @@ function printHtmlViaIframe(html: string): Promise<void> {
   })
 }
 
-/** Imprime des étiquettes équipements (QR) — sans fenêtre pop-up. */
-export async function printEquipementLabels(
-  hits: EquipQrHit[],
-  opts?: {
-    origin?: string
-    companyName?: string
-    /** a4 = grille feuille ; rouleau = 1 étiquette / page (imprimante rouleau) */
-    format?: 'a4' | 'rouleau'
-  },
-): Promise<void> {
-  if (!hits.length) return
-  const company = opts?.companyName || 'ClimaZEN'
-  const format = opts?.format || 'a4'
-  const prepared = await buildEquipQrCards(hits, { origin: opts?.origin })
-
-  const cards = prepared.map(
-    (c) => `
-      <article class="label">
-        <div class="brand">${escapeHtml(company)}</div>
-        <img src="${c.imgDataUrl}" alt="QR" width="${format === 'rouleau' ? 160 : 140}" height="${format === 'rouleau' ? 160 : 140}" />
-        <h1>${escapeHtml(c.title)}</h1>
-        <p class="meta">${c.lines.map(escapeHtml).join('<br/>')}</p>
-        ${format === 'a4' ? `<p class="payload">${escapeHtml(c.payload)}</p>` : ''}
-        <p class="hint">Scanner avec ClimaZEN</p>
-      </article>
-    `,
-  )
-
-  const html =
-    format === 'rouleau'
-      ? buildRouleauHtml(cards)
-      : buildA4Html(cards)
-
-  await printHtmlViaIframe(html)
+function cardHtml(
+  c: EquipQrCard,
+  company: string,
+  fmt: QrPrintFormat,
+): string {
+  const qrPx = Math.round(((fmt.qrMm || 35) / 25.4) * 96)
+  const compact = (fmt.heightMm || 100) < 40
+  return `
+    <article class="label">
+      <div class="brand">${escapeHtml(company)}</div>
+      <img src="${c.imgDataUrl}" alt="QR" width="${qrPx}" height="${qrPx}" />
+      <h1>${escapeHtml(c.title)}</h1>
+      ${
+        compact
+          ? `<p class="meta">${escapeHtml(c.lines.slice(0, 2).join(' · '))}</p>`
+          : `<p class="meta">${c.lines.map(escapeHtml).join('<br/>')}</p>`
+      }
+      ${fmt.showPayload ? `<p class="payload">${escapeHtml(c.payload)}</p>` : ''}
+      ${compact ? '' : `<p class="hint">Scanner avec ClimaZEN</p>`}
+    </article>
+  `
 }
 
-function buildA4Html(cards: string[]): string {
+function buildSheetHtml(cards: string[], fmt: QrPrintFormat): string {
+  const cols = fmt.cols === 1 ? 1 : 2
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>Étiquettes QR équipements — ClimaZEN</title>
+  <title>Étiquettes QR — ClimaZEN</title>
   <style>
     @page { margin: 10mm; size: A4; }
     * { box-sizing: border-box; }
@@ -188,7 +367,7 @@ function buildA4Html(cards: string[]): string {
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(${cols}, 1fr);
       gap: 10mm;
       padding: 10mm;
     }
@@ -199,7 +378,7 @@ function buildA4Html(cards: string[]): string {
       text-align: center;
       break-inside: avoid;
       page-break-inside: avoid;
-      min-height: 72mm;
+      min-height: ${cols === 1 ? '120mm' : '72mm'};
     }
     .brand {
       font-size: 10px;
@@ -210,17 +389,8 @@ function buildA4Html(cards: string[]): string {
       margin-bottom: 6px;
     }
     img { display: block; margin: 0 auto 8px; }
-    h1 {
-      font-size: 14px;
-      margin: 0 0 4px;
-      line-height: 1.2;
-    }
-    .meta {
-      font-size: 11px;
-      color: #12303a;
-      margin: 0;
-      line-height: 1.35;
-    }
+    h1 { font-size: ${cols === 1 ? 18 : 14}px; margin: 0 0 4px; line-height: 1.2; }
+    .meta { font-size: 11px; color: #12303a; margin: 0; line-height: 1.35; }
     .payload {
       margin: 6px 0 0;
       font-size: 7px;
@@ -244,8 +414,13 @@ function buildA4Html(cards: string[]): string {
 </html>`
 }
 
-/** 1 QR = 1 page — format proche rouleau 62 mm (Brother QL / Dymo). */
-function buildRouleauHtml(cards: string[]): string {
+function buildLabelHtml(cards: string[], fmt: QrPrintFormat): string {
+  const w = fmt.widthMm || 62
+  const h = fmt.heightMm || 100
+  const margin = Math.min(2, Math.max(1, Math.round(w * 0.03)))
+  const innerW = Math.max(10, w - margin * 2)
+  const qrMm = Math.min(fmt.qrMm || 30, innerW - 2)
+  const compact = h < 40
   const pages = cards
     .map(
       (card, i) =>
@@ -257,18 +432,17 @@ function buildRouleauHtml(cards: string[]): string {
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>Étiquettes rouleau QR — ClimaZEN</title>
+  <title>Étiquettes QR — ${escapeHtml(fmt.label)}</title>
   <style>
-    /* Largeur type rouleau 62 mm ; hauteur ≈ 1 étiquette */
     @page {
-      size: 62mm 100mm;
-      margin: 2mm;
+      size: ${w}mm ${h}mm;
+      margin: ${margin}mm;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
       padding: 0;
-      width: 62mm;
+      width: ${w}mm;
       font-family: "Segoe UI", system-ui, sans-serif;
       color: #071820;
       background: #fff;
@@ -276,10 +450,13 @@ function buildRouleauHtml(cards: string[]): string {
       print-color-adjust: exact;
     }
     .page {
-      width: 58mm;
-      min-height: 90mm;
-      padding: 2mm;
+      width: ${innerW}mm;
+      min-height: ${Math.max(10, h - margin * 2)}mm;
+      padding: 0;
       margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .page.break {
       page-break-after: always;
@@ -289,33 +466,39 @@ function buildRouleauHtml(cards: string[]): string {
       border: none;
       padding: 0;
       text-align: center;
+      width: 100%;
     }
     .brand {
-      font-size: 9px;
+      font-size: ${compact ? 7 : 9}px;
       font-weight: 800;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       color: #1aa896;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
-    img { display: block; margin: 0 auto 6px; width: 42mm; height: 42mm; }
+    img {
+      display: block;
+      margin: 0 auto ${compact ? 2 : 4}px;
+      width: ${qrMm}mm;
+      height: ${qrMm}mm;
+    }
     h1 {
-      font-size: 12px;
-      margin: 0 0 3px;
-      line-height: 1.15;
+      font-size: ${compact ? 8 : 11}px;
+      margin: 0 0 2px;
+      line-height: 1.1;
     }
     .meta {
-      font-size: 9px;
+      font-size: ${compact ? 6.5 : 8.5}px;
       color: #12303a;
       margin: 0;
-      line-height: 1.3;
+      line-height: 1.2;
     }
     .hint {
-      margin: 6px 0 0;
-      font-size: 8px;
+      margin: 4px 0 0;
+      font-size: 7px;
       color: #5a7880;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
       font-weight: 700;
     }
   </style>
@@ -326,6 +509,30 @@ function buildRouleauHtml(cards: string[]): string {
 </html>`
 }
 
+/** Imprime des étiquettes équipements (QR) — sans fenêtre pop-up. */
+export async function printEquipementLabels(
+  hits: EquipQrHit[],
+  opts?: {
+    origin?: string
+    companyName?: string
+    /** id format (ex. brother-62x100) ou alias a4 / rouleau */
+    format?: string
+  },
+): Promise<void> {
+  if (!hits.length) return
+  const company = opts?.companyName || 'ClimaZEN'
+  const formatId = normalizeFormatId(opts?.format)
+  const fmt = getQrPrintFormat(formatId)
+  saveQrPrintFormatId(formatId)
+
+  const prepared = await buildEquipQrCards(hits, { origin: opts?.origin })
+  const cards = prepared.map((c) => cardHtml(c, company, fmt))
+  const html =
+    fmt.layout === 'sheet' ? buildSheetHtml(cards, fmt) : buildLabelHtml(cards, fmt)
+
+  await printHtmlViaIframe(html)
+}
+
 function escapeHtml(s: string): string {
   return (s || '')
     .replace(/&/g, '&amp;')
@@ -333,4 +540,3 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 }
-

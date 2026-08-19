@@ -53,6 +53,9 @@ import { findEquipementById, type EquipQrHit } from '../lib/equipementQr'
 import {
   buildEquipQrCards,
   printEquipementLabels,
+  loadSavedQrPrintFormatId,
+  saveQrPrintFormatId,
+  QR_PRINT_FORMATS,
   type EquipQrCard,
 } from '../lib/equipementQrPrint'
 import { Sites3dIcon } from '../components/Sites3dIcon'
@@ -169,6 +172,7 @@ export function ChantiersPage() {
   )
   const [qrBusy, setQrBusy] = useState(false)
   const [qrPreview, setQrPreview] = useState<EquipQrCard[] | null>(null)
+  const [qrPrintFormat, setQrPrintFormat] = useState(() => loadSavedQrPrintFormatId())
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [equipFilter, setEquipFilter] = useState('')
@@ -906,15 +910,16 @@ export function ChantiersPage() {
     }
   }
 
-  const confirmPrintQrPreview = async (format: 'a4' | 'rouleau' = 'a4') => {
+  const confirmPrintQrPreview = async () => {
     if (!qrPreview?.length) return
     setQrBusy(true)
     try {
+      saveQrPrintFormatId(qrPrintFormat)
       await printEquipementLabels(
         qrPreview.map((c) => c.hit),
         {
           companyName: data.operateur?.raisonSociale || 'ClimaZEN',
-          format,
+          format: qrPrintFormat,
         },
       )
     } catch (err) {
@@ -2513,26 +2518,41 @@ export function ChantiersPage() {
               ))}
             </div>
             <div className="flex flex-col gap-2 border-t border-line p-4">
-              <p className="text-[11px] text-muted">
-                Rouleau qui n’avance pas ? Utilisez <strong>Rouleau étiquette</strong> (1 QR = 1
-                page) et choisissez l’imprimante étiquettes dans le dialogue.
+              <label className="block text-left text-xs font-semibold text-ink">
+                Type d’imprimante / format
+                <select
+                  value={qrPrintFormat}
+                  onChange={(e) => {
+                    setQrPrintFormat(e.target.value)
+                    saveQrPrintFormatId(e.target.value)
+                  }}
+                  className="mt-1 h-11 w-full rounded-xl border border-line bg-white px-3 text-sm font-medium text-ink"
+                >
+                  {(['Feuille', 'Brother', 'Dymo', 'Zebra / thermique', 'Générique'] as const).map(
+                    (group) => (
+                      <optgroup key={group} label={group}>
+                        {QR_PRINT_FORMATS.filter((f) => f.group === group).map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ),
+                  )}
+                </select>
+              </label>
+              <p className="text-[11px] leading-snug text-muted">
+                Choisissez le format qui correspond à votre papier. Dans le dialogue
+                d’impression, sélectionnez aussi la bonne imprimante. Le choix est mémorisé.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={qrBusy}
-                  onClick={() => void confirmPrintQrPreview('rouleau')}
+                  onClick={() => void confirmPrintQrPreview()}
                   className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-ink disabled:opacity-50"
                 >
-                  <QrCode className="h-4 w-4" /> Rouleau étiquette
-                </button>
-                <button
-                  type="button"
-                  disabled={qrBusy}
-                  onClick={() => void confirmPrintQrPreview('a4')}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-bold text-ink disabled:opacity-50"
-                >
-                  Feuille A4
+                  <QrCode className="h-4 w-4" /> Imprimer
                 </button>
                 <button
                   type="button"
