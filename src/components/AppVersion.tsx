@@ -4,6 +4,33 @@ import { APP_BUILD, APP_VERSION } from '../lib/buildStamp'
 const BOOT_KEY = 'climazen_boot_v'
 const RELOAD_KEY = 'climazen_reloading'
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    let done = false
+    const t = window.setTimeout(() => {
+      if (!done) {
+        done = true
+        resolve(null)
+      }
+    }, ms)
+    promise
+      .then((v) => {
+        if (!done) {
+          done = true
+          window.clearTimeout(t)
+          resolve(v)
+        }
+      })
+      .catch(() => {
+        if (!done) {
+          done = true
+          window.clearTimeout(t)
+          resolve(null)
+        }
+      })
+  })
+}
+
 /** Lit la version publiée sur le serveur (version.json), pas le JS en cache. */
 export async function fetchServerVersion(): Promise<string | null> {
   try {
@@ -56,16 +83,8 @@ export function useServerAppVersion() {
   return { server, needsUpdate, local: APP_VERSION }
 }
 
-/**
- * Purge cache PWA + SW puis recharge vers la version **serveur**.
- * Important : ne pas utiliser seulement APP_VERSION (souvent l’ancien bundle).
- */
-export async function forceLatestAppVersion(knownTarget?: string) {
-  let target = (knownTarget || '').trim()
-  if (!target) {
-    target = (await fetchServerVersion()) || APP_VERSION
-  }
-
+/** Purge SW + caches — ne doit jamais bloquer indéfiniment (mobile / iOS). */
+async function purgeCachesAndServiceWorkers() {
   try {
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations()
@@ -77,10 +96,19 @@ export async function forceLatestAppVersion(knownTarget?: string) {
           } catch {
             /* ignore */
           }
-          await r.unregister()
+          try {
+            await r.unregister()
+          } catch {
+            /* ignore */
+          }
         }),
       )
     }
+  } catch {
+    /* ignore */
+  }
+
+  try {
     if ('caches' in window) {
       const keys = await caches.keys()
       await Promise.all(keys.map((k) => caches.delete(k)))
@@ -88,9 +116,32 @@ export async function forceLatestAppVersion(knownTarget?: string) {
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * Purge cache PWA + SW puis recharge vers la version **serveur**.
+ * Important : ne jamais attendre la purge indéfiniment — sinon le bouton MAJ
+ * reste sur « MAJ… » et rien ne se passe (vu sur mobile).
+ */
+export async function forceLatestAppVersion(knownTarget?: string) {
+  let target = (knownTarget || '').trim()
+  if (!target) {
+    target =
+      (await withTimeout(fetchServerVersion(), 2500)) || APP_VERSION
+  }
 
   try {
     localStorage.setItem(BOOT_KEY, target)
+    // Nouveau clic MAJ = nouvelle tentative (débloque le garde-fou index.html)
+    sessionStorage.removeItem(RELOAD_KEY)
+  } catch {
+    /* ignore */
+  }
+
+  // Max ~700 ms de purge, puis navigation obligatoire
+  await withTimeout(purgeCachesAndServiceWorkers(), 700)
+
+  try {
     sessionStorage.setItem(RELOAD_KEY, '1')
   } catch {
     /* ignore */
@@ -98,9 +149,11 @@ export async function forceLatestAppVersion(knownTarget?: string) {
 
   const url = new URL(window.location.href)
   url.searchParams.set('v', target)
+  url.searchParams.set('maj', '1')
   url.searchParams.set('_', String(Date.now()))
-  await new Promise((r) => setTimeout(r, 120))
-  window.location.replace(url.toString())
+
+  // href (pas replace) : plus fiable sur certains navigateurs / PWA iOS
+  window.location.href = url.toString()
 }
 
 /** Pastille version locale (ce qui tourne vraiment sur l’appareil). */
@@ -130,7 +183,10 @@ export function MajButton({ className = '' }: { className?: string }) {
       disabled={busy}
       onClick={() => {
         setBusy(true)
-        void forceLatestAppVersion(server || undefined).finally(() => setBusy(false))
+        void forceLatestAppVersion(server || undefined).finally(() => {
+          // Si la navigation n’a pas eu lieu (cas rare), on débloque le bouton
+          window.setTimeout(() => setBusy(false), 1500)
+        })
       }}
       className={
         className ||

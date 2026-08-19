@@ -13,6 +13,8 @@ document.documentElement.dataset.climazenVersion = APP_VERSION
 /** Si le serveur a une version plus récente que ce JS, purge + reload. */
 async function ensureServerVersion() {
   try {
+    // Après un clic MAJ / tentative auto : ne pas relancer en boucle
+    if (sessionStorage.getItem('climazen_reloading') === '1') return
     const server = await fetchServerVersion()
     if (!server) return
     if (server !== APP_VERSION) {
