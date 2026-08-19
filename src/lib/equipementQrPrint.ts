@@ -138,26 +138,41 @@ function printHtmlViaIframe(html: string): Promise<void> {
 /** Imprime des étiquettes équipements (QR) — sans fenêtre pop-up. */
 export async function printEquipementLabels(
   hits: EquipQrHit[],
-  opts?: { origin?: string; companyName?: string },
+  opts?: {
+    origin?: string
+    companyName?: string
+    /** a4 = grille feuille ; rouleau = 1 étiquette / page (imprimante rouleau) */
+    format?: 'a4' | 'rouleau'
+  },
 ): Promise<void> {
   if (!hits.length) return
   const company = opts?.companyName || 'ClimaZEN'
+  const format = opts?.format || 'a4'
   const prepared = await buildEquipQrCards(hits, { origin: opts?.origin })
 
   const cards = prepared.map(
     (c) => `
       <article class="label">
         <div class="brand">${escapeHtml(company)}</div>
-        <img src="${c.imgDataUrl}" alt="QR" width="140" height="140" />
+        <img src="${c.imgDataUrl}" alt="QR" width="${format === 'rouleau' ? 160 : 140}" height="${format === 'rouleau' ? 160 : 140}" />
         <h1>${escapeHtml(c.title)}</h1>
         <p class="meta">${c.lines.map(escapeHtml).join('<br/>')}</p>
-        <p class="payload">${escapeHtml(c.payload)}</p>
+        ${format === 'a4' ? `<p class="payload">${escapeHtml(c.payload)}</p>` : ''}
         <p class="hint">Scanner avec ClimaZEN</p>
       </article>
     `,
   )
 
-  const html = `<!DOCTYPE html>
+  const html =
+    format === 'rouleau'
+      ? buildRouleauHtml(cards)
+      : buildA4Html(cards)
+
+  await printHtmlViaIframe(html)
+}
+
+function buildA4Html(cards: string[]): string {
+  return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
@@ -227,8 +242,88 @@ export async function printEquipementLabels(
   <div class="grid">${cards.join('')}</div>
 </body>
 </html>`
+}
 
-  await printHtmlViaIframe(html)
+/** 1 QR = 1 page — format proche rouleau 62 mm (Brother QL / Dymo). */
+function buildRouleauHtml(cards: string[]): string {
+  const pages = cards
+    .map(
+      (card, i) =>
+        `<section class="page${i < cards.length - 1 ? ' break' : ''}">${card}</section>`,
+    )
+    .join('')
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Étiquettes rouleau QR — ClimaZEN</title>
+  <style>
+    /* Largeur type rouleau 62 mm ; hauteur ≈ 1 étiquette */
+    @page {
+      size: 62mm 100mm;
+      margin: 2mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 62mm;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: #071820;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 58mm;
+      min-height: 90mm;
+      padding: 2mm;
+      margin: 0 auto;
+    }
+    .page.break {
+      page-break-after: always;
+      break-after: page;
+    }
+    .label {
+      border: none;
+      padding: 0;
+      text-align: center;
+    }
+    .brand {
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #1aa896;
+      margin-bottom: 4px;
+    }
+    img { display: block; margin: 0 auto 6px; width: 42mm; height: 42mm; }
+    h1 {
+      font-size: 12px;
+      margin: 0 0 3px;
+      line-height: 1.15;
+    }
+    .meta {
+      font-size: 9px;
+      color: #12303a;
+      margin: 0;
+      line-height: 1.3;
+    }
+    .hint {
+      margin: 6px 0 0;
+      font-size: 8px;
+      color: #5a7880;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  ${pages}
+</body>
+</html>`
 }
 
 function escapeHtml(s: string): string {
@@ -238,3 +333,4 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 }
+

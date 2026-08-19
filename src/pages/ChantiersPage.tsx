@@ -906,13 +906,16 @@ export function ChantiersPage() {
     }
   }
 
-  const confirmPrintQrPreview = async () => {
+  const confirmPrintQrPreview = async (format: 'a4' | 'rouleau' = 'a4') => {
     if (!qrPreview?.length) return
     setQrBusy(true)
     try {
       await printEquipementLabels(
         qrPreview.map((c) => c.hit),
-        { companyName: data.operateur?.raisonSociale || 'ClimaZEN' },
+        {
+          companyName: data.operateur?.raisonSociale || 'ClimaZEN',
+          format,
+        },
       )
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Impression impossible')
@@ -2509,22 +2512,36 @@ export function ChantiersPage() {
                 </div>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2 border-t border-line p-4">
-              <button
-                type="button"
-                disabled={qrBusy}
-                onClick={() => void confirmPrintQrPreview()}
-                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-ink disabled:opacity-50"
-              >
-                <QrCode className="h-4 w-4" /> Imprimer
-              </button>
-              <button
-                type="button"
-                onClick={() => setQrPreview(null)}
-                className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
-              >
-                Fermer
-              </button>
+            <div className="flex flex-col gap-2 border-t border-line p-4">
+              <p className="text-[11px] text-muted">
+                Rouleau qui n’avance pas ? Utilisez <strong>Rouleau étiquette</strong> (1 QR = 1
+                page) et choisissez l’imprimante étiquettes dans le dialogue.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={qrBusy}
+                  onClick={() => void confirmPrintQrPreview('rouleau')}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-ink disabled:opacity-50"
+                >
+                  <QrCode className="h-4 w-4" /> Rouleau étiquette
+                </button>
+                <button
+                  type="button"
+                  disabled={qrBusy}
+                  onClick={() => void confirmPrintQrPreview('a4')}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-bold text-ink disabled:opacity-50"
+                >
+                  Feuille A4
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrPreview(null)}
+                  className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
+                >
+                  Fermer
+                </button>
+              </div>
             </div>
           </div>
         </div>
