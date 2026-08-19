@@ -1,4 +1,4 @@
-import type { StockItem } from './types'
+import type { ContenantType, StockItem } from './types'
 
 export type TypeHuile = NonNullable<StockItem['typeHuile']>
 
@@ -11,6 +11,21 @@ export const TYPE_HUILE_LABELS: Record<TypeHuile, string> = {
   inconnu: 'Inconnu / non renseigné',
 }
 
+/** Valeur select : récup non liée à un site (destruction distributeur). */
+export const ORIGINE_DESTRUCTION_VALUE = '__destruction__'
+
+/**
+ * Durée de validité après la dernière épreuve :
+ * - Neuf / transfert / régénéré (fluide propre) → 10 ans
+ * - Récupération / recyclage (fluide usagé) → 5 ans
+ */
+export function anneesValiditeContenant(type: ContenantType): 5 | 10 {
+  return type === 'recuperation' || type === 'recycle' ? 5 : 10
+}
+
+/**
+ * Périmée si fin de validité ≤ aujourd’hui.
+ */
 export function isBouteilleReepreuveExpiree(
   item: Pick<StockItem, 'dateReepreuvage'>,
   refDate = new Date(),
@@ -22,18 +37,18 @@ export function isBouteilleReepreuveExpiree(
   const ref = new Date(refDate)
   ref.setHours(0, 0, 0, 0)
   end.setHours(0, 0, 0, 0)
-  return ref > end
+  return ref.getTime() >= end.getTime()
 }
 
 /**
- * Fin de validité / prochain rééprouvage par défaut = entrée en possession + 10 ans.
- * (ex. 2026-08-19 → 2036-08-19). Ne jamais renvoyer la date du jour.
+ * Fin de validité = date de dernière épreuve + N ans.
+ * Ne jamais renvoyer la date du jour.
  */
-export function dateReepreuveDepuisPossession(
-  dateEntreePossession: string | undefined,
-  annees = 10,
+export function dateReepreuveDepuisEpreuve(
+  dateDerniereEpreuve: string | undefined,
+  annees: number,
 ): string {
-  const raw = (dateEntreePossession || '').trim()
+  const raw = (dateDerniereEpreuve || '').trim()
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return ''
   const [y, m, d] = raw.split('-').map(Number)
   if (!y || !m || !d) return ''
@@ -43,6 +58,14 @@ export function dateReepreuveDepuisPossession(
   const mm = String(next.getUTCMonth() + 1).padStart(2, '0')
   const dd = String(next.getUTCDate()).padStart(2, '0')
   return `${yy}-${mm}-${dd}`
+}
+
+/** @deprecated alias — préférer dateReepreuveDepuisEpreuve */
+export function dateReepreuveDepuisPossession(
+  dateEntreePossession: string | undefined,
+  annees = 10,
+): string {
+  return dateReepreuveDepuisEpreuve(dateEntreePossession, annees)
 }
 
 export function isBouteilleReepreuveBientot(

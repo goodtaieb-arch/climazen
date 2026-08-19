@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import type { UserAccount } from '../lib/auth'
 import {
   CONTENANT_TYPE_LABELS,
+  clientDisplayName,
   contenantDemarreVide,
   contenantSansRecharge,
   isBouteilleRetournee,
@@ -66,8 +67,10 @@ import { labelEmplacement, mouvementsForBottle } from '../lib/stockMouvements'
 import { resumeRegleContenant, jaugeRemplissageRecup } from '../lib/stockRegles'
 import {
   TYPE_HUILE_LABELS,
+  ORIGINE_DESTRUCTION_VALUE,
   alerteConsigneJours,
-  dateReepreuveDepuisPossession,
+  anneesValiditeContenant,
+  dateReepreuveDepuisEpreuve,
   isBouteilleReepreuveBientot,
   isBouteilleReepreuveExpiree,
   type TypeHuile,
@@ -95,6 +98,7 @@ const blank = (opts?: {
   const adr = fluide ? adrInfoForFluide(fluide) : null
   const defs = bouteilleDefaultsForFluide(fluide)
   const entree = today()
+  const annees = anneesValiditeContenant(contenantType)
   return {
     fluide,
     contenantType,
@@ -106,6 +110,8 @@ const blank = (opts?: {
     emplacement: 'atelier',
     assigneeUserId: undefined,
     assigneeName: undefined,
+    origineClientId: undefined,
+    origineDestructionDistributeur: false,
     bsffReference: '',
     codeUn: adr?.codeUn || '',
     denominationAdr: adr?.denominationAdr || '',
@@ -113,8 +119,9 @@ const blank = (opts?: {
     conformeA2LA3: false,
     pressionEpreuveBar: defs.pressionEpreuveBar,
     dateEntreePossession: entree,
-    /** Défaut : entrée + 10 ans — jamais la date du jour. */
-    dateReepreuvage: dateReepreuveDepuisPossession(entree, 10),
+    dateDerniereEpreuve: entree,
+    /** Défaut : dernière épreuve + 10 ans (propre) ou +5 ans (récup/recyclage). */
+    dateReepreuvage: dateReepreuveDepuisEpreuve(entree, annees),
     tareKg: defs.tareKg,
     seuilAlerteConsigneJours: 30,
     typeHuile: contenantType === 'recuperation' ? 'inconnu' : undefined,
@@ -504,6 +511,12 @@ export function StockPage() {
     }
 
     if (contenantType === 'recuperation') {
+      if (!form.origineDestructionDistributeur && !form.origineClientId) {
+        alert(
+          'Bouteille de récupération : indiquez le site / client d’origine, ou « Non attribué / Pour destruction chez le distributeur ».',
+        )
+        return
+      }
       if (!capaciteMaxKg || capaciteMaxKg <= 0) {
         alert(
           'Bouteille de récupération : capacité nominale (kg) obligatoire. Le plafond sécurité sera 80 % de cette valeur.',
@@ -557,6 +570,16 @@ export function StockPage() {
             resolveStockAssigneeName(form.assigneeUserId || '') ||
             undefined
           : undefined,
+      origineClientId:
+        contenantType === 'recuperation' && !form.origineDestructionDistributeur
+          ? form.origineClientId || undefined
+          : contenantType === 'recuperation'
+            ? undefined
+            : form.origineClientId,
+      origineDestructionDistributeur:
+        contenantType === 'recuperation' ? Boolean(form.origineDestructionDistributeur) : false,
+      dateDerniereEpreuve: form.dateDerniereEpreuve || undefined,
+      dateReepreuvage: form.dateReepreuvage || undefined,
       quantiteKg: qty,
       quantiteInitialeKg: editId
         ? form.quantiteInitialeKg ?? qty
@@ -571,11 +594,17 @@ export function StockPage() {
 
   const startEdit = (s: StockItem) => {
     setEditId(s.id)
-    setForm({ ...s })
+    const epreuve = s.dateDerniereEpreuve || s.dateEntreePossession || ''
+    setForm({
+      ...s,
+      dateDerniereEpreuve: epreuve || undefined,
+      origineDestructionDistributeur: Boolean(s.origineDestructionDistributeur),
+    })
     setRegsOpen(Boolean(s.bsffReference || s.codeUn || s.denominationAdr))
     setTechOpen(
       Boolean(
         s.dateReepreuvage ||
+          s.dateDerniereEpreuve ||
           (s.tareKg != null && s.tareKg > 0) ||
           (s.pressionEpreuveBar != null && s.pressionEpreuveBar > 0) ||
           (s.typeHuile && s.typeHuile !== 'inconnu'),
@@ -844,6 +873,13 @@ export function StockPage() {
                         ? 'R-32'
                         : f.fluide
                   const qty = demarreVide && !editId ? 0 : f.quantiteKg
+                  const epreuve = f.dateDerniereEpreuve || f.dateEntreePossession || ''
+                  const prevAuto = dateReepreuveDepuisEpreuve(
+                    epreuve,
+                    anneesValiditeContenant(f.contenantType),
+                  )
+                  const wasAuto =
+                    !f.dateReepreuvage?.trim() || f.dateReepreuvage === prevAuto
                   const base = {
                     ...f,
                     contenantType,
@@ -855,6 +891,15 @@ export function StockPage() {
                     emplacement: f.emplacement || 'atelier',
                     typeHuile:
                       contenantType === 'recuperation' ? f.typeHuile || 'inconnu' : f.typeHuile,
+                    dateReepreuvage: wasAuto
+                      ? dateReepreuveDepuisEpreuve(epreuve, anneesValiditeContenant(contenantType))
+                      : f.dateReepreuvage,
+                    ...(contenantType !== 'recuperation'
+                      ? {
+                          origineClientId: undefined,
+                          origineDestructionDistributeur: false,
+                        }
+                      : {}),
                   }
                   return nextFluide === f.fluide
                     ? base
@@ -877,7 +922,63 @@ export function StockPage() {
               ))}
             </select>
             <p className="mt-1 text-xs text-muted">{resumeRegleContenant(form.contenantType)}</p>
+            {form.contenantType === 'recuperation' && (
+              <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950">
+                ⚠️ <strong>Rappel F-Gaz :</strong> le fluide récupéré non régénéré en usine est
+                exclusivement réservé aux interventions sur le <strong>même site</strong> ou le{' '}
+                <strong>même détenteur</strong>.
+              </p>
+            )}
           </label>
+
+          {form.contenantType === 'recuperation' && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block font-semibold text-ink">Site / Client d’origine *</span>
+              <select
+                required
+                value={
+                  form.origineDestructionDistributeur
+                    ? ORIGINE_DESTRUCTION_VALUE
+                    : form.origineClientId || ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === ORIGINE_DESTRUCTION_VALUE) {
+                    setForm({
+                      ...form,
+                      origineDestructionDistributeur: true,
+                      origineClientId: undefined,
+                    })
+                  } else {
+                    setForm({
+                      ...form,
+                      origineDestructionDistributeur: false,
+                      origineClientId: v || undefined,
+                    })
+                  }
+                }}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="">— Choisir —</option>
+                <option value={ORIGINE_DESTRUCTION_VALUE}>
+                  Non attribué / Pour destruction chez le distributeur
+                </option>
+                {[...data.clients]
+                  .sort((a, b) =>
+                    clientDisplayName(a).localeCompare(clientDisplayName(b), 'fr'),
+                  )
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {clientDisplayName(c)}
+                      {c.ville ? ` — ${c.ville}` : ''}
+                    </option>
+                  ))}
+              </select>
+              <p className="mt-1 text-[11px] text-muted">
+                Obligatoire pour la traçabilité F-Gaz des bouteilles de récupération.
+              </p>
+            </label>
+          )}
 
           <div className="sm:col-span-2">
             <LabelHint label="N° de série / n° de contenant *" tip={TIP_BOUTEILLE}>
@@ -1119,21 +1220,29 @@ export function StockPage() {
                   emptyZero
                 />
                 <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Entrée en possession (consigne)</span>
+                  <span className="mb-1 block font-semibold text-ink">
+                    Date de dernière épreuve
+                  </span>
                   <input
                     type="date"
-                    value={form.dateEntreePossession || ''}
+                    value={form.dateDerniereEpreuve || ''}
                     onChange={(e) => {
-                      const dateEntreePossession = e.target.value
+                      const dateDerniereEpreuve = e.target.value
                       setForm((f) => {
-                        const prevAuto = dateReepreuveDepuisPossession(f.dateEntreePossession, 10)
+                        const prevAuto = dateReepreuveDepuisEpreuve(
+                          f.dateDerniereEpreuve || f.dateEntreePossession,
+                          anneesValiditeContenant(f.contenantType),
+                        )
                         const wasAuto =
                           !f.dateReepreuvage?.trim() || f.dateReepreuvage === prevAuto
                         return {
                           ...f,
-                          dateEntreePossession,
+                          dateDerniereEpreuve,
                           dateReepreuvage: wasAuto
-                            ? dateReepreuveDepuisPossession(dateEntreePossession, 10)
+                            ? dateReepreuveDepuisEpreuve(
+                                dateDerniereEpreuve,
+                                anneesValiditeContenant(f.contenantType),
+                              )
                             : f.dateReepreuvage,
                         }
                       })
@@ -1152,9 +1261,24 @@ export function StockPage() {
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
                   />
                   <p className="mt-1 text-[11px] text-muted">
-                    Défaut : +10 ans après l’entrée en possession (ex. 19/08/2026 → 19/08/2036).
-                    Modifiable si la bouteille a été fabriquée / éprouvée plus tôt.
+                    Défaut : dernière épreuve +{' '}
+                    {anneesValiditeContenant(form.contenantType)} ans (
+                    {form.contenantType === 'recuperation' || form.contenantType === 'recycle'
+                      ? 'récup / recyclage'
+                      : 'neuf / transfert / régénéré'}
+                    ). Modifiable si la bouteille a été éprouvée plus tôt.
                   </p>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Entrée en possession (consigne)</span>
+                  <input
+                    type="date"
+                    value={form.dateEntreePossession || ''}
+                    onChange={(e) =>
+                      setForm({ ...form, dateEntreePossession: e.target.value })
+                    }
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  />
                 </label>
                 <DecimalField
                   label="Alerte consigne après (jours)"
@@ -1758,6 +1882,25 @@ export function StockPage() {
                                   BSFF seul
                                 </span>
                               )}
+                              {s.contenantType === 'recuperation' &&
+                                s.origineDestructionDistributeur && (
+                                  <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-stone-800">
+                                    Non attribué / destruction
+                                  </span>
+                                )}
+                              {s.contenantType === 'recuperation' &&
+                                s.origineClientId &&
+                                !s.origineDestructionDistributeur && (
+                                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
+                                    Réservé Site :{' '}
+                                    {clientDisplayName(
+                                      data.clients.find((c) => c.id === s.origineClientId) || {
+                                        raisonSociale: 'Client',
+                                        nomContact: '',
+                                      },
+                                    )}
+                                  </span>
+                                )}
                               {s.contenantType === 'recycle' && s.origineClientId && (
                                 <span className="rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-950">
                                   Même client
@@ -1765,7 +1908,7 @@ export function StockPage() {
                               )}
                               {isBouteilleReepreuveExpiree(s) && (
                                 <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                                  Rééprouvage dépassé
+                                  Périmée / Échéance dépassée
                                 </span>
                               )}
                               {!isBouteilleReepreuveExpiree(s) &&

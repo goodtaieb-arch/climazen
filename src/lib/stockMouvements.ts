@@ -509,6 +509,7 @@ export function enregistrerDestruction(
           conformeA2LA3: false,
           typeHuile: 'inconnu' as const,
           origineClientId: undefined,
+          origineDestructionDistributeur: false,
         }
       : {}),
   }

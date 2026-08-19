@@ -372,9 +372,14 @@ export interface StockItem {
   capaciteMaxKg?: number
   /**
    * Client / détenteur d’origine du fluide (recyclé) — réinjection limitée à ce client.
-   * Renseigné à la première récupération CERFA.
+   * Renseigné à la première récupération CERFA ou à la création (bouteille récup.).
    */
   origineClientId?: string
+  /**
+   * Récupération : fluide non lié à un site — destiné à la destruction chez le distributeur.
+   * Exclusif avec origineClientId.
+   */
+  origineDestructionDistributeur?: boolean
   /** Emplacement logistique (atelier / véhicule) — suivi interne sans CERFA. */
   emplacement?: 'atelier' | 'vehicule'
   /** Libellé véhicule / dépôt (ex. « Véhicule A », « Camion 12 »). */
@@ -393,6 +398,11 @@ export interface StockItem {
   conformeA2LA3?: boolean
   /** Pression d’épreuve PH (bar) — marquage ogive. */
   pressionEpreuveBar?: number
+  /**
+   * Date de la dernière épreuve (marquage bouteille).
+   * Sert au calcul auto de la fin de validité (+10 ou +5 ans).
+   */
+  dateDerniereEpreuve?: string
   /** Date de fin de validité / prochain rééprouvage (contrôle périodique). */
   dateReepreuvage?: string
   /** Poids à vide (tare) kg — pour calcul balance terrain. */

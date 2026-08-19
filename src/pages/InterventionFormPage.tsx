@@ -1935,7 +1935,7 @@ export function InterventionFormPage() {
                   )}
                   {item && isBouteilleReepreuveExpiree(item) && (
                     <p className="text-xs font-semibold text-danger">
-                      Rééprouvage dépassé ({item.dateReepreuvage}) — usage interdit jusqu’au contrôle.
+                      Périmée / échéance dépassée ({item.dateReepreuvage}) — usage interdit jusqu’au contrôle.
                     </p>
                   )}
                   {item && !item.numeroContenant?.trim() && (
