@@ -143,7 +143,7 @@ export function Landing() {
               'radial-gradient(ellipse 90% 70% at 100% 0%, #5eead455, transparent 55%), radial-gradient(ellipse 60% 50% at 0% 100%, #bae6fd44, transparent 50%), linear-gradient(165deg, #ecfdf9 0%, #f0fdfa 45%, #eff6ff 100%)',
           }}
         />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:pb-20 lg:pt-12">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[0.9fr_1.2fr] lg:gap-8 lg:pb-20 lg:pt-12">
           <div className="animate-[fadeUp_0.7s_ease-out]">
             <div className="flex flex-col items-start gap-5">
               <div className="overflow-visible rounded-2xl border border-line/70 bg-white/90 px-5 py-4 shadow-lg shadow-accent/15 backdrop-blur">
@@ -203,8 +203,10 @@ export function Landing() {
             </p>
           </div>
 
+          {/* Téléphone + PC + pub Assistant IA (à droite) */}
+          <div className="relative flex w-full flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-end lg:gap-5">
           {/* Composition : téléphone + aperçu site (navigateur) */}
-          <div className="relative mx-auto w-full max-w-[420px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[480px] lg:max-w-none lg:justify-self-end">
+          <div className="relative mx-auto w-full max-w-[420px] animate-[fadeUp_0.9s_ease-out] sm:max-w-[480px] lg:mx-0 lg:max-w-[460px] lg:shrink">
             <div
               className="pointer-events-none absolute -inset-8 rounded-[50%] bg-gradient-to-br from-accent/35 via-sky-300/25 to-transparent blur-3xl sm:-inset-12"
               aria-hidden
@@ -471,6 +473,68 @@ export function Landing() {
                 Accueil terrain 3D + parc clients / sites — sans données réelles.
               </p>
             </div>
+          </div>
+
+          {/* Pub Assistant IA — à droite du mockup téléphone / PC */}
+          <aside
+            className="relative z-20 w-full max-w-[320px] animate-[fadeUp_1.05s_ease-out] lg:w-[250px] lg:shrink-0 xl:w-[270px]"
+            aria-label="Assistant IA ClimaZEN"
+          >
+            <div
+              className="pointer-events-none absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-teal-400/25 via-transparent to-sky-300/20 blur-2xl"
+              aria-hidden
+            />
+            <div className="relative overflow-hidden rounded-[1.75rem] border border-teal-800/20 bg-gradient-to-b from-[#0f766e] to-[#134e4a] px-5 py-6 text-white shadow-[0_24px_50px_-20px_rgba(15,118,110,0.55)]">
+              <div className="flex items-center gap-2">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+                  <Sparkles className="h-5 w-5 text-teal-100" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-100/90">
+                    Nouveau
+                  </p>
+                  <p className="font-display text-lg font-extrabold tracking-tight">
+                    Assistant IA
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm font-semibold leading-snug text-white">
+                L’IA remplit OT &amp; CERFA à votre place
+              </p>
+              <p className="mt-2 text-[13px] leading-relaxed text-teal-50/90">
+                Vous dictez. ClimaZEN prépare client, site, équipement, OT et CERFA brouillon.
+                Le technicien valide et signe.
+              </p>
+
+              <blockquote className="mt-4 rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-[12px] italic leading-snug text-teal-50">
+                « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC, et le
+                CERFA »
+              </blockquote>
+
+              <ul className="mt-4 space-y-1.5 text-[12px] font-medium text-teal-50/95">
+                <li className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
+                  Dictez ou tapez — l’IA comprend
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
+                  OT + CERFA prêts à valider
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
+                  Vous gardez le contrôle final
+                </li>
+              </ul>
+
+              <Link
+                to="/register"
+                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-white px-4 text-sm font-extrabold text-teal-950 transition-transform hover:scale-[1.02]"
+              >
+                Essayer l’assistant
+              </Link>
+            </div>
+          </aside>
           </div>
         </div>
       </section>
