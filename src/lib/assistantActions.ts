@@ -13,6 +13,7 @@ import {
   TYPE_OT_LABELS,
   type TypeOt,
 } from './ordreTravail'
+import type { PendingTerrainAction } from './assistantTerrainActions'
 
 export type CreateOtCerfaIntent = {
   kind: 'create_ot_cerfa'
@@ -637,6 +638,52 @@ export function executeCreateOtCerfa(
     otNumero: ot.numero,
     navigateTo: `/app/ot?id=${encodeURIComponent(ot.id)}`,
     message: `${label} créé (${createdBits.join(', ')}). Ouvrez l’OT pour finaliser.`,
+  }
+}
+
+/** Extrait propose_create_equipements depuis une réponse Gemini. */
+export function extractEquipementsActionFromReply(
+  reply: string,
+): PendingTerrainAction | null {
+  const fenced = reply.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  const raw = fenced?.[1] || reply
+  const m = raw.match(/\{[\s\S]*"action"\s*:\s*"propose_create_equipements"[\s\S]*\}/)
+  if (!m) return null
+  try {
+    const obj = JSON.parse(m[0]) as {
+      action?: string
+      clientQuery?: string
+      siteQuery?: string
+      equips?: { nom?: string; type?: string }[]
+    }
+    if (obj.action !== 'propose_create_equipements') return null
+    const equips = (obj.equips || [])
+      .map((e) => ({
+        nom: (e.nom || '').trim(),
+        type: (e.type || '').trim() || undefined,
+      }))
+      .filter((e) => e.nom)
+    if (equips.length === 0) return null
+    const clientQuery = (obj.clientQuery || '').trim()
+    const siteQuery = (obj.siteQuery || '').trim()
+    return {
+      kind: 'equipements',
+      clientQuery,
+      siteQuery,
+      equips,
+      summary: [
+        `Je peux créer ${equips.length} équipement${equips.length > 1 ? 's' : ''} :`,
+        ...equips.map((e, i) => `${i + 1}. ${e.nom}`),
+        clientQuery ? `• Client : ${clientQuery}` : null,
+        siteQuery ? `• Site : ${siteQuery}` : null,
+        ``,
+        `Rien n’est encore enregistré. Répondez « oui » pour créer, ou « non » pour annuler.`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  } catch {
+    return null
   }
 }
 

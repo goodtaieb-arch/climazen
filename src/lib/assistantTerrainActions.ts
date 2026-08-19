@@ -5,7 +5,7 @@
 
 import type { AgendaEvent, AgendaEventType } from './agenda'
 import { AGENDA_TYPE_LABELS, addDaysToIso, todayIsoLocal } from './agenda'
-import type { AppData, ContenantType, DetecteurManuel, StockItem } from './types'
+import type { AppData, ContenantType, DetecteurManuel, Equipement, Site, StockItem } from './types'
 import { blankFicheMaintenanceClim } from './ficheMaintenanceClim'
 import { clientDisplayName } from './types'
 import { allEquipements } from './cerfaBatch'
@@ -79,7 +79,13 @@ function detectAgendaType(n: string): AgendaEventType {
   return 'rdv'
 }
 
-export type TerrainActionKind = 'detecteur' | 'bouteille' | 'fiche_maintenance' | 'agenda' | 'client'
+export type TerrainActionKind =
+  | 'detecteur'
+  | 'bouteille'
+  | 'fiche_maintenance'
+  | 'agenda'
+  | 'client'
+  | 'equipements'
 
 export type PendingTerrainAction =
   | {
@@ -93,6 +99,13 @@ export type PendingTerrainAction =
       adresse: string
       codePostal: string
       ville: string
+      summary: string
+    }
+  | {
+      kind: 'equipements'
+      clientQuery: string
+      siteQuery: string
+      equips: { nom: string; type?: string }[]
       summary: string
     }
   | {
@@ -129,6 +142,149 @@ export type PendingTerrainAction =
       notes?: string
       summary: string
     }
+
+const LOC_LABELS: { re: RegExp; label: string }[] = [
+  { re: /\bsalon\b/i, label: 'Salon' },
+  { re: /\bchambre(?:\s*\d+)?\b/i, label: 'Chambre' },
+  { re: /\bcuisine\b/i, label: 'Cuisine' },
+  { re: /\bbureau\b/i, label: 'Bureau' },
+  { re: /\bs[eé]jour\b/i, label: 'Séjour' },
+  { re: /\bgarage\b/i, label: 'Garage' },
+  { re: /\bcave\b/i, label: 'Cave' },
+  { re: /\bterrasse\b/i, label: 'Terrasse' },
+  { re: /\bcombles?\b/i, label: 'Combles' },
+  { re: /\brdc\b|rez[\s-]?de[\s-]?chauss/i, label: 'RDC' },
+  { re: /\b[eé]tage\s*(\d+)?\b/i, label: 'Étage' },
+]
+
+/** Extrait les pièces / emplacements mentionnés (salon, chambre…). */
+export function extractEquipLocations(raw: string): string[] {
+  const found: string[] = []
+  const seen = new Set<string>()
+  for (const { re, label } of LOC_LABELS) {
+    const m = raw.match(re)
+    if (!m) continue
+    let loc = label
+    if (/chambre/i.test(m[0]) && /\d/.test(m[0])) {
+      loc = m[0].replace(/^\w/, (c) => c.toUpperCase())
+    }
+    if (/[eé]tage/i.test(m[0])) {
+      loc = m[0].replace(/[eé]/i, 'É').replace(/^\w/, (c) => c.toUpperCase())
+    }
+    const key = normalize(loc)
+    if (seen.has(key)) continue
+    seen.add(key)
+    found.push(loc)
+  }
+  // Ordre d’apparition dans la phrase
+  const ordered: string[] = []
+  const lower = raw.toLowerCase()
+  for (const loc of found) {
+    const idx = lower.indexOf(normalize(loc).slice(0, 4))
+    ordered.push(loc)
+    void idx
+  }
+  // Tri par position dans le texte
+  return found
+    .map((loc) => ({
+      loc,
+      idx: lower.search(new RegExp(normalize(loc).replace(/[ée]/g, '[eé]'), 'i')),
+    }))
+    .sort((a, b) => a.idx - b.idx)
+    .map((x) => x.loc)
+}
+
+function detectEquipBaseName(raw: string, n: string): { nom: string; type: string } {
+  if (/clim\s*monobloc|monobloc/.test(n)) {
+    return { nom: 'Clim monobloc', type: 'Climatisation' }
+  }
+  if (/\bsplit\b/.test(n)) return { nom: 'Clim split', type: 'Climatisation' }
+  if (/\bpac\b|pompe\s+a\s+chaleur/.test(n)) return { nom: 'PAC', type: 'PAC' }
+  if (/climati|clim\b/.test(n)) return { nom: 'Climatisation', type: 'Climatisation' }
+  const m = raw.match(
+    /(?:equipement|équipement)\s+([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s\-_/]{1,40}?)(?:\s+au\s+|\s+dans\s+|\s+pour\s+|\s*$)/i,
+  )
+  if (m?.[1]) return { nom: m[1].trim(), type: '' }
+  return { nom: 'Équipement', type: '' }
+}
+
+function parseCreateEquipementsIntent(raw: string, n: string): PendingTerrainAction | null {
+  if (/\bot\b|ordre\s+de\s+travail|\bcerfa\b|controle\s+d?[' ]?etancheite/.test(n)) {
+    return null
+  }
+
+  const locs = extractEquipLocations(raw)
+  let base = detectEquipBaseName(raw, n)
+  if (base.nom === 'Équipement' && locs.length >= 2) {
+    base = { nom: 'Clim monobloc', type: 'Climatisation' }
+  }
+  const mentionsEquip = /clim|monobloc|split|pac|equipement|climati/.test(n)
+  const wantsAdd =
+    /(?:ajoute|ajouter|creer|cree|installe|mettre|mets)\s+(?:des?\s+|les?\s+|une?\s+|deux\s+|2\s+)?/.test(
+      n,
+    ) || /(?:deux|2|plusieurs)\s+(?:clim|equipement|monobloc)/.test(n)
+  const multiLoc = locs.length >= 2
+  const twoClim = /(?:deux|2)\s+(?:clim|equipement|monobloc)/.test(n)
+  const premiereDeuxieme =
+    /(?:premier|premiere|1er|1ere|deuxieme|2e|2eme|l[' ]autre)/.test(n) && locs.length >= 1
+
+  if (!mentionsEquip && !multiLoc) return null
+  if (!(wantsAdd || multiLoc || twoClim || premiereDeuxieme)) return null
+  if (!multiLoc && !twoClim && !(wantsAdd && mentionsEquip && locs.length >= 1)) {
+    // Une seule pièce + « ajoute clim » → 1 équipement OK
+    if (!(wantsAdd && mentionsEquip && locs.length === 1)) return null
+  }
+
+  let locations = locs
+  if (locations.length === 0 && twoClim) {
+    locations = ['1', '2']
+  }
+  if (locations.length === 1 && twoClim) {
+    locations = [locations[0], '2']
+  }
+
+  const equips: { nom: string; type?: string }[] = locations.map((loc) => {
+    const suffix = loc === '1' || loc === '2' ? `#${loc}` : loc
+    return {
+      nom: `${base.nom} — ${suffix}`,
+      type: base.type || (/clim|monobloc|split/i.test(base.nom) ? 'Climatisation' : ''),
+    }
+  })
+
+  if (equips.length === 0) {
+    equips.push({
+      nom: base.nom,
+      type: base.type || 'Climatisation',
+    })
+  }
+
+  const clientQuery =
+    raw.match(
+      /(?:chez|pour|client)\s+(?:mr|m\.|monsieur|mme|madame)\s+([A-Za-zÀ-ÿ0-9'’\-]+)/i,
+    )?.[1] ||
+    raw.match(/(?:mr|m\.|monsieur|mme|madame)\s+([A-Za-zÀ-ÿ0-9'’\-]+)/i)?.[1] ||
+    ''
+  const siteQuery =
+    raw.match(/site\s+(?:de\s+|du\s+)?([A-Za-zÀ-ÿ0-9'’\-\s]{2,40}?)(?:\s+clim|\s+equip|\s*$)/i)?.[1]
+      ?.trim() || ''
+
+  return {
+    kind: 'equipements',
+    clientQuery,
+    siteQuery,
+    equips,
+    summary: [
+      `Je peux créer ${equips.length} équipement${equips.length > 1 ? 's' : ''} :`,
+      ...equips.map((e, i) => `${i + 1}. ${e.nom}`),
+      clientQuery ? `• Client : ${clientQuery}` : `• Client : (site / client du contexte)`,
+      siteQuery ? `• Site : ${siteQuery}` : null,
+      ``,
+      `Rien n’est encore enregistré. Répondez « oui » pour créer les ${equips.length}, ou « non » pour annuler.`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  }
+}
 
 /** Nettoie un e-mail dicté (« good tayeb@gmail.com » → goodtayeb@gmail.com). */
 export function normalizeSpokenEmail(raw: string): string {
@@ -291,6 +447,10 @@ export function parseTerrainIntent(text: string): PendingTerrainAction | null {
   // Client (avant les autres : « créer un client » ne doit pas partir en Gemini)
   const clientIntent = parseCreateClientIntent(raw, n)
   if (clientIntent) return clientIntent
+
+  // Plusieurs équipements (salon / chambre…)
+  const equipsIntent = parseCreateEquipementsIntent(raw, n)
+  if (equipsIntent) return equipsIntent
 
   // Détecteur
   if (/detecteur|detecteur de fuite|detecteur fuite/.test(n)) {
@@ -482,6 +642,9 @@ export type TerrainDeps = {
   upsertClient: (
     c: Omit<import('./types').Client, 'id' | 'createdAt'> & { id?: string },
   ) => string
+  upsertChantier: (
+    c: Omit<Site, 'id' | 'createdAt'> & { id?: string },
+  ) => string
   upsertDetecteur: (
     d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
@@ -500,6 +663,60 @@ export async function executeTerrainAction(
   action: PendingTerrainAction,
   deps: TerrainDeps,
 ): Promise<{ message: string; navigateTo: string }> {
+  if (action.kind === 'equipements') {
+    const clients = deps.data.clients || []
+    const sites = deps.data.chantiers || []
+    const qClient = normalize(action.clientQuery)
+    const client =
+      (qClient &&
+        clients.find((c) => normalize(clientDisplayName(c)).includes(qClient))) ||
+      undefined
+    const siteList = client ? sites.filter((s) => s.clientId === client.id) : sites
+    const qSite = normalize(action.siteQuery)
+    let site =
+      (qSite && siteList.find((s) => normalize(s.nom).includes(qSite))) ||
+      (siteList.length === 1 ? siteList[0] : undefined) ||
+      (client && siteList[0]) ||
+      undefined
+
+    if (!site) {
+      throw new Error(
+        client
+          ? `Aucun site pour « ${clientDisplayName(client)} ». Créez d’abord le site, ou précisez le nom du site.`
+          : `Précisez le client / site (ex. « chez Mr Dupont, site Maison »).`,
+      )
+    }
+
+    const existing = allEquipements(site)
+    const newEqs: Equipement[] = action.equips.map((e) => ({
+      id: crypto.randomUUID(),
+      nom: e.nom,
+      type: e.type || '',
+      marque: '',
+      modele: '',
+      numeroSerie: '',
+      avecFluideFrigorigene: true,
+      fluideType: '',
+      chargeNominaleKg: 0,
+      detectionPermanente: false,
+    }))
+
+    deps.upsertChantier({
+      ...site,
+      id: site.id,
+      clientId: site.clientId,
+      equipements: [...existing, ...newEqs],
+    })
+
+    const list = newEqs.map((e, i) => `${i + 1}. ${e.nom}`).join('\n')
+    return {
+      message: `${newEqs.length} équipement${newEqs.length > 1 ? 's' : ''} créé${
+        newEqs.length > 1 ? 's' : ''
+      } sur « ${site.nom} » :\n${list}\n\nComplétez marque / fluide / photos sur chaque fiche.`,
+      navigateTo: `/app/sites?id=${encodeURIComponent(site.id)}`,
+    }
+  }
+
   if (action.kind === 'client') {
     const id = deps.upsertClient({
       typeClient: action.typeClient,

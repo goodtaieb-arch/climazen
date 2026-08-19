@@ -7,6 +7,7 @@ import {
   buildEntityCatalog,
   executeCreateOtCerfa,
   extractActionFromReply,
+  extractEquipementsActionFromReply,
   isCancelPhrase,
   isConfirmPhrase,
   parseCreateOtCerfaIntent,
@@ -31,8 +32,8 @@ function newId() {
 
 function stripActionJson(reply: string): string {
   return reply
-    .replace(/```(?:json)?\s*\{[\s\S]*?"action"\s*:\s*"propose_create_ot_cerfa"[\s\S]*?\}\s*```/gi, '')
-    .replace(/\{[\s\S]*?"action"\s*:\s*"propose_create_ot_cerfa"[\s\S]*?\}/g, '')
+    .replace(/```(?:json)?\s*\{[\s\S]*?"action"\s*:\s*"propose_create_[^"]+"[\s\S]*?\}\s*```/gi, '')
+    .replace(/\{[\s\S]*?"action"\s*:\s*"propose_create_[^"]+"[\s\S]*?\}/g, '')
     .trim()
 }
 
@@ -133,6 +134,7 @@ export function AideAssistant() {
         userId: user?.id,
         userName: user?.fullName || user?.email,
         upsertClient,
+        upsertChantier,
         upsertDetecteur,
         upsertStock,
         upsertFicheMaintenanceClim,
@@ -194,11 +196,42 @@ export function AideAssistant() {
       })
       setSource(src)
 
+      const geminiEquips = extractEquipementsActionFromReply(reply)
+      if (geminiEquips) {
+        const cleaned = stripActionJson(reply)
+        if (cleaned) pushAssistant(cleaned)
+        setPendingCreate(null)
+        setPendingTerrain(geminiEquips)
+        pushAssistant(geminiEquips.summary)
+        return
+      }
+
       const geminiIntent = extractActionFromReply(reply)
       if (geminiIntent) {
         const cleaned = stripActionJson(reply)
         if (cleaned) pushAssistant(cleaned)
         tryProposeFromIntent(geminiIntent)
+        return
+      }
+
+      // Gemini a parfois dit « c’est fait » sans rien créer → ne pas laisser croire
+      const falseDone =
+        /\bc['’]?est fait\b|\bont bien [eé]t[eé] cr[eé][eé]s?\b|\bont [eé]t[eé] cr[eé][eé]s?\b/i.test(
+          reply,
+        )
+      if (falseDone) {
+        const retry = parseTerrainIntent(q)
+        if (retry) {
+          setPendingCreate(null)
+          setPendingTerrain(retry)
+          pushAssistant(
+            `Rien n’a encore été enregistré dans l’app.\n\n${retry.summary}`,
+          )
+          return
+        }
+        pushAssistant(
+          `${stripActionJson(reply)}\n\n⚠️ Rien n’a encore été enregistré dans l’app. Reformulez clairement (ex. « crée 2 clim monobloc salon et chambre chez Dupont ») puis validez avec « oui ».`,
+        )
         return
       }
 
