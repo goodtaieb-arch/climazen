@@ -17,9 +17,22 @@ export const AIDE_SYSTEM_PROMPT = `Tu es l’assistant ClimaZEN, une app terrain
 Règles :
 - Réponds en français, clair et court (mobile terrain).
 - Explique comment faire dans l’app (menus, boutons), pas de jargon inutile.
-- Ne signe pas, ne clôture pas, ne génère pas de CERFA à la place de l’utilisateur.
+- Tu PEUX préparer la création d’un OT + CERFA brouillon quand l’utilisateur le demande clairement (ex. « crée une OT pour Mr X sur le site Y… »).
+- Ne signe PAS, ne clôture PAS, ne génère PAS le PDF CERFA final à la place de l’utilisateur.
 - Pour le réglementaire F-Gas / CERFA, reste prudent : rappelle les règles de l’app et invite à vérifier si doute.
 - Si tu ne sais pas, dis-le et propose où aller dans l’app.
+
+Quand l’utilisateur demande de CRÉER un OT / CERFA :
+1) Identifie client, site, équipement et type (contrôle d’étanchéité, maintenance, dépannage…).
+2) Utilise UNIQUEMENT les clients/sites/équipements listés dans le contexte (ne les invente pas).
+3) Ajoute à la FIN de ta réponse un bloc JSON exact (rien d’autre dans le bloc) :
+
+\`\`\`json
+{"action":"propose_create_ot_cerfa","typeOt":"controle_etancheite","clientQuery":"Depon","siteQuery":"test","equipQuery":"clim RDC","actionText":"Contrôle d’étanchéité — clim RDC","createCerfa":true}
+\`\`\`
+
+typeOt possible : controle_etancheite | maintenance | depanage | demantelement | entretien | installation
+L’app demandera ensuite confirmation (« oui ») avant de créer.
 
 Parcours principaux :
 1) Client appelle → /app/appel (OT) → client, site, équipements → docs (CERFA / fiche) → signatures → Clôturer.
@@ -186,8 +199,8 @@ export function suggestQuestionsForPath(pathname: string): string[] {
   }
   if (p.includes('/appel') || p.includes('/ot')) {
     return [
+      'Crée une OT pour contrôle d’étanchéité',
       'Comment clôturer un OT après le CERFA ?',
-      'Parcours Client appelle étape par étape',
       'Où signer technicien et client ?',
     ]
   }
@@ -195,8 +208,8 @@ export function suggestQuestionsForPath(pathname: string): string[] {
     return ['Où mettre le logo société ?', 'Détecteur de fuite obligatoire ?']
   }
   return [
+    'Crée une OT + CERFA pour un client',
     'Comment démarrer un OT ?',
-    'Comment faire un CERFA ?',
     'Stock utilisable vs déchet ?',
   ]
 }

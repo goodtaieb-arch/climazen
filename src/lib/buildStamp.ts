@@ -2,7 +2,7 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v64'
+export const APP_VERSION = 'v65'
 
 /** Stamp technique (cache PWA / debug). */
 export const APP_BUILD = '2026-08-17-v60-fix-deploy'

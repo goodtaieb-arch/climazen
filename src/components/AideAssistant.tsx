@@ -1,8 +1,22 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Loader2, Send, Sparkles, X } from 'lucide-react'
+import { Check, Loader2, Send, Sparkles, X } from 'lucide-react'
 import { askAideAssistant, type AideMessage } from '../lib/assistantApi'
 import { suggestQuestionsForPath } from '../lib/assistantKnowledge'
+import {
+  buildEntityCatalog,
+  executeCreateOtCerfa,
+  extractActionFromReply,
+  isCancelPhrase,
+  isConfirmPhrase,
+  parseCreateOtCerfaIntent,
+  resolveCreateOtCerfa,
+  type ResolvedCreateOtCerfa,
+} from '../lib/assistantActions'
+import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
+import { VoiceDictationButton } from './VoiceDictationButton'
+import { formatOtNumero } from '../lib/ordreTravail'
 
 type ChatLine = AideMessage & { id: string }
 
@@ -10,23 +24,32 @@ function newId() {
   return crypto.randomUUID()
 }
 
+function stripActionJson(reply: string): string {
+  return reply
+    .replace(/```(?:json)?\s*\{[\s\S]*?"action"\s*:\s*"propose_create_ot_cerfa"[\s\S]*?\}\s*```/gi, '')
+    .replace(/\{[\s\S]*?"action"\s*:\s*"propose_create_ot_cerfa"[\s\S]*?\}/g, '')
+    .trim()
+}
+
 /**
- * Assistant d’aide ClimaZEN — bulle flottante dans l’app.
- * Mode guide local toujours actif ; IA cloud si GEMINI_API_KEY côté Vercel.
+ * Assistant ClimaZEN — guide + création OT/CERFA par phrase (avec confirmation).
  */
 export function AideAssistant() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { data, createOtForAction, upsertIntervention } = useStore()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [source, setSource] = useState<'api' | 'local' | null>(null)
+  const [pendingCreate, setPendingCreate] = useState<ResolvedCreateOtCerfa | null>(null)
   const [lines, setLines] = useState<ChatLine[]>(() => [
     {
       id: newId(),
       role: 'assistant',
       content:
-        'Bonjour — je peux vous expliquer ClimaZEN (OT, CERFA, stock, bouteilles). Posez une question ou choisissez une suggestion.',
+        'Bonjour — je peux expliquer ClimaZEN et aussi créer une OT + CERFA brouillon si vous me le demandez.\n\nExemple :\n« Crée une OT pour Mr Depon sur le site de test pour contrôle d’étanchéité de l’équipement clim RDC et crée le CERFA »',
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -35,7 +58,7 @@ export function AideAssistant() {
   useEffect(() => {
     if (!open) return
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines, open, busy])
+  }, [lines, open, busy, pendingCreate])
 
   useEffect(() => {
     const openFromVoice = () => setOpen(true)
@@ -43,30 +66,92 @@ export function AideAssistant() {
     return () => window.removeEventListener('climazen:open-aide', openFromVoice)
   }, [])
 
+  const pushAssistant = (content: string) => {
+    setLines((prev) => [...prev, { id: newId(), role: 'assistant', content }])
+  }
+
+  const tryProposeFromIntent = (intent: ReturnType<typeof parseCreateOtCerfaIntent>) => {
+    if (!intent) return false
+    const resolved = resolveCreateOtCerfa(data, intent)
+    if (!resolved.ok) {
+      pushAssistant(resolved.message)
+      setPendingCreate(null)
+      return true
+    }
+    setPendingCreate(resolved.resolved)
+    pushAssistant(resolved.resolved.summary)
+    return true
+  }
+
+  const runCreate = () => {
+    if (!pendingCreate) return
+    try {
+      const result = executeCreateOtCerfa(pendingCreate, {
+        createOtForAction,
+        upsertIntervention,
+        data,
+        technicien: user?.fullName || user?.email || '',
+        userId: user?.id,
+        userName: user?.fullName || user?.email,
+      })
+      setPendingCreate(null)
+      pushAssistant(
+        `${result.message}\n\n${formatOtNumero(result.otNumero)} — vérifiez puis signez / générez le PDF.`,
+      )
+      setOpen(false)
+      navigate(result.navigateTo)
+    } catch (err) {
+      pushAssistant(err instanceof Error ? err.message : 'Création impossible.')
+    }
+  }
+
   const send = async (text: string) => {
     const q = text.trim()
     if (!q || busy) return
     setInput('')
     const userLine: ChatLine = { id: newId(), role: 'user', content: q }
-    const nextMessages = [...lines, userLine]
-    setLines(nextMessages)
+    setLines((prev) => [...prev, userLine])
     setBusy(true)
     try {
+      // Confirmation / annulation d’une proposition en cours
+      if (pendingCreate && isConfirmPhrase(q)) {
+        runCreate()
+        return
+      }
+      if (pendingCreate && isCancelPhrase(q)) {
+        setPendingCreate(null)
+        pushAssistant('Création annulée.')
+        return
+      }
+
+      // 1) Intent local (fonctionne hors ligne / sans Gemini)
+      const localIntent = parseCreateOtCerfaIntent(q)
+      if (localIntent) {
+        setSource('local')
+        tryProposeFromIntent(localIntent)
+        return
+      }
+
+      // 2) Guide / Gemini (peut aussi proposer une ACTION JSON)
+      const nextMessages = [...lines, userLine]
       const { reply, source: src } = await askAideAssistant({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         pathname: location.pathname,
+        entityCatalog: buildEntityCatalog(data),
       })
       setSource(src)
-      setLines((prev) => [...prev, { id: newId(), role: 'assistant', content: reply }])
+
+      const geminiIntent = extractActionFromReply(reply)
+      if (geminiIntent) {
+        const cleaned = stripActionJson(reply)
+        if (cleaned) pushAssistant(cleaned)
+        tryProposeFromIntent(geminiIntent)
+        return
+      }
+
+      pushAssistant(reply)
     } catch {
-      setLines((prev) => [
-        ...prev,
-        {
-          id: newId(),
-          role: 'assistant',
-          content: 'Impossible de répondre pour le moment. Réessayez dans un instant.',
-        },
-      ])
+      pushAssistant('Impossible de répondre pour le moment. Réessayez dans un instant.')
     } finally {
       setBusy(false)
     }
@@ -77,7 +162,6 @@ export function AideAssistant() {
     void send(input)
   }
 
-  // Liens rapides détectés dans les réponses
   const goIfMentioned = (content: string) => {
     if (content.includes('/app/stock')) navigate('/app/stock')
     else if (content.includes('/app/appel')) navigate('/app/appel')
@@ -91,9 +175,9 @@ export function AideAssistant() {
     <>
       {open && (
         <div
-          className="fixed inset-x-3 top-[4.25rem] z-40 flex max-h-[min(72vh,560px)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-2xl sm:inset-x-auto sm:right-4 sm:top-16 sm:w-[380px] md:top-20"
+          className="fixed inset-x-3 top-[4.25rem] z-40 flex max-h-[min(72vh,560px)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-2xl sm:inset-x-auto sm:right-4 sm:top-16 sm:w-[400px] md:top-20"
           role="dialog"
-          aria-label="Assistant d’aide ClimaZEN"
+          aria-label="Assistant ClimaZEN"
         >
           <div className="flex items-center justify-between gap-2 border-b border-line bg-[#0f766e] px-4 py-3 text-white">
             <div className="min-w-0">
@@ -105,9 +189,9 @@ export function AideAssistant() {
                 {source === 'api'
                   ? 'IA cloud (Gemini)'
                   : source === 'local'
-                    ? 'Guide local (mots-clés)'
+                    ? 'Guide + actions locales'
                     : 'Prêt'}{' '}
-                · {location.pathname}
+                · OT / CERFA à la voix
               </p>
             </div>
             <button
@@ -151,7 +235,28 @@ export function AideAssistant() {
             <div ref={bottomRef} />
           </div>
 
-          {suggestions.length > 0 && (
+          {pendingCreate ? (
+            <div className="flex gap-2 border-t border-amber-200 bg-amber-50 px-3 py-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void send('oui')}
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-[#0f766e] px-3 text-xs font-extrabold text-white disabled:opacity-50"
+              >
+                <Check className="h-3.5 w-3.5" /> Oui, créer
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void send('non')}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-line bg-white px-3 text-xs font-bold text-ink disabled:opacity-50"
+              >
+                Annuler
+              </button>
+            </div>
+          ) : null}
+
+          {suggestions.length > 0 && !pendingCreate ? (
             <div className="flex flex-wrap gap-1.5 border-t border-line px-3 py-2">
               {suggestions.map((s) => (
                 <button
@@ -165,15 +270,22 @@ export function AideAssistant() {
                 </button>
               ))}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={onSubmit} className="flex gap-2 border-t border-line p-3">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Votre question…"
+              placeholder="Ex. crée une OT pour Mr …"
               className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-sm"
               disabled={busy}
+            />
+            <VoiceDictationButton
+              value={input}
+              onChange={setInput}
+              replace
+              title="Dicter la demande"
+              className="h-11 w-11 shrink-0 rounded-xl border border-line"
             />
             <button
               type="submit"

@@ -15,16 +15,24 @@ export type AideReply = {
 /**
  * Demande une réponse à l’assistant.
  * Essaie /api/assistant (Gemini si clé serveur), sinon guide local.
+ * @param entityCatalog — liste clients/sites (pour créer OT/CERFA par la voix)
  */
 export async function askAideAssistant(opts: {
   messages: AideMessage[]
   pathname?: string
+  entityCatalog?: string
 }): Promise<AideReply> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')
   const question = lastUser?.content || ''
   const pathname = opts.pathname || '/app'
 
   let fallbackHint: string | undefined
+  const context = [
+    buildAideContext(pathname),
+    opts.entityCatalog?.trim() || '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
   try {
     const res = await fetch('/api/assistant', {
@@ -34,7 +42,7 @@ export async function askAideAssistant(opts: {
         messages: opts.messages.slice(-12),
         pathname,
         system: AIDE_SYSTEM_PROMPT,
-        context: buildAideContext(pathname),
+        context,
       }),
     })
     if (res.ok) {
