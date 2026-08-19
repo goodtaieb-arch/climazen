@@ -37,7 +37,7 @@ function stripActionJson(reply: string): string {
 export function AideAssistant() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { data, createOtForAction, upsertIntervention } = useStore()
+  const { data, createOtForAction, upsertIntervention, upsertClient, upsertChantier } = useStore()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -49,7 +49,7 @@ export function AideAssistant() {
       id: newId(),
       role: 'assistant',
       content:
-        'Bonjour — je peux expliquer ClimaZEN et aussi créer une OT + CERFA brouillon si vous me le demandez.\n\nExemple :\n« Crée une OT pour Mr Depon sur le site de test pour contrôle d’étanchéité de l’équipement clim RDC et crée le CERFA »',
+        'Bonjour — dites-moi quoi créer, je prépare OT + CERFA brouillon (et client / site / équipement si besoin). Vous validez ensuite.\n\nExemple de phrase :\n« Crée une OT pour Mr Martin sur le site Atelier pour contrôle d’étanchéité clim RDC et crée le CERFA »',
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -88,6 +88,8 @@ export function AideAssistant() {
     try {
       const result = executeCreateOtCerfa(pendingCreate, {
         createOtForAction,
+        upsertClient,
+        upsertChantier,
         upsertIntervention,
         data,
         technicien: user?.fullName || user?.email || '',

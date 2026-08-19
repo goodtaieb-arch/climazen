@@ -24,7 +24,7 @@ Règles :
 
 Quand l’utilisateur demande de CRÉER un OT / CERFA :
 1) Identifie client, site, équipement et type (contrôle d’étanchéité, maintenance, dépannage…).
-2) Utilise UNIQUEMENT les clients/sites/équipements listés dans le contexte (ne les invente pas).
+2) Prefère les clients/sites/équipements listés dans le contexte ; si absents, propose quand même la création (l’app créera les fiches manquantes).
 3) Ajoute à la FIN de ta réponse un bloc JSON exact (rien d’autre dans le bloc) :
 
 \`\`\`json

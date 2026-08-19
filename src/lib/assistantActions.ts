@@ -1,6 +1,7 @@
 /**
  * Assistant ClimaZEN — créer OT + CERFA brouillon depuis une phrase.
- * Ex. « crée une OT pour Mr Depon sur le site de test pour contrôle d’étanchéité clim RDC et crée le CERFA »
+ * Peut aussi créer client / site / équipement s’ils n’existent pas encore.
+ * Le technicien valide ensuite (fluide, signatures, PDF).
  */
 
 import type { AppData, CerfaDraft, Client, Equipement, NatureIntervention, Site } from './types'
@@ -21,13 +22,35 @@ export type CreateOtCerfaIntent = {
   siteQuery: string
   equipQuery: string
   createCerfa: boolean
+  /** true si la phrase dit Mr / Mme */
+  clientIsParticulier?: boolean
+}
+
+export type PendingCreates = {
+  /** Client à créer (si pas trouvé) */
+  client?: {
+    typeClient: 'particulier' | 'entreprise'
+    raisonSociale: string
+    nom?: string
+    prenom?: string
+  }
+  /** Site à créer */
+  site?: { nom: string }
+  /** Équipement à créer sur le site */
+  equip?: { nom: string; type?: string }
 }
 
 export type ResolvedCreateOtCerfa = {
   intent: CreateOtCerfaIntent
-  client: Client
-  site: Site
-  equip: Equipement | null
+  /** IDs existants (sinon créés à l’exécution) */
+  clientId?: string
+  siteId?: string
+  equipId?: string
+  /** Aperçu libellés (existants ou à créer) */
+  clientLabel: string
+  siteLabel: string
+  equipLabel: string
+  create: PendingCreates
   needsCerfa: boolean
   summary: string
 }
@@ -141,6 +164,7 @@ export function parseCreateOtCerfaIntent(text: string): CreateOtCerfaIntent | nu
     (equipQuery ? ` — ${equipQuery}` : '') +
     (siteQuery ? ` — ${siteQuery}` : '')
 
+  const clientIsParticulier = /(?:mr|m\.|monsieur|mme|madame)\s+/i.test(raw)
   return {
     kind: 'create_ot_cerfa',
     typeOt,
@@ -149,6 +173,7 @@ export function parseCreateOtCerfaIntent(text: string): CreateOtCerfaIntent | nu
     siteQuery,
     equipQuery,
     createCerfa,
+    clientIsParticulier,
   }
 }
 
@@ -247,93 +272,152 @@ function bestEquip(site: Site, query: string): { hit: Equipement | null; alterna
   return { hit: top.e, alternatives: [] }
 }
 
-/** Résout client / site / équipement dans les données locales. */
+/** Résout client / site / équipement — crée le manquant si la phrase le nomme. */
 export function resolveCreateOtCerfa(
   data: AppData,
   intent: CreateOtCerfaIntent,
 ): { ok: true; resolved: ResolvedCreateOtCerfa } | { ok: false; message: string } {
-  const { hit: client, alternatives: clientAlts } = bestClient(data, intent.clientQuery)
-  if (!client) {
-    if (clientAlts.length) {
-      return {
-        ok: false,
-        message:
-          `Plusieurs clients possibles :\n` +
-          clientAlts.map((c) => `• ${clientDisplayName(c)}`).join('\n') +
-          `\n\nPrécisez le nom (ex. « pour Mr Depon »).`,
-      }
-    }
-    if (!intent.clientQuery) {
-      return {
-        ok: false,
-        message:
-          'Indiquez le client (ex. « crée une OT pour Mr Depon sur le site de test… »).',
-      }
-    }
-    return {
-      ok: false,
-      message: `Client « ${intent.clientQuery} » introuvable. Créez-le d’abord dans Clients, ou reformulez le nom.`,
-    }
-  }
-
-  const { hit: site, alternatives: siteAlts } = bestSite(data, intent.siteQuery, client.id)
-  if (!site) {
-    if (siteAlts.length) {
-      return {
-        ok: false,
-        message:
-          `Sites de ${clientDisplayName(client)} :\n` +
-          siteAlts.map((s) => `• ${s.nom}`).join('\n') +
-          `\n\nPrécisez le site (ex. « sur le site de test »).`,
-      }
-    }
-    return {
-      ok: false,
-      message: intent.siteQuery
-        ? `Site « ${intent.siteQuery} » introuvable pour ${clientDisplayName(client)}.`
-        : `Aucun site pour ${clientDisplayName(client)}. Créez le site d’abord.`,
-    }
-  }
-
-  const { hit: equip, alternatives: equipAlts } = bestEquip(site, intent.equipQuery)
-  if (!equip && equipAlts.length > 1) {
+  if (!intent.clientQuery?.trim()) {
     return {
       ok: false,
       message:
-        `Plusieurs équipements sur « ${site.nom} » :\n` +
-        equipAlts.map((e) => `• ${e.nom || e.type || e.id}`).join('\n') +
-        `\n\nPrécisez lequel (ex. « clim RDC »).`,
+        'Indiquez le client dans la phrase (ex. « crée une OT pour Mr Martin sur le site Atelier… »).',
     }
   }
 
-  const needsCerfa =
-    intent.createCerfa &&
-    !!equip &&
-    equip.avecFluideFrigorigene !== false &&
-    !!(equip.fluideType || '').trim()
+  const { hit: client, alternatives: clientAlts } = bestClient(data, intent.clientQuery)
+  if (!client && clientAlts.length > 1) {
+    return {
+      ok: false,
+      message:
+        `Plusieurs clients possibles :\n` +
+        clientAlts.map((c) => `• ${clientDisplayName(c)}`).join('\n') +
+        `\n\nPrécisez lequel, ou reformulez le nom.`,
+    }
+  }
+
+  const create: PendingCreates = {}
+  let clientId = client?.id
+  let clientLabel = client ? clientDisplayName(client) : ''
+
+  if (!client) {
+    const q = intent.clientQuery.trim()
+    if (intent.clientIsParticulier) {
+      const parts = q.split(/\s+/).filter(Boolean)
+      const nom = parts.length > 1 ? parts[parts.length - 1] : parts[0] || q
+      const prenom = parts.length > 1 ? parts.slice(0, -1).join(' ') : ''
+      create.client = {
+        typeClient: 'particulier',
+        nom,
+        prenom: prenom || '—',
+        raisonSociale: [prenom, nom].filter((x) => x && x !== '—').join(' ') || q,
+      }
+      clientLabel = `${prenom && prenom !== '—' ? prenom + ' ' : ''}${nom}`.trim() + ' (nouveau)'
+    } else {
+      create.client = {
+        typeClient: 'entreprise',
+        raisonSociale: q,
+      }
+      clientLabel = `${q} (nouveau)`
+    }
+  }
+
+  // Site
+  let site: Site | null = null
+  let siteAlts: Site[] = []
+  if (clientId) {
+    const r = bestSite(data, intent.siteQuery, clientId)
+    site = r.hit
+    siteAlts = r.alternatives
+  }
+  if (!site && siteAlts.length > 1 && !intent.siteQuery) {
+    return {
+      ok: false,
+      message:
+        `Plusieurs sites pour ce client :\n` +
+        siteAlts.map((s) => `• ${s.nom}`).join('\n') +
+        `\n\nPrécisez le site.`,
+    }
+  }
+
+  let siteId = site?.id
+  let siteLabel = site?.nom || ''
+  if (!site) {
+    const siteNom = (intent.siteQuery || 'Site intervention').trim()
+    create.site = { nom: siteNom }
+    siteLabel = `${siteNom} (nouveau)`
+  }
+
+  // Équipement
+  let equip: Equipement | null = null
+  let equipAlts: Equipement[] = []
+  if (site) {
+    const r = bestEquip(site, intent.equipQuery)
+    equip = r.hit
+    equipAlts = r.alternatives
+  }
+  if (!equip && equipAlts.length > 1 && intent.equipQuery) {
+    // Ambigu parmi existants → demander
+    const stillAmbiguous =
+      equipAlts.filter((e) => scoreMatch(e.nom || '', intent.equipQuery) >= 40).length > 1
+    if (stillAmbiguous) {
+      return {
+        ok: false,
+        message:
+          `Plusieurs équipements sur « ${site?.nom} » :\n` +
+          equipAlts.map((e) => `• ${e.nom || e.type || e.id}`).join('\n') +
+          `\n\nPrécisez lequel.`,
+      }
+    }
+  }
+
+  let equipId = equip?.id
+  let equipLabel = equip ? equip.nom || eqLabel(equip) : ''
+  if (!equip) {
+    const eqNom = (intent.equipQuery || 'Équipement clim').trim()
+    create.equip = { nom: eqNom, type: /clim/i.test(eqNom) ? 'Climatisation' : '' }
+    equipLabel = `${eqNom} (nouveau)`
+  }
+
+  // CERFA brouillon si demandé — le tech complète fluide / signatures
+  const needsCerfa = intent.createCerfa
+
+  const willCreate: string[] = []
+  if (create.client) willCreate.push('client')
+  if (create.site) willCreate.push('site')
+  if (create.equip) willCreate.push('équipement')
+  willCreate.push('OT')
+  if (needsCerfa) willCreate.push('CERFA brouillon')
 
   const summary = [
-    `Je peux créer :`,
+    `Je peux préparer :`,
     `• OT « ${TYPE_OT_LABELS[intent.typeOt]} »`,
-    `• Client : ${clientDisplayName(client)}`,
-    `• Site : ${site.nom}`,
-    equip ? `• Équipement : ${equip.nom || eqLabel(equip)}` : `• Équipement : (non précisé)`,
+    `• Client : ${clientLabel}`,
+    `• Site : ${siteLabel}`,
+    `• Équipement : ${equipLabel}`,
     needsCerfa
-      ? `• + CERFA brouillon (${(equip?.fluideType || '').trim() || 'fluide'})`
-      : intent.createCerfa
-        ? `• CERFA : pas de fluide sur cet équipement → OT seul`
-        : `• CERFA : non demandé`,
-    ``,
+      ? `• + CERFA brouillon (à compléter / valider par le technicien)`
+      : `• CERFA : non demandé`,
+    willCreate.length
+      ? `\nÀ créer : ${willCreate.join(', ')}.`
+      : '',
+    `\nLe technicien valide ensuite (fluide, signatures, PDF).`,
     `Répondez « oui » pour créer, ou « non » pour annuler.`,
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 
   return {
     ok: true,
     resolved: {
       intent,
-      client,
-      site,
-      equip: equip || null,
+      clientId,
+      siteId,
+      equipId,
+      clientLabel,
+      siteLabel,
+      equipLabel,
+      create,
       needsCerfa,
       summary,
     },
@@ -347,7 +431,10 @@ function eqLabel(e: Equipement): string {
 /** Catalogue compact pour Gemini (contexte). */
 export function buildEntityCatalog(data: AppData, max = 40): string {
   const clients = (data.clients || []).slice(0, max)
-  const lines: string[] = ['Clients / sites / équipements (données actuelles) :']
+  const lines: string[] = [
+    'Clients / sites / équipements (données actuelles).',
+    'Si un nom n’existe pas, l’app peut le créer après confirmation.',
+  ]
   for (const c of clients) {
     const sites = (data.chantiers || []).filter((s) => s.clientId === c.id).slice(0, 8)
     lines.push(`- Client « ${clientDisplayName(c)} »`)
@@ -359,7 +446,7 @@ export function buildEntityCatalog(data: AppData, max = 40): string {
       lines.push(`  · Site « ${s.nom} »${eqs ? ` → ${eqs}` : ''}`)
     }
   }
-  if (clients.length === 0) lines.push('(aucun client — demander de créer client/site d’abord)')
+  if (clients.length === 0) lines.push('(aucun client encore — création possible depuis la phrase)')
   return lines.join('\n')
 }
 
@@ -374,6 +461,8 @@ export type CreateOtCerfaDeps = {
     observations?: string
     statut?: 'en_cours'
   }) => { id: string; numero: string }
+  upsertClient: (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => string
+  upsertChantier: (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => string
   upsertIntervention: (
     i: Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
@@ -383,40 +472,139 @@ export type CreateOtCerfaDeps = {
   userName?: string
 }
 
-/** Crée l’OT (+ CERFA brouillon si fluide) et renvoie où naviguer. */
+/** Crée client/site/équipement manquants + OT (+ CERFA brouillon). */
 export function executeCreateOtCerfa(
   resolved: ResolvedCreateOtCerfa,
   deps: CreateOtCerfaDeps,
 ): ExecuteCreateResult {
-  const { client, site, equip, intent, needsCerfa } = resolved
+  const { intent, create, needsCerfa } = resolved
+  let clientId = resolved.clientId
+  let siteId = resolved.siteId
+  let equipId = resolved.equipId
+
+  if (create.client) {
+    const c = create.client
+    clientId = deps.upsertClient({
+      typeClient: c.typeClient,
+      raisonSociale: c.raisonSociale,
+      nom: c.nom || '',
+      prenom: c.prenom || '',
+      nomContact: c.typeClient === 'entreprise' ? c.raisonSociale : '',
+      adresse: '',
+      codePostal: '',
+      ville: '',
+      telephone: '',
+      email: '',
+      createdByUserId: deps.userId,
+      createdByName: deps.userName,
+    })
+  }
+  if (!clientId) throw new Error('Client manquant.')
+
+  if (create.site) {
+    siteId = deps.upsertChantier({
+      clientId,
+      nom: create.site.nom,
+      adresse: '',
+      codePostal: '',
+      ville: '',
+      statut: 'actif',
+      equipements: [],
+      equipementType: '',
+      equipementMarque: '',
+      equipementModele: '',
+      equipementNumeroSerie: '',
+      fluideType: '',
+      chargeNominaleKg: 0,
+      detectionPermanente: false,
+      avecFluideFrigorigene: true,
+      createdByUserId: deps.userId,
+      createdByName: deps.userName,
+    })
+  }
+  if (!siteId) throw new Error('Site manquant.')
+
+  // Recharger site depuis data peut être stale juste après upsert — reconstruire équipement
+  let equip: Equipement | null = null
+  if (equipId) {
+    const siteRow = deps.data.chantiers.find((s) => s.id === siteId)
+    equip = siteRow ? allEquipements(siteRow).find((e) => e.id === equipId) || null : null
+  }
+
+  if (create.equip) {
+    const existingSite = deps.data.chantiers.find((s) => s.id === siteId)
+    const existingEqs = existingSite ? allEquipements(existingSite) : []
+    const newEq: Equipement = {
+      id: crypto.randomUUID(),
+      nom: create.equip.nom,
+      type: create.equip.type || '',
+      marque: '',
+      modele: '',
+      numeroSerie: '',
+      avecFluideFrigorigene: true,
+      fluideType: '',
+      chargeNominaleKg: 0,
+      detectionPermanente: false,
+    }
+    siteId = deps.upsertChantier({
+      ...(existingSite || {
+        clientId,
+        nom: create.site?.nom || resolved.siteLabel.replace(/\s*\(nouveau\)\s*$/, ''),
+        adresse: '',
+        codePostal: '',
+        ville: '',
+        statut: 'actif' as const,
+        equipementType: '',
+        equipementMarque: '',
+        equipementModele: '',
+        equipementNumeroSerie: '',
+        fluideType: '',
+        chargeNominaleKg: 0,
+        detectionPermanente: false,
+      }),
+      id: siteId,
+      clientId,
+      equipements: [...existingEqs, newEq],
+      createdByUserId: deps.userId,
+      createdByName: deps.userName,
+    })
+    equipId = newEq.id
+    equip = newEq
+  }
+
+  if (!equip && equipId) {
+    const siteRow = deps.data.chantiers.find((s) => s.id === siteId)
+    equip = siteRow ? allEquipements(siteRow).find((e) => e.id === equipId) || null : null
+  }
+
   const ot = deps.createOtForAction({
     typeOt: intent.typeOt,
     action: intent.actionText,
-    clientId: client.id,
-    chantierId: site.id,
-    equipementId: equip?.id,
+    clientId,
+    chantierId: siteId,
+    equipementId: equipId,
     technicien: deps.technicien || deps.data.operateur?.raisonSociale || '',
     observations: intent.actionText,
     statut: 'en_cours',
   })
 
   let cerfaId: string | undefined
-  if (needsCerfa && equip) {
+  if (needsCerfa && equipId) {
     const natures = naturesCerfaPourTypeOt(intent.typeOt) as NatureIntervention[]
-    const charge = Number(equip.chargeNominaleKg) || 0
+    const charge = Number(equip?.chargeNominaleKg) || 0
     cerfaId = deps.upsertIntervention({
-      clientId: client.id,
-      chantierId: site.id,
-      equipementId: equip.id,
+      clientId,
+      chantierId: siteId,
+      equipementId: equipId,
       dateIntervention: new Date().toISOString().slice(0, 10),
       numeroIntervention: ot.numero,
       ordreTravailId: ot.id,
       operateur: deps.data.operateur,
       natures,
-      detectionPermanente: !!equip.detectionPermanente,
-      fluideType: equip.fluideType || '',
+      detectionPermanente: !!equip?.detectionPermanente,
+      fluideType: equip?.fluideType || '',
       quantiteTotaleKg: charge,
-      teqCO2: equip.teqCO2,
+      teqCO2: equip?.teqCO2,
       fuiteConstatee: false,
       manipulations: [],
       status: 'brouillon',
@@ -426,6 +614,14 @@ export function executeCreateOtCerfa(
     })
   }
 
+  const createdBits = [
+    create.client ? 'client' : null,
+    create.site ? 'site' : null,
+    create.equip ? 'équipement' : null,
+    'OT',
+    cerfaId ? 'CERFA brouillon' : null,
+  ].filter(Boolean)
+
   const label = formatOtNumero(ot.numero)
   if (cerfaId) {
     return {
@@ -433,14 +629,14 @@ export function executeCreateOtCerfa(
       otNumero: ot.numero,
       cerfaId,
       navigateTo: `/app/interventions/${cerfaId}?ot=${encodeURIComponent(ot.id)}`,
-      message: `${label} créé + CERFA brouillon. Je vous ouvre le CERFA pour vérifier fluide / signatures / PDF.`,
+      message: `${label} prêt (${createdBits.join(', ')}). Complétez fluide / signatures / PDF — le technicien valide.`,
     }
   }
   return {
     otId: ot.id,
     otNumero: ot.numero,
     navigateTo: `/app/ot?id=${encodeURIComponent(ot.id)}`,
-    message: `${label} créé. Pas de CERFA (pas de fluide ou non demandé) — je vous ouvre l’OT.`,
+    message: `${label} créé (${createdBits.join(', ')}). Ouvrez l’OT pour finaliser.`,
   }
 }
 
@@ -480,6 +676,9 @@ export function extractActionFromReply(reply: string): CreateOtCerfaIntent | nul
       siteQuery: (obj.siteQuery || '').trim(),
       equipQuery: (obj.equipQuery || '').trim(),
       createCerfa: obj.createCerfa !== false,
+      clientIsParticulier: /^(mr|mme|m\.|monsieur|madame)\b/i.test(
+        (obj.clientQuery || '').trim(),
+      ),
     }
   } catch {
     return null
