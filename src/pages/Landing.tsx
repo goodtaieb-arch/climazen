@@ -143,8 +143,8 @@ export function Landing() {
               'radial-gradient(ellipse 90% 70% at 100% 0%, #5eead455, transparent 55%), radial-gradient(ellipse 60% 50% at 0% 100%, #bae6fd44, transparent 50%), linear-gradient(165deg, #ecfdf9 0%, #f0fdfa 45%, #eff6ff 100%)',
           }}
         />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[0.9fr_1.2fr] lg:gap-8 lg:pb-20 lg:pt-12">
-          <div className="animate-[fadeUp_0.7s_ease-out]">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-12 lg:pb-20 lg:pt-12 xl:gap-16">
+          <div className="relative z-10 min-w-0 animate-[fadeUp_0.7s_ease-out] lg:pr-2">
             <div className="flex flex-col items-start gap-5">
               <div className="overflow-visible rounded-2xl border border-line/70 bg-white/90 px-5 py-4 shadow-lg shadow-accent/15 backdrop-blur">
                 <BrandLogo size="lg" />
@@ -162,7 +162,7 @@ export function Landing() {
               </div>
             </div>
 
-            <h1 className="font-display mt-6 max-w-xl text-3xl font-bold leading-[1.12] tracking-tight text-ink sm:text-4xl lg:text-[2.65rem]">
+            <h1 className="font-display mt-6 max-w-lg text-3xl font-bold leading-[1.12] tracking-tight text-ink sm:text-4xl lg:text-[2.55rem] xl:max-w-xl xl:text-[2.65rem]">
               ClimaZEN — CERFA fluides, même sans réseau
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-slate sm:text-lg">
@@ -203,19 +203,19 @@ export function Landing() {
             </p>
           </div>
 
-          {/* Téléphone + PC + pub Assistant IA (à droite) */}
-          <div className="relative flex w-full flex-col items-center gap-8 lg:flex-row lg:items-center lg:justify-end lg:gap-8 xl:gap-10">
+          {/* Téléphone + PC + pub Assistant IA (à droite, sans chevaucher le titre) */}
+          <div className="relative z-0 flex min-w-0 w-full flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-end lg:gap-5 xl:gap-6">
           {/* Composition : téléphone + aperçu site (navigateur) */}
-          <div className="relative mx-auto w-full max-w-[400px] animate-[fadeUp_0.9s_ease-out] overflow-visible sm:max-w-[440px] lg:mx-0 lg:max-w-[400px] lg:shrink-0">
+          <div className="relative mx-auto w-full max-w-[360px] animate-[fadeUp_0.9s_ease-out] overflow-visible sm:max-w-[400px] lg:mx-0 lg:max-w-[340px] lg:shrink xl:max-w-[360px]">
             <div
               className="pointer-events-none absolute -inset-8 rounded-[50%] bg-gradient-to-br from-accent/35 via-sky-300/25 to-transparent blur-3xl sm:-inset-12"
               aria-hidden
             />
 
-            <div className="relative flex flex-col items-center gap-6 sm:block sm:min-h-[520px] lg:min-h-[560px]">
+            <div className="relative flex flex-col items-center gap-6 sm:block sm:min-h-[480px] lg:min-h-[520px]">
               {/* Navigateur — Sites & Parc (derrière / à côté) */}
-              <div className="relative order-2 w-full max-w-[340px] sm:absolute sm:left-0 sm:top-6 sm:order-none sm:w-[72%] sm:max-w-none lg:left-0 lg:top-4 lg:w-[78%]">
-                <div className="overflow-hidden rounded-2xl border border-slate-700/40 bg-gradient-to-b from-slate-700 to-slate-900 p-[7px] shadow-[0_22px_50px_-18px_rgba(7,24,32,0.5)] sm:rotate-[-2.5deg]">
+              <div className="relative order-2 w-full max-w-[340px] sm:absolute sm:left-3 sm:top-6 sm:order-none sm:w-[70%] sm:max-w-none lg:left-4 lg:top-4 lg:w-[74%]">
+                <div className="overflow-hidden rounded-2xl border border-slate-700/40 bg-gradient-to-b from-slate-700 to-slate-900 p-[7px] shadow-[0_22px_50px_-18px_rgba(7,24,32,0.5)] sm:rotate-[-2deg]">
                   {/* Barre fenêtre */}
                   <div className="flex items-center gap-2 rounded-t-xl bg-slate-800/90 px-3 py-2">
                     <span className="flex gap-1.5" aria-hidden>
@@ -340,7 +340,7 @@ export function Landing() {
               </div>
 
               {/* Téléphone — Accueil 3D (premier plan) */}
-              <div className="relative z-10 order-1 w-full max-w-[240px] sm:absolute sm:bottom-0 sm:right-2 sm:order-none sm:w-[44%] sm:max-w-[250px] lg:right-0 lg:w-[42%]">
+              <div className="relative z-10 order-1 w-full max-w-[240px] sm:absolute sm:bottom-0 sm:right-0 sm:order-none sm:w-[46%] sm:max-w-[230px] lg:right-0 lg:w-[44%]">
                 <div className="relative mx-auto rounded-[2.75rem] bg-gradient-to-b from-slate-800 via-ink to-slate-950 p-[11px] shadow-[0_28px_60px_-12px_rgba(7,24,32,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset] sm:rotate-[3deg]">
                   <span
                     className="pointer-events-none absolute -left-[3px] top-28 h-8 w-[3px] rounded-l-sm bg-slate-700"
@@ -477,7 +477,7 @@ export function Landing() {
 
           {/* Pub Assistant IA — à droite du mockup téléphone / PC */}
           <aside
-            className="relative z-20 w-full max-w-[340px] animate-[fadeUp_1.05s_ease-out] lg:w-[280px] lg:shrink-0 xl:w-[300px]"
+            className="relative z-20 w-full max-w-[320px] animate-[fadeUp_1.05s_ease-out] lg:w-[250px] lg:shrink-0 xl:w-[270px]"
             aria-label="Assistant IA ClimaZEN"
           >
             <div
