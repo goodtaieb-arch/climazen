@@ -42,9 +42,11 @@ import type { ContratMaintenance } from './contratMaintenance'
 import type { AgendaEvent } from './agenda'
 import { buildAutoAgendaEvents } from './agenda'
 import {
+  getCloudUpdatedAt,
   getPendingSync,
   isBrowserOnline,
   markSynced,
+  setCloudUpdatedAt,
   setPendingSync,
 } from './offlineSync'
 
@@ -58,6 +60,8 @@ type Store = {
   pendingSync: boolean
   /** Pousse maintenant les données locales vers le cloud */
   flushPendingSync: () => Promise<void>
+  /** Tire le cloud (PC ↔ téléphone) et applique le plus récent. */
+  pullFromCloud: () => Promise<void>
   clearSyncError: () => void
   /** Enregistre le cadre société + sync cloud immédiat (comme le logo). */
   setOperateur: (o: Operateur) => Promise<void>
@@ -194,6 +198,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const skipNextSave = useRef(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flushing = useRef(false)
+  const syncingPull = useRef(false)
   const dataRef = useRef(data)
   dataRef.current = data
 
@@ -228,9 +233,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     flushing.current = true
     try {
-      const payload = dataRef.current
+      let payload = dataRef.current
+      // Tire d’abord le cloud (autre appareil) puis fusionne avant de pousser
+      try {
+        const remotePack = await loadOrgDataRemote(orgId)
+        const { data: merged } = resolveRemoteVsLocal(remotePack.data, payload, {
+          remoteUpdatedAt: remotePack.updatedAt,
+          knownCloudAt: getCloudUpdatedAt(orgId),
+          hasLocalPending: true,
+        })
+        payload = applyLocalLogo(merged, orgId)
+        skipNextSave.current = true
+        dataRef.current = payload
+        setData(payload)
+        if (remotePack.updatedAt) setCloudUpdatedAt(orgId, remotePack.updatedAt)
+      } catch {
+        /* réseau partiel → pousser le local quand même */
+      }
       saveData(payload, orgId)
-      await saveOrgDataRemote(orgId, payload)
+      const { updatedAt } = await saveOrgDataRemote(orgId, payload)
+      setCloudUpdatedAt(orgId, updatedAt)
       markSynced(orgId)
       setPendingSyncState(false)
       setSyncError(null)
@@ -244,10 +266,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [orgId, markPending])
 
+  const pullFromCloud = useCallback(async () => {
+    if (!orgId || !hydrated || syncingPull.current || flushing.current) return
+    if (!isBrowserOnline()) {
+      setOffline(true)
+      return
+    }
+    // Saisies locales en attente → fusion + push (ne pas écraser)
+    if (getPendingSync(orgId)) {
+      await flushPendingSync()
+      return
+    }
+    syncingPull.current = true
+    try {
+      const remotePack = await loadOrgDataRemote(orgId)
+      const known = getCloudUpdatedAt(orgId)
+      // Déjà à jour
+      if (remotePack.updatedAt && known && remotePack.updatedAt <= known) {
+        setOffline(false)
+        return
+      }
+      const local = dataRef.current
+      const { data: resolved, shouldPushLocal } = resolveRemoteVsLocal(remotePack.data, local, {
+        remoteUpdatedAt: remotePack.updatedAt,
+        knownCloudAt: known,
+        hasLocalPending: false,
+      })
+      const merged = applyLocalLogo(resolved, orgId)
+      skipNextSave.current = true
+      dataRef.current = merged
+      setData(merged)
+      saveData(merged, orgId)
+      if (remotePack.updatedAt) setCloudUpdatedAt(orgId, remotePack.updatedAt)
+      setOffline(false)
+      setSyncError(null)
+      if (shouldPushLocal) {
+        markPending(true)
+        setPendingSyncState(true)
+        await flushPendingSync()
+      } else {
+        markSynced(orgId)
+        setPendingSyncState(false)
+      }
+    } catch (err) {
+      console.error(err)
+      setSyncError(err instanceof Error ? err.message : 'Sync cloud impossible')
+    } finally {
+      syncingPull.current = false
+    }
+  }, [orgId, hydrated, flushPendingSync, markPending])
+
   useEffect(() => {
     const onOnline = () => {
       setOffline(false)
       void flushPendingSync()
+      void pullFromCloud()
     }
     const onOffline = () => setOffline(true)
     window.addEventListener('online', onOnline)
@@ -256,7 +329,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
     }
-  }, [flushPendingSync])
+  }, [flushPendingSync, pullFromCloud])
+
+  // Sync auto PC ↔ téléphone : à chaque retour sur l’app + toutes les 20 s
+  useEffect(() => {
+    if (!orgId || !hydrated) return
+    const tick = () => {
+      if (document.visibilityState === 'visible') void pullFromCloud()
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void pullFromCloud()
+    }
+    window.addEventListener('focus', tick)
+    document.addEventListener('visibilitychange', onVis)
+    const poll = window.setInterval(tick, 20000)
+    // Premier pull juste après hydrate (autre appareil a pu changer)
+    const t0 = window.setTimeout(() => void pullFromCloud(), 800)
+    return () => {
+      window.removeEventListener('focus', tick)
+      document.removeEventListener('visibilitychange', onVis)
+      window.clearInterval(poll)
+      window.clearTimeout(t0)
+    }
+  }, [orgId, hydrated, pullFromCloud])
 
   useEffect(() => {
     let cancelled = false
@@ -298,7 +393,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        const remote = await Promise.race([
+        const remotePack = await Promise.race([
           loadOrgDataRemote(orgId),
           new Promise<never>((_, reject) =>
             window.setTimeout(
@@ -309,12 +404,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ])
         if (cancelled) return
         const local = loadData(orgId)
-        const { data: resolved, shouldPushLocal } = resolveRemoteVsLocal(remote, local)
+        const { data: resolved, shouldPushLocal } = resolveRemoteVsLocal(
+          remotePack.data,
+          local,
+          {
+            remoteUpdatedAt: remotePack.updatedAt,
+            knownCloudAt: getCloudUpdatedAt(orgId),
+            hasLocalPending: hadPending,
+          },
+        )
         const merged = applyLocalLogo(resolved, orgId)
         skipNextSave.current = true
         dataRef.current = merged
         setData(merged)
         saveData(merged, orgId)
+        if (remotePack.updatedAt) setCloudUpdatedAt(orgId, remotePack.updatedAt)
         setHydrated(true)
         setOffline(false)
         if (shouldPushLocal) {
@@ -362,7 +466,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       void saveOrgDataRemote(orgId, data)
-        .then(() => {
+        .then(({ updatedAt }) => {
+          setCloudUpdatedAt(orgId, updatedAt)
           markSynced(orgId)
           setPendingSyncState(false)
           setSyncError(null)
@@ -393,7 +498,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return
       }
       try {
-        await saveOrgDataRemote(orgId, next)
+        const { updatedAt } = await saveOrgDataRemote(orgId, next)
+        setCloudUpdatedAt(orgId, updatedAt)
         markSynced(orgId)
         setPendingSyncState(false)
         setSyncError(null)
@@ -419,7 +525,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return
       }
       try {
-        await saveOrgDataRemote(orgId, next)
+        const { updatedAt } = await saveOrgDataRemote(orgId, next)
+        setCloudUpdatedAt(orgId, updatedAt)
         markSynced(orgId)
         setPendingSyncState(false)
         setSyncError(null)
@@ -1395,7 +1502,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     skipNextSave.current = true
     setData(demo)
     saveData(demo, orgId)
-    void saveOrgDataRemote(orgId, demo)
+    void saveOrgDataRemote(orgId, demo).then(({ updatedAt }) => {
+      setCloudUpdatedAt(orgId, updatedAt)
+      markSynced(orgId)
+    })
   }, [orgId])
 
   const value = useMemo(
@@ -1406,6 +1516,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       offline,
       pendingSync,
       flushPendingSync,
+      pullFromCloud,
       clearSyncError,
       setOperateur,
       setCompanyLogo,
@@ -1446,6 +1557,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       offline,
       pendingSync,
       flushPendingSync,
+      pullFromCloud,
       clearSyncError,
       setOperateur,
       setCompanyLogo,

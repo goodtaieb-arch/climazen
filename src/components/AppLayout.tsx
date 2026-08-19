@@ -158,7 +158,8 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
 
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
-  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync } = useStore()
+  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud } =
+    useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -423,6 +424,21 @@ export function AppLayout() {
                 className="touch-target shrink-0 px-2 text-xs font-semibold text-accent hover:underline"
               >
                 Synchroniser
+              </button>
+            </div>
+          )}
+          {!offline && !pendingSync && (
+            <div className="mb-3 flex items-center justify-between gap-2 text-[11px] text-muted">
+              <span>
+                Sync auto PC ↔ téléphone
+                {lastSyncLabel ? ` · ${lastSyncLabel}` : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => void pullFromCloud()}
+                className="font-semibold text-accent hover:underline"
+              >
+                Actualiser maintenant
               </button>
             </div>
           )}

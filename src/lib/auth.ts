@@ -443,29 +443,42 @@ export function generateTempPassword(): string {
 }
 
 /** Charge AppData depuis Supabase (fallback vide). */
-export async function loadOrgDataRemote(organizationId: string): Promise<AppData> {
+export type OrgDataRemote = {
+  data: AppData
+  updatedAt: string | null
+}
+
+export async function loadOrgDataRemote(organizationId: string): Promise<OrgDataRemote> {
   const sb = getSupabase()
   const { data, error } = await sb
     .from('org_data')
-    .select('payload')
+    .select('payload, updated_at')
     .eq('organization_id', organizationId)
     .maybeSingle()
   if (error) throw new Error(error.message)
-  return normalizeAppData(data?.payload)
+  return {
+    data: normalizeAppData(data?.payload),
+    updatedAt: (data?.updated_at as string | undefined) || null,
+  }
 }
 
-export async function saveOrgDataRemote(organizationId: string, data: AppData): Promise<void> {
+export async function saveOrgDataRemote(
+  organizationId: string,
+  data: AppData,
+): Promise<{ updatedAt: string }> {
   const sb = getSupabase()
   const light = stripHeavy(data)
+  const updatedAt = new Date().toISOString()
   const { error } = await sb.from('org_data').upsert(
     {
       organization_id: organizationId,
       payload: light,
-      updated_at: new Date().toISOString(),
+      updated_at: updatedAt,
     },
     { onConflict: 'organization_id' },
   )
   if (error) throw new Error(error.message)
+  return { updatedAt }
 }
 
 function stripHeavy(data: AppData): AppData {
@@ -595,12 +608,53 @@ export function mergeOperateurPreferFilled(
   }
 }
 
+function entityStamp(item: { updatedAt?: string; createdAt?: string }): string {
+  return (item.updatedAt || item.createdAt || '').trim()
+}
+
+/** Fusionne deux listes par id — garde la version la plus récente (updatedAt / createdAt). */
+export function mergeByIdLatest<T extends { id: string; updatedAt?: string; createdAt?: string }>(
+  remote: T[] | undefined,
+  local: T[] | undefined,
+  /** Si true, en cas d’égalité de date on garde `prefer` (remote|local). */
+  preferOnTie: 'remote' | 'local' = 'local',
+): T[] {
+  const map = new Map<string, T>()
+  const order =
+    preferOnTie === 'remote'
+      ? [...(local || []), ...(remote || [])]
+      : [...(remote || []), ...(local || [])]
+  for (const item of order) {
+    if (!item?.id) continue
+    const prev = map.get(item.id)
+    if (!prev) {
+      map.set(item.id, item)
+      continue
+    }
+    const tPrev = entityStamp(prev)
+    const tItem = entityStamp(item)
+    if (!tPrev && tItem) map.set(item.id, item)
+    else if (!tItem && tPrev) map.set(item.id, prev)
+    else if (tItem > tPrev) map.set(item.id, item)
+    else if (tItem < tPrev) map.set(item.id, prev)
+    else map.set(item.id, item) // égalité → dernier dans `order` (préféré)
+  }
+  return [...map.values()]
+}
+
 /**
- * Au chargement : fusionne cloud + cache appareil sans perdre société ni détecteurs.
+ * Au chargement / sync : fusionne cloud + cache appareil.
+ * - Cloud plus récent + pas de saisie locale en attente → cloud gagne (PC ↔ téléphone).
+ * - Saisie locale en attente → fusion par id puis re-pousse.
  */
 export function resolveRemoteVsLocal(
   remote: AppData,
   local: AppData,
+  opts?: {
+    remoteUpdatedAt?: string | null
+    knownCloudAt?: string | null
+    hasLocalPending?: boolean
+  },
 ): { data: AppData; shouldPushLocal: boolean } {
   const localW = appDataWeight(local)
   const remoteW = appDataWeight(remote)
@@ -609,26 +663,43 @@ export function resolveRemoteVsLocal(
     return { data: local, shouldPushLocal: true }
   }
 
-  const pickLonger = <T,>(a: T[] | undefined, b: T[] | undefined): T[] => {
-    const aa = a || []
-    const bb = b || []
-    return bb.length > aa.length ? bb : aa
+  const remoteAt = (opts?.remoteUpdatedAt || '').trim()
+  const knownAt = (opts?.knownCloudAt || '').trim()
+  const remoteIsNewer = Boolean(remoteAt && (!knownAt || remoteAt > knownAt))
+  const hasPending = Boolean(opts?.hasLocalPending)
+
+  // Autre appareil a poussé plus récemment, et pas de brouillon local en attente → prendre le cloud
+  if (remoteIsNewer && !hasPending) {
+    return {
+      data: {
+        ...remote,
+        operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
+      },
+      shouldPushLocal: false,
+    }
   }
 
-  // Toujours fusionner les champs société + garder le plus long des tableaux critiques
+  const preferOnTie: 'remote' | 'local' = remoteIsNewer ? 'remote' : 'local'
   const operateur = mergeOperateurPreferFilled(remote.operateur, local.operateur)
-  const detecteurs = pickLonger(remote.detecteurs, local.detecteurs)
-  const clients = pickLonger(remote.clients, local.clients)
-  const chantiers = pickLonger(remote.chantiers, local.chantiers)
-  const interventions = pickLonger(remote.interventions, local.interventions)
-  const stock = pickLonger(remote.stock, local.stock)
-  const fichesMaintenanceClim = pickLonger(remote.fichesMaintenanceClim, local.fichesMaintenanceClim)
-  const ordresTravail = pickLonger(remote.ordresTravail, local.ordresTravail)
-  const contratsMaintenance = pickLonger(remote.contratsMaintenance, local.contratsMaintenance)
-  const agendaEvents = pickLonger(remote.agendaEvents, local.agendaEvents)
-  const stockMouvements = pickLonger(remote.stockMouvements, local.stockMouvements)
+  const detecteurs = mergeByIdLatest(remote.detecteurs, local.detecteurs, preferOnTie)
+  const clients = mergeByIdLatest(remote.clients, local.clients, preferOnTie)
+  const chantiers = mergeByIdLatest(remote.chantiers, local.chantiers, preferOnTie)
+  const interventions = mergeByIdLatest(remote.interventions, local.interventions, preferOnTie)
+  const stock = mergeByIdLatest(remote.stock, local.stock, preferOnTie)
+  const fichesMaintenanceClim = mergeByIdLatest(
+    remote.fichesMaintenanceClim,
+    local.fichesMaintenanceClim,
+    preferOnTie,
+  )
+  const ordresTravail = mergeByIdLatest(remote.ordresTravail, local.ordresTravail, preferOnTie)
+  const contratsMaintenance = mergeByIdLatest(
+    remote.contratsMaintenance,
+    local.contratsMaintenance,
+    preferOnTie,
+  )
+  const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
+  const stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
-  // Base = le plus riche, puis surcharges fusionnées
   const base = localW > remoteW ? local : remote
   const merged: AppData = {
     ...base,
@@ -647,6 +718,7 @@ export function resolveRemoteVsLocal(
 
   const mergedW = appDataWeight(merged)
   const shouldPushLocal =
+    hasPending ||
     mergedW > remoteW ||
     (detecteurs?.length || 0) > (remote.detecteurs?.length || 0) ||
     Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||

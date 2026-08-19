@@ -160,7 +160,12 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
     title: 'Hors ligne / sync',
     keywords: ['offline', 'hors ligne', 'sync', 'synchron', 'reseau', 'réseau', 'connexion'],
     paths: ['/app'],
-    answer: `ClimaZEN est une PWA : vous pouvez travailler terrain hors ligne puis synchroniser quand le réseau revient. Les brouillons CERFA se sauvent localement. Le bandeau affiche la dernière sync réussie et un bouton « Synchroniser » si des saisies sont en attente.`,
+    answer: `ClimaZEN synchronise automatiquement PC et téléphone via le cloud :
+• À chaque modification (sous ~1 s)
+• Quand vous rouvrez l’app / repassez dessus
+• Toutes les 20 secondes en arrière-plan
+Le dernier changement gagne. Bouton « Actualiser maintenant » si besoin.
+Hors ligne : les saisies restent sur l’appareil puis partent au retour du réseau.`,
   },
   {
     id: 'vocal',

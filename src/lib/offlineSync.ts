@@ -2,6 +2,7 @@
 
 const pendingKey = (organizationId: string) => `climazen_pending_sync_${organizationId}`
 const lastSyncKey = (organizationId: string) => `climazen_last_sync_${organizationId}`
+const cloudUpdatedKey = (organizationId: string) => `climazen_cloud_updated_${organizationId}`
 const sessionCacheKey = 'climazen_offline_session'
 
 export type OfflineSessionCache = {
@@ -49,6 +50,28 @@ export function getLastSyncAt(organizationId: string | null | undefined): string
     return localStorage.getItem(lastSyncKey(organizationId))
   } catch {
     return null
+  }
+}
+
+/** Dernier updated_at connu de org_data (cloud). */
+export function getCloudUpdatedAt(organizationId: string | null | undefined): string | null {
+  if (!organizationId) return null
+  try {
+    return localStorage.getItem(cloudUpdatedKey(organizationId))
+  } catch {
+    return null
+  }
+}
+
+export function setCloudUpdatedAt(
+  organizationId: string | null | undefined,
+  updatedAt: string | null | undefined,
+) {
+  if (!organizationId || !updatedAt) return
+  try {
+    localStorage.setItem(cloudUpdatedKey(organizationId), updatedAt)
+  } catch {
+    /* ignore */
   }
 }
 
