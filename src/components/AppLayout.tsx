@@ -370,9 +370,7 @@ export function AppLayout() {
               </button>
             </div>
           </div>
-          <div className="border-t border-line/70 bg-[#0f766e] px-3 py-1.5 sm:px-6">
-            <VersionUpdateBar dark />
-          </div>
+          <VersionUpdateBar dark />
         </div>
         <div className="overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <ImportLocalBanner />

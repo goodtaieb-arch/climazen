@@ -213,37 +213,34 @@ export function MajButton({ className = '' }: { className?: string }) {
   )
 }
 
-/** Bandeau version — texte aligné sur le bouton MAJ (jamais « à jour » si MAJ vXX). */
+/**
+ * Bandeau version — visible **uniquement** s’il y a une mise à jour serveur.
+ * Sinon rien (le badge + bouton MAJ du header restent disponibles).
+ */
 export function VersionUpdateBar({ dark = false }: { dark?: boolean }) {
   const { server, needsUpdate, local } = useServerAppVersion()
+
+  if (!needsUpdate || !server) return null
 
   return (
     <div
       className={
         dark
-          ? 'flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white'
+          ? 'flex flex-wrap items-center justify-between gap-2 border-t border-white/15 bg-[#0f766e] px-3 py-2 text-sm text-white sm:px-6'
           : 'flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0f766e]/30 bg-[#0f766e]/10 px-3 py-2 text-sm text-ink'
       }
     >
       <p className="font-semibold">
         Version <span className="font-extrabold">{local}</span>
-        {needsUpdate ? (
-          <span className={dark ? 'text-amber-100' : 'text-amber-950'}>
-            {' '}
-            — mise à jour <span className="font-extrabold">{server}</span> disponible
-          </span>
-        ) : server ? (
-          <span className={dark ? 'opacity-80' : 'text-muted'}> — à jour ({server})</span>
-        ) : (
-          <span className={dark ? 'opacity-80' : 'text-muted'}> — vérification…</span>
-        )}
+        <span className={dark ? 'text-amber-100' : 'text-amber-950'}>
+          {' '}
+          — mise à jour <span className="font-extrabold">{server}</span> disponible
+        </span>
       </p>
       <MajButton
         className={
           dark
-            ? needsUpdate
-              ? 'rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-extrabold uppercase text-amber-950 animate-pulse'
-              : 'rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-extrabold uppercase text-amber-950'
+            ? 'rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-extrabold uppercase text-amber-950 animate-pulse'
             : undefined
         }
       />

@@ -57,13 +57,11 @@ export function LoginPage() {
           <BrandLogo onDark size="md" />
           <VersionBadge />
         </div>
-        <div className="mb-4">
-          <VersionUpdateBar dark />
-        </div>
+        <VersionUpdateBar dark />
         <form
           onSubmit={onSubmit}
           autoComplete="off"
-          className="rounded-2xl border border-white/10 bg-slate p-6 shadow-xl sm:p-8"
+          className="mt-4 rounded-2xl border border-white/10 bg-slate p-6 shadow-xl sm:p-8"
         >
           <h1 className="font-display text-2xl font-bold">Connexion</h1>
           <p className="mt-1 text-sm text-white/60">
