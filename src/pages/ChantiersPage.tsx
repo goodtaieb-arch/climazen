@@ -115,6 +115,23 @@ const blankEquip = (avecFluide = true): Equipement => ({
   detectionPermanente: false,
 })
 
+/**
+ * Ancien bug : en tapant le libellé (« clim… »), la 1re lettre était copiée dans Type
+ * et restait coincée (« c »). On nettoie ces résidus 1 caractère.
+ */
+function scrubStuckEquipType(eq: Equipement): Equipement {
+  const type = (eq.type || '').trim()
+  const nom = (eq.nom || '').trim()
+  if (
+    type.length === 1 &&
+    nom.length > 1 &&
+    nom.toLowerCase().startsWith(type.toLowerCase())
+  ) {
+    return { ...eq, type: '' }
+  }
+  return eq
+}
+
 const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   clientId,
   nom: '',
@@ -679,7 +696,7 @@ export function ChantiersPage() {
   const patchCurrentEquip = (patch: Partial<Equipement>) => {
     const list = [...equipements]
     const i = Math.min(equipIdx, list.length - 1)
-    const nextEq = { ...list[i], ...patch }
+    const nextEq = scrubStuckEquipType({ ...list[i], ...patch })
     if (patch.fluideType != null || patch.chargeNominaleKg != null) {
       const teq = calcTeqCO2FromFluide(
         Number(nextEq.chargeNominaleKg) || 0,
@@ -1315,8 +1332,10 @@ export function ChantiersPage() {
                       type="button"
                       onClick={() => {
                         setEquipIdx(i)
+                        const eq = scrubStuckEquipType(equipements[i])
                         setForm({
                           ...form,
+                          equipements: equipements.map((e, j) => (j === i ? eq : e)),
                           equipementType: eq.type,
                           equipementMarque: eq.marque,
                           equipementModele: eq.modele,
@@ -1366,7 +1385,7 @@ export function ChantiersPage() {
           <SmartSuggestField
             label="Nom / libellé équipement *"
             value={currentEquip.nom || ''}
-            onChange={(v) => patchCurrentEquip({ nom: v, type: currentEquip.type || v })}
+            onChange={(v) => patchCurrentEquip({ nom: v })}
             onPick={(s) => {
               // Reprendre type/marque/modèle d’un équipement déjà connu (nouvel id)
               const [siteId, eqId] = s.id.split(':')
@@ -1381,12 +1400,16 @@ export function ChantiersPage() {
                 return
               }
               if (!src) {
-                patchCurrentEquip({ nom: s.label, type: currentEquip.type || s.label })
+                // Ne remplit Type que s’il est vide (évite le « c » coincé en tapant Clim…)
+                patchCurrentEquip({
+                  nom: s.label,
+                  ...(currentEquip.type.trim() ? {} : { type: '' }),
+                })
                 return
               }
               patchCurrentEquip({
                 nom: src.nom || s.label,
-                type: src.type || src.nom || s.label,
+                type: src.type || currentEquip.type || '',
                 marque: src.marque || currentEquip.marque,
                 modele: src.modele || currentEquip.modele,
                 avecFluideFrigorigene: src.avecFluideFrigorigene,
@@ -1425,22 +1448,26 @@ export function ChantiersPage() {
           <Field
             label={currentAvecFluide ? 'Type d’équipement' : 'Équipement / matériel'}
             value={form.equipementType}
-            onChange={(v) => patchCurrentEquip({ type: v, nom: currentEquip.nom || v })}
+            onChange={(v) => patchCurrentEquip({ type: v })}
+            autoComplete="off"
           />
           <Field
             label="Marque"
             value={form.equipementMarque}
             onChange={(v) => patchCurrentEquip({ marque: v })}
+            autoComplete="off"
           />
           <Field
             label="Modèle"
             value={form.equipementModele}
             onChange={(v) => patchCurrentEquip({ modele: v })}
+            autoComplete="off"
           />
           <Field
             label="N° série"
             value={form.equipementNumeroSerie}
             onChange={(v) => patchCurrentEquip({ numeroSerie: v })}
+            autoComplete="off"
           />
           {equipements.length > 1 && (
             <button
