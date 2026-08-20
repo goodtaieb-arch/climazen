@@ -30,6 +30,8 @@ export function ContratsMaintenancePage() {
   const clientFromQuery = params.get('client') || ''
   const newMode = params.get('new') === '1'
   const [q, setQ] = useState('')
+  /** Fiche de saisie d’abord — pas directement signatures / texte long */
+  const [step, setStep] = useState<'infos' | 'texte' | 'signatures'>('infos')
 
   const existing = useMemo(
     () => (data.contratsMaintenance || []).find((c) => c.id === editId) || null,
@@ -46,7 +48,15 @@ export function ContratsMaintenancePage() {
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = existing
     setForm(rest)
     setPickModele(false)
-  }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+    setStep('infos')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [existing?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (form && !pickModele) {
+      window.scrollTo(0, 0)
+    }
+  }, [step, form?.numero, pickModele]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const list = useMemo(() => {
     return [...(data.contratsMaintenance || [])]
@@ -82,6 +92,7 @@ export function ContratsMaintenancePage() {
     )
     setForm(draft)
     setPickModele(false)
+    setStep('infos')
     navigate('/app/contrats?new=1', { replace: true })
   }
 
@@ -201,6 +212,11 @@ export function ContratsMaintenancePage() {
 
   if (showForm && form) {
     const client = data.clients.find((c) => c.id === form.clientId)
+    const steps = [
+      { id: 'infos' as const, label: '1. Fiche' },
+      { id: 'texte' as const, label: '2. Texte' },
+      { id: 'signatures' as const, label: '3. Signatures' },
+    ]
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -208,6 +224,7 @@ export function ContratsMaintenancePage() {
             type="button"
             onClick={() => {
               setForm(null)
+              setStep('infos')
               navigate('/app/contrats')
             }}
             className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-white px-3 text-sm font-semibold"
@@ -222,230 +239,336 @@ export function ContratsMaintenancePage() {
           </span>
         </div>
 
+        <nav className="flex gap-1 rounded-2xl border border-line bg-white p-1" aria-label="Étapes contrat">
+          {steps.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setStep(s.id)}
+              className={[
+                'min-h-11 flex-1 rounded-xl px-2 text-xs font-bold sm:text-sm',
+                step === s.id
+                  ? 'bg-[#0f766e] text-white'
+                  : 'text-muted hover:bg-mist',
+              ].join(' ')}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+
         <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-line bg-white p-4">
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Titre</span>
-            <input
-              value={form.titre}
-              onChange={(e) => setForm({ ...form, titre: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line px-3 font-semibold"
-            />
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Client *</span>
-              <select
-                required
-                value={form.clientId}
-                onChange={(e) => {
-                  const clientId = e.target.value
-                  const sites = data.chantiers.filter((s) => s.clientId === clientId)
-                  setForm({
-                    ...form,
-                    clientId,
-                    chantierIds: sites.map((s) => s.id),
-                  })
-                }}
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                <option value="">— Choisir —</option>
-                {data.clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.raisonSociale}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Périodicité</span>
-              <select
-                value={form.periodicite}
-                onChange={(e) =>
-                  setForm({ ...form, periodicite: e.target.value as PeriodiciteContrat })
-                }
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                {(Object.keys(PERIODICITE_LABELS) as PeriodiciteContrat[]).map((p) => (
-                  <option key={p} value={p}>
-                    {PERIODICITE_LABELS[p]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {sitesForClient.length > 0 ? (
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium text-muted">
-                Sites couverts {sitesForClient.length > 1 ? '(plusieurs sites)' : ''}
-              </legend>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.chantierIds.length === sitesForClient.length}
-                  onChange={(e) => {
-                    setForm({
-                      ...form,
-                      chantierIds: e.target.checked ? sitesForClient.map((s) => s.id) : [],
-                    })
-                  }}
-                />
-                Tous les sites du client
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {sitesForClient.map((s) => {
-                  const on = form.chantierIds.includes(s.id)
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        const next = on
-                          ? form.chantierIds.filter((id) => id !== s.id)
-                          : [...form.chantierIds, s.id]
-                        setForm({ ...form, chantierIds: next })
-                      }}
-                      className={[
-                        'rounded-full px-3 py-1.5 text-xs font-semibold',
-                        on ? 'bg-emerald-100 text-emerald-900' : 'border border-line text-muted',
-                      ].join(' ')}
-                    >
-                      {s.nom}
-                    </button>
-                  )
-                })}
+          {step === 'infos' ? (
+            <>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-ink">Fiche de remplissage</h2>
+                <p className="mt-0.5 text-sm text-muted">
+                  Client, sites, dates et prix — ensuite le texte, puis les signatures.
+                </p>
               </div>
-            </fieldset>
-          ) : (
-            <p className="text-sm text-amber-800">
-              Aucun site pour ce client.{' '}
-              <Link className="font-semibold underline" to="/app/chantiers">
-                Créer un site
-              </Link>
-            </p>
-          )}
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Début</span>
-              <input
-                type="date"
-                value={form.dateDebut}
-                onChange={(e) => setForm({ ...form, dateDebut: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Fin</span>
-              <input
-                type="date"
-                value={form.dateFin}
-                onChange={(e) => setForm({ ...form, dateFin: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Durée (libellé)</span>
-              <input
-                value={form.dureeLabel}
-                onChange={(e) => setForm({ ...form, dureeLabel: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3"
-                placeholder="1 an"
-              />
-            </label>
-          </div>
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Titre</span>
+                <input
+                  value={form.titre}
+                  onChange={(e) => setForm({ ...form, titre: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-line px-3 font-semibold"
+                />
+              </label>
 
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Prix (libellé)</span>
-            <input
-              value={form.prixLabel}
-              onChange={(e) => setForm({ ...form, prixLabel: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line px-3"
-              placeholder="ex. 1 200 € / an"
-            />
-          </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Client *</span>
+                  <select
+                    required
+                    value={form.clientId}
+                    onChange={(e) => {
+                      const clientId = e.target.value
+                      const sites = data.chantiers.filter((s) => s.clientId === clientId)
+                      setForm({
+                        ...form,
+                        clientId,
+                        chantierIds: sites.map((s) => s.id),
+                      })
+                    }}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  >
+                    <option value="">— Choisir —</option>
+                    {data.clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.raisonSociale}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Périodicité</span>
+                  <select
+                    value={form.periodicite}
+                    onChange={(e) =>
+                      setForm({ ...form, periodicite: e.target.value as PeriodiciteContrat })
+                    }
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  >
+                    {(Object.keys(PERIODICITE_LABELS) as PeriodiciteContrat[]).map((p) => (
+                      <option key={p} value={p}>
+                        {PERIODICITE_LABELS[p]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={refreshCorps}
-              className="rounded-full border border-line px-4 py-2 text-xs font-semibold"
-            >
-              Re-remplir le texte depuis le modèle
-            </button>
-            <p className="text-xs text-muted self-center">
-              {client?.raisonSociale || '—'} · {form.chantierIds.length || 'tous'} site(s)
-            </p>
-          </div>
+              {sitesForClient.length > 0 ? (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium text-muted">
+                    Sites couverts {sitesForClient.length > 1 ? '(plusieurs sites)' : ''}
+                  </legend>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.chantierIds.length === sitesForClient.length}
+                      onChange={(e) => {
+                        setForm({
+                          ...form,
+                          chantierIds: e.target.checked ? sitesForClient.map((s) => s.id) : [],
+                        })
+                      }}
+                    />
+                    Tous les sites du client
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {sitesForClient.map((s) => {
+                      const on = form.chantierIds.includes(s.id)
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            const next = on
+                              ? form.chantierIds.filter((id) => id !== s.id)
+                              : [...form.chantierIds, s.id]
+                            setForm({ ...form, chantierIds: next })
+                          }}
+                          className={[
+                            'rounded-full px-3 py-1.5 text-xs font-semibold',
+                            on ? 'bg-emerald-100 text-emerald-900' : 'border border-line text-muted',
+                          ].join(' ')}
+                        >
+                          {s.nom}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+              ) : (
+                <p className="text-sm text-amber-800">
+                  Aucun site pour ce client.{' '}
+                  <Link className="font-semibold underline" to="/app/chantiers">
+                    Créer un site
+                  </Link>
+                </p>
+              )}
 
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Texte du contrat (modifiable)</span>
-            <textarea
-              rows={14}
-              value={form.corps}
-              onChange={(e) => setForm({ ...form, corps: e.target.value })}
-              className="w-full rounded-xl border border-line px-3 py-2 font-mono text-xs leading-relaxed"
-            />
-          </label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Début</span>
+                  <input
+                    type="date"
+                    value={form.dateDebut}
+                    onChange={(e) => setForm({ ...form, dateDebut: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line px-3"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Fin</span>
+                  <input
+                    type="date"
+                    value={form.dateFin}
+                    onChange={(e) => setForm({ ...form, dateFin: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line px-3"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Durée (libellé)</span>
+                  <input
+                    value={form.dureeLabel}
+                    onChange={(e) => setForm({ ...form, dureeLabel: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line px-3"
+                    placeholder="1 an"
+                  />
+                </label>
+              </div>
 
-          <label className="block text-sm sm:w-56">
-            <span className="mb-1 block font-semibold text-ink">Statut</span>
-            <select
-              value={form.statut}
-              onChange={(e) => setForm({ ...form, statut: e.target.value as StatutContrat })}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              {(Object.keys(STATUT_CONTRAT_LABELS) as StatutContrat[]).map((s) => (
-                <option key={s} value={s}>
-                  {STATUT_CONTRAT_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Prix (libellé)</span>
+                <input
+                  value={form.prixLabel}
+                  onChange={(e) => setForm({ ...form, prixLabel: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-line px-3"
+                  placeholder="ex. 1 200 € / an"
+                />
+              </label>
 
-          <div className="space-y-4">
-            <IntervenantSignature
-              label="Signature opérateur / société"
-              nom={form.signatureOperateurNom || user?.signataireNom || user?.fullName || ''}
-              qualite={user?.signataireQualite || 'Opérateur'}
-              image={form.signatureOperateurImage || ''}
-              onNomChange={(v) => setForm({ ...form, signatureOperateurNom: v })}
-              onQualiteChange={() => {}}
-              onImageChange={(v) => setForm({ ...form, signatureOperateurImage: v })}
-              height={140}
-            />
-            <ClientSiteSignature
-              siteId={form.chantierIds[0] || sitesForClient[0]?.id}
-              nom={
-                form.signatureClientNom ||
-                client?.nomContact ||
-                ''
-              }
-              qualite="Représentant client"
-              image={form.signatureClientImage || ''}
-              onNomChange={(v) => setForm({ ...form, signatureClientNom: v })}
-              onQualiteChange={() => {}}
-              onImageChange={(v) => setForm({ ...form, signatureClientImage: v })}
-              height={140}
-            />
-          </div>
+              <label className="block text-sm sm:w-56">
+                <span className="mb-1 block font-semibold text-ink">Statut</span>
+                <select
+                  value={form.statut}
+                  onChange={(e) => setForm({ ...form, statut: e.target.value as StatutContrat })}
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                >
+                  {(Object.keys(STATUT_CONTRAT_LABELS) as StatutContrat[]).map((s) => (
+                    <option key={s} value={s}>
+                      {STATUT_CONTRAT_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="submit"
-              className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white"
-            >
-              Enregistrer
-            </button>
-            <button
-              type="button"
-              onClick={markSigne}
-              className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-bold text-emerald-900"
-            >
-              <FileSignature className="h-4 w-4" /> Signer & activer
-            </button>
-          </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    refreshCorps()
+                    setStep('texte')
+                  }}
+                  className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
+                >
+                  Continuer → Texte
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line px-5 text-sm font-semibold"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {step === 'texte' ? (
+            <>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-ink">Texte du contrat</h2>
+                <p className="mt-0.5 text-sm text-muted">
+                  Prérempli depuis le modèle — modifiable. Vérifiez opérateur / client / sites.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={refreshCorps}
+                  className="rounded-full border border-line px-4 py-2 text-xs font-semibold"
+                >
+                  Re-remplir depuis le modèle
+                </button>
+                <p className="self-center text-xs text-muted">
+                  {client?.raisonSociale || '—'} · {form.chantierIds.length || 'tous'} site(s)
+                </p>
+              </div>
+
+              {!data.operateur?.raisonSociale?.trim() ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  Opérateur vide dans le texte (« — »). Complétez{' '}
+                  <Link to="/app/operateur" className="font-semibold underline">
+                    Mon entreprise
+                  </Link>{' '}
+                  puis « Re-remplir ».
+                </p>
+              ) : null}
+
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Texte du contrat (modifiable)</span>
+                <textarea
+                  rows={16}
+                  value={form.corps}
+                  onChange={(e) => setForm({ ...form, corps: e.target.value })}
+                  className="w-full rounded-xl border border-line px-3 py-2 font-mono text-xs leading-relaxed"
+                />
+              </label>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setStep('infos')}
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line px-4 text-sm font-semibold"
+                >
+                  ← Fiche
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('signatures')}
+                  className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
+                >
+                  Continuer → Signatures
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line px-5 text-sm font-semibold"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {step === 'signatures' ? (
+            <>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-ink">Signatures</h2>
+                <p className="mt-0.5 text-sm text-muted">
+                  Opérateur + client — puis « Signer & activer » pour valider le contrat.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <IntervenantSignature
+                  label="Signature opérateur / société"
+                  nom={form.signatureOperateurNom || user?.signataireNom || user?.fullName || ''}
+                  qualite={user?.signataireQualite || 'Opérateur'}
+                  image={form.signatureOperateurImage || ''}
+                  onNomChange={(v) => setForm({ ...form, signatureOperateurNom: v })}
+                  onQualiteChange={() => {}}
+                  onImageChange={(v) => setForm({ ...form, signatureOperateurImage: v })}
+                  height={140}
+                />
+                <ClientSiteSignature
+                  siteId={form.chantierIds[0] || sitesForClient[0]?.id}
+                  nom={form.signatureClientNom || client?.nomContact || ''}
+                  qualite="Représentant client"
+                  image={form.signatureClientImage || ''}
+                  onNomChange={(v) => setForm({ ...form, signatureClientNom: v })}
+                  onQualiteChange={() => {}}
+                  onImageChange={(v) => setForm({ ...form, signatureClientImage: v })}
+                  height={140}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setStep('texte')}
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-line px-4 text-sm font-semibold"
+                >
+                  ← Texte
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-line px-5 text-sm font-semibold"
+                >
+                  Enregistrer
+                </button>
+                <button
+                  type="button"
+                  onClick={markSigne}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 text-sm font-bold text-emerald-900"
+                >
+                  <FileSignature className="h-4 w-4" /> Signer & activer
+                </button>
+              </div>
+            </>
+          ) : null}
         </form>
       </div>
     )
