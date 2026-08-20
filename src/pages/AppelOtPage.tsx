@@ -24,12 +24,12 @@ import { DecimalField } from '../components/DecimalField'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import type { PlaqueFields } from '../lib/plaqueOcr'
-import { allEquipements, equipementsForCerfa, findDuplicateEquipNom } from '../lib/cerfaBatch'
+import { allEquipements, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { blankFicheMaintenanceChaufferie } from '../lib/ficheMaintenanceChaufferie'
 import type { Client, Equipement, Site } from '../lib/types'
-import { clientDisplayName, syncClientRaisonSociale } from '../lib/types'
+import { clientDisplayName, equipAvecFluideFrigorigene, syncClientRaisonSociale } from '../lib/types'
 import {
   TYPE_OT_LABELS,
   PARCOURS_APPEL_STEPS,
@@ -488,14 +488,18 @@ export function AppelOtPage() {
           : []
     const withFluide = ids.filter((id) => {
       const eq = eqs.find((e) => e.id === id)
-      return Boolean(eq && eq.avecFluideFrigorigene !== false && (eq.fluideType || '').trim())
+      // CERFA dispo dès que l’équipement est « avec fluide » — le type de gaz
+      // peut être complété dans la fiche CERFA (pas besoin qu’il soit déjà rempli).
+      return Boolean(eq && equipAvecFluideFrigorigene(eq))
     })
     if (ids.length === 0) {
       alert('Sélectionnez au moins un équipement avant le CERFA.')
       return
     }
     if (withFluide.length === 0) {
-      alert('Aucun des équipements sélectionnés n’a de fluide — pas de CERFA requis.')
+      alert(
+        'Aucun équipement « fluide » sélectionné.\n\nSur la fiche équipement, cochez « Contient du fluide frigorigène », puis réessayez.',
+      )
       return
     }
 
@@ -818,17 +822,19 @@ export function AppelOtPage() {
   }
 
   const stepIdx = STEP_INDEX[step]
+  /** Afficher CERFA si au moins un équipement est marqué fluide (même sans type R-xx encore). */
   const hasFluide =
     selectedEqs.length > 0
-      ? selectedEqs.some(
-          (eq) => eq.avecFluideFrigorigene !== false && !!(eq.fluideType || '').trim(),
-        )
+      ? selectedEqs.some((eq) => equipAvecFluideFrigorigene(eq))
       : site
-        ? equipementsForCerfa(site).length > 0
+        ? allEquipements(site).some((eq) => equipAvecFluideFrigorigene(eq))
         : true
-  const fluideCount = selectedEqs.filter(
-    (eq) => eq.avecFluideFrigorigene !== false && !!(eq.fluideType || '').trim(),
-  ).length
+  const fluideCount = (
+    selectedEqs.length > 0 ? selectedEqs : site ? allEquipements(site) : []
+  ).filter((eq) => equipAvecFluideFrigorigene(eq)).length
+  const fluideSansType = (
+    selectedEqs.length > 0 ? selectedEqs : site ? allEquipements(site) : []
+  ).filter((eq) => equipAvecFluideFrigorigene(eq) && !(eq.fluideType || '').trim()).length
   const isMaint =
     otForm.typeOt === 'maintenance' ||
     otForm.typeOt === 'entretien' ||
@@ -1660,11 +1666,13 @@ export function AppelOtPage() {
               >
                 <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
                 <span>
-                  <span className="block">CERFA (fluide / gaz)</span>
+                  <span className="block">CERFA (fluide / gaz) — remplir</span>
                   <span className="block text-sm font-medium text-muted">
                     {fluideCount > 1
                       ? `${fluideCount} équipements → 1 CERFA chacun`
-                      : `Document utile — ${formatOtNumero(otForm.numero)}, date reprise`}
+                      : fluideSansType > 0
+                        ? 'Ouvrir la fiche — complétez fluide / charge dedans'
+                        : `Document utile — ${formatOtNumero(otForm.numero)}, date reprise`}
                   </span>
                 </span>
               </button>
