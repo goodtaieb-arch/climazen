@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from './lib/AuthContext'
 import { StoreProvider } from './lib/store'
 import { RequireAuth } from './components/RequireAuth'
@@ -105,6 +106,7 @@ export default function App() {
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            <Analytics />
           </BrowserRouter>
         </StoreProvider>
       </AuthProvider>
