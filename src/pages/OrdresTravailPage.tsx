@@ -97,9 +97,11 @@ export function OrdresTravailPage() {
     if (!site) return
     const client = data.clients.find((c) => c.id === site.clientId)
     setClientSignNom((n) => {
-      const company = client?.raisonSociale?.trim().toLowerCase() || ''
-      if (n.trim() && (!company || n.trim().toLowerCase() !== company)) return n
-      return site.signatureDetenteurNom?.trim() || client?.nomContact?.trim() || ''
+      if (n.trim() && n.trim() !== 'Signataire site') return n
+      if (n === '') return n
+      const fromSite = site.signatureDetenteurNom?.trim() || ''
+      if (fromSite && fromSite !== 'Signataire site') return fromSite
+      return client?.nomContact?.trim() || ''
     })
     setClientSignQualite((q) =>
       q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
@@ -107,7 +109,12 @@ export function OrdresTravailPage() {
     if (!form.signatureClientImage && site.signatureDetenteurImage) {
       setForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
     }
-  }, [site?.id, site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [site?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!site?.signatureDetenteurImage || form.signatureClientImage) return
+    setForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
+  }, [site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSave = (e: FormEvent) => {
     e.preventDefault()

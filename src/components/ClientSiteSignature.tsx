@@ -64,40 +64,56 @@ export function ClientSiteSignature({
   /** Accord explicite du client avant envoi e-mail / SMS */
   const [clientAgrees, setClientAgrees] = useState(false)
   const importedIds = useRef(new Set<string>())
+  /** Préremplissage nom une seule fois par site — sinon on ne peut pas effacer. */
+  const nomPrefillDone = useRef(false)
 
   /** Client absent sans signature encore reçue → ne pas clôturer */
   const awaitingRemote = clientAbsent && !image
 
   useEffect(() => {
+    nomPrefillDone.current = false
+  }, [siteId])
+
+  useEffect(() => {
     onAwaitingRemoteChange?.(awaitingRemote)
   }, [awaitingRemote, onAwaitingRemoteChange])
 
-  // Préremplir depuis le site si le doc n’a pas encore de signature
+  // Préremplir depuis le site si le doc n’a pas encore de signature (une fois)
   useEffect(() => {
     if (!site?.signatureDetenteurImage) return
     if (!image) onImageChange(site.signatureDetenteurImage)
-    const nextNom = nomSignataireClient({
-      signatureNom: nom || site.signatureDetenteurNom,
-      nomContact: undefined,
-      raisonSociale: undefined,
-    })
-    if (!nom.trim() && site.signatureDetenteurNom?.trim()) {
-      onNomChange(site.signatureDetenteurNom.trim())
-    } else if (nextNom && !nom.trim()) {
-      onNomChange(nextNom)
+    if (!nomPrefillDone.current && !nom.trim()) {
+      const nextNom = nomSignataireClient({
+        signatureNom: site.signatureDetenteurNom,
+        nomContact: client?.nomContact,
+        raisonSociale: client?.raisonSociale,
+      })
+      // Ne jamais forcer le libellé technique « Signataire site »
+      if (nextNom && nextNom !== 'Signataire site') {
+        onNomChange(nextNom)
+        nomPrefillDone.current = true
+      } else {
+        nomPrefillDone.current = true
+      }
     }
     if ((!qualite.trim() || qualite === 'Détenteur') && site.signatureDetenteurQualite) {
       onQualiteChange(site.signatureDetenteurQualite)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, site?.signatureDetenteurImage, site?.signatureDetenteurAt])
+  }, [siteId, site?.signatureDetenteurImage])
 
   const persistToSite = (next: { nom: string; qualite: string; image: string }) => {
     if (!autosaveSite || !siteId || !next.image) return
-    const personName = next.nom.trim()
+    const typed = next.nom.trim()
+    const previous =
+      site?.signatureDetenteurNom?.trim() && site.signatureDetenteurNom.trim() !== 'Signataire site'
+        ? site.signatureDetenteurNom.trim()
+        : ''
+    const personName =
+      typed && typed !== 'Signataire site' ? typed : previous
     applySiteClientSignature({
       siteId,
-      signatureDetenteur: personName || 'Signataire site',
+      signatureDetenteur: personName,
       signatureDetenteurQualite: next.qualite.trim() || 'Représentant client',
       signatureDetenteurImage: next.image,
     })
@@ -123,14 +139,25 @@ export function ClientSiteSignature({
           continue
         }
       }
-      const nextNom = (r.signature_nom || '').trim() || 'Signataire site'
+      const nextNom = (r.signature_nom || '').trim()
       const nextQual = (r.signature_qualite || '').trim() || 'Représentant client'
-      onNomChange(nextNom)
+      if (nextNom) onNomChange(nextNom)
       onQualiteChange(nextQual)
       onImageChange(r.signature_image)
-      persistToSite({ nom: nextNom, qualite: nextQual, image: r.signature_image })
+      if (nextNom) {
+        persistToSite({ nom: nextNom, qualite: nextQual, image: r.signature_image })
+      } else {
+        applySiteClientSignature({
+          siteId,
+          signatureDetenteur: site?.signatureDetenteurNom?.trim() || '',
+          signatureDetenteurQualite: nextQual,
+          signatureDetenteurImage: r.signature_image,
+        })
+      }
       importedIds.current.add(r.id)
-      setRemoteMsg(`Signature reçue à distance (${nextNom}).`)
+      setRemoteMsg(
+        nextNom ? `Signature reçue à distance (${nextNom}).` : 'Signature reçue à distance.',
+      )
       setOpenLink(null)
       break
     }
@@ -439,25 +466,29 @@ export function ClientSiteSignature({
         <label className="block text-sm">
           <span className="mb-1 block font-semibold text-ink">Nom du signataire *</span>
           <input
-            value={nom}
+            value={nom === 'Signataire site' ? '' : nom}
             onChange={(e) => {
+              nomPrefillDone.current = true
               onNomChange(e.target.value)
-              if (image) {
-                persistToSite({ nom: e.target.value, qualite, image })
+            }}
+            onBlur={() => {
+              if (image && nom.trim() && nom.trim() !== 'Signataire site') {
+                persistToSite({ nom, qualite, image })
               }
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3"
             placeholder="Nom de la personne qui signe (pas la société)"
+            autoComplete="name"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-semibold text-ink">Qualité / fonction</span>
           <input
             value={qualite}
-            onChange={(e) => {
-              onQualiteChange(e.target.value)
-              if (image) {
-                persistToSite({ nom, qualite: e.target.value, image })
+            onChange={(e) => onQualiteChange(e.target.value)}
+            onBlur={() => {
+              if (image && nom.trim() && nom.trim() !== 'Signataire site') {
+                persistToSite({ nom, qualite, image })
               }
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3"

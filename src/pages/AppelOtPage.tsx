@@ -258,9 +258,13 @@ export function AppelOtPage() {
   useEffect(() => {
     if (!site) return
     setClientSignNom((n) => {
-      const company = client?.raisonSociale?.trim().toLowerCase() || ''
-      if (n.trim() && (!company || n.trim().toLowerCase() !== company)) return n
-      return site.signatureDetenteurNom?.trim() || client?.nomContact?.trim() || ''
+      // Ne pas réécraser si l’utilisateur saisit / efface (évite « Signataire site » qui revient)
+      if (n.trim() && n.trim() !== 'Signataire site') return n
+      if (n === '') return n
+      const fromSite = site.signatureDetenteurNom?.trim() || ''
+      if (fromSite && fromSite !== 'Signataire site') return fromSite
+      const contact = client?.nomContact?.trim() || ''
+      return contact
     })
     setClientSignQualite((q) =>
       q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
@@ -268,7 +272,14 @@ export function AppelOtPage() {
     if (!otForm.signatureClientImage && site.signatureDetenteurImage) {
       setOtForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
     }
-  }, [site?.id, site?.signatureDetenteurAt, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [site?.id, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si une nouvelle signature arrive sur le site (distant), reprendre l’image sans toucher au nom saisi
+  useEffect(() => {
+    if (!site?.signatureDetenteurImage) return
+    if (otForm.signatureClientImage) return
+    setOtForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
+  }, [site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clientsFiltered = useMemo(
     () =>

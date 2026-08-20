@@ -1096,7 +1096,7 @@ export function InterventionFormPage() {
     if (signatureDetenteurImage && chantierId) {
       applySiteClientSignature({
         siteId: chantierId,
-        signatureDetenteur: signatureDetenteur.trim() || 'Signataire site',
+        signatureDetenteur: signatureDetenteur.trim() || '',
         signatureDetenteurQualite: signatureDetenteurQualite.trim() || 'Représentant client',
         signatureDetenteurImage,
       })

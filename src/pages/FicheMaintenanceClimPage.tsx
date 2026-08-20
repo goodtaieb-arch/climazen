@@ -249,7 +249,8 @@ export function FicheMaintenanceClimPage() {
       }),
     )
     if (siteRow?.signatureDetenteurNom || clientRow?.nomContact) {
-      setClientSignNom(siteRow?.signatureDetenteurNom || clientRow?.nomContact || '')
+      const n = (siteRow?.signatureDetenteurNom || clientRow?.nomContact || '').trim()
+      if (n && n !== 'Signataire site') setClientSignNom(n)
     }
     if (siteRow?.signatureDetenteurQualite) {
       setClientSignQualite(siteRow.signatureDetenteurQualite)
