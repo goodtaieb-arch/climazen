@@ -15,7 +15,7 @@ export const SOCIAL_LINKS: SocialLink[] = [
   {
     id: 'facebook',
     label: 'Facebook',
-    href: 'https://www.facebook.com/climazen',
+    href: 'https://www.facebook.com/people/Climazen/61593827602781/',
     enabled: true,
   },
   {
@@ -39,7 +39,7 @@ export const SOCIAL_LINKS: SocialLink[] = [
   {
     id: 'tiktok',
     label: 'TikTok',
-    href: 'https://www.tiktok.com/@climazen',
+    href: 'https://www.tiktok.com/@climazen95',
     enabled: true,
   },
 ]
