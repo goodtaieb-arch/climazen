@@ -51,6 +51,7 @@ import {
   contratsActifsForSite,
 } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
+import { TechnicienAssignField } from '../components/TechnicienAssignField'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -172,6 +173,7 @@ export function AppelOtPage() {
       numero: nextNumeroOt(data),
       date: today(),
       technicien: user?.signataireNom || user?.fullName || user?.email || '',
+      technicienUserId: user?.id,
       signatureTechnicienImage: user?.signatureImage || '',
       typeOt: 'depanage' as TypeOt,
       action: fromScan || equipFromQuery ? `Intervention — ${label}` : '',
@@ -1018,14 +1020,11 @@ export function AppelOtPage() {
               placeholder="Urgence, accès, contact sur place…"
             />
           </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Technicien</span>
-            <input
-              value={otForm.technicien}
-              onChange={(e) => setOtForm({ ...otForm, technicien: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line px-3"
-            />
-          </label>
+          <TechnicienAssignField
+            technicien={otForm.technicien}
+            technicienUserId={otForm.technicienUserId}
+            onChange={(next) => setOtForm({ ...otForm, ...next })}
+          />
           <button
             type="button"
             onClick={saveOtStep}

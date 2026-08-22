@@ -111,7 +111,10 @@ export interface OrdreTravail {
   equipementId?: string
   /** Plusieurs équipements traités sur le même OT */
   equipementIds?: string[]
+  /** Nom affiché du technicien affecté */
   technicien: string
+  /** Compte ClimaZEN du technicien affecté (équipe) — le patron assigne l’OT */
+  technicienUserId?: string
   /** Lien CERFA si généré avec fluide */
   interventionId?: string
   /** Lien fiche maintenance clim / rapport sans CERFA */
@@ -163,6 +166,7 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     rapportAction: '',
     observations: '',
     technicien: '',
+    technicienUserId: undefined,
     statut: 'brouillon',
     parcoursStep: 'ot',
     lienCommandeType: 'aucun',

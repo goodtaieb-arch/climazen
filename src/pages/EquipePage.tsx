@@ -107,6 +107,13 @@ export function EquipePage() {
           <li>
             Tout est stocké sur le <strong>compte société</strong> (employeur) — pas sur un téléphone isolé.
           </li>
+          <li>
+            Flux typique : le gérant prend l’appel client → crée l’OT →{' '}
+            <strong>affecte un technicien</strong> (et un détecteur ci-dessous / Mon entreprise).
+          </li>
+          <li>
+            Un salarié qui part : bouton <strong>Désactiver</strong> — il ne peut plus se connecter.
+          </li>
         </ul>
       </div>
 

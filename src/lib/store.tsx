@@ -149,6 +149,7 @@ type Store = {
     chantierId?: string
     equipementId?: string
     technicien?: string
+    technicienUserId?: string
     observations?: string
     interventionId?: string
     ficheMaintenanceId?: string
@@ -1347,6 +1348,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       chantierId?: string
       equipementId?: string
       technicien?: string
+      technicienUserId?: string
       observations?: string
       interventionId?: string
       ficheMaintenanceId?: string
@@ -1400,6 +1402,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         chantierId: opts.chantierId,
         equipementId: opts.equipementId,
         technicien: opts.technicien || '',
+        technicienUserId: opts.technicienUserId,
         interventionId: opts.interventionId,
         ficheMaintenanceId: opts.ficheMaintenanceId,
         signatureTechnicienImage: opts.signatureTechnicienImage,

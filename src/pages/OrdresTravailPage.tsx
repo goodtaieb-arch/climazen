@@ -26,6 +26,7 @@ import {
 import { formatOtCommercialBadge } from '../lib/chaineCommerciale'
 import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
+import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { allEquipements } from '../lib/cerfaBatch'
 
 export function OrdresTravailPage() {
@@ -44,6 +45,7 @@ export function OrdresTravailPage() {
   const [q, setQ] = useState('')
   const [typeFilter, setTypeFilter] = useState<'tous' | TypeOt>('tous')
   const [statutFilter, setStatutFilter] = useState<'ouverts' | 'clotures' | 'tous'>('ouverts')
+  const [assigneeFilter, setAssigneeFilter] = useState<'tous' | 'moi'>('tous')
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === editId) || null,
@@ -59,6 +61,7 @@ export function OrdresTravailPage() {
       ...blankOrdreTravail(),
       numero: nextNumeroOt(data),
       technicien: user?.signataireNom || user?.fullName || user?.email || '',
+      technicienUserId: user?.id,
       clientId: params.get('client') || '',
       chantierId: params.get('chantier') || '',
       equipementId: params.get('equipement') || '',
@@ -88,6 +91,10 @@ export function OrdresTravailPage() {
         return !isOtCloture(o.statut)
       })
       .filter((o) => {
+        if (assigneeFilter !== 'moi' || !user?.id) return true
+        return o.technicienUserId === user.id
+      })
+      .filter((o) => {
         const client = data.clients.find((c) => c.id === o.clientId)
         const site = data.chantiers.find((c) => c.id === o.chantierId)
         return matchesQuery(
@@ -108,7 +115,7 @@ export function OrdresTravailPage() {
         )
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  }, [data.ordresTravail, data.clients, data.chantiers, q, typeFilter, statutFilter])
+  }, [data.ordresTravail, data.clients, data.chantiers, q, typeFilter, statutFilter, assigneeFilter, user?.id])
 
   const site = data.chantiers.find((c) => c.id === form.chantierId)
   const eqs = site ? allEquipements(site) : []
@@ -259,15 +266,11 @@ export function OrdresTravailPage() {
             </label>
           </div>
 
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Technicien</span>
-            <input
-              required
-              value={form.technicien}
-              onChange={(e) => setForm({ ...form, technicien: e.target.value })}
-              className="h-11 w-full rounded-xl border border-line px-3"
-            />
-          </label>
+          <TechnicienAssignField
+            technicien={form.technicien}
+            technicienUserId={form.technicienUserId}
+            onChange={(next) => setForm({ ...form, ...next })}
+          />
 
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
@@ -518,6 +521,14 @@ export function OrdresTravailPage() {
           <option value="ouverts">Ouverts (à faire)</option>
           <option value="clotures">Clôturés</option>
           <option value="tous">Tous</option>
+        </select>
+        <select
+          value={assigneeFilter}
+          onChange={(e) => setAssigneeFilter(e.target.value as typeof assigneeFilter)}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
+        >
+          <option value="tous">Toute l’équipe</option>
+          <option value="moi">Mes OT (affectés à moi)</option>
         </select>
         <select
           value={typeFilter}
