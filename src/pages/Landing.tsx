@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   SignalZero,
   Smartphone,
+  Star,
   Users,
   WifiOff,
   BadgeEuro,
@@ -17,6 +18,8 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { CONTACT_EMAIL } from '../components/PublicLayout'
+import { GoogleIcon } from '../components/SocialBrandIcons'
+import { SocialLinksRow } from '../components/SocialLinksRow'
 import { ICON3D } from '../lib/icons3d'
 
 /** Tuiles Accueil mobile (icônes 3D) — mockup marketing landing. */
@@ -201,6 +204,16 @@ export function Landing() {
               </a>
               .
             </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <SocialLinksRow size="sm" />
+              <Link
+                to="/avis"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-xs font-bold text-ink hover:bg-mist"
+              >
+                <GoogleIcon className="h-4 w-4" />
+                Avis Google
+              </Link>
+            </div>
           </div>
 
           {/* Téléphone + PC + pub Assistant IA (à droite, sans chevaucher le titre) */}
@@ -797,6 +810,44 @@ export function Landing() {
                 <p className="mt-2 text-sm leading-relaxed text-muted">{text}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* RÉSEAUX & AVIS */}
+      <section
+        id="reseaux"
+        className="scroll-mt-20 border-y border-line bg-white px-4 py-14 text-ink sm:px-6 sm:py-16"
+      >
+        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Communauté</p>
+            <h2 className="font-display mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+              Réseaux sociaux &amp; avis Google
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
+              Suivez ClimaZEN pour les nouveautés terrain, et laissez un avis Google si l’app vous
+              aide au chantier — ça aide les autres frigoristes à nous trouver.
+            </p>
+            <SocialLinksRow className="mt-6" />
+          </div>
+          <div className="rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-white p-6 shadow-sm sm:p-8">
+            <div className="flex items-center gap-1 text-amber-500" aria-hidden>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className="h-5 w-5 fill-current" />
+              ))}
+            </div>
+            <h3 className="font-display mt-3 text-xl font-bold">Votre avis compte</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              30 secondes sur Google : étoiles + un mot sur le CERFA ou le hors-ligne.
+            </p>
+            <Link
+              to="/avis"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-bold text-white hover:bg-slate-800"
+            >
+              <GoogleIcon className="h-4 w-4" />
+              Page avis Google
+            </Link>
           </div>
         </div>
       </section>

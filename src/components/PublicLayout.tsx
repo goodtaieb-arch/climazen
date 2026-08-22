@@ -1,5 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { BrandLogo } from './BrandLogo'
+import { SocialLinksRow } from './SocialLinksRow'
+import { GoogleIcon } from './SocialBrandIcons'
 
 const CONTACT_EMAIL = 'contact@climazen.fr'
 
@@ -37,7 +39,7 @@ export function PublicLayout() {
               Fonctionnalités
             </a>
             <NavLink
-              to="/cerfa-15497"
+              to="/avis"
               className={({ isActive }) =>
                 [
                   'rounded-full px-3 py-2 font-medium transition-colors',
@@ -45,7 +47,7 @@ export function PublicLayout() {
                 ].join(' ')
               }
             >
-              CERFA 15497
+              Avis Google
             </NavLink>
             <NavLink
               to="/contact"
@@ -81,29 +83,31 @@ export function PublicLayout() {
       </main>
 
       <footer className="border-t border-line bg-white px-4 py-10 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <BrandLogo size="sm" />
             <p className="mt-3 max-w-sm text-sm text-muted">
               CERFA 15497-04, clients, travaux et stock fluides — pour les frigoristes.
             </p>
+            <SocialLinksRow className="mt-4" size="sm" />
+            <Link
+              to="/avis"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+            >
+              <GoogleIcon className="h-4 w-4" />
+              Laisser un avis Google
+            </Link>
           </div>
           <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted">
             <Link to="/contact" className="hover:text-ink">
               Contact
             </Link>
+            <Link to="/avis" className="hover:text-ink">
+              Avis Google
+            </Link>
             <a href="/#tarifs" className="hover:text-ink">
               Tarifs
             </a>
-            <Link to="/cerfa-15497" className="hover:text-ink">
-              CERFA 15497-04
-            </Link>
-            <Link to="/f-gas-hors-ligne" className="hover:text-ink">
-              F-Gas hors ligne
-            </Link>
-            <Link to="/logiciel-cerfa-clim" className="hover:text-ink">
-              Logiciel CERFA clim
-            </Link>
             <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-ink">
               {CONTACT_EMAIL}
             </a>

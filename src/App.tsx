@@ -27,6 +27,7 @@ import { AppelOtPage } from './pages/AppelOtPage'
 import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
 import { AgendaPage } from './pages/AgendaPage'
 import { ContactPage } from './pages/ContactPage'
+import { AvisGooglePage } from './pages/AvisGooglePage'
 import { SignerPage } from './pages/SignerPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
 import { Cerfa15497Page, FGasHorsLignePage, LogicielCerfaClimPage } from './pages/SeoPages'
@@ -63,6 +64,7 @@ export default function App() {
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Landing />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/avis" element={<AvisGooglePage />} />
                 <Route path="/cerfa-15497" element={<Cerfa15497Page />} />
                 <Route path="/f-gas-hors-ligne" element={<FGasHorsLignePage />} />
                 <Route path="/logiciel-cerfa-clim" element={<LogicielCerfaClimPage />} />
