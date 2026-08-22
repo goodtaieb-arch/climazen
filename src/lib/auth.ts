@@ -5,6 +5,7 @@ import { emptyData } from './storage'
 import { migrateAppData } from './migrate'
 import {
   applyTombstones,
+  hasAnyTombstones,
   mergeIdLists,
   pruneTombstones,
 } from './deletedEntities'
@@ -692,6 +693,14 @@ export function resolveRemoteVsLocal(
           remote.deletedEntityIds?.stockMouvements,
           local.deletedEntityIds?.stockMouvements,
         ),
+        ordresTravail: mergeIdLists(
+          remote.deletedEntityIds?.ordresTravail,
+          local.deletedEntityIds?.ordresTravail,
+        ),
+        interventions: mergeIdLists(
+          remote.deletedEntityIds?.interventions,
+          local.deletedEntityIds?.interventions,
+        ),
       },
       remote,
     )
@@ -706,14 +715,11 @@ export function resolveRemoteVsLocal(
           remote.stockMouvements,
           deletedEntityIds.stockMouvements,
         ).filter((m) => !(deletedEntityIds.stock || []).includes(m.stockItemId)),
+        ordresTravail: applyTombstones(remote.ordresTravail, deletedEntityIds.ordresTravail),
+        interventions: applyTombstones(remote.interventions, deletedEntityIds.interventions),
         deletedEntityIds,
       },
-      shouldPushLocal: Boolean(
-        (deletedEntityIds.clients?.length || 0) > 0 ||
-          (deletedEntityIds.chantiers?.length || 0) > 0 ||
-          (deletedEntityIds.stock?.length || 0) > 0 ||
-          (deletedEntityIds.stockMouvements?.length || 0) > 0,
-      ),
+      shouldPushLocal: hasAnyTombstones(deletedEntityIds),
     }
   }
 
@@ -722,7 +728,7 @@ export function resolveRemoteVsLocal(
   const detecteurs = mergeByIdLatest(remote.detecteurs, local.detecteurs, preferOnTie)
   let clients = mergeByIdLatest(remote.clients, local.clients, preferOnTie)
   let chantiers = mergeByIdLatest(remote.chantiers, local.chantiers, preferOnTie)
-  const interventions = mergeByIdLatest(remote.interventions, local.interventions, preferOnTie)
+  let interventions = mergeByIdLatest(remote.interventions, local.interventions, preferOnTie)
   let stock = mergeByIdLatest(remote.stock, local.stock, preferOnTie)
   const fichesMaintenanceClim = mergeByIdLatest(
     remote.fichesMaintenanceClim,
@@ -734,7 +740,7 @@ export function resolveRemoteVsLocal(
     local.fichesMaintenanceChaufferie,
     preferOnTie,
   )
-  const ordresTravail = mergeByIdLatest(remote.ordresTravail, local.ordresTravail, preferOnTie)
+  let ordresTravail = mergeByIdLatest(remote.ordresTravail, local.ordresTravail, preferOnTie)
   const contratsMaintenance = mergeByIdLatest(
     remote.contratsMaintenance,
     local.contratsMaintenance,
@@ -752,8 +758,16 @@ export function resolveRemoteVsLocal(
         remote.deletedEntityIds?.stockMouvements,
         local.deletedEntityIds?.stockMouvements,
       ),
+      ordresTravail: mergeIdLists(
+        remote.deletedEntityIds?.ordresTravail,
+        local.deletedEntityIds?.ordresTravail,
+      ),
+      interventions: mergeIdLists(
+        remote.deletedEntityIds?.interventions,
+        local.deletedEntityIds?.interventions,
+      ),
     },
-    { clients, chantiers, stock, stockMouvements },
+    { clients, chantiers, stock, stockMouvements, ordresTravail, interventions },
   )
   clients = applyTombstones(clients, deletedEntityIds.clients)
   chantiers = applyTombstones(chantiers, deletedEntityIds.chantiers)
@@ -761,6 +775,8 @@ export function resolveRemoteVsLocal(
   stockMouvements = applyTombstones(stockMouvements, deletedEntityIds.stockMouvements).filter(
     (m) => !(deletedEntityIds.stock || []).includes(m.stockItemId),
   )
+  ordresTravail = applyTombstones(ordresTravail, deletedEntityIds.ordresTravail)
+  interventions = applyTombstones(interventions, deletedEntityIds.interventions)
 
   const base = localW > remoteW ? local : remote
   const merged: AppData = {
@@ -788,10 +804,7 @@ export function resolveRemoteVsLocal(
     Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||
     Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
     Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim()) ||
-    (deletedEntityIds.clients?.length || 0) > 0 ||
-    (deletedEntityIds.chantiers?.length || 0) > 0 ||
-    (deletedEntityIds.stock?.length || 0) > 0 ||
-    (deletedEntityIds.stockMouvements?.length || 0) > 0
+    hasAnyTombstones(deletedEntityIds)
 
   return { data: merged, shouldPushLocal }
 }

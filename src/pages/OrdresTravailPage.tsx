@@ -502,10 +502,22 @@ export function OrdresTravailPage() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm(`Supprimer ${formatOtNumero(o.numero)} ?`)) deleteOrdreTravail(o.id)
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const label = formatOtNumero(o.numero)
+                    if (
+                      !window.confirm(
+                        `Supprimer ${label} ?\n\nL’OT sera effacé définitivement (sync PC ↔ téléphone).`,
+                      )
+                    ) {
+                      return
+                    }
+                    deleteOrdreTravail(o.id)
                   }}
-                  className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-line px-3 text-xs font-semibold text-danger"
+                  aria-label={`Supprimer ${formatOtNumero(o.numero)}`}
+                  title="Supprimer cet OT"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-danger"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

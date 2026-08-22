@@ -865,10 +865,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const deleteOrdreTravail = useCallback((id: string) => {
-    setData((d) => ({
-      ...d,
-      ordresTravail: (d.ordresTravail || []).filter((o) => o.id !== id),
-    }))
+    setData((d) => {
+      const ot = (d.ordresTravail || []).find((o) => o.id === id)
+      const linkedInterventionIds = (d.interventions || [])
+        .filter((i) => {
+          if (i.ordreTravailId === id) return true
+          if (ot?.interventionId && i.id === ot.interventionId) return true
+          if (ot?.numero && i.numeroIntervention) {
+            const a = i.numeroIntervention.replace(/^OT\s*/i, '').trim()
+            const b = ot.numero.replace(/^OT\s*/i, '').trim()
+            if (a && b && (a === b || i.numeroIntervention === ot.numero)) return true
+          }
+          return false
+        })
+        .map((i) => i.id)
+      return {
+        ...d,
+        ordresTravail: (d.ordresTravail || []).filter((o) => o.id !== id),
+        interventions: (d.interventions || []).filter((i) => !linkedInterventionIds.includes(i.id)),
+        deletedEntityIds: withDeletedIds(d.deletedEntityIds, {
+          ordresTravail: [id],
+          interventions: linkedInterventionIds,
+        }),
+      }
+    })
   }, [])
 
   const upsertContratMaintenance = useCallback(
@@ -1535,6 +1555,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return {
           ...reverted,
           interventions: reverted.interventions.filter((x) => x.id !== id),
+          ordresTravail: (reverted.ordresTravail || []).map((o) =>
+            o.interventionId === id ? { ...o, interventionId: undefined } : o,
+          ),
+          deletedEntityIds: withDeletedIds(reverted.deletedEntityIds, {
+            interventions: [id],
+          }),
         }
       })
       void deleteCerfaPdf(id, orgId)
