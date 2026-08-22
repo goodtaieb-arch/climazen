@@ -23,12 +23,20 @@ import {
   type TypeOt,
   type StatutOt,
 } from '../lib/ordreTravail'
+import { formatOtCommercialBadge } from '../lib/chaineCommerciale'
 import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { allEquipements } from '../lib/cerfaBatch'
 
 export function OrdresTravailPage() {
-  const { data, upsertOrdreTravail, deleteOrdreTravail } = useStore()
+  const {
+    data,
+    upsertOrdreTravail,
+    deleteOrdreTravail,
+    genererDevisReguleDepuisOt,
+    genererFactureDepuisOt,
+    upsertCommandeFournisseur,
+  } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -280,9 +288,7 @@ export function OrdresTravailPage() {
           </label>
 
           <OtCommandeLinkFields
-            lienCommandeType={form.lienCommandeType}
-            lienCommandeRef={form.lienCommandeRef}
-            contratId={form.contratId}
+            value={{ ...form, id: existing?.id }}
             contrats={
               site
                 ? contratsActifsForSite(data.contratsMaintenance, site)
@@ -290,10 +296,75 @@ export function OrdresTravailPage() {
                   ? contratsActifsForClient(data.contratsMaintenance, form.clientId)
                   : []
             }
+            devisList={(data.devis || []).filter(
+              (d) => !form.clientId || d.clientId === form.clientId,
+            )}
+            commandes={(data.commandesFournisseur || []).filter(
+              (c) => !form.clientId || !c.clientId || c.clientId === form.clientId,
+            )}
+            clients={data.clients}
             devisLienClient={
               data.clients.find((c) => c.id === (form.clientId || site?.clientId))?.devisLien
             }
             onChange={(patch) => setForm({ ...form, ...patch })}
+            onGenererDevisRegule={() => {
+              if (!existing?.id) {
+                alert('Enregistrez d’abord l’OT.')
+                return
+              }
+              try {
+                const id = genererDevisReguleDepuisOt(existing.id)
+                const dv = (data.devis || []).find((x) => x.id === id)
+                alert(`Devis de régularisation créé${dv ? ` — ${dv.numero}` : ''}.`)
+                const ot = (data.ordresTravail || []).find((o) => o.id === existing.id)
+                // refresh form from store after setState — use next tick via existing effect
+                if (ot) {
+                  /* effect on existing.updatedAt will reload */
+                }
+              } catch (err) {
+                alert(err instanceof Error ? err.message : 'Impossible de créer le devis.')
+              }
+            }}
+            onGenererFacture={() => {
+              if (!existing?.id) {
+                alert('Enregistrez d’abord l’OT.')
+                return
+              }
+              try {
+                const id = genererFactureDepuisOt(existing.id)
+                alert(`Facture créée — id ${id.slice(0, 8)}…`)
+              } catch (err) {
+                alert(err instanceof Error ? err.message : 'Impossible de créer la facture.')
+              }
+            }}
+            onCreerCommandePiece={() => {
+              if (!existing?.id) {
+                alert('Enregistrez d’abord l’OT.')
+                return
+              }
+              const libelle = window.prompt('Pièce / matériel à commander ?', '') || ''
+              if (!libelle.trim()) return
+              const fournisseur =
+                window.prompt('Fournisseur (Daikin, Mitsubishi, grossiste…)', '') || ''
+              const cmdId = upsertCommandeFournisseur({
+                fournisseur: fournisseur.trim(),
+                libelle: libelle.trim(),
+                statut: 'commandee',
+                clientId: form.clientId,
+                chantierId: form.chantierId,
+                otId: existing.id,
+                commandeeAt: new Date().toISOString(),
+              })
+              setForm({
+                ...form,
+                commandeFournisseurId: cmdId,
+                origineOt: 'commande_materiel',
+                lienCommandeType: 'commande',
+                statut: 'en_attente_piece',
+                statutFacturation: form.statutFacturation || 'non_facture',
+              })
+              alert('Commande créée — OT en attente de pièce.')
+            }}
           />
 
           <label className="block text-sm">
@@ -493,9 +564,9 @@ export function OrdresTravailPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-ink">{o.action || '—'}</p>
-                {formatLienCommande(o) ? (
+                {(formatOtCommercialBadge(o) || formatLienCommande(o)) ? (
                   <p className="mt-1 text-xs font-semibold text-emerald-800">
-                    {formatLienCommande(o)}
+                    {formatOtCommercialBadge(o) || formatLienCommande(o)}
                   </p>
                 ) : null}
                 <p className="mt-0.5 text-xs text-muted">

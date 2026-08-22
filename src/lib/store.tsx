@@ -40,6 +40,14 @@ import { nextNumeroIntervention } from './numeroIntervention'
 import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
 import { contratsActifsForSite } from './contratMaintenance'
+import {
+  nextNumeroCommande,
+  nextNumeroDevis,
+  nextNumeroFacture,
+  type CommandeFournisseur,
+  type Devis,
+  type Facture,
+} from './chaineCommerciale'
 import type { AgendaEvent } from './agenda'
 import { buildAutoAgendaEvents } from './agenda'
 import {
@@ -96,6 +104,37 @@ type Store = {
     c: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deleteContratMaintenance: (id: string) => void
+  upsertDevis: (
+    d: Omit<import('./chaineCommerciale').Devis, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
+      id?: string
+      numero?: string
+    },
+  ) => string
+  deleteDevis: (id: string) => void
+  upsertCommandeFournisseur: (
+    c: Omit<
+      import('./chaineCommerciale').CommandeFournisseur,
+      'id' | 'createdAt' | 'updatedAt' | 'numero'
+    > & {
+      id?: string
+      numero?: string
+    },
+  ) => string
+  deleteCommandeFournisseur: (id: string) => void
+  upsertFacture: (
+    f: Omit<import('./chaineCommerciale').Facture, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
+      id?: string
+      numero?: string
+    },
+  ) => string
+  /** Devis de régularisation depuis un OT (matériel / travaux hors urgence). */
+  genererDevisReguleDepuisOt: (otId: string) => string
+  /** Facture directe depuis un OT signé. */
+  genererFactureDepuisOt: (otId: string) => string
+  /** OT d’exécution depuis un devis accepté (1 devis → N OT). */
+  creerOtDepuisDevis: (devisId: string, opts?: { action?: string }) => { id: string; numero: string }
+  /** Marque commande reçue + OT prêt à planifier. */
+  marquerCommandeRecue: (commandeId: string) => void
   upsertAgendaEvent: (
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
@@ -116,6 +155,16 @@ type Store = {
     signatureTechnicienImage?: string
     signatureClientImage?: string
     statut?: import('./ordreTravail').StatutOt
+    lienCommandeType?: import('./ordreTravail').LienCommandeType
+    lienCommandeRef?: string
+    contratId?: string
+    devisId?: string
+    commandeFournisseurId?: string
+    origineOt?: import('./chaineCommerciale').OrigineOt
+    statutFacturation?: import('./chaineCommerciale').StatutFacturationOt
+    sousGarantie?: boolean
+    clientPayeurId?: string
+    mainOeuvreIncluseContrat?: boolean
   }) => { id: string; numero: string }
   /**
    * Valide une maintenance : crée 1 CERFA par équipement (équipements déjà sauvés sur le site).
@@ -938,6 +987,273 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const upsertDevis = useCallback(
+    (
+      raw: Omit<Devis, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
+        id?: string
+        numero?: string
+      },
+    ) => {
+      const id = raw.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.devis || []
+        const existing = list.find((x) => x.id === id)
+        const numero =
+          raw.numero?.trim() ||
+          existing?.numero ||
+          nextNumeroDevis(list, raw.type || 'standard')
+        const next: Devis = {
+          ...raw,
+          id,
+          numero,
+          lignes: raw.lignes || existing?.lignes || [],
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          devis: existing ? list.map((x) => (x.id === id ? next : x)) : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteDevis = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      devis: (d.devis || []).filter((x) => x.id !== id),
+    }))
+  }, [])
+
+  const upsertCommandeFournisseur = useCallback(
+    (
+      raw: Omit<CommandeFournisseur, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
+        id?: string
+        numero?: string
+      },
+    ) => {
+      const id = raw.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.commandesFournisseur || []
+        const existing = list.find((x) => x.id === id)
+        const numero = raw.numero?.trim() || existing?.numero || nextNumeroCommande(list)
+        const next: CommandeFournisseur = {
+          ...raw,
+          id,
+          numero,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        let ordres = d.ordresTravail || []
+        if (next.statut === 'recue' && next.otId) {
+          ordres = ordres.map((o) =>
+            o.id === next.otId && o.statut === 'en_attente_piece'
+              ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
+              : o,
+          )
+        }
+        return {
+          ...d,
+          commandesFournisseur: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+          ordresTravail: ordres,
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteCommandeFournisseur = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      commandesFournisseur: (d.commandesFournisseur || []).filter((x) => x.id !== id),
+    }))
+  }, [])
+
+  const upsertFacture = useCallback(
+    (
+      raw: Omit<Facture, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
+        id?: string
+        numero?: string
+      },
+    ) => {
+      const id = raw.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.factures || []
+        const existing = list.find((x) => x.id === id)
+        const numero = raw.numero?.trim() || existing?.numero || nextNumeroFacture(list)
+        const next: Facture = {
+          ...raw,
+          id,
+          numero,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          factures: existing ? list.map((x) => (x.id === id ? next : x)) : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const genererDevisReguleDepuisOt = useCallback((otId: string) => {
+    const d = dataRef.current
+    const ot = (d.ordresTravail || []).find((o) => o.id === otId)
+    if (!ot) throw new Error('OT introuvable.')
+    if (!ot.clientId) throw new Error('Client manquant sur l’OT.')
+    const now = new Date().toISOString()
+    const devisId = uuid()
+    const numero = nextNumeroDevis(d.devis || [], 'regularisation')
+    const devis: Devis = {
+      id: devisId,
+      numero,
+      type: 'regularisation',
+      statut: 'brouillon',
+      clientId: ot.clientId,
+      chantierId: ot.chantierId,
+      otOrigineId: ot.id,
+      libelle: `Régularisation — OT${ot.numero} — ${ot.action || 'Intervention'}`,
+      lignes: [
+        {
+          id: uuid(),
+          designation: ot.rapportAction?.trim() || ot.action || 'Travaux / pièces hors urgence',
+          quantite: 1,
+          horsContrat: true,
+        },
+      ],
+      notes: 'Généré depuis l’OT — à compléter (pièces, temps, fluides).',
+      createdAt: now,
+      updatedAt: now,
+    }
+    setData((prev) => ({
+      ...prev,
+      devis: [...(prev.devis || []), devis],
+      ordresTravail: (prev.ordresTravail || []).map((o) =>
+        o.id === otId
+          ? {
+              ...o,
+              devisId,
+              lienCommandeType: 'devis_regule',
+              lienCommandeRef: numero,
+              origineOt: o.origineOt || 'depannage_urgence',
+              statutFacturation: 'devis_regule_emis',
+              updatedAt: now,
+            }
+          : o,
+      ),
+    }))
+    return devisId
+  }, [])
+
+  const genererFactureDepuisOt = useCallback((otId: string) => {
+    const d = dataRef.current
+    const ot = (d.ordresTravail || []).find((o) => o.id === otId)
+    if (!ot) throw new Error('OT introuvable.')
+    if (!ot.clientId) throw new Error('Client manquant sur l’OT.')
+    if (!ot.signatureClientImage || !ot.signatureTechnicienImage) {
+      throw new Error('Signatures tech + client requises avant facture.')
+    }
+    const now = new Date().toISOString()
+    const factureId = uuid()
+    const numero = nextNumeroFacture(d.factures || [])
+    const facture: Facture = {
+      id: factureId,
+      numero,
+      statut: 'emise',
+      clientId: ot.clientPayeurId || ot.clientId,
+      clientPayeurId: ot.clientPayeurId,
+      chantierId: ot.chantierId,
+      otId: ot.id,
+      devisId: ot.devisId,
+      libelle: `Facture — OT${ot.numero} — ${ot.action || 'Intervention'}`,
+      createdAt: now,
+      updatedAt: now,
+    }
+    setData((prev) => ({
+      ...prev,
+      factures: [...(prev.factures || []), facture],
+      ordresTravail: (prev.ordresTravail || []).map((o) =>
+        o.id === otId
+          ? { ...o, factureId, statutFacturation: 'facture_generee', updatedAt: now }
+          : o,
+      ),
+    }))
+    return factureId
+  }, [])
+
+  const creerOtDepuisDevis = useCallback((devisId: string, opts?: { action?: string }) => {
+    const d = dataRef.current
+    const devis = (d.devis || []).find((x) => x.id === devisId)
+    if (!devis) throw new Error('Devis introuvable.')
+    if (devis.statut !== 'accepte' && devis.statut !== 'execute') {
+      throw new Error('Le devis doit être accepté avant de créer un OT d’exécution.')
+    }
+    const now = new Date().toISOString()
+    const id = uuid()
+    const numero = nextNumeroOt(d)
+    const detail = devis.lignes.map((l) => l.designation).filter(Boolean).join(' · ')
+    const ot: OrdreTravail = {
+      id,
+      numero,
+      date: now.slice(0, 10),
+      typeOt: 'installation',
+      action: opts?.action || devis.libelle || detail || 'Exécution devis',
+      rapportAction: '',
+      observations: detail ? `Prestations devis ${devis.numero} : ${detail}` : '',
+      clientId: devis.clientId,
+      chantierId: devis.chantierId,
+      technicien: '',
+      devisId: devis.id,
+      lienCommandeType: devis.type === 'regularisation' ? 'devis_regule' : 'devis',
+      lienCommandeRef: devis.numero,
+      origineOt: 'installation_devis',
+      statutFacturation: 'non_facture',
+      statut: 'pret_a_planifier',
+      parcoursStep: 'ot',
+      createdAt: now,
+      updatedAt: now,
+    }
+    setData((prev) => ({
+      ...prev,
+      ordresTravail: [...(prev.ordresTravail || []), ot],
+      devis: (prev.devis || []).map((x) =>
+        x.id === devisId ? { ...x, statut: 'execute' as const, updatedAt: now } : x,
+      ),
+    }))
+    return { id, numero }
+  }, [])
+
+  const marquerCommandeRecue = useCallback((commandeId: string) => {
+    const now = new Date().toISOString()
+    setData((d) => {
+      const cmd = (d.commandesFournisseur || []).find((c) => c.id === commandeId)
+      if (!cmd) return d
+      return {
+        ...d,
+        commandesFournisseur: (d.commandesFournisseur || []).map((c) =>
+          c.id === commandeId
+            ? { ...c, statut: 'recue' as const, recueAt: now, updatedAt: now }
+            : c,
+        ),
+        ordresTravail: (d.ordresTravail || []).map((o) =>
+          cmd.otId && o.id === cmd.otId && o.statut === 'en_attente_piece'
+            ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
+            : o,
+        ),
+      }
+    })
+  }, [])
+
   const upsertAgendaEvent = useCallback(
     (e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
       const id = e.id ?? uuid()
@@ -1040,6 +1356,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       lienCommandeType?: import('./ordreTravail').LienCommandeType
       lienCommandeRef?: string
       contratId?: string
+      devisId?: string
+      commandeFournisseurId?: string
+      origineOt?: import('./chaineCommerciale').OrigineOt
+      statutFacturation?: import('./chaineCommerciale').StatutFacturationOt
+      sousGarantie?: boolean
+      clientPayeurId?: string
+      mainOeuvreIncluseContrat?: boolean
     }) => {
       const d = dataRef.current
       const numero = nextNumeroOt(d)
@@ -1051,12 +1374,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       let lienCommandeType = opts.lienCommandeType || 'aucun'
       let lienCommandeRef = opts.lienCommandeRef || ''
       let contratId = opts.contratId
-      if (!contratId && !opts.lienCommandeType && site) {
+      let origineOt = opts.origineOt
+      let statutFacturation = opts.statutFacturation
+      let mainOeuvreIncluseContrat = opts.mainOeuvreIncluseContrat || false
+      if (!contratId && !opts.lienCommandeType && !opts.devisId && site) {
         const actifs = contratsActifsForSite(d.contratsMaintenance, site)
         if (actifs[0]) {
           lienCommandeType = 'contrat'
           lienCommandeRef = actifs[0].numero
           contratId = actifs[0].id
+          origineOt = origineOt || 'maintenance_contrat'
+          statutFacturation = statutFacturation || 'sous_contrat'
+          mainOeuvreIncluseContrat = true
         }
       }
       const ot: OrdreTravail = {
@@ -1078,6 +1407,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         lienCommandeType,
         lienCommandeRef,
         contratId,
+        devisId: opts.devisId,
+        commandeFournisseurId: opts.commandeFournisseurId,
+        origineOt: origineOt || (opts.typeOt === 'depanage' ? 'depannage_urgence' : 'depannage_urgence'),
+        statutFacturation: statutFacturation || 'non_facture',
+        sousGarantie: opts.sousGarantie || false,
+        clientPayeurId: opts.clientPayeurId,
+        mainOeuvreIncluseContrat,
         statut: opts.statut || 'en_cours',
         createdAt: now,
         updatedAt: now,
@@ -1644,6 +1980,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteOrdreTravail,
       upsertContratMaintenance,
       deleteContratMaintenance,
+      upsertDevis,
+      deleteDevis,
+      upsertCommandeFournisseur,
+      deleteCommandeFournisseur,
+      upsertFacture,
+      genererDevisReguleDepuisOt,
+      genererFactureDepuisOt,
+      creerOtDepuisDevis,
+      marquerCommandeRecue,
       upsertAgendaEvent,
       deleteAgendaEvent,
       syncAgendaFromSources,
@@ -1687,6 +2032,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteOrdreTravail,
       upsertContratMaintenance,
       deleteContratMaintenance,
+      upsertDevis,
+      deleteDevis,
+      upsertCommandeFournisseur,
+      deleteCommandeFournisseur,
+      upsertFacture,
+      genererDevisReguleDepuisOt,
+      genererFactureDepuisOt,
+      creerOtDepuisDevis,
+      marquerCommandeRecue,
       upsertAgendaEvent,
       deleteAgendaEvent,
       syncAgendaFromSources,

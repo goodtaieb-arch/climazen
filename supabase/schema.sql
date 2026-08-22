@@ -1,5 +1,9 @@
 -- ClimaZEN — schéma Supabase (Auth + org_data + Storage)
 -- À coller dans : Supabase → SQL Editor → Run
+--
+-- Chaîne commerciale OT (devis / commandes / factures / FK) :
+--   voir supabase/chaine-commerciale.sql (cible normalisée).
+--   Runtime actuel : AppData JSON dans org_data.payload.
 
 -- Extensions
 create extension if not exists "pgcrypto";

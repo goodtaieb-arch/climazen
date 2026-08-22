@@ -25,8 +25,18 @@ export function emptyData(): AppData {
     fichesMaintenanceChaufferie: [],
     ordresTravail: [],
     contratsMaintenance: [],
+    devis: [],
+    commandesFournisseur: [],
+    factures: [],
     agendaEvents: [],
-    deletedEntityIds: { clients: [], chantiers: [], stock: [], stockMouvements: [] },
+    deletedEntityIds: {
+      clients: [],
+      chantiers: [],
+      stock: [],
+      stockMouvements: [],
+      ordresTravail: [],
+      interventions: [],
+    },
   }
 }
 
@@ -66,6 +76,9 @@ export function loadData(organizationId?: string | null): AppData {
       fichesMaintenanceChaufferie: parsed.fichesMaintenanceChaufferie || [],
       ordresTravail: parsed.ordresTravail || [],
       contratsMaintenance: parsed.contratsMaintenance || [],
+      devis: parsed.devis || [],
+      commandesFournisseur: parsed.commandesFournisseur || [],
+      factures: parsed.factures || [],
       agendaEvents: parsed.agendaEvents || [],
       deletedEntityIds: parsed.deletedEntityIds || {
         clients: [],

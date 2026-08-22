@@ -32,11 +32,19 @@ export const TYPE_OT_LABELS: Record<TypeOt, string> = {
   installation: 'Installation',
 }
 
-export type StatutOt = 'brouillon' | 'en_cours' | 'termine' | 'signe'
+export type StatutOt =
+  | 'brouillon'
+  | 'en_cours'
+  | 'en_attente_piece'
+  | 'pret_a_planifier'
+  | 'termine'
+  | 'signe'
 
 export const STATUT_OT_LABELS: Record<StatutOt, string> = {
   brouillon: 'Brouillon',
   en_cours: 'En cours',
+  en_attente_piece: 'En attente de pièce',
+  pret_a_planifier: 'Prêt à planifier',
   termine: 'Terminé',
   signe: 'Clôturé',
 }
@@ -111,14 +119,30 @@ export interface OrdreTravail {
   /** Lien fiche maintenance chaufferie P2/P3 */
   ficheChaufferieId?: string
   /**
-   * Rattachement commercial : contrat / devis / devis de régule / commande.
-   * Défaut = aucune (OT libre, urgence sans devis encore).
+   * Rattachement commercial (v107+) — type libre + réf. texte.
+   * Préférer devisId / contratId / commandeFournisseurId quand disponibles.
    */
   lienCommandeType?: LienCommandeType
   /** N° devis, n° commande, ou libellé (ex. « Devis Tiime #452 ») */
   lienCommandeRef?: string
-  /** Si lien = contrat — id ContratMaintenance */
+  /** Contrat maintenance (visite préventive) */
   contratId?: string
+  /** Devis d’origine (accepté) ou devis de régule — 1 devis → N OT */
+  devisId?: string
+  /** Commande fournisseur (pièce en attente) */
+  commandeFournisseurId?: string
+  /** Facture générée depuis cet OT */
+  factureId?: string
+  /** Les 6 origines métier CVC */
+  origineOt?: import('./chaineCommerciale').OrigineOt
+  /** Suivi facturation / régule */
+  statutFacturation?: import('./chaineCommerciale').StatutFacturationOt
+  /** Sous garantie constructeur / installateur */
+  sousGarantie?: boolean
+  /** Client payeur (donneur d’ordre) si ≠ client site — sous-traitance */
+  clientPayeurId?: string
+  /** MO de base incluse dans le contrat (0 €) */
+  mainOeuvreIncluseContrat?: boolean
   signatureTechnicienImage?: string
   signatureClientImage?: string
   statut: StatutOt
@@ -144,6 +168,14 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     lienCommandeType: 'aucun',
     lienCommandeRef: '',
     contratId: undefined,
+    devisId: undefined,
+    commandeFournisseurId: undefined,
+    factureId: undefined,
+    origineOt: 'depannage_urgence',
+    statutFacturation: 'non_facture',
+    sousGarantie: false,
+    clientPayeurId: undefined,
+    mainOeuvreIncluseContrat: false,
   }
 }
 

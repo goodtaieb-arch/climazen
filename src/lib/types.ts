@@ -608,6 +608,12 @@ export interface AppData {
   ordresTravail?: OrdreTravail[]
   /** Contrats de maintenance (documents signables) */
   contratsMaintenance?: ContratMaintenance[]
+  /** Devis (standard ou régularisation) — 1 devis → N OT */
+  devis?: import('./chaineCommerciale').Devis[]
+  /** Commandes fournisseur (pièces) — OT en attente de réception */
+  commandesFournisseur?: import('./chaineCommerciale').CommandeFournisseur[]
+  /** Factures légères (métadonnées + lien externe Make) */
+  factures?: import('./chaineCommerciale').Facture[]
   /** Agenda / rappels RDV maintenance */
   agendaEvents?: import('./agenda').AgendaEvent[]
   /**

@@ -988,10 +988,16 @@ export function AppelOtPage() {
           </label>
 
           <OtCommandeLinkFields
-            lienCommandeType={otForm.lienCommandeType}
-            lienCommandeRef={otForm.lienCommandeRef}
-            contratId={otForm.contratId}
+            compact
+            value={otForm}
             contrats={contratsPourOt}
+            devisList={(data.devis || []).filter(
+              (d) => !otForm.clientId || d.clientId === otForm.clientId,
+            )}
+            commandes={(data.commandesFournisseur || []).filter(
+              (c) => !otForm.clientId || !c.clientId || c.clientId === otForm.clientId,
+            )}
+            clients={data.clients}
             devisLienClient={client?.devisLien}
             onChange={(patch) => setOtForm({ ...otForm, ...patch })}
           />

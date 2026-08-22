@@ -746,6 +746,13 @@ export function resolveRemoteVsLocal(
     local.contratsMaintenance,
     preferOnTie,
   )
+  const devis = mergeByIdLatest(remote.devis, local.devis, preferOnTie)
+  const commandesFournisseur = mergeByIdLatest(
+    remote.commandesFournisseur,
+    local.commandesFournisseur,
+    preferOnTie,
+  )
+  const factures = mergeByIdLatest(remote.factures, local.factures, preferOnTie)
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
   let stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
@@ -792,6 +799,9 @@ export function resolveRemoteVsLocal(
     fichesMaintenanceChaufferie,
     ordresTravail,
     contratsMaintenance,
+    devis,
+    commandesFournisseur,
+    factures,
     agendaEvents,
     deletedEntityIds,
   }
