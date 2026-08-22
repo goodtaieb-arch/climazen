@@ -131,7 +131,8 @@ type Store = {
     equipementIds?: string[]
     natures?: import('./types').NatureIntervention[]
   }) => { drafts: CerfaDraft[]; site: Site; client: Client }
-  /** Enregistre la signature client sur le site et l’applique à tous les CERFA du site */
+  /** Enregistre la signature client sur le site (nom / qualité / dernière image).
+   * Ne propage plus vers les autres OT / CERFA / fiches — signature par intervention. */
   applySiteClientSignature: (opts: {
     siteId: string
     signatureDetenteur: string
@@ -1171,7 +1172,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signatureDetenteurImage: string
     }) => {
       const now = new Date().toISOString()
-      let count = 0
+      // Mémorise nom / qualité / dernière image sur le site uniquement.
+      // Ne propage PAS vers les OT / CERFA / fiches : chaque intervention a sa propre signature.
       setData((d) => {
         const site = d.chantiers.find((s) => s.id === opts.siteId)
         if (!site) return d
@@ -1186,65 +1188,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               }
             : s,
         )
-        const interventions = d.interventions.map((i) => {
-          if (i.chantierId !== opts.siteId) return i
-          count += 1
-          return {
-            ...i,
-            signatureDetenteur: opts.signatureDetenteur,
-            signatureDetenteurQualite: opts.signatureDetenteurQualite,
-            signatureDetenteurImage: opts.signatureDetenteurImage,
-            updatedAt: now,
-          }
-        })
-        const fiches = (d.fichesMaintenanceClim || []).map((f) => {
-          if (f.chantierId !== opts.siteId) return f
-          count += 1
-          return {
-            ...f,
-            signatureClientImage: opts.signatureDetenteurImage,
-            updatedAt: now,
-          }
-        })
-        const fichesChauff = (d.fichesMaintenanceChaufferie || []).map((f) => {
-          if (f.chantierId !== opts.siteId) return f
-          count += 1
-          return {
-            ...f,
-            signatureClientImage: opts.signatureDetenteurImage,
-            updatedAt: now,
-          }
-        })
-        const ordres = (d.ordresTravail || []).map((o) => {
-          if (o.chantierId !== opts.siteId) return o
-          count += 1
-          return {
-            ...o,
-            signatureClientImage: opts.signatureDetenteurImage,
-            updatedAt: now,
-          }
-        })
-        const contrats = (d.contratsMaintenance || []).map((c) => {
-          if (c.clientId !== site.clientId) return c
-          count += 1
-          return {
-            ...c,
-            signatureClientImage: opts.signatureDetenteurImage,
-            signatureClientNom: opts.signatureDetenteur,
-            updatedAt: now,
-          }
-        })
         return {
           ...d,
           chantiers: sites,
-          interventions,
-          fichesMaintenanceClim: fiches,
-          fichesMaintenanceChaufferie: fichesChauff,
-          ordresTravail: ordres,
-          contratsMaintenance: contrats,
         }
       })
-      return count
+      return 1
     },
     [],
   )

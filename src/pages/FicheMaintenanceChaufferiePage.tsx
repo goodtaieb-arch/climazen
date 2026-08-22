@@ -121,7 +121,7 @@ export function FicheMaintenanceChaufferiePage() {
       marqueModele: marqueModele || equip?.type || equip?.nom || '',
       numeroSerie: equip?.numeroSerie || '',
       signatureTechnicienImage: techSig,
-      signatureClientImage: site?.signatureDetenteurImage || '',
+      signatureClientImage: '',
     }
   })
 
@@ -131,7 +131,7 @@ export function FicheMaintenanceChaufferiePage() {
     setForm({
       ...rest,
       signatureTechnicienImage: rest.signatureTechnicienImage || techSig,
-      signatureClientImage: rest.signatureClientImage || site?.signatureDetenteurImage || '',
+      signatureClientImage: rest.signatureClientImage || '',
     })
   }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 

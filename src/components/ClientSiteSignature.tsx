@@ -34,8 +34,9 @@ type Props = {
 }
 
 /**
- * Signature client du site — une seule fois, réutilisée sur CERFA / OT / fiches.
- * Si client absent : envoi d’un lien de signature à distance.
+ * Signature client pour l’intervention en cours.
+ * Chaque OT / CERFA / fiche a son propre pad vide — pas de réutilisation auto
+ * de l’ancienne signature site. Si client absent : lien de signature à distance.
  */
 export function ClientSiteSignature({
   siteId,
@@ -78,10 +79,9 @@ export function ClientSiteSignature({
     onAwaitingRemoteChange?.(awaitingRemote)
   }, [awaitingRemote, onAwaitingRemoteChange])
 
-  // Préremplir depuis le site si le doc n’a pas encore de signature (une fois)
+  // Préremplir nom / qualité seulement — JAMAIS l’image (signature à chaque intervention)
   useEffect(() => {
-    if (!site?.signatureDetenteurImage) return
-    if (!image) onImageChange(site.signatureDetenteurImage)
+    if (!site) return
     if (!nomPrefillDone.current && !nom.trim()) {
       const nextNom = nomSignataireClient({
         signatureNom: site.signatureDetenteurNom,
@@ -100,7 +100,7 @@ export function ClientSiteSignature({
       onQualiteChange(site.signatureDetenteurQualite)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, site?.signatureDetenteurImage])
+  }, [siteId])
 
   const persistToSite = (next: { nom: string; qualite: string; image: string }) => {
     if (!autosaveSite || !siteId || !next.image) return
@@ -169,7 +169,7 @@ export function ClientSiteSignature({
   }
 
   useEffect(() => {
-    if (!siteId || !user?.organizationId || (siteHasSig && image)) return
+    if (!siteId || !user?.organizationId || image) return
     void importCompleted()
     const ms = pendingRemote.length > 0 || openLink || clientAbsent ? 4000 : 12000
     const timer = window.setInterval(() => void importCompleted(), ms)
@@ -182,7 +182,7 @@ export function ClientSiteSignature({
       document.removeEventListener('visibilitychange', onVis)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, user?.organizationId, siteHasSig, image, clientAbsent, pendingRemote.length, openLink])
+  }, [siteId, user?.organizationId, image, clientAbsent, pendingRemote.length, openLink])
 
   const reuseSite = () => {
     if (!site?.signatureDetenteurImage) return
@@ -310,29 +310,27 @@ export function ClientSiteSignature({
       <div>
         <h3 className="font-display text-sm font-semibold">Signature client / site</h3>
         <p className="mt-0.5 text-xs text-muted">
-          Une seule signature pour tous les documents de ce site. Indiquez le{' '}
+          Signature à chaque intervention. Indiquez le{' '}
           <strong className="font-semibold text-ink">nom de la personne qui signe</strong> (pas la
           raison sociale).
         </p>
       </div>
 
-      {siteHasSig ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          <Check className="h-4 w-4 shrink-0" />
+      {siteHasSig && !image ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-white/80 px-3 py-2 text-xs text-muted">
+          <Check className="h-4 w-4 shrink-0 text-emerald-700" />
           <span>
-            Signature déjà enregistrée sur le site
-            {site?.signatureDetenteurNom ? ` (${site.signatureDetenteurNom})` : ''} — réutilisée
+            Une signature précédente existe sur le site
+            {site?.signatureDetenteurNom ? ` (${site.signatureDetenteurNom})` : ''} — non reprise
             automatiquement.
           </span>
-          {!image && (
-            <button type="button" onClick={reuseSite} className="font-bold underline">
-              Appliquer
-            </button>
-          )}
+          <button type="button" onClick={reuseSite} className="font-bold text-ink underline">
+            Réutiliser (optionnel)
+          </button>
         </div>
       ) : null}
 
-      {!siteHasSig && siteId ? (
+      {!image && siteId ? (
         <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/80 p-3">
           <label className="flex min-h-11 cursor-pointer items-start gap-3">
             <input
@@ -506,9 +504,9 @@ export function ClientSiteSignature({
         </label>
       </div>
 
-      {image && siteHasSig && image === site?.signatureDetenteurImage ? (
+      {image ? (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-ink">Aperçu signature site</p>
+          <p className="text-xs font-medium text-ink">Signature client (cette intervention)</p>
           <img
             src={image}
             alt="Signature client"
@@ -519,19 +517,19 @@ export function ClientSiteSignature({
             onClick={() => onImageChange('')}
             className="inline-flex items-center gap-1 text-xs font-semibold text-muted underline"
           >
-            <PenLine className="h-3.5 w-3.5" /> Nouvelle signature (remplace pour tous les docs)
+            <PenLine className="h-3.5 w-3.5" /> Effacer et resignature
           </button>
         </div>
       ) : (
         <SignaturePad
-          label={siteHasSig ? 'Nouvelle signature client *' : 'Signature client (tactile) *'}
+          label="Signature client (tactile) *"
           value={image}
           onChange={(v) => {
             onImageChange(v)
             if (v) persistToSite({ nom, qualite, image: v })
           }}
           height={height}
-          hint="Faites signer une fois — valable pour CERFA, OT et fiches de ce site."
+          hint="Faites signer le client pour cette intervention uniquement."
         />
       )}
     </div>

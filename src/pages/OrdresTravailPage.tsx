@@ -107,15 +107,8 @@ export function OrdresTravailPage() {
     setClientSignQualite((q) =>
       q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
     )
-    if (!form.signatureClientImage && site.signatureDetenteurImage) {
-      setForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
-    }
+    // Ne pas préremplir signatureClientImage — signature à chaque OT
   }, [site?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!site?.signatureDetenteurImage || form.signatureClientImage) return
-    setForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
-  }, [site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSave = (e: FormEvent) => {
     e.preventDefault()
@@ -128,8 +121,7 @@ export function OrdresTravailPage() {
       id: existing?.id,
       signatureTechnicienImage:
         form.signatureTechnicienImage || user?.signatureImage || '',
-      signatureClientImage:
-        form.signatureClientImage || site?.signatureDetenteurImage || '',
+      signatureClientImage: form.signatureClientImage || '',
     })
     navigate(`/app/ot?id=${encodeURIComponent(id)}`, { replace: true })
     alert(`OT enregistré — ${formatOtNumero(form.numero)}`)
@@ -214,8 +206,8 @@ export function OrdresTravailPage() {
                     chantierId,
                     clientId: s?.clientId || form.clientId,
                     equipementId: '',
-                    signatureClientImage:
-                      s?.signatureDetenteurImage || form.signatureClientImage || '',
+                    // Nouveau site = pad signature client vide (pas de réutilisation)
+                    signatureClientImage: '',
                   })
                 }}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3"

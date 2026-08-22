@@ -171,8 +171,8 @@ Dans les menus : « Surnom (N° de série : BOT-XXX) ». Jamais mettre « Transf
     keywords: ['signature', 'signer', 'technicien', 'client', 'detenteur', 'détenteur'],
     paths: ['/app/appel', '/app/profil', '/app/interventions'],
     answer: `Signatures :
-- Technicien : Ma signature (/app/profil) — reprise sur OT et CERFA.
-- Client : sur l’OT (étape docs) ou sur le CERFA ; peut être mémorisée sur le site.
+- Technicien : Ma signature (/app/profil) — reprise automatiquement sur OT et CERFA.
+- Client : signature à chaque intervention (pad vide sur chaque nouvel OT / CERFA / fiche). Pas de réutilisation auto de l’ancienne signature site.
 
 Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé ».`,
   },

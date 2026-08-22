@@ -228,10 +228,10 @@ export function buildMaintenanceCerfaDrafts(input: MaintenanceCerfaInput): Cerfa
         input.client.nomContact?.trim() ||
         '',
       signatureDetenteurQualite: input.site.signatureDetenteurQualite || 'Détenteur',
-      signatureDetenteurImage: input.site.signatureDetenteurImage,
+      signatureDetenteurImage: undefined,
       createdByUserId: input.userId,
       createdByName: input.userName,
-      status: input.site.signatureDetenteurImage ? 'signe' : 'brouillon',
+      status: 'brouillon',
       createdAt: now,
       updatedAt: now,
     }

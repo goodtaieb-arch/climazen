@@ -436,7 +436,7 @@ export function ChantiersPage() {
         quantiteFluideKg:
           eq.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
         signatureTechnicienImage: user?.signatureImage || '',
-        signatureClientImage: site.signatureDetenteurImage || '',
+        signatureClientImage: '',
       })
       createdIds.push(id)
     })
@@ -492,7 +492,7 @@ export function ChantiersPage() {
         quantiteFluideKg:
           eq.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
         signatureTechnicienImage: user?.signatureImage || '',
-        signatureClientImage: site.signatureDetenteurImage || '',
+        signatureClientImage: '',
       })
       createdIds.push(id)
     })
@@ -2456,7 +2456,7 @@ export function ChantiersPage() {
                         equipementId: equipWork.equipementId,
                         technicien: user?.signataireNom || user?.fullName || user?.email || '',
                         signatureTechnicienImage: user?.signatureImage,
-                        signatureClientImage: equipWork.site.signatureDetenteurImage,
+                        signatureClientImage: '',
                         statut: 'en_cours',
                       })
                       const naturesQ = encodeURIComponent(natures.join(','))

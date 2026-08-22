@@ -556,12 +556,9 @@ export function InterventionFormPage() {
     })
   }, [denominationFluide, natures]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Préremplir nom / signature client depuis le site (personne qui signe, pas la société)
+  // Préremplir nom / qualité client depuis le site (pas l’image — signature à chaque intervention)
   useEffect(() => {
     if (!chantier) return
-    if (!signatureDetenteurImage && chantier.signatureDetenteurImage) {
-      setSignatureDetenteurImage(chantier.signatureDetenteurImage)
-    }
     const person = nomSignataireClient({
       signatureNom: signatureDetenteur || chantier.signatureDetenteurNom,
       nomContact: client?.nomContact,
@@ -579,7 +576,7 @@ export function InterventionFormPage() {
         chantier.signatureDetenteurQualite || 'Représentant client',
       )
     }
-  }, [chantier?.id, chantier?.signatureDetenteurAt, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chantier?.id, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // teq CO₂ = Charge (kg) × GWP / 1000 — dès que fluide + charge connus
   useEffect(() => {

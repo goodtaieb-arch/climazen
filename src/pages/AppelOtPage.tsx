@@ -269,17 +269,8 @@ export function AppelOtPage() {
     setClientSignQualite((q) =>
       q && q !== 'Représentant client' ? q : site.signatureDetenteurQualite || 'Représentant client',
     )
-    if (!otForm.signatureClientImage && site.signatureDetenteurImage) {
-      setOtForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
-    }
+    // Ne pas préremplir signatureClientImage — signature à chaque OT
   }, [site?.id, client?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Si une nouvelle signature arrive sur le site (distant), reprendre l’image sans toucher au nom saisi
-  useEffect(() => {
-    if (!site?.signatureDetenteurImage) return
-    if (otForm.signatureClientImage) return
-    setOtForm((f) => ({ ...f, signatureClientImage: site.signatureDetenteurImage }))
-  }, [site?.signatureDetenteurAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const clientsFiltered = useMemo(
     () =>
@@ -671,7 +662,7 @@ export function AppelOtPage() {
         quantiteFluideKg:
           eq?.chargeNominaleKg != null && eq.chargeNominaleKg > 0 ? eq.chargeNominaleKg : null,
         signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
-        signatureClientImage: otForm.signatureClientImage || s?.signatureDetenteurImage || '',
+        signatureClientImage: otForm.signatureClientImage || '',
         observations: otForm.observations || '',
       })
       ficheIds.push(ficheId)
@@ -746,7 +737,7 @@ export function AppelOtPage() {
           : '',
         numeroSerie: eq?.numeroSerie || '',
         signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
-        signatureClientImage: otForm.signatureClientImage || s?.signatureDetenteurImage || '',
+        signatureClientImage: otForm.signatureClientImage || '',
         observations: otForm.observations || '',
       })
     }

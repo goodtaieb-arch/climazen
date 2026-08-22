@@ -68,11 +68,10 @@ function buildPrefill(opts: {
       ...rest,
       equipementId: equip?.id || rest.equipementId,
       chantierId: opts.site?.id || rest.chantierId,
-      // Signatures auto comme CERFA (profil + signature client du site)
+      // Tech auto depuis profil ; client = signature de cette intervention seulement
       signatureTechnicienImage:
         rest.signatureTechnicienImage || opts.signatureOperateur || '',
-      signatureClientImage:
-        rest.signatureClientImage || opts.site?.signatureDetenteurImage || '',
+      signatureClientImage: rest.signatureClientImage || '',
       marqueModele: sync && marqueFromEquip ? marqueFromEquip : rest.marqueModele,
       numeroSerie: sync && equip?.numeroSerie ? equip.numeroSerie : rest.numeroSerie,
       fluide: sync && equip?.fluideType ? equip.fluideType : rest.fluide,
@@ -106,7 +105,7 @@ function buildPrefill(opts: {
         ? equip.chargeNominaleKg
         : null,
     signatureTechnicienImage: opts.signatureOperateur || '',
-    signatureClientImage: site?.signatureDetenteurImage || '',
+    signatureClientImage: '',
   }
 }
 
@@ -258,25 +257,15 @@ export function FicheMaintenanceClimPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bascule uniquement sur editId
   }, [editId, data.fichesMaintenanceClim])
 
-  // Signatures auto (comme CERFA) dès que le profil / site est dispo
+  // Signature tech auto depuis le profil ; client = pad vide (par intervention)
   useEffect(() => {
     const tech = user?.signatureImage
-    const clientSig = site?.signatureDetenteurImage
-    if (!tech && !clientSig) return
+    if (!tech) return
     setForm((f) => {
-      const next = { ...f }
-      let changed = false
-      if (tech && !f.signatureTechnicienImage) {
-        next.signatureTechnicienImage = tech
-        changed = true
-      }
-      if (clientSig && !f.signatureClientImage) {
-        next.signatureClientImage = clientSig
-        changed = true
-      }
-      return changed ? next : f
+      if (f.signatureTechnicienImage) return f
+      return { ...f, signatureTechnicienImage: tech }
     })
-  }, [user?.signatureImage, site?.signatureDetenteurImage, editId])
+  }, [user?.signatureImage, editId])
 
   const relatedFiches = useMemo(() => {
     const list = data.fichesMaintenanceClim || []
@@ -428,7 +417,7 @@ export function FicheMaintenanceClimPage() {
         ...form,
         signatureTechnicienImage: techSig,
         signatureClientImage:
-          form.signatureClientImage || site?.signatureDetenteurImage || '',
+          form.signatureClientImage || '',
       }
       setForm(withSig)
       const id = upsertFicheMaintenanceClim({
@@ -527,7 +516,7 @@ export function FicheMaintenanceClimPage() {
           signatureTechnicienImage:
             fiche.signatureTechnicienImage || techSig || user?.signatureImage || '',
           signatureClientImage:
-            fiche.signatureClientImage || site?.signatureDetenteurImage || '',
+            fiche.signatureClientImage || '',
         }
         if (!withSig.signatureTechnicienImage) {
           throw new Error(`Signature manquante sur « ${item.label} ».`)
