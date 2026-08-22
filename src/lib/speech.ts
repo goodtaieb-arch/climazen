@@ -187,10 +187,11 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
     },
     {
       id: 'ot',
-      label: 'Ordres de travail',
+      label: 'OT / Demandes',
       path: '/app/ot',
       test: (s) =>
-        /\b(ordres? de travail|liste ot|\bot\b)\b/.test(s) && !/\b(creer|nouveau|nouvelle)\b/.test(s),
+        /\b(ordres? de travail|demandes? d['’ ]?intervention|liste ot|\bot\b)\b/.test(s) &&
+        !/\b(creer|nouveau|nouvelle)\b/.test(s),
     },
     {
       id: 'stock',

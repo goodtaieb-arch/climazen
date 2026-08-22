@@ -367,7 +367,7 @@ export function Dashboard() {
                 delay="0.6s"
               />
               <CircleHomeTile
-                title="Ordres de travail"
+                title="OT / Demandes"
                 img={ICON3D.maintenance}
                 to="/app/ot"
                 badge={otAReprendre.length || undefined}

@@ -18,6 +18,7 @@ import {
   isOtCloture,
   formatOtNumero,
   otBaseNumero,
+  OT_LABEL,
   type TypeOt,
   type StatutOt,
 } from '../lib/ordreTravail'
@@ -152,7 +153,7 @@ export function OrdresTravailPage() {
             <ArrowLeft className="h-4 w-4" /> Liste OT
           </button>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
-            {form.numero ? formatOtNumero(form.numero) : 'Nouvel OT'}
+            {form.numero ? formatOtNumero(form.numero) : 'Nouvel OT / demande'}
           </span>
         </div>
 
@@ -395,10 +396,9 @@ export function OrdresTravailPage() {
         <div className="flex min-w-0 items-center gap-3">
           <Cerfa3dIcon size={52} float delay="0.1s" className="shrink-0" />
           <div className="min-w-0">
-            <h1 className="font-display text-3xl font-bold tracking-tight">Ordres de travail</h1>
-            <p className="mt-1 text-muted">
-              Chaque action terrain = un OT unique + docs groupés (ZIP / envoi client).
-            </p>
+            <h1 className="font-display text-3xl font-bold tracking-tight">{OT_LABEL.title}</h1>
+            <p className="mt-0.5 text-sm font-medium text-accent">{OT_LABEL.alsoCalled}</p>
+            <p className="mt-1 text-sm text-muted">{OT_LABEL.hint}</p>
           </div>
         </div>
         <button
@@ -528,10 +528,10 @@ export function OrdresTravailPage() {
         {list.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-10 text-center text-sm text-muted">
             {statutFilter === 'clotures'
-              ? 'Aucun OT clôturé pour l’instant.'
+              ? 'Aucun OT / demande clôturé pour l’instant.'
               : statutFilter === 'ouverts'
-                ? 'Aucun OT ouvert. Créez-en un depuis Sites & Parc ou « Client appelle ».'
-                : 'Aucun OT. Créez-en un depuis Sites & Parc ou ici.'}
+                ? 'Aucun OT / demande ouvert. Créez-en un depuis Sites & Parc ou « Client appelle ».'
+                : 'Aucun OT / demande. Créez-en un depuis Sites & Parc ou ici.'}
           </div>
         )}
       </div>

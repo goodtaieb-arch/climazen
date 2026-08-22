@@ -1,5 +1,20 @@
 /** Ordre de travail (OT) — n° unique aammjjxx (ex. 26081501), un seul par intervention. */
 
+/**
+ * Libellés UI — certaines sociétés disent « demande d’intervention » pour le même document.
+ * On garde OT partout (n°) et on affiche les deux mots pour ne perdre personne.
+ */
+export const OT_LABEL = {
+  /** Titre page / menu long */
+  title: 'Ordres de travail',
+  /** Sous-titre court sous le titre */
+  alsoCalled: 'Aussi appelés demandes d’intervention',
+  /** Menu / tuile compacte */
+  nav: 'OT / Demandes',
+  /** Explication une ligne */
+  hint: 'OT = demande d’intervention — un n° unique par action terrain + docs groupés (ZIP / envoi client).',
+} as const
+
 export type TypeOt =
   | 'controle_etancheite'
   | 'maintenance'
