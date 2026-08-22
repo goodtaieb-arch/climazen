@@ -1004,6 +1004,7 @@ export function FicheMaintenanceClimPage() {
             />
             <ClientSiteSignature
               siteId={site?.id || form.chantierId}
+              otId={linkedOt?.id}
               nom={clientSignNom}
               qualite={clientSignQualite}
               image={form.signatureClientImage || ''}

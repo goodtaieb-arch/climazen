@@ -1090,12 +1090,11 @@ export function InterventionFormPage() {
       }
     }
 
-    if (signatureDetenteurImage && chantierId) {
+    if (signatureDetenteur.trim() && chantierId) {
       applySiteClientSignature({
         siteId: chantierId,
-        signatureDetenteur: signatureDetenteur.trim() || '',
+        signatureDetenteur: signatureDetenteur.trim(),
         signatureDetenteurQualite: signatureDetenteurQualite.trim() || 'Représentant client',
-        signatureDetenteurImage,
       })
     }
 
@@ -2195,6 +2194,7 @@ export function InterventionFormPage() {
 
             <ClientSiteSignature
               siteId={chantierId || undefined}
+              otId={ordreTravailId || draftId || undefined}
               nom={signatureDetenteur}
               qualite={signatureDetenteurQualite}
               image={signatureDetenteurImage}

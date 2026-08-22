@@ -131,13 +131,12 @@ type Store = {
     equipementIds?: string[]
     natures?: import('./types').NatureIntervention[]
   }) => { drafts: CerfaDraft[]; site: Site; client: Client }
-  /** Enregistre la signature client sur le site (nom / qualité / dernière image).
-   * Ne propage plus vers les autres OT / CERFA / fiches — signature par intervention. */
+  /** Enregistre nom / qualité signataire sur le site (pas l’image — signature à chaque OT). */
   applySiteClientSignature: (opts: {
     siteId: string
     signatureDetenteur: string
     signatureDetenteurQualite: string
-    signatureDetenteurImage: string
+    signatureDetenteurImage?: string
   }) => number
   upsertStock: (s: Omit<StockItem, 'id' | 'updatedAt'> & { id?: string }) => string
   deleteStock: (id: string) => void
@@ -1169,11 +1168,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       siteId: string
       signatureDetenteur: string
       signatureDetenteurQualite: string
-      signatureDetenteurImage: string
+      /** Trait de signature — laisser vide : on ne mémorise plus l’image sur le site */
+      signatureDetenteurImage?: string
     }) => {
-      const now = new Date().toISOString()
-      // Mémorise nom / qualité / dernière image sur le site uniquement.
-      // Ne propage PAS vers les OT / CERFA / fiches : chaque intervention a sa propre signature.
+      // Nom / qualité seulement sur le site. Jamais d’image réutilisable entre OT.
       setData((d) => {
         const site = d.chantiers.find((s) => s.id === opts.siteId)
         if (!site) return d
@@ -1183,8 +1181,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 ...s,
                 signatureDetenteurNom: opts.signatureDetenteur,
                 signatureDetenteurQualite: opts.signatureDetenteurQualite,
-                signatureDetenteurImage: opts.signatureDetenteurImage,
-                signatureDetenteurAt: now,
+                signatureDetenteurImage: undefined,
+                signatureDetenteurAt: undefined,
               }
             : s,
         )

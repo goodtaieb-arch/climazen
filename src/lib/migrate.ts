@@ -109,8 +109,9 @@ export function migrateSite(raw: LegacyChantier): Site {
     createdByName: raw.createdByName,
     signatureDetenteurNom: raw.signatureDetenteurNom,
     signatureDetenteurQualite: raw.signatureDetenteurQualite,
-    signatureDetenteurImage: raw.signatureDetenteurImage,
-    signatureDetenteurAt: raw.signatureDetenteurAt,
+    // Plus d’image mémorisée sur le site — signature à chaque intervention
+    signatureDetenteurImage: undefined,
+    signatureDetenteurAt: undefined,
     typeTravaux,
     detailTravaux: raw.detailTravaux,
     modeGestion,

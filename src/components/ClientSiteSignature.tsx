@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Link2, Mail, MessageSquare, PenLine, Share2 } from 'lucide-react'
+import { Link2, Mail, MessageSquare, PenLine, Share2 } from 'lucide-react'
 import { SignaturePad } from './SignaturePad'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -25,8 +25,6 @@ type Props = {
   onImageChange: (v: string) => void
   /** Hauteur du pad si nouvelle signature */
   height?: number
-  /** Si true, enregistre immédiatement sur le site (tous docs) */
-  autosaveSite?: boolean
   /** OT lié (optionnel, pour le lien distant) */
   otId?: string
   /** true = lien distant envoyé, signature pas encore reçue */
@@ -34,9 +32,9 @@ type Props = {
 }
 
 /**
- * Signature client pour l’intervention en cours.
- * Chaque OT / CERFA / fiche a son propre pad vide — pas de réutilisation auto
- * de l’ancienne signature site. Si client absent : lien de signature à distance.
+ * Signature client pour l’intervention en cours uniquement.
+ * Jamais de réutilisation d’une ancienne signature site / OT.
+ * Nom / qualité peuvent être préremplis — le trait de signature non.
  */
 export function ClientSiteSignature({
   siteId,
@@ -47,7 +45,6 @@ export function ClientSiteSignature({
   onQualiteChange,
   onImageChange,
   height = 160,
-  autosaveSite = true,
   otId,
   onAwaitingRemoteChange,
 }: Props) {
@@ -55,31 +52,30 @@ export function ClientSiteSignature({
   const { user } = useAuth()
   const site = siteId ? data.chantiers.find((c) => c.id === siteId) : undefined
   const client = site ? data.clients.find((c) => c.id === site.clientId) : undefined
-  const siteHasSig = !!(site?.signatureDetenteurImage)
   const [remoteMsg, setRemoteMsg] = useState('')
   const [remoteBusy, setRemoteBusy] = useState(false)
   const [openLink, setOpenLink] = useState<string | null>(null)
   const [pendingRemote, setPendingRemote] = useState<SignatureRequestRow[]>([])
-  /** Mode client absent — signature à distance */
   const [clientAbsent, setClientAbsent] = useState(false)
-  /** Accord explicite du client avant envoi e-mail / SMS */
   const [clientAgrees, setClientAgrees] = useState(false)
   const importedIds = useRef(new Set<string>())
-  /** Préremplissage nom une seule fois par site — sinon on ne peut pas effacer. */
   const nomPrefillDone = useRef(false)
+  /** Ne prendre que les signatures distantes de cette session / cet OT */
+  const sessionStartedAt = useRef(new Date().toISOString())
 
-  /** Client absent sans signature encore reçue → ne pas clôturer */
   const awaitingRemote = clientAbsent && !image
 
   useEffect(() => {
     nomPrefillDone.current = false
-  }, [siteId])
+    sessionStartedAt.current = new Date().toISOString()
+    importedIds.current = new Set()
+  }, [siteId, otId])
 
   useEffect(() => {
     onAwaitingRemoteChange?.(awaitingRemote)
   }, [awaitingRemote, onAwaitingRemoteChange])
 
-  // Préremplir nom / qualité seulement — JAMAIS l’image (signature à chaque intervention)
+  // Préremplir nom / qualité seulement — JAMAIS l’image
   useEffect(() => {
     if (!site) return
     if (!nomPrefillDone.current && !nom.trim()) {
@@ -88,13 +84,10 @@ export function ClientSiteSignature({
         nomContact: client?.nomContact,
         raisonSociale: client?.raisonSociale,
       })
-      // Ne jamais forcer le libellé technique « Signataire site »
       if (nextNom && nextNom !== 'Signataire site') {
         onNomChange(nextNom)
-        nomPrefillDone.current = true
-      } else {
-        nomPrefillDone.current = true
       }
+      nomPrefillDone.current = true
     }
     if ((!qualite.trim() || qualite === 'Détenteur') && site.signatureDetenteurQualite) {
       onQualiteChange(site.signatureDetenteurQualite)
@@ -102,20 +95,16 @@ export function ClientSiteSignature({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId])
 
-  const persistToSite = (next: { nom: string; qualite: string; image: string }) => {
-    if (!autosaveSite || !siteId || !next.image) return
+  /** Mémorise seulement nom / qualité sur le site — pas le trait (signature à chaque fois). */
+  const persistNameOnly = (next: { nom: string; qualite: string }) => {
+    if (!siteId) return
     const typed = next.nom.trim()
-    const previous =
-      site?.signatureDetenteurNom?.trim() && site.signatureDetenteurNom.trim() !== 'Signataire site'
-        ? site.signatureDetenteurNom.trim()
-        : ''
-    const personName =
-      typed && typed !== 'Signataire site' ? typed : previous
+    if (!typed || typed === 'Signataire site') return
     applySiteClientSignature({
       siteId,
-      signatureDetenteur: personName,
+      signatureDetenteur: typed,
       signatureDetenteurQualite: next.qualite.trim() || 'Représentant client',
-      signatureDetenteurImage: next.image,
+      signatureDetenteurImage: '',
     })
   }
 
@@ -127,33 +116,18 @@ export function ClientSiteSignature({
     })
     for (const r of rows) {
       if (!r.signature_image || importedIds.current.has(r.id)) continue
-      // Ne pas écraser une signature locale plus récente sans besoin — importer si pas encore d’image
-      if (site?.signatureDetenteurImage && site.signatureDetenteurImage === r.signature_image) {
-        importedIds.current.add(r.id)
+      // Uniquement la signature de CET OT, ou créée pendant cette session
+      if (otId) {
+        if (r.ot_id !== otId) continue
+      } else if (!r.created_at || r.created_at < sessionStartedAt.current) {
         continue
-      }
-      if (site?.signatureDetenteurImage && image && image === site.signatureDetenteurImage) {
-        // déjà une signature site : n’importe que si on n’a pas encore cette image
-        if (site.signatureDetenteurAt && r.used_at && site.signatureDetenteurAt >= r.used_at) {
-          importedIds.current.add(r.id)
-          continue
-        }
       }
       const nextNom = (r.signature_nom || '').trim()
       const nextQual = (r.signature_qualite || '').trim() || 'Représentant client'
       if (nextNom) onNomChange(nextNom)
       onQualiteChange(nextQual)
       onImageChange(r.signature_image)
-      if (nextNom) {
-        persistToSite({ nom: nextNom, qualite: nextQual, image: r.signature_image })
-      } else {
-        applySiteClientSignature({
-          siteId,
-          signatureDetenteur: site?.signatureDetenteurNom?.trim() || '',
-          signatureDetenteurQualite: nextQual,
-          signatureDetenteurImage: r.signature_image,
-        })
-      }
+      if (nextNom) persistNameOnly({ nom: nextNom, qualite: nextQual })
       importedIds.current.add(r.id)
       setRemoteMsg(
         nextNom ? `Signature reçue à distance (${nextNom}).` : 'Signature reçue à distance.',
@@ -165,7 +139,9 @@ export function ClientSiteSignature({
       organizationId: user.organizationId,
       siteId,
     })
-    setPendingRemote(open)
+    setPendingRemote(
+      otId ? open.filter((r) => !r.ot_id || r.ot_id === otId) : open,
+    )
   }
 
   useEffect(() => {
@@ -182,16 +158,7 @@ export function ClientSiteSignature({
       document.removeEventListener('visibilitychange', onVis)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, user?.organizationId, image, clientAbsent, pendingRemote.length, openLink])
-
-  const reuseSite = () => {
-    if (!site?.signatureDetenteurImage) return
-    const nextNom = nom.trim() || site.signatureDetenteurNom?.trim() || ''
-    const nextQual = qualite.trim() || site.signatureDetenteurQualite || 'Représentant client'
-    onImageChange(site.signatureDetenteurImage)
-    if (nextNom) onNomChange(nextNom)
-    onQualiteChange(nextQual)
-  }
+  }, [siteId, otId, user?.organizationId, image, clientAbsent, pendingRemote.length, openLink])
 
   const createRemoteLink = async (): Promise<string | null> => {
     if (!siteId) {
@@ -269,7 +236,6 @@ export function ClientSiteSignature({
     const body = smsSignatureBody({ url, siteNom: site?.nom })
     const tel = (client?.telephone || '').replace(/[\s.\-()]/g, '')
 
-    // 1) SMS natif si téléphone sur la fiche client
     if (tel) {
       const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent)
       const href = isApple
@@ -282,7 +248,6 @@ export function ClientSiteSignature({
       return
     }
 
-    // 2) Partage système (WhatsApp, Messages…)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -310,25 +275,11 @@ export function ClientSiteSignature({
       <div>
         <h3 className="font-display text-sm font-semibold">Signature client / site</h3>
         <p className="mt-0.5 text-xs text-muted">
-          Signature à chaque intervention. Indiquez le{' '}
+          À signer à chaque intervention — aucune ancienne signature n’est reprise. Indiquez le{' '}
           <strong className="font-semibold text-ink">nom de la personne qui signe</strong> (pas la
           raison sociale).
         </p>
       </div>
-
-      {siteHasSig && !image ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-white/80 px-3 py-2 text-xs text-muted">
-          <Check className="h-4 w-4 shrink-0 text-emerald-700" />
-          <span>
-            Une signature précédente existe sur le site
-            {site?.signatureDetenteurNom ? ` (${site.signatureDetenteurNom})` : ''} — non reprise
-            automatiquement.
-          </span>
-          <button type="button" onClick={reuseSite} className="font-bold text-ink underline">
-            Réutiliser (optionnel)
-          </button>
-        </div>
-      ) : null}
 
       {!image && siteId ? (
         <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/80 p-3">
@@ -376,13 +327,6 @@ export function ClientSiteSignature({
                   disabled={remoteBusy || !clientAgrees || !isSupabaseConfigured()}
                   onClick={() => void sendByEmail()}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-3 text-xs font-extrabold text-white disabled:opacity-50"
-                  title={
-                    !clientAgrees
-                      ? 'Cochez d’abord l’accord du client'
-                      : !client?.email
-                        ? 'Ajoutez un e-mail sur la fiche client'
-                        : undefined
-                  }
                 >
                   <Mail className="h-4 w-4" />
                   {remoteBusy ? 'Envoi…' : 'Envoyer par ClimaZEN'}
@@ -427,14 +371,12 @@ export function ClientSiteSignature({
                 </button>
               ) : null}
 
-              {clientAbsent ? (
-                <ol className="list-decimal space-y-1 rounded-xl border border-teal-300 bg-white px-3 py-2 pl-7 text-[11px] text-teal-950">
-                  <li>Cochez l’accord du client, puis SMS ou e-mail.</li>
-                  <li>Le client ouvre le lien et signe sur son téléphone.</li>
-                  <li>La signature arrive ici toute seule (gardez la page ouverte).</li>
-                  <li>Seulement après : bouton « Clôturer signé ».</li>
-                </ol>
-              ) : null}
+              <ol className="list-decimal space-y-1 rounded-xl border border-teal-300 bg-white px-3 py-2 pl-7 text-[11px] text-teal-950">
+                <li>Cochez l’accord du client, puis SMS ou e-mail.</li>
+                <li>Le client ouvre le lien et signe sur son téléphone.</li>
+                <li>La signature arrive ici toute seule (gardez la page ouverte).</li>
+                <li>Seulement après : bouton « Clôturer signé ».</li>
+              </ol>
 
               {awaitingRemote ? (
                 <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-950">
@@ -470,8 +412,8 @@ export function ClientSiteSignature({
               onNomChange(e.target.value)
             }}
             onBlur={() => {
-              if (image && nom.trim() && nom.trim() !== 'Signataire site') {
-                persistToSite({ nom, qualite, image })
+              if (nom.trim() && nom.trim() !== 'Signataire site') {
+                persistNameOnly({ nom, qualite })
               }
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3"
@@ -485,8 +427,8 @@ export function ClientSiteSignature({
             value={qualite}
             onChange={(e) => onQualiteChange(e.target.value)}
             onBlur={() => {
-              if (image && nom.trim() && nom.trim() !== 'Signataire site') {
-                persistToSite({ nom, qualite, image })
+              if (nom.trim() && nom.trim() !== 'Signataire site') {
+                persistNameOnly({ nom, qualite })
               }
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3"
@@ -526,10 +468,10 @@ export function ClientSiteSignature({
           value={image}
           onChange={(v) => {
             onImageChange(v)
-            if (v) persistToSite({ nom, qualite, image: v })
+            if (v && nom.trim()) persistNameOnly({ nom, qualite })
           }}
           height={height}
-          hint="Faites signer le client pour cette intervention uniquement."
+          hint="Faites signer le client pour cette intervention uniquement — non enregistrée pour la suivante."
         />
       )}
     </div>
