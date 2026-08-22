@@ -56,6 +56,36 @@ export const PARCOURS_APPEL_STEPS = [
 
 export type ParcoursAppelStepId = (typeof PARCOURS_APPEL_STEPS)[number]['id']
 
+/**
+ * Lien commercial de l’OT — devis, contrat, commande, ou devis de régule
+ * (après dépannage d’urgence). Pas un module de facturation : juste le rattachement.
+ */
+export type LienCommandeType =
+  | 'aucun'
+  | 'contrat'
+  | 'devis'
+  | 'devis_regule'
+  | 'commande'
+
+export const LIEN_COMMANDE_LABELS: Record<LienCommandeType, string> = {
+  aucun: 'Aucune (libre)',
+  contrat: 'Contrat maintenance',
+  devis: 'Devis',
+  devis_regule: 'Devis de régule',
+  commande: 'Commande',
+}
+
+export function formatLienCommande(o: {
+  lienCommandeType?: LienCommandeType | string
+  lienCommandeRef?: string
+}): string | null {
+  const t = (o.lienCommandeType || 'aucun') as LienCommandeType
+  if (!t || t === 'aucun') return null
+  const label = LIEN_COMMANDE_LABELS[t] || t
+  const ref = (o.lienCommandeRef || '').trim()
+  return ref ? `${label} · ${ref}` : label
+}
+
 export interface OrdreTravail {
   id: string
   /** Format aammjjxx — ex. 26081501. Unique pour toute l’intervention (multi-équipements / multi-jours). */
@@ -80,6 +110,15 @@ export interface OrdreTravail {
   ficheMaintenanceId?: string
   /** Lien fiche maintenance chaufferie P2/P3 */
   ficheChaufferieId?: string
+  /**
+   * Rattachement commercial : contrat / devis / devis de régule / commande.
+   * Défaut = aucune (OT libre, urgence sans devis encore).
+   */
+  lienCommandeType?: LienCommandeType
+  /** N° devis, n° commande, ou libellé (ex. « Devis Tiime #452 ») */
+  lienCommandeRef?: string
+  /** Si lien = contrat — id ContratMaintenance */
+  contratId?: string
   signatureTechnicienImage?: string
   signatureClientImage?: string
   statut: StatutOt
@@ -102,6 +141,9 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     technicien: '',
     statut: 'brouillon',
     parcoursStep: 'ot',
+    lienCommandeType: 'aucun',
+    lienCommandeRef: '',
+    contratId: undefined,
   }
 }
 

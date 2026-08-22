@@ -458,7 +458,7 @@ export function AgendaPage() {
             <Link
               to={`/app/appel?client=${encodeURIComponent(ev.clientId)}${
                 ev.chantierId ? `&chantier=${encodeURIComponent(ev.chantierId)}` : ''
-              }`}
+              }${ev.contratId ? `&contrat=${encodeURIComponent(ev.contratId)}` : ''}`}
               className="inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-xs font-semibold"
             >
               Créer OT

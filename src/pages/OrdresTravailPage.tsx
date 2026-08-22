@@ -19,9 +19,12 @@ import {
   formatOtNumero,
   otBaseNumero,
   OT_LABEL,
+  formatLienCommande,
   type TypeOt,
   type StatutOt,
 } from '../lib/ordreTravail'
+import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
+import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { allEquipements } from '../lib/cerfaBatch'
 
 export function OrdresTravailPage() {
@@ -80,7 +83,17 @@ export function OrdresTravailPage() {
         const client = data.clients.find((c) => c.id === o.clientId)
         const site = data.chantiers.find((c) => c.id === o.chantierId)
         return matchesQuery(
-          [o.numero, o.action, o.typeOt, o.technicien, client?.raisonSociale, site?.nom, o.statut]
+          [
+            o.numero,
+            o.action,
+            o.typeOt,
+            o.technicien,
+            client?.raisonSociale,
+            site?.nom,
+            o.statut,
+            o.lienCommandeRef,
+            o.lienCommandeType,
+          ]
             .filter(Boolean)
             .join(' '),
           q,
@@ -265,6 +278,23 @@ export function OrdresTravailPage() {
               placeholder="Ex. Contrôle étanchéité groupe froid cuisine…"
             />
           </label>
+
+          <OtCommandeLinkFields
+            lienCommandeType={form.lienCommandeType}
+            lienCommandeRef={form.lienCommandeRef}
+            contratId={form.contratId}
+            contrats={
+              site
+                ? contratsActifsForSite(data.contratsMaintenance, site)
+                : form.clientId
+                  ? contratsActifsForClient(data.contratsMaintenance, form.clientId)
+                  : []
+            }
+            devisLienClient={
+              data.clients.find((c) => c.id === (form.clientId || site?.clientId))?.devisLien
+            }
+            onChange={(patch) => setForm({ ...form, ...patch })}
+          />
 
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
@@ -463,6 +493,11 @@ export function OrdresTravailPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-ink">{o.action || '—'}</p>
+                {formatLienCommande(o) ? (
+                  <p className="mt-1 text-xs font-semibold text-emerald-800">
+                    {formatLienCommande(o)}
+                  </p>
+                ) : null}
                 <p className="mt-0.5 text-xs text-muted">
                   {siteRow?.nom || '—'} · {client?.raisonSociale || '—'} · {o.date}
                   {o.technicien ? ` · ${o.technicien}` : ''}

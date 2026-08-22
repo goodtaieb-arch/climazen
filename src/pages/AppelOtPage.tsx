@@ -44,7 +44,13 @@ import {
   type StatutOt,
   type ParcoursAppelStepId,
   type OrdreTravail,
+  type LienCommandeType,
 } from '../lib/ordreTravail'
+import {
+  contratsActifsForClient,
+  contratsActifsForSite,
+} from '../lib/contratMaintenance'
+import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -127,6 +133,7 @@ export function AppelOtPage() {
   const clientFromQuery = params.get('client') || ''
   const chantierFromQuery = params.get('chantier') || ''
   const equipFromQuery = params.get('equipement') || ''
+  const contratFromQuery = params.get('contrat') || ''
   const fromScan = params.get('from') === 'scan'
 
   const existing = useMemo(
@@ -157,6 +164,9 @@ export function AppelOtPage() {
     const label = eq
       ? (eq.nom || eq.type || 'Équipement').trim()
       : site?.nom || 'Intervention'
+    const contratPrefill = contratFromQuery
+      ? (data.contratsMaintenance || []).find((c) => c.id === contratFromQuery)
+      : undefined
     return {
       ...blankOrdreTravail(),
       numero: nextNumeroOt(data),
@@ -169,10 +179,13 @@ export function AppelOtPage() {
       parcoursStep: (clientFromQuery && chantierFromQuery && equipFromQuery
         ? 'docs'
         : 'ot') as ParcoursAppelStepId,
-      clientId: clientFromQuery || site?.clientId || undefined,
+      clientId: clientFromQuery || site?.clientId || contratPrefill?.clientId || undefined,
       chantierId: chantierFromQuery || undefined,
       equipementId: equipFromQuery || undefined,
       equipementIds: equipFromQuery ? [equipFromQuery] : undefined,
+      lienCommandeType: (contratPrefill ? 'contrat' : 'aucun') as LienCommandeType,
+      lienCommandeRef: contratPrefill?.numero || '',
+      contratId: contratPrefill?.id,
     }
   })
 
@@ -236,6 +249,11 @@ export function AppelOtPage() {
 
   const client = data.clients.find((c) => c.id === otForm.clientId)
   const site = data.chantiers.find((c) => c.id === otForm.chantierId)
+  const contratsPourOt = useMemo(() => {
+    if (site) return contratsActifsForSite(data.contratsMaintenance, site)
+    if (otForm.clientId) return contratsActifsForClient(data.contratsMaintenance, otForm.clientId)
+    return (data.contratsMaintenance || []).filter((c) => c.statut === 'signe')
+  }, [data.contratsMaintenance, site, otForm.clientId])
   const eqs = site ? allEquipements(site) : []
   const selectedEquipIds = useMemo(() => {
     if (otForm.equipementIds && otForm.equipementIds.length > 0) return otForm.equipementIds
@@ -968,6 +986,16 @@ export function AppelOtPage() {
               autoFocus
             />
           </label>
+
+          <OtCommandeLinkFields
+            lienCommandeType={otForm.lienCommandeType}
+            lienCommandeRef={otForm.lienCommandeRef}
+            contratId={otForm.contratId}
+            contrats={contratsPourOt}
+            devisLienClient={client?.devisLien}
+            onChange={(patch) => setOtForm({ ...otForm, ...patch })}
+          />
+
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
               <span>Observations (appel)</span>

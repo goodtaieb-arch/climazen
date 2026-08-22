@@ -39,6 +39,7 @@ import { assertDetecteurValidePourCerfa } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
 import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
+import { contratsActifsForSite } from './contratMaintenance'
 import type { AgendaEvent } from './agenda'
 import { buildAutoAgendaEvents } from './agenda'
 import {
@@ -1036,11 +1037,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signatureTechnicienImage?: string
       signatureClientImage?: string
       statut?: import('./ordreTravail').StatutOt
+      lienCommandeType?: import('./ordreTravail').LienCommandeType
+      lienCommandeRef?: string
+      contratId?: string
     }) => {
       const d = dataRef.current
       const numero = nextNumeroOt(d)
       const id = uuid()
       const now = new Date().toISOString()
+      const site = opts.chantierId
+        ? d.chantiers.find((s) => s.id === opts.chantierId)
+        : undefined
+      let lienCommandeType = opts.lienCommandeType || 'aucun'
+      let lienCommandeRef = opts.lienCommandeRef || ''
+      let contratId = opts.contratId
+      if (!contratId && !opts.lienCommandeType && site) {
+        const actifs = contratsActifsForSite(d.contratsMaintenance, site)
+        if (actifs[0]) {
+          lienCommandeType = 'contrat'
+          lienCommandeRef = actifs[0].numero
+          contratId = actifs[0].id
+        }
+      }
       const ot: OrdreTravail = {
         id,
         numero,
@@ -1057,6 +1075,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ficheMaintenanceId: opts.ficheMaintenanceId,
         signatureTechnicienImage: opts.signatureTechnicienImage,
         signatureClientImage: opts.signatureClientImage,
+        lienCommandeType,
+        lienCommandeRef,
+        contratId,
         statut: opts.statut || 'en_cours',
         createdAt: now,
         updatedAt: now,
