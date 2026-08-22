@@ -49,15 +49,65 @@ export function YouTubeIcon(props: IconProps) {
   )
 }
 
-export function GoogleIcon(props: IconProps) {
+export function TikTokIcon(props: IconProps) {
   const { title, rest } = base(props)
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden={!title} {...rest}>
       {title ? <title>{title}</title> : null}
-      <path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z" />
-      <path d="M12 22c2.7 0 5-0.9 6.7-2.4l-3.2-2.5c-.9.6-2.1 1-3.5 1-2.7 0-5-1.8-5.8-4.3H2.9v2.6A10 10 0 0 0 12 22z" />
-      <path d="M6.2 13.8A6 6 0 0 1 5.9 12c0-.6.1-1.2.3-1.8V7.6H2.9A10 10 0 0 0 2 12c0 1.6.4 3.1 1 4.4l3.2-2.6z" />
-      <path d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9C16.9 2.9 14.7 2 12 2A10 10 0 0 0 2.9 7.6l3.3 2.6C7 7.7 9.3 5.9 12 5.9z" />
+      <path d="M19.6 8.2a6.6 6.6 0 0 1-3.8-1.2v7.1a5.9 5.9 0 1 1-5.9-5.9c.3 0 .6 0 .9.1v2.9a3 3 0 1 0 2.1 2.9V2.5h2.9c.2 1.7 1.3 3.2 2.8 4.1a6.4 6.4 0 0 0 3 .9v2.7z" />
     </svg>
+  )
+}
+
+/** Logo Google « G » officiel (couleurs marque). */
+export function GoogleIcon(props: IconProps) {
+  const { title, rest } = base(props)
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden={!title} {...rest}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="#4285F4"
+        d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 5-.9 6.7-2.4l-3.2-2.5c-.9.6-2.1 1-3.5 1-2.7 0-5-1.8-5.8-4.3H2.9v2.6A10 10 0 0 0 12 22z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.2 13.8A6 6 0 0 1 5.9 12c0-.6.1-1.2.3-1.8V7.6H2.9A10 10 0 0 0 2 12c0 1.6.4 3.1 1 4.4l3.2-2.6z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9C16.9 2.9 14.7 2 12 2A10 10 0 0 0 2.9 7.6l3.3 2.6C7 7.7 9.3 5.9 12 5.9z"
+      />
+    </svg>
+  )
+}
+
+type ReviewBadgeProps = {
+  className?: string
+  /** Taille du G */
+  size?: 'sm' | 'md' | 'lg'
+}
+
+/** Badge avis Google : G couleurs + 5 étoiles jaunes. */
+export function GoogleReviewBadge({ className = '', size = 'md' }: ReviewBadgeProps) {
+  const gClass = size === 'lg' ? 'h-14 w-14' : size === 'sm' ? 'h-8 w-8' : 'h-11 w-11'
+  const starClass = size === 'lg' ? 'h-6 w-6' : size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
+  return (
+    <div
+      className={`inline-flex flex-col items-center gap-2 rounded-2xl border border-line bg-[#f8f9fa] px-6 py-5 ${className}`}
+      aria-label="Avis Google"
+    >
+      <GoogleIcon className={gClass} title="Google" />
+      <div className="flex items-center gap-0.5" aria-hidden>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <svg key={i} viewBox="0 0 24 24" className={starClass} fill="#FBBC04">
+            <path d="M12 2.5l2.9 6.1 6.7.9-4.9 4.6 1.3 6.6L12 17.5 5.9 20.7l1.3-6.6L2.4 9.5l6.7-.9L12 2.5z" />
+          </svg>
+        ))}
+      </div>
+    </div>
   )
 }

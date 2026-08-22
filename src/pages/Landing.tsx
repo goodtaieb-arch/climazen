@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   SignalZero,
   Smartphone,
-  Star,
   Users,
   WifiOff,
   BadgeEuro,
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { CONTACT_EMAIL } from '../components/PublicLayout'
-import { GoogleIcon } from '../components/SocialBrandIcons'
+import { GoogleIcon, GoogleReviewBadge } from '../components/SocialBrandIcons'
 import { SocialLinksRow } from '../components/SocialLinksRow'
 import { ICON3D } from '../lib/icons3d'
 
@@ -831,13 +830,11 @@ export function Landing() {
             </p>
             <SocialLinksRow className="mt-6" />
           </div>
-          <div className="rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-white p-6 shadow-sm sm:p-8">
-            <div className="flex items-center gap-1 text-amber-500" aria-hidden>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className="h-5 w-5 fill-current" />
-              ))}
+          <div className="rounded-3xl border border-line bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex justify-center sm:justify-start">
+              <GoogleReviewBadge />
             </div>
-            <h3 className="font-display mt-3 text-xl font-bold">Votre avis compte</h3>
+            <h3 className="font-display mt-4 text-xl font-bold">Votre avis compte</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted">
               30 secondes sur Google : étoiles + un mot sur le CERFA ou le hors-ligne.
             </p>

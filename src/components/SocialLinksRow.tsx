@@ -3,6 +3,7 @@ import {
   FacebookIcon,
   InstagramIcon,
   LinkedInIcon,
+  TikTokIcon,
   YouTubeIcon,
 } from './SocialBrandIcons'
 
@@ -11,6 +12,7 @@ const ICONS = {
   instagram: InstagramIcon,
   linkedin: LinkedInIcon,
   youtube: YouTubeIcon,
+  tiktok: TikTokIcon,
 } as const
 
 type Props = {

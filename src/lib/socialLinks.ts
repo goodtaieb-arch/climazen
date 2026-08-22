@@ -36,6 +36,12 @@ export const SOCIAL_LINKS: SocialLink[] = [
     href: 'https://www.youtube.com/@climazen',
     enabled: true,
   },
+  {
+    id: 'tiktok',
+    label: 'TikTok',
+    href: 'https://www.tiktok.com/@climazen',
+    enabled: true,
+  },
 ]
 
 /**

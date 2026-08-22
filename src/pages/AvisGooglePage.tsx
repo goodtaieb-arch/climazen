@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
-import { ExternalLink, Star } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { SocialLinksRow } from '../components/SocialLinksRow'
-import { GoogleIcon } from '../components/SocialBrandIcons'
+import { GoogleIcon, GoogleReviewBadge } from '../components/SocialBrandIcons'
 import { GOOGLE_MAPS_SEARCH_URL, GOOGLE_REVIEW_URL } from '../lib/socialLinks'
 import { CONTACT_EMAIL } from '../components/PublicLayout'
 
@@ -22,12 +22,10 @@ export function AvisGooglePage() {
         </p>
 
         <div className="mt-8 overflow-hidden rounded-3xl border border-line bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex items-center justify-center gap-1 text-amber-500" aria-hidden>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className="h-7 w-7 fill-current" />
-            ))}
+          <div className="flex justify-center">
+            <GoogleReviewBadge size="lg" />
           </div>
-          <p className="mt-4 text-center text-sm font-semibold text-ink">
+          <p className="mt-5 text-center text-sm font-semibold text-ink">
             Notez ClimaZEN sur Google
           </p>
           <p className="mt-2 text-center text-sm leading-relaxed text-muted">
