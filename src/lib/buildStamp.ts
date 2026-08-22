@@ -2,9 +2,9 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v109'
+export const APP_VERSION = 'v110'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-08-22-v109-ot-affecte-technicien'
+export const APP_BUILD = '2026-08-22-v110-ot-astreinte-tech'
 
 export const APP_VERSION_LABEL = `${APP_VERSION} · ${APP_BUILD}`

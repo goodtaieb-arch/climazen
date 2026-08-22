@@ -200,7 +200,7 @@ export function Dashboard() {
               Accueil
             </h1>
             <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
-              Suivez le guide 3D pour gérer vos interventions rapidement.
+              OT &amp; CERFA partagés dans la société — tech en astreinte : bouton « Client appelle ».
             </p>
             <p className="mt-1 text-[11px] font-extrabold tracking-wide text-[#0f766e]">
               Version {APP_VERSION}

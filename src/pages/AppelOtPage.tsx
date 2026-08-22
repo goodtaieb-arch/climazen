@@ -127,7 +127,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 export function AppelOtPage() {
   const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertIntervention } =
     useStore()
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const otIdParam = params.get('ot') || params.get('id') || ''
@@ -864,13 +864,28 @@ export function AppelOtPage() {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">
-            Client appelle
+            {isOwner ? 'Client appelle' : 'Urgence / astreinte'}
           </h1>
           <p className="truncate text-xs text-muted">
             {otForm.numero ? formatOtNumero(otForm.numero) : 'Nouvel OT'} · date {otForm.date || '—'}
+            {!isOwner
+              ? ' · OT & CERFA synchronisés sur le compte société'
+              : ''}
           </p>
         </div>
       </div>
+
+      {!isOwner ? (
+        <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950">
+          Week-end / hors horaires bureau : créez l’OT ici. Le gérant et toute l’équipe le voient
+          automatiquement (sync PC ↔ téléphone).
+        </p>
+      ) : (
+        <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted">
+          Les techniciens peuvent aussi créer un OT en astreinte — tout arrive dans le coffre
+          société.
+        </p>
+      )}
 
       {/* Stepper */}
       <ol className="flex gap-1 overflow-x-auto pb-1">
@@ -925,7 +940,8 @@ export function AppelOtPage() {
       {step === 'ot' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <p className="text-sm text-muted">
-            Au téléphone : créez l’OT tout de suite, même avant d’être sur site.
+            Au téléphone ou en astreinte : créez l’OT tout de suite, même avant d’être sur site.
+            Tout est enregistré sur le compte société.
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">

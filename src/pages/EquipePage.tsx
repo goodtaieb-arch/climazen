@@ -112,6 +112,10 @@ export function EquipePage() {
             <strong>affecte un technicien</strong> (et un détecteur ci-dessous / Mon entreprise).
           </li>
           <li>
+            Astreinte week-end : le technicien peut aussi créer l’OT / CERFA lui-même — tout arrive
+            dans le <strong>coffre société</strong> (visible par le gérant).
+          </li>
+          <li>
             Un salarié qui part : bouton <strong>Désactiver</strong> — il ne peut plus se connecter.
           </li>
         </ul>
