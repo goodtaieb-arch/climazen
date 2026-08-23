@@ -1953,6 +1953,16 @@ export function ChantiersPage() {
                 >
                   <ClipboardList className="h-4 w-4 text-amber-700" /> Fiche chaufferie P2/P3
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-cta-vmc?chantier=${encodeURIComponent(c.id)}&equipement=${encodeURIComponent(eq.id)}`
+                    navigate(url)
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist"
+                >
+                  <ClipboardList className="h-4 w-4 text-sky-600" /> Fiche CTA / VMC
+                </button>
                 {eqFluide && (
                   <button
                     type="button"
@@ -2386,6 +2396,23 @@ export function ChantiersPage() {
                     <span className="block text-sm">Fiche chaufferie P2/P3</span>
                     <span className="block text-xs font-medium text-muted">
                       Mensuel · trimestriel · semestriel · annuel
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `/app/fiche-maintenance-cta-vmc?chantier=${encodeURIComponent(equipWork.site.id)}&equipement=${encodeURIComponent(equipWork.equipementId)}`
+                    setEquipWork(null)
+                    navigate(url)
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-left font-semibold text-ink active:bg-sky-50"
+                >
+                  <ClipboardList className="h-5 w-5 shrink-0 text-sky-700" />
+                  <span>
+                    <span className="block text-sm">Fiche CTA / VMC</span>
+                    <span className="block text-xs font-medium text-muted">
+                      1M · 3M · 6M · 1Y — ventilation & traitement d’air
                     </span>
                   </span>
                 </button>

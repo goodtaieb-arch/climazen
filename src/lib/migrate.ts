@@ -210,6 +210,7 @@ export function migrateAppData(data: AppData): AppData {
     stock: (data.stock || []).map(migrateStockItem),
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: data.fichesMaintenanceChaufferie || [],
+    fichesMaintenanceCtaVmc: data.fichesMaintenanceCtaVmc || [],
     ordresTravail: data.ordresTravail || [],
     contratsMaintenance: data.contratsMaintenance || [],
     devis: data.devis || [],

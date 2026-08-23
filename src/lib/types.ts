@@ -2,6 +2,7 @@
 
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
 import type { FicheMaintenanceChaufferie } from './ficheMaintenanceChaufferie'
+import type { FicheMaintenanceCtaVmc } from './ficheMaintenanceCtaVmc'
 import type { OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
 
@@ -604,6 +605,8 @@ export interface AppData {
   fichesMaintenanceClim?: FicheMaintenanceClim[]
   /** Fiches maintenance chaufferie P2/P3 (registre périodique) */
   fichesMaintenanceChaufferie?: FicheMaintenanceChaufferie[]
+  /** Fiches maintenance CTA / VMC (registre périodique 1M→1Y) */
+  fichesMaintenanceCtaVmc?: FicheMaintenanceCtaVmc[]
   /** Ordres de travail (OT) — n° unique OT2026xxxx */
   ordresTravail?: OrdreTravail[]
   /** Contrats de maintenance (documents signables) */

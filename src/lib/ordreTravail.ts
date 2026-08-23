@@ -121,6 +121,8 @@ export interface OrdreTravail {
   ficheMaintenanceId?: string
   /** Lien fiche maintenance chaufferie P2/P3 */
   ficheChaufferieId?: string
+  /** Lien fiche maintenance CTA / VMC */
+  ficheCtaVmcId?: string
   /**
    * Rattachement commercial (v107+) — type libre + réf. texte.
    * Préférer devisId / contratId / commandeFournisseurId quand disponibles.
@@ -260,6 +262,7 @@ export function nextNumeroOt(
     interventions?: { numeroIntervention?: string }[]
     fichesMaintenanceClim?: { numero?: string }[]
     fichesMaintenanceChaufferie?: { numero?: string }[]
+    fichesMaintenanceCtaVmc?: { numero?: string }[]
   },
   offset = 0,
 ): string {
@@ -269,6 +272,7 @@ export function nextNumeroOt(
     ...(data.interventions || []).map((i) => i.numeroIntervention),
     ...(data.fichesMaintenanceClim || []).map((f) => f.numero),
     ...(data.fichesMaintenanceChaufferie || []).map((f) => f.numero),
+    ...(data.fichesMaintenanceCtaVmc || []).map((f) => f.numero),
   ]
   // Dédupliquer par n° de base pour ne pas compter 2× le même OT (multi-CERFA)
   const unique = [...new Set(values.map((v) => otBaseNumero(v)).filter(Boolean))]

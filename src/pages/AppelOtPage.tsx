@@ -28,6 +28,7 @@ import { allEquipements, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { blankFicheMaintenanceChaufferie } from '../lib/ficheMaintenanceChaufferie'
+import { blankFicheMaintenanceCtaVmc } from '../lib/ficheMaintenanceCtaVmc'
 import type { Client, Equipement, Site } from '../lib/types'
 import { clientDisplayName, equipAvecFluideFrigorigene, syncClientRaisonSociale } from '../lib/types'
 import {
@@ -125,7 +126,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertIntervention } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention } =
     useStore()
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
@@ -765,6 +766,78 @@ export function AppelOtPage() {
     persistOt({ ficheChaufferieId: ficheId, parcoursStep: 'docs' }, id)
     navigate(
       `/app/fiche-maintenance-chaufferie?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}`,
+    )
+  }
+
+  const openFicheCtaVmc = () => {
+    if (!otForm.chantierId) {
+      alert('Site requis pour la fiche CTA / VMC.')
+      return
+    }
+    const c = client
+    const s = site
+    const eqId =
+      selectedEquipIds[0] || otForm.equipementId || (eqs[0]?.id ?? '')
+    const eq = eqs.find((e) => e.id === eqId)
+    const adresse =
+      [s?.adresse, s?.codePostal, s?.ville].filter(Boolean).join(', ') ||
+      [c?.adresse, c?.codePostal, c?.ville].filter(Boolean).join(', ')
+
+    const id = persistOt(
+      {
+        parcoursStep: 'docs',
+        equipementId: eqId || otForm.equipementId,
+      },
+      otId,
+    )
+
+    const existingFiche =
+      (data.fichesMaintenanceCtaVmc || []).find(
+        (f) =>
+          f.chantierId === otForm.chantierId &&
+          (!eqId || f.equipementId === eqId) &&
+          (f.numero === otForm.numero || !f.hasPdf),
+      ) || null
+
+    let ficheId = existingFiche?.id
+    if (existingFiche) {
+      if (otForm.numero && existingFiche.numero !== otForm.numero) {
+        upsertFicheMaintenanceCtaVmc({
+          ...existingFiche,
+          numero: otForm.numero,
+        })
+      }
+    } else {
+      const raw = `${eq?.type || ''} ${eq?.nom || ''}`.toLowerCase()
+      const hasCta = /cta|centrale/.test(raw)
+      const hasVmc = /vmc|ventilation/.test(raw)
+      const typeEquipement =
+        hasCta && hasVmc ? 'cta_vmc' : hasCta ? 'cta' : hasVmc ? 'vmc' : 'cta_vmc'
+      const base = blankFicheMaintenanceCtaVmc('mensuel')
+      ficheId = upsertFicheMaintenanceCtaVmc({
+        ...base,
+        numero: otForm.numero,
+        date: otForm.date || today(),
+        technicien: otForm.technicien,
+        clientId: otForm.clientId,
+        chantierId: otForm.chantierId,
+        equipementId: eqId || undefined,
+        clientNom: c?.raisonSociale || '',
+        adresse,
+        marqueModele: eq
+          ? [eq.marque, eq.modele].filter(Boolean).join(' / ') || eq.nom || eq.type || ''
+          : '',
+        numeroSerie: eq?.numeroSerie || '',
+        typeEquipement,
+        signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
+        signatureClientImage: otForm.signatureClientImage || '',
+        observations: otForm.observations || '',
+      })
+    }
+    if (!ficheId) return
+    persistOt({ ficheCtaVmcId: ficheId, parcoursStep: 'docs' }, id)
+    navigate(
+      `/app/fiche-maintenance-cta-vmc?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}`,
     )
   }
 
@@ -1744,6 +1817,19 @@ export function AppelOtPage() {
                 <span className="block text-sm">Fiche chaufferie P2/P3</span>
                 <span className="block text-xs font-medium text-muted">
                   Mensuel · trimestriel · semestriel · annuel (registre complet)
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={openFicheCtaVmc}
+              className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-sky-200 bg-sky-50/60 px-4 py-3 text-left font-semibold active:bg-sky-50"
+            >
+              <ClipboardList className="h-5 w-5 shrink-0 text-sky-700" />
+              <span>
+                <span className="block text-sm">Fiche CTA / VMC</span>
+                <span className="block text-xs font-medium text-muted">
+                  1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire
                 </span>
               </span>
             </button>

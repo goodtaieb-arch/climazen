@@ -21,6 +21,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { FicheMaintenanceClimPage } from './pages/FicheMaintenanceClimPage'
 import { FicheMaintenanceChaufferiePage } from './pages/FicheMaintenanceChaufferiePage'
+import { FicheMaintenanceCtaVmcPage } from './pages/FicheMaintenanceCtaVmcPage'
 import { ScanEquipementPage } from './pages/ScanEquipementPage'
 import { OrdresTravailPage } from './pages/OrdresTravailPage'
 import { AppelOtPage } from './pages/AppelOtPage'
@@ -52,6 +53,13 @@ function FicheMaintenanceChaufferieRoute() {
   const id = params.get('id') || 'new'
   const periode = params.get('periode') || ''
   return <FicheMaintenanceChaufferiePage key={`${id}::${periode}`} />
+}
+
+function FicheMaintenanceCtaVmcRoute() {
+  const [params] = useSearchParams()
+  const id = params.get('id') || 'new'
+  const periode = params.get('periode') || ''
+  return <FicheMaintenanceCtaVmcPage key={`${id}::${periode}`} />
 }
 
 export default function App() {
@@ -99,6 +107,10 @@ export default function App() {
                 <Route
                   path="fiche-maintenance-chaufferie"
                   element={<FicheMaintenanceChaufferieRoute />}
+                />
+                <Route
+                  path="fiche-maintenance-cta-vmc"
+                  element={<FicheMaintenanceCtaVmcRoute />}
                 />
                 <Route path="scan-equip" element={<ScanEquipementPage />} />
                 <Route path="equipe" element={<EquipePage />} />
