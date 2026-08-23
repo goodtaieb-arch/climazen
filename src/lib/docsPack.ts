@@ -3,8 +3,17 @@
 import JSZip from 'jszip'
 import { jsPDF } from 'jspdf'
 import { buildCerfaPdf, downloadBlob } from './cerfaPdf'
-import { buildFicheMaintenanceClimPdf } from './ficheMaintenanceClimPdf'
+import {
+  buildFicheMaintenanceClimPdf,
+  buildFicheMaintenanceClimGroupedPdf,
+} from './ficheMaintenanceClimPdf'
+import {
+  buildFicheMaintenanceCtaVmcPdf,
+  buildFicheMaintenanceCtaVmcGroupedPdf,
+} from './ficheMaintenanceCtaVmcPdf'
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
+import type { FicheMaintenanceCtaVmc } from './ficheMaintenanceCtaVmc'
+import { normalizeEquipementsParFiche, type EquipementsParFiche } from './ficheGroupement'
 import { loadCerfaPdf } from './pdfStore'
 import { TYPE_OT_LABELS, type OrdreTravail } from './ordreTravail'
 import type { AppData, CerfaDraft, Client, Chantier } from './types'
@@ -64,6 +73,54 @@ function fichesForOt(data: AppData, ot: OrdreTravail): FicheMaintenanceClim[] {
   for (const f of [...byId, ...byNum]) map.set(f.id, f)
   // Aussi fiches du même site + date proches si liées par numéro vide mais OT id in notes? skip — stick to explicit links
   return [...map.values()]
+}
+
+function fichesCtaForOt(data: AppData, ot: OrdreTravail): FicheMaintenanceCtaVmc[] {
+  const fiches = data.fichesMaintenanceCtaVmc || []
+  const num = (ot.numero || '').trim()
+  const byId = ot.ficheCtaVmcId ? fiches.filter((f) => f.id === ot.ficheCtaVmcId) : []
+  const byNum = num
+    ? fiches.filter(
+        (f) => f.numero === num || (f.numero || '').startsWith(`${num}-`) || (f.numero || '') === num,
+      )
+    : []
+  const map = new Map<string, FicheMaintenanceCtaVmc>()
+  for (const f of [...byId, ...byNum]) map.set(f.id, f)
+  return [...map.values()]
+}
+
+function ficheEquipLabel(
+  fiche: { id: string; equipementId?: string; marqueModele?: string; numeroSerie?: string },
+  site?: Chantier,
+): string {
+  const eq = site ? allEquipements(site).find((e) => e.id === fiche.equipementId) : undefined
+  return eq
+    ? [eq.nom || eq.type, eq.marque, eq.modele].filter(Boolean).join(' · ')
+    : [fiche.marqueModele, fiche.numeroSerie].filter(Boolean).join(' · ') || fiche.id.slice(0, 8)
+}
+
+/** 2/3 par page → un PDF groupé ; sinon un fichier par fiche. */
+function splitFichesByGroupement<T extends { equipementsParFiche?: 1 | 2 | 3 }>(
+  fiches: T[],
+): { items: T[]; perPage: EquipementsParFiche }[] {
+  const buckets = new Map<EquipementsParFiche, T[]>()
+  for (const f of fiches) {
+    const p = normalizeEquipementsParFiche(f.equipementsParFiche)
+    const arr = buckets.get(p) || []
+    arr.push(f)
+    buckets.set(p, arr)
+  }
+  const out: { items: T[]; perPage: EquipementsParFiche }[] = []
+  for (const p of [1, 2, 3] as const) {
+    const items = buckets.get(p)
+    if (!items?.length) continue
+    if (p === 1 || items.length < 2) {
+      for (const it of items) out.push({ items: [it], perPage: 1 })
+    } else {
+      out.push({ items, perPage: p })
+    }
+  }
+  return out
 }
 
 async function buildRapportOtPdf(
@@ -440,36 +497,98 @@ export async function collectOtDocsPack(opts: {
     })
   }
 
-  for (const fiche of fichesForOt(data, ot)) {
+  const pdfCompany = {
+    raisonSociale: data.operateur?.raisonSociale,
+    adresse: data.operateur?.adresse,
+    telephone: data.operateur?.telephone,
+    email: data.operateur?.email,
+    siret: data.operateur?.siret,
+    logoImage: data.operateur?.logoImage,
+  }
+
+  for (const group of splitFichesByGroupement(fichesForOt(data, ot))) {
     try {
-      const blob = await buildFicheMaintenanceClimPdf(fiche, {
-        raisonSociale: data.operateur?.raisonSociale,
-        adresse: data.operateur?.adresse,
-        telephone: data.operateur?.telephone,
-        email: data.operateur?.email,
-        siret: data.operateur?.siret,
-        logoImage: data.operateur?.logoImage,
-      })
-      const eq = site ? allEquipements(site).find((e) => e.id === fiche.equipementId) : undefined
-      const eqLabel =
-        eq
-          ? [eq.nom || eq.type, eq.marque, eq.modele].filter(Boolean).join(' · ')
-          : [fiche.marqueModele, fiche.numeroSerie].filter(Boolean).join(' · ') ||
-            fiche.id.slice(0, 8)
-      const fileName = uniqueName(
-        `Fiche-maintenance-${safeName(fiche.numero || fiche.id.slice(0, 8))}-${safeName(eqLabel)}.pdf`,
-      )
-      out.push({
-        id: `fiche-${fiche.id}`,
-        kind: 'fiche',
-        label: `Fiche maintenance · ${eqLabel}`.trim(),
-        fileName,
-        blob,
-        sourceId: fiche.id,
-        canDelete: true,
-      })
+      if (group.perPage > 1 && group.items.length > 1) {
+        const blob = await buildFicheMaintenanceClimGroupedPdf(
+          group.items,
+          pdfCompany,
+          group.perPage,
+        )
+        out.push({
+          id: `fiche-clim-groupee-${group.items
+            .map((f) => f.id)
+            .join('-')
+            .slice(0, 48)}`,
+          kind: 'fiche',
+          label: `Fiche maintenance clim groupée · ${group.items.length} équip. (${group.perPage}/page)`,
+          fileName: uniqueName(
+            `Fiche-maintenance-clim-groupee-${safeName(group.items[0].numero || ot.numero || 'OT')}.pdf`,
+          ),
+          blob,
+          sourceId: group.items[0].id,
+          canDelete: false,
+        })
+      } else {
+        const fiche = group.items[0]
+        const blob = await buildFicheMaintenanceClimPdf(fiche, pdfCompany)
+        const eqLabel = ficheEquipLabel(fiche, site)
+        out.push({
+          id: `fiche-${fiche.id}`,
+          kind: 'fiche',
+          label: `Fiche maintenance · ${eqLabel}`.trim(),
+          fileName: uniqueName(
+            `Fiche-maintenance-${safeName(fiche.numero || fiche.id.slice(0, 8))}-${safeName(eqLabel)}.pdf`,
+          ),
+          blob,
+          sourceId: fiche.id,
+          canDelete: true,
+        })
+      }
     } catch (err) {
-      console.error('ClimaZEN: pack fiche', fiche.id, err)
+      console.error('ClimaZEN: pack fiche clim', err)
+    }
+  }
+
+  for (const group of splitFichesByGroupement(fichesCtaForOt(data, ot))) {
+    try {
+      if (group.perPage > 1 && group.items.length > 1) {
+        const blob = await buildFicheMaintenanceCtaVmcGroupedPdf(
+          group.items,
+          pdfCompany,
+          group.perPage,
+        )
+        out.push({
+          id: `fiche-cta-groupee-${group.items
+            .map((f) => f.id)
+            .join('-')
+            .slice(0, 48)}`,
+          kind: 'fiche',
+          label: `Fiche CTA/VMC groupée · ${group.items.length} équip. (${group.perPage}/page)`,
+          fileName: uniqueName(
+            `Fiche-maintenance-cta-vmc-groupee-${safeName(group.items[0].numero || ot.numero || 'OT')}.pdf`,
+          ),
+          blob,
+          sourceId: group.items[0].id,
+          canDelete: false,
+        })
+      } else {
+        const fiche = group.items[0]
+        const blob = await buildFicheMaintenanceCtaVmcPdf(fiche, pdfCompany)
+        const eqLabel = ficheEquipLabel(fiche, site)
+        out.push({
+          id: `fiche-cta-${fiche.id}`,
+          kind: 'fiche',
+          label: `Fiche CTA/VMC · ${eqLabel}`.trim(),
+          fileName: uniqueName(
+            `Fiche-maintenance-cta-vmc-${safeName(fiche.numero || fiche.id.slice(0, 8))}-${safeName(eqLabel)}.pdf`,
+          ),
+          blob,
+          sourceId: fiche.id,
+          canDelete: true,
+        })
+      }
+    } catch (err) {
+      console.error('ClimaZEN: pack fiche CTA/VMC', err)
     }
   }
 

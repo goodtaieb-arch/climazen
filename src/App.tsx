@@ -58,8 +58,9 @@ function FicheMaintenanceChaufferieRoute() {
 function FicheMaintenanceCtaVmcRoute() {
   const [params] = useSearchParams()
   const id = params.get('id') || 'new'
+  const batch = params.get('batch') || ''
   const periode = params.get('periode') || ''
-  return <FicheMaintenanceCtaVmcPage key={`${id}::${periode}`} />
+  return <FicheMaintenanceCtaVmcPage key={`${id}::${batch}::${periode}`} />
 }
 
 export default function App() {

@@ -53,7 +53,12 @@ export function DocsPackPanel({
   onClose,
   className = '',
 }: Props) {
-  const { data, deleteIntervention, deleteFicheMaintenanceClim } = useStore()
+  const {
+    data,
+    deleteIntervention,
+    deleteFicheMaintenanceClim,
+    deleteFicheMaintenanceCtaVmc,
+  } = useStore()
   const { user } = useAuth()
   const client = data.clients.find((c) => c.id === ot.clientId)
   const [docs, setDocs] = useState<PackDoc[]>([])
@@ -160,7 +165,8 @@ export function DocsPackPanel({
       if (d.kind === 'cerfa' && d.sourceId) {
         deleteIntervention(d.sourceId)
       } else if (d.kind === 'fiche' && d.sourceId) {
-        deleteFicheMaintenanceClim(d.sourceId)
+        if (d.id.startsWith('fiche-cta')) deleteFicheMaintenanceCtaVmc(d.sourceId)
+        else deleteFicheMaintenanceClim(d.sourceId)
       }
       setDocs((prev) => prev.filter((x) => x.id !== d.id))
       setSelected((prev) => {
