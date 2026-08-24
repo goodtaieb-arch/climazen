@@ -555,20 +555,23 @@ export function AppelOtPage() {
             !interv.ordreTravailId,
         )
       if (existingDraft) {
-        // Harmoniser le n° sur celui de l’OT (unique, sans -1/-2)
+        const fluide =
+          existingDraft.fluideType?.trim() || eq?.fluideType || site?.fluideType || ''
+        const nextNumero =
+          otForm.numero && existingDraft.numeroIntervention !== otForm.numero
+            ? otForm.numero
+            : existingDraft.numeroIntervention
+        const nextOt = existingDraft.ordreTravailId || id
         if (
-          otForm.numero &&
-          existingDraft.numeroIntervention !== otForm.numero
+          nextNumero !== existingDraft.numeroIntervention ||
+          nextOt !== existingDraft.ordreTravailId ||
+          fluide !== (existingDraft.fluideType || '')
         ) {
           upsertIntervention({
             ...existingDraft,
-            numeroIntervention: otForm.numero,
-            ordreTravailId: existingDraft.ordreTravailId || id,
-          })
-        } else if (!existingDraft.ordreTravailId) {
-          upsertIntervention({
-            ...existingDraft,
-            ordreTravailId: id,
+            numeroIntervention: nextNumero,
+            ordreTravailId: nextOt,
+            fluideType: fluide || existingDraft.fluideType,
           })
         }
         draftIds.push(existingDraft.id)
@@ -585,7 +588,7 @@ export function AppelOtPage() {
         operateur: data.operateur,
         natures: natures as import('../lib/types').NatureIntervention[],
         detectionPermanente: !!eq?.detectionPermanente,
-        fluideType: eq?.fluideType || '',
+        fluideType: eq?.fluideType || site?.fluideType || '',
         quantiteTotaleKg: charge,
         teqCO2: eq?.teqCO2,
         fuiteConstatee: false,

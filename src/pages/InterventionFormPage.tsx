@@ -47,7 +47,8 @@ import {
 import {
   assertMouvementCerfaLegal,
   bouteilleCompatibleA2LPourFluide,
-  bouteilleEligibleChargeCerfa,
+  bouteilleDansListeChargeCerfa,
+  bouteilleDansListeRecupCerfa,
   capaciteRestanteKg,
   cerfaMixteRecupEtCharge,
   jaugeRemplissageRecup,
@@ -187,7 +188,17 @@ export function InterventionFormPage() {
   const [detectionPermanente, setDetectionPermanente] = useState(
     existing?.detectionPermanente ?? false,
   )
-  const [fluideType, setFluideType] = useState(existing?.fluideType || '')
+  const [fluideType, setFluideType] = useState(() => {
+    if (existing?.fluideType?.trim()) return existing.fluideType
+    const chId =
+      existing?.chantierId ||
+      (chantierQueryOk ? chantierFromQuery : '') ||
+      data.chantiers[0]?.id ||
+      ''
+    const ch = data.chantiers.find((c) => c.id === chId)
+    const eq = findEquipement(ch, existing?.equipementId || equipementFromQuery)
+    return eq?.fluideType || ch?.fluideType || ''
+  })
   const [quantiteTotaleKg, setQuantiteTotaleKg] = useState(existing?.quantiteTotaleKg ?? 0)
   const [quantiteHfoKg, setQuantiteHfoKg] = useState(existing?.quantiteHfoKg ?? 0)
   const [teqCO2, setTeqCO2] = useState(existing?.teqCO2 ?? 0)
@@ -299,40 +310,46 @@ export function InterventionFormPage() {
   }, [installationDestination, destinationsOptions])
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
+  const cerfaPourRevertStock = useMemo(
+    () => ({
+      id: draftId || existing?.id || '',
+      ordreTravailId: ordreTravailId || existing?.ordreTravailId,
+      equipementId: equipementId || existing?.equipementId,
+      numeroIntervention: numeroIntervention || existing?.numeroIntervention,
+    }),
+    [
+      draftId,
+      existing?.id,
+      existing?.ordreTravailId,
+      existing?.equipementId,
+      existing?.numeroIntervention,
+      ordreTravailId,
+      equipementId,
+      numeroIntervention,
+    ],
+  )
+
+  const qtyDispoBouteille = useCallback(
+    (stockItemId: string) => stockKgAfterCerfaRevert(data, cerfaPourRevertStock, stockItemId),
+    [data, cerfaPourRevertStock],
+  )
+
   /** Bouteilles D / E : on remplit depuis l’installation (déchet ou service). */
   const stockRecupOptions = useMemo(() => {
-    if (!denominationFluide) return []
-    const fluideOk = (fluide: string) => {
-      if (!fluide?.trim() || isFluideNonAssigne(fluide)) return true
-      return sameFluideCode(fluide, denominationFluide)
-    }
-    return data.stock.filter((s) => {
-      if (isBouteilleRetournee(s)) return false
-      if (!bouteilleCompatibleA2LPourFluide(s, denominationFluide)) return false
-      const t = s.contenantType
-      if (t === 'recuperation') return fluideOk(s.fluide)
-      if (t === 'transfert') return fluideOk(s.fluide)
-      if (t === 'recycle' && bouteilleVisibleCerfaMemeVide(t)) return fluideOk(s.fluide)
-      return false
-    })
+    return data.stock.filter((s) => bouteilleDansListeRecupCerfa(s, denominationFluide))
   }, [data.stock, denominationFluide])
 
   /** Bouteilles A / B / C : charge / appoint (jamais une récup. déchet). */
   const stockChargeOptions = useMemo(() => {
-    if (!denominationFluide) return []
-    return data.stock.filter((s) => {
-      if (isBouteilleRetournee(s)) return false
-      if (!bouteilleCompatibleA2LPourFluide(s, denominationFluide)) return false
-      if (s.contenantType === 'recuperation') return false
-      if (!sameFluideCode(s.fluide, denominationFluide)) return false
-      const qty = Number(s.quantiteKg) || 0
-      if (qty > 0) return bouteilleEligibleChargeCerfa(s, client?.id)
-      if (s.contenantType === 'recycle' && bouteilleVisibleCerfaMemeVide(s.contenantType)) {
-        return true
-      }
-      return false
-    })
-  }, [data.stock, denominationFluide, client?.id])
+    return data.stock.filter((s) =>
+      bouteilleDansListeChargeCerfa(
+        s,
+        denominationFluide,
+        client?.id,
+        qtyDispoBouteille(s.id),
+      ),
+    )
+  }, [data.stock, denominationFluide, client?.id, qtyDispoBouteille])
 
   const stockMatchingFluide = useMemo(() => {
     const seen = new Set<string>()
@@ -538,13 +555,18 @@ export function InterventionFormPage() {
   }, [existing?.id, existing?.updatedAt, existing?.manipulations])
 
   useEffect(() => {
-    if (!chantier || existing) return
+    if (!chantier) return
     const eq = findEquipement(chantier, equipementId || equipementFromQuery)
-    if (eq?.id && !equipementId) setEquipementId(eq.id)
-    setDetectionPermanente(eq?.detectionPermanente ?? chantier.detectionPermanente)
-    setFluideType(eq?.fluideType || chantier.fluideType)
-    setQuantiteTotaleKg(eq?.chargeNominaleKg ?? chantier.chargeNominaleKg)
-    if (eq?.teqCO2 || chantier.teqCO2) setTeqCO2(eq?.teqCO2 ?? chantier.teqCO2 ?? 0)
+    if (!existing) {
+      if (eq?.id && !equipementId) setEquipementId(eq.id)
+      setDetectionPermanente(eq?.detectionPermanente ?? chantier.detectionPermanente)
+      setQuantiteTotaleKg(eq?.chargeNominaleKg ?? chantier.chargeNominaleKg)
+      if (eq?.teqCO2 || chantier.teqCO2) setTeqCO2(eq?.teqCO2 ?? chantier.teqCO2 ?? 0)
+    }
+    const fluideSite = (eq?.fluideType || chantier.fluideType || '').trim()
+    if (fluideSite) {
+      setFluideType((prev) => (prev.trim() ? prev : fluideSite))
+    }
   }, [chantierId, equipementId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // [12] Code UN + ADR : 100 % auto selon le fluide [7]
@@ -560,16 +582,10 @@ export function InterventionFormPage() {
   }, [denominationFluide])
 
   // Fluide / A2L : retirer seulement les bouteilles vraiment impossibles.
-  // Ne plus vider une récup. déchet si une nature « charge » est aussi cochée (cas réparation).
+  // Ne jamais vider le choix si [7] est encore vide (sinon la bouteille « disparaît »
+  // après un aller-retour de sélection / annulation).
   useEffect(() => {
-    if (!denominationFluide) {
-      setManips((prev) =>
-        prev.some((m) => m.stockItemId)
-          ? prev.map((m) => ({ ...m, stockItemId: '', quantiteKg: 0 }))
-          : prev,
-      )
-      return
-    }
+    if (!denominationFluide) return
     setManips((prev) => {
       const next = prev.filter((m) => {
         if (!m.stockItemId) return true
@@ -650,6 +666,17 @@ export function InterventionFormPage() {
 
   const updateManip = (key: string, patch: Partial<ManipDraft>) => {
     skipAutosaveRef.current = false
+    if (patch.stockItemId) {
+      const picked = data.stock.find((s) => s.id === patch.stockItemId)
+      if (
+        picked &&
+        !denominationFluide &&
+        picked.fluide?.trim() &&
+        !isFluideNonAssigne(picked.fluide)
+      ) {
+        setFluideType(picked.fluide)
+      }
+    }
     setManips((prev) =>
       prev.map((m) => {
         if (m.key !== key) return m
@@ -657,7 +684,6 @@ export function InterventionFormPage() {
         if (patch.stockItemId) {
           const item = data.stock.find((s) => s.id === patch.stockItemId)
           if (item) {
-            next.sens = sensMouvementPourContenant(item.contenantType, item.quantiteKg)
             const allowed = sensAutorisesCerfa(item.contenantType)
             if (!allowed.includes(next.sens)) next.sens = allowed[0]
             if (item.contenantType === 'recuperation' && !next.typeHuile) {
@@ -1818,7 +1844,7 @@ export function InterventionFormPage() {
               const optionsDispo = [...selected, ...pool].filter(
                 (s) => s.id === m.stockItemId || !dejaPrises.has(s.id),
               )
-              const qtyRestante = item ? Number(item.quantiteKg) || 0 : 0
+              const qtyRestante = item ? qtyDispoBouteille(item.id) : 0
               const autorises = item ? sensAutorisesCerfa(item.contenantType) : []
               const fillMode =
                 !!item &&
@@ -1872,7 +1898,7 @@ export function InterventionFormPage() {
                     >
                       <option value="">— Choisir —</option>
                       {optionsDispo.map((s) => {
-                        const q = Number(s.quantiteKg) || 0
+                        const q = qtyDispoBouteille(s.id)
                         const videDest = q <= 0 && bouteilleVisibleCerfaMemeVide(s.contenantType)
                         const nonAssigne = isFluideNonAssigne(s.fluide)
                         const a2lTag = s.conformeA2LA3 ? ' · A2L' : ''
@@ -1888,7 +1914,7 @@ export function InterventionFormPage() {
                               ? nonAssigne
                                 ? 'vide non assignée (à verrouiller)'
                                 : 'vide (à remplir)'
-                              : `reste ${s.quantiteKg} kg`}
+                              : `reste ${q} kg`}
                             {s.quantiteInitialeKg != null && q > 0
                               ? ` / ${s.quantiteInitialeKg} kg`
                               : ''}
@@ -1897,6 +1923,25 @@ export function InterventionFormPage() {
                       })}
                     </select>
                   </LabelHint>
+                  {m.sens !== 'entree' &&
+                    !m.stockItemId &&
+                    stockChargeOptions.length === 0 &&
+                    stockRecupOptions.length > 0 && (
+                      <p className="text-xs text-amber-900">
+                        Liste A / B / C vide : si votre bouteille est{' '}
+                        <strong>Récupération / Transfert</strong>, cliquez{' '}
+                        <strong>+ Récupérer le gaz (D / E)</strong>.
+                      </p>
+                    )}
+                  {m.sens === 'entree' &&
+                    !m.stockItemId &&
+                    stockRecupOptions.length === 0 &&
+                    stockChargeOptions.length > 0 && (
+                      <p className="text-xs text-amber-900">
+                        Liste D / E vide : pour du gaz neuf (Vierge / Régénéré), cliquez{' '}
+                        <strong>+ Recharger du neuf (A / B / C)</strong>.
+                      </p>
+                    )}
                   {item && (
                     <p className="text-[11px] leading-snug text-muted">
                       {resumeRegleContenant(item.contenantType)}
@@ -1931,7 +1976,7 @@ export function InterventionFormPage() {
                       <DecimalField
                         label={
                           m.sens === 'sortie'
-                            ? `Quantité sortie (kg) * — max ${item.quantiteKg}`
+                            ? `Quantité sortie (kg) * — max ${qtyRestante}`
                             : resteCap != null
                               ? `Quantité récupérée (kg) * — max ${resteCap} (cumul multi-sites)`
                               : 'Quantité récupérée / ajoutée (kg) *'
@@ -2078,7 +2123,8 @@ export function InterventionFormPage() {
           <p className="mt-2 text-xs text-muted">
             <strong>D / E</strong> s’affichent tout seuls sur une ligne « récupérer » (bouteille
             Récupération déchet ou Transfert). <strong>A / B / C</strong> sur une ligne « recharger »
-            (Vierge / Régénéré). Choisissez le fluide [7] d’abord, sinon la liste reste vide.
+            (Vierge / Régénéré). Sans fluide [7], les bouteilles restent listées — en choisir une
+            remplit [7]. Annuler une sélection la remet dans le menu.
           </p>
 
           {manips.length === 0 && bottleRequired && (
@@ -2110,10 +2156,17 @@ export function InterventionFormPage() {
             </p>
           )}
 
-          {!denominationFluide && (
+          {!denominationFluide && stockMatchingFluide.length === 0 && (
             <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-              Renseignez d’abord le <strong>fluide [7]</strong> : sans dénomination, aucune
-              bouteille ne peut être proposée.
+              Aucune bouteille en stock pour le moment. Créez-en une dans Stock, ou renseignez le{' '}
+              <strong>fluide [7]</strong> si les bouteilles existent déjà (filtre).
+            </p>
+          )}
+          {!denominationFluide && stockMatchingFluide.length > 0 && (
+            <p className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+              Fluide [7] encore vide : toutes les bouteilles utilisables sont proposées. En
+              choisir une remplira automatiquement [7]. Vous pouvez aussi le saisir à la main pour
+              filtrer.
             </p>
           )}
 

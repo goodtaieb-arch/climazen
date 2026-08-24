@@ -1,7 +1,12 @@
 import type { ContenantType, NatureIntervention, StockItem, StockMouvementSens } from './types'
-import { CONTENANT_TYPE_LABELS, isContenantDestination } from './types'
+import {
+  CONTENANT_TYPE_LABELS,
+  bouteilleVisibleCerfaMemeVide,
+  isBouteilleRetournee,
+  isContenantDestination,
+} from './types'
 import { BOUTEILLE_DEFAULTS } from './bouteilleDefaults'
-import { isFluideInflammableA2LOrA3 } from './fluides'
+import { isFluideInflammableA2LOrA3, isFluideNonAssigne, sameFluideCode } from './fluides'
 
 /**
  * Compatibilité bouteille ↔ fluide CERFA (inflammabilité A2L/A3) :
@@ -309,4 +314,63 @@ export function bouteilleEligibleChargeCerfa(
   // Interdiction absolue : déchet jamais proposé en recharge / réinjection
   if (item.contenantType === 'recuperation') return false
   return peutReinjectionSurClient(item, clientId)
+}
+
+function fluideCompatibleListeCerfa(
+  fluideBouteille: string,
+  denominationFluide: string,
+): boolean {
+  const denom = denominationFluide.trim()
+  if (!denom) return true
+  if (!fluideBouteille?.trim() || isFluideNonAssigne(fluideBouteille)) return true
+  return sameFluideCode(fluideBouteille, denom)
+}
+
+/**
+ * Bouteilles D / E (vidange / récup.).
+ * Sans fluide [7] : on liste quand même — choisir une bouteille pourra remplir [7].
+ */
+export function bouteilleDansListeRecupCerfa(
+  item: StockItem,
+  denominationFluide: string,
+): boolean {
+  if (isBouteilleRetournee(item)) return false
+  const t = item.contenantType
+  if (t === 'recuperation' || t === 'transfert') {
+    /* ok */
+  } else if (t === 'recycle' && bouteilleVisibleCerfaMemeVide(t)) {
+    /* ok */
+  } else {
+    return false
+  }
+  const denom = denominationFluide.trim()
+  if (denom && !bouteilleCompatibleA2LPourFluide(item, denom)) return false
+  return fluideCompatibleListeCerfa(item.fluide, denom)
+}
+
+/**
+ * Bouteilles A / B / C (charge / appoint).
+ * `qtyDisponible` = kg après éventuel revert des mouvements de CETTE fiche
+ * (annulation / re-validation) — pas seulement `item.quantiteKg`.
+ * Les bouteilles à 0 kg restent visibles pour ne pas « disparaître » après un
+ * aller-retour de sélection.
+ */
+export function bouteilleDansListeChargeCerfa(
+  item: StockItem,
+  denominationFluide: string,
+  clientId: string | undefined | null,
+  qtyDisponible: number,
+): boolean {
+  if (isBouteilleRetournee(item)) return false
+  if (item.contenantType === 'recuperation') return false
+  const t = item.contenantType
+  if (t !== 'vierge' && t !== 'regenere' && t !== 'transfert' && t !== 'recycle') {
+    return false
+  }
+  const denom = denominationFluide.trim()
+  if (denom && !bouteilleCompatibleA2LPourFluide(item, denom)) return false
+  if (!fluideCompatibleListeCerfa(item.fluide, denom)) return false
+  if (qtyDisponible > 0) return peutReinjectionSurClient(item, clientId)
+  if (t === 'recycle' && bouteilleVisibleCerfaMemeVide(t)) return true
+  return t === 'vierge' || t === 'regenere' || t === 'transfert'
 }

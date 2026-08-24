@@ -131,6 +131,11 @@ Dans Stock, le déchet apparaît dans le bloc orange, séparé du stock utilisab
       'bouteille d',
       'bouteille e',
       'appoint',
+      'liste vide',
+      'annuler',
+      'choisir',
+      'disparu',
+      'menu bouteille',
     ],
     paths: ['/app/interventions', '/app/stock'],
     answer: `Vidanger pour destruction puis recharger du neuf :
@@ -138,7 +143,8 @@ Dans Stock, le déchet apparaît dans le bloc orange, séparé du stock utilisab
 2. Fluide [7].
 3. Bouton orange « Récupérer le gaz (D / E) » → bouteille Récupération (déchet).
 4. Bouton vert « Recharger du neuf (A / B / C) » → bouteille Vierge / Régénéré.
-Les lettres D/E et A/B/C se mettent toutes seules. Le choix de bouteille est enregistré dans le brouillon si vous quittez la page.`,
+Les lettres D/E et A/B/C se mettent toutes seules. Le choix de bouteille est enregistré dans le brouillon si vous quittez la page.
+Si le menu « Contenant / bouteille » est vide : vérifiez [7], ou utilisez le bouton orange pour une bouteille Récupération (D/E) plutôt que le bouton vert (A/B/C). Annuler une sélection remet la bouteille dans la liste.`,
   },
   {
     id: 'stock',
