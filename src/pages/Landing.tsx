@@ -20,6 +20,7 @@ import { CONTACT_EMAIL } from '../components/PublicLayout'
 import { GoogleIcon, GoogleReviewBadge } from '../components/SocialBrandIcons'
 import { SocialLinksRow } from '../components/SocialLinksRow'
 import { ICON3D } from '../lib/icons3d'
+import { GOOGLE_REVIEW_URL } from '../lib/socialLinks'
 
 /** Tuiles Accueil mobile (icônes 3D) — mockup marketing landing. */
 const LANDING_PHONE_TILES = [
@@ -205,13 +206,15 @@ export function Landing() {
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <SocialLinksRow size="sm" />
-              <Link
-                to="/avis"
+              <a
+                href={GOOGLE_REVIEW_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-xs font-bold text-ink hover:bg-mist"
               >
                 <GoogleIcon className="h-4 w-4" />
                 Avis Google
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -838,13 +841,15 @@ export function Landing() {
             <p className="mt-2 text-sm leading-relaxed text-muted">
               30 secondes sur Google : étoiles + un mot sur le CERFA ou le hors-ligne.
             </p>
-            <Link
-              to="/avis"
+            <a
+              href={GOOGLE_REVIEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-bold text-white hover:bg-slate-800"
             >
               <GoogleIcon className="h-4 w-4" />
-              Page avis Google
-            </Link>
+              Laisser un avis Google
+            </a>
           </div>
         </div>
       </section>

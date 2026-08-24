@@ -27,7 +27,7 @@ export const SOCIAL_LINKS: SocialLink[] = [
   {
     id: 'linkedin',
     label: 'LinkedIn',
-    href: 'https://www.linkedin.com/company/climazen',
+    href: 'https://www.linkedin.com/in/issam-taieb-a1a4672a1/',
     enabled: true,
   },
   {
@@ -45,12 +45,9 @@ export const SOCIAL_LINKS: SocialLink[] = [
 ]
 
 /**
- * Lien « Laisser un avis » Google.
- * Idéal : URL courte g.page/r/…/review ou writereview?placeid=…
- * En attendant la fiche Google Business, on ouvre la recherche ClimaZEN.
+ * Lien « Laisser un avis » Google (fiche Google Business).
  */
-export const GOOGLE_REVIEW_URL =
-  'https://www.google.com/search?q=ClimaZEN+avis'
+export const GOOGLE_REVIEW_URL = 'https://g.page/r/CZCj5azzPNXMEBM/review'
 
 export const GOOGLE_MAPS_SEARCH_URL =
   'https://www.google.com/maps/search/?api=1&query=ClimaZEN'

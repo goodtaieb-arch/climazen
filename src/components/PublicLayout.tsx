@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 import { BrandLogo } from './BrandLogo'
 import { SocialLinksRow } from './SocialLinksRow'
 import { GoogleIcon } from './SocialBrandIcons'
+import { GOOGLE_REVIEW_URL } from '../lib/socialLinks'
 
 const CONTACT_EMAIL = 'contact@climazen.fr'
 
@@ -90,13 +91,15 @@ export function PublicLayout() {
               CERFA 15497-04, clients, travaux et stock fluides — pour les frigoristes.
             </p>
             <SocialLinksRow className="mt-4" size="sm" />
-            <Link
-              to="/avis"
+            <a
+              href={GOOGLE_REVIEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
             >
               <GoogleIcon className="h-4 w-4" />
               Laisser un avis Google
-            </Link>
+            </a>
           </div>
           <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted">
             <Link to="/contact" className="hover:text-ink">
