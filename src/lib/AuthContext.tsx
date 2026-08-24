@@ -30,6 +30,7 @@ import {
   saveOfflineSession,
 } from './offlineSync'
 import { getSupabase, isSupabaseConfigured } from './supabase'
+import { setSentryUser } from './sentry'
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -144,6 +145,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw err
     }
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setSentryUser(null)
+      return
+    }
+    setSentryUser({
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      organizationId: user.organizationId,
+    })
+  }, [user])
 
   useEffect(() => {
     let cancelled = false

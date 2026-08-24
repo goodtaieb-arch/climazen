@@ -35,6 +35,15 @@ VITE_SUPABASE_ANON_KEY=eyJ...
 
 7. Sur **Vercel** : mêmes variables d’environnement → Redeploy
 
+## Sentry (crashs en production)
+
+Sans DSN, l’app fonctionne comme avant (aucun appel réseau Sentry).
+
+1. Créez un projet **React** sur [sentry.io](https://sentry.io)
+2. Copiez le **DSN** → Vercel / `.env.local` : `VITE_SENTRY_DSN=...`
+3. (Optionnel) source maps lisibles : `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` **uniquement** en CI (jamais `VITE_`)
+4. Pas de Session Replay : les écrans contiennent signatures et données client
+
 Au premier login sur l’ordi, si d’anciennes données locales existent, un bandeau propose de les **importer vers le cloud**.
 
 ## Démarrer
