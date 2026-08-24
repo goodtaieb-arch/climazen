@@ -243,6 +243,11 @@ export interface FicheMaintenanceCtaVmc {
   updatedAt: string
   hasPdf?: boolean
   pdfFileName?: string
+  /**
+   * Impression : 1 = un PDF par équipement (défaut).
+   * 2 ou 3 = regrouper plusieurs équipements sur la même page PDF.
+   */
+  equipementsParFiche?: 1 | 2 | 3
 }
 
 export function blankFicheCtaVmcChecks(

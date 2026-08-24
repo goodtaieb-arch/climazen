@@ -4,6 +4,7 @@ import {
   type FicheMaintCheckId,
   type FicheMaintenanceClim,
 } from './ficheMaintenanceClim'
+import { chunkItems, normalizeEquipementsParFiche } from './ficheGroupement'
 
 const ACCENT: [number, number, number] = [26, 168, 150]
 const INK: [number, number, number] = [15, 23, 42]
@@ -334,6 +335,206 @@ export async function buildFicheMaintenanceClimPdf(
     .filter(Boolean)
     .join('  ·  ')
   doc.text(foot, margin, pageH - 6)
+
+  return doc.output('blob')
+}
+
+function climValueFor(fiche: FicheMaintenanceClim, id: FicheMaintCheckId): string | null {
+  if (id === 'fr_souffle') return val(fiche.tempSouffleC, '°C')
+  if (id === 'fr_repris') return val(fiche.tempReprisC, '°C')
+  if (id === 'fr_delta') return val(fiche.deltaTC, '°C')
+  if (id === 'fr_pression') return val(fiche.pressionBpBar, 'bar')
+  if (id === 'el_tension') return val(fiche.tensionV, 'V')
+  if (id === 'el_intensite') return val(fiche.intensiteA, 'A')
+  return null
+}
+
+function resultatClimLabel(r: FicheMaintenanceClim['resultat']): string {
+  if (r === 'conforme') return 'OK'
+  if (r === 'reserves') return 'Réserves'
+  if (r === 'non_conforme') return 'N-C'
+  return '—'
+}
+
+/**
+ * Un PDF regroupé : 2 ou 3 équipements par page (colonnes), signatures une seule fois.
+ */
+export async function buildFicheMaintenanceClimGroupedPdf(
+  fiches: FicheMaintenanceClim[],
+  company?: FicheMaintPdfCompany,
+  perPage?: number,
+): Promise<Blob> {
+  const list = fiches.filter(Boolean)
+  if (list.length === 0) throw new Error('Aucune fiche à regrouper')
+  if (list.length === 1) return buildFicheMaintenanceClimPdf(list[0], company)
+
+  const n = normalizeEquipementsParFiche(perPage ?? list[0]?.equipementsParFiche)
+  if (n <= 1) return buildFicheMaintenanceClimPdf(list[0], company)
+
+  const landscape = n === 3
+  const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 10
+  const maxW = pageW - margin * 2
+  const first = list[0]
+  const chunks = chunkItems(list, n)
+
+  const drawHeader = async (pageIndex: number, group: FicheMaintenanceClim[]) => {
+    doc.setFillColor(...ACCENT)
+    doc.rect(0, 0, pageW, 18, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('Fiche maintenance climatisation / PAC — groupée', margin, 8)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text(
+      `${company?.raisonSociale || 'ClimaZEN'}  ·  ${group.length} équip.  ·  page ${pageIndex + 1}/${chunks.length}`,
+      margin,
+      14,
+    )
+    if (company?.logoImage) {
+      await embedImage(doc, company.logoImage, pageW - margin - 22, 2, 20, 14)
+    }
+    let y = 24
+    doc.setTextColor(...INK)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.text(
+      `N° ${first.numero || '—'}  ·  ${fmtDate(first.date)}  ·  ${first.technicien || '—'}`,
+      margin,
+      y,
+    )
+    y += 4.5
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...MUTED)
+    doc.text(`Client : ${first.clientNom || '—'}`, margin, y)
+    y += 4
+    const addr = doc.splitTextToSize(`Adresse : ${first.adresse || '—'}`, maxW)
+    doc.text(addr, margin, y)
+    y += addr.length * 3.6 + 2
+    return y
+  }
+
+  for (let gi = 0; gi < chunks.length; gi++) {
+    if (gi > 0) doc.addPage()
+    const group = chunks[gi]
+    let y = await drawHeader(gi, group)
+
+    const labelW = Math.min(72, maxW * 0.38)
+    const colW = (maxW - labelW) / group.length
+
+    doc.setFillColor(...SOFT)
+    doc.roundedRect(margin, y - 3.5, maxW, 12, 1, 1, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...MUTED)
+    doc.text('Contrôle', margin + 2, y)
+    group.forEach((f, i) => {
+      const x = margin + labelW + i * colW
+      doc.setTextColor(...INK)
+      const head = doc.splitTextToSize(
+        `${f.marqueModele || 'Équip.'}${f.numeroSerie ? ` · SN ${f.numeroSerie}` : ''}`,
+        colW - 2,
+      )
+      doc.text(head.slice(0, 2), x + 1, y)
+    })
+    y += 10
+
+    const ensure = (need: number) => {
+      if (y + need < pageH - 40) return
+      doc.addPage()
+      y = 12
+      doc.setFillColor(...ACCENT)
+      doc.rect(0, 0, pageW, 3, 'F')
+    }
+
+    for (const sec of FICHE_MAINT_SECTIONS) {
+      ensure(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...ACCENT)
+      doc.text(sec.title, margin + 1, y)
+      y += 5
+      for (const it of sec.items) {
+        const labelLines = doc.splitTextToSize(it.label, labelW - 3)
+        const rowH = Math.max(5.2, labelLines.length * 3.2)
+        ensure(rowH + 1)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(6.5)
+        doc.setTextColor(...INK)
+        doc.text(labelLines, margin + 1, y)
+        group.forEach((f, i) => {
+          const x = margin + labelW + i * colW
+          checkBox(doc, x + 1, y, !!f.checks[it.id])
+          const v = climValueFor(f, it.id)
+          if (v && v !== '—') {
+            doc.setFontSize(6)
+            doc.setTextColor(...MUTED)
+            doc.text(v, x + 6, y)
+            doc.setTextColor(...INK)
+            doc.setFontSize(6.5)
+          }
+        })
+        y += rowH
+      }
+      y += 1.5
+    }
+
+    ensure(18)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...ACCENT)
+    doc.text('Résultat', margin + 1, y)
+    y += 5
+    group.forEach((f, i) => {
+      const x = margin + labelW + i * colW
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7)
+      doc.setTextColor(...INK)
+      doc.text(resultatClimLabel(f.resultat), x + 1, y)
+    })
+    y += 5
+    group.forEach((f, i) => {
+      const x = margin + labelW + i * colW
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6)
+      doc.setTextColor(...MUTED)
+      const obs = doc.splitTextToSize(f.observations?.trim() || '—', colW - 2)
+      doc.text(obs.slice(0, 4), x + 1, y)
+    })
+    y += 16
+
+    const sigFiche = group.find((f) => f.signatureTechnicienImage || f.signatureClientImage) || first
+    const boxW = (maxW - 6) / 2
+    const boxH = 22
+    if (y + boxH + 8 > pageH - 8) {
+      doc.addPage()
+      y = 12
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...MUTED)
+    doc.text('Signature technicien (visite)', margin, y)
+    doc.text('Signature client (visite)', margin + boxW + 6, y)
+    y += 2
+    doc.setDrawColor(...LINE)
+    doc.setFillColor(255, 255, 255)
+    doc.roundedRect(margin, y, boxW, boxH, 1.5, 1.5, 'FD')
+    doc.roundedRect(margin + boxW + 6, y, boxW, boxH, 1.5, 1.5, 'FD')
+    await embedImage(doc, sigFiche.signatureTechnicienImage, margin + 3, y + 1, boxW - 6, 16)
+    await embedImage(doc, sigFiche.signatureClientImage, margin + boxW + 9, y + 1, boxW - 6, 16)
+  }
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
+  doc.setTextColor(...MUTED)
+  doc.text(
+    'Document groupé ClimaZEN — hors CERFA 15497-04. Chaque colonne = un équipement (SN / relevés).',
+    margin,
+    pageH - 5,
+  )
 
   return doc.output('blob')
 }

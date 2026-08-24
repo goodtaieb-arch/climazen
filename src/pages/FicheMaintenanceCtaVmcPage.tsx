@@ -1,8 +1,15 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Check, Circle } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import { allEquipements } from '../lib/cerfaBatch'
+import { allEquipements, equipmentLabel } from '../lib/cerfaBatch'
+import { FicheGroupementChoice } from '../components/FicheGroupementChoice'
+import {
+  groupementSummary,
+  normalizeEquipementsParFiche,
+  type EquipementsParFiche,
+} from '../lib/ficheGroupement'
 import {
   blankFicheMaintenanceCtaVmc,
   mergeChecksForPeriodeCtaVmc,
@@ -16,7 +23,10 @@ import {
   type PeriodeCtaVmc,
   type TypeEquipCtaVmc,
 } from '../lib/ficheMaintenanceCtaVmc'
-import { buildFicheMaintenanceCtaVmcPdf } from '../lib/ficheMaintenanceCtaVmcPdf'
+import {
+  buildFicheMaintenanceCtaVmcPdf,
+  buildFicheMaintenanceCtaVmcGroupedPdf,
+} from '../lib/ficheMaintenanceCtaVmcPdf'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { formatOtNumero } from '../lib/ordreTravail'
 import { DecimalField } from '../components/DecimalField'
@@ -51,6 +61,17 @@ export function FicheMaintenanceCtaVmcPage() {
   const editId = params.get('id') || ''
   const otFromQuery = params.get('ot') || ''
   const periodeQuery = (params.get('periode') || '') as PeriodeCtaVmc | ''
+  const batchIds = useMemo(
+    () =>
+      (params.get('batch') || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [params],
+  )
+  const batchQuery = batchIds.length
+    ? `&batch=${encodeURIComponent(batchIds.join(','))}`
+    : ''
 
   const existing = useMemo(
     () => (data.fichesMaintenanceCtaVmc || []).find((f) => f.id === editId) || null,
@@ -192,11 +213,70 @@ export function FicheMaintenanceCtaVmcPage() {
       navigate(
         `/app/fiche-maintenance-cta-vmc?id=${encodeURIComponent(id)}${
           linkedOt ? `&ot=${encodeURIComponent(linkedOt.id)}` : ''
-        }`,
+        }${batchQuery}`,
         { replace: true },
       )
     }
     return id
+  }
+
+  const batchItems = useMemo(() => {
+    if (batchIds.length < 2) return [] as { id: string; label: string; isCurrent: boolean }[]
+    const list = data.fichesMaintenanceCtaVmc || []
+    return batchIds.map((fid) => {
+      const f = list.find((x) => x.id === fid)
+      const eq =
+        site && f?.equipementId
+          ? allEquipements(site).find((e) => e.id === f.equipementId)
+          : undefined
+      const label = eq
+        ? `${equipmentLabel(eq)}${eq.numeroSerie ? ` · SN ${eq.numeroSerie}` : ''}`
+        : [f?.marqueModele, f?.numeroSerie].filter(Boolean).join(' · ') || 'Équipement'
+      return { id: fid, label, isCurrent: fid === editId }
+    })
+  }, [batchIds, data.fichesMaintenanceCtaVmc, site, editId])
+
+  const applyGroupement = (v: EquipementsParFiche) => {
+    setForm((f) => ({ ...f, equipementsParFiche: v }))
+    const currentId = editId || existing?.id
+    if (currentId) {
+      upsertFicheMaintenanceCtaVmc({
+        ...form,
+        id: currentId,
+        numero: form.numero || existing?.numero || '',
+        equipementsParFiche: v,
+      })
+    }
+    for (const id of batchIds) {
+      if (id === currentId) continue
+      const f = (data.fichesMaintenanceCtaVmc || []).find((x) => x.id === id)
+      if (!f) continue
+      upsertFicheMaintenanceCtaVmc({ ...f, equipementsParFiche: v })
+    }
+  }
+
+  const goToBatchPage = (ficheId: string) => {
+    if (ficheId === editId) return
+    try {
+      persist({ keepMsg: true })
+    } catch {
+      /* ignore */
+    }
+    navigate(
+      `/app/fiche-maintenance-cta-vmc?id=${encodeURIComponent(ficheId)}${batchQuery}${
+        linkedOt ? `&ot=${encodeURIComponent(linkedOt.id)}` : ''
+      }`,
+    )
+  }
+
+  const collectBatchFiches = (
+    currentId: string,
+    current: FicheMaintenanceCtaVmc,
+  ): FicheMaintenanceCtaVmc[] => {
+    const ids = batchIds.length > 1 ? batchIds : [currentId]
+    return ids
+      .map((id) => (id === currentId ? current : (data.fichesMaintenanceCtaVmc || []).find((f) => f.id === id)))
+      .filter((f): f is FicheMaintenanceCtaVmc => !!f)
   }
 
   const onSubmit = (e: FormEvent) => {
@@ -220,24 +300,44 @@ export function FicheMaintenanceCtaVmcPage() {
         updatedAt: new Date().toISOString(),
         signatureTechnicienImage: form.signatureTechnicienImage || techSig,
       }
-      const blob = await buildFicheMaintenanceCtaVmcPdf(fiche, {
+      const company = {
         raisonSociale: op?.raisonSociale,
         adresse: op?.adresse,
         telephone: op?.telephone,
         email: op?.email,
         siret: op?.siret,
         logoImage: op?.logoImage,
-      })
-      const fileName = `fiche-maint-cta-vmc-${fiche.date || today()}-${id.slice(0, 8)}.pdf`
-      upsertFicheMaintenanceCtaVmc({
-        ...fiche,
-        id,
-        hasPdf: true,
-        pdfFileName: fileName,
-      })
+      }
+      const perPage = normalizeEquipementsParFiche(form.equipementsParFiche)
+      const batchFiches = collectBatchFiches(id, fiche)
+      const blob =
+        perPage > 1 && batchFiches.length > 1
+          ? await buildFicheMaintenanceCtaVmcGroupedPdf(batchFiches, company, perPage)
+          : await buildFicheMaintenanceCtaVmcPdf(fiche, company)
+      const fileName =
+        perPage > 1 && batchFiches.length > 1
+          ? `fiche-maint-cta-vmc-groupee-${fiche.date || today()}.pdf`
+          : `fiche-maint-cta-vmc-${fiche.date || today()}-${id.slice(0, 8)}.pdf`
+      const markIds =
+        perPage > 1 && batchFiches.length > 1 ? batchFiches.map((f) => f.id) : [id]
+      for (const fid of markIds) {
+        const base = fid === id ? fiche : (data.fichesMaintenanceCtaVmc || []).find((f) => f.id === fid)
+        if (!base) continue
+        upsertFicheMaintenanceCtaVmc({
+          ...base,
+          id: fid,
+          hasPdf: true,
+          pdfFileName: fileName,
+          equipementsParFiche: perPage,
+        })
+      }
       if (pdfUrl) URL.revokeObjectURL(pdfUrl)
       setPdfUrl(URL.createObjectURL(blob))
-      setSavedMsg('PDF généré.')
+      setSavedMsg(
+        perPage > 1 && batchFiches.length > 1
+          ? `PDF groupé généré (${batchFiches.length} équipements, ${perPage} par page).`
+          : 'PDF généré.',
+      )
     } catch (err) {
       alert(err instanceof Error ? err.message : 'PDF impossible')
     } finally {
@@ -281,6 +381,49 @@ export function FicheMaintenanceCtaVmcPage() {
           </p>
         </div>
       </div>
+
+      {batchItems.length > 1 && (
+        <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+          <p className="text-sm font-semibold text-ink">Équipements de l’intervention</p>
+          <p className="text-xs text-muted">
+            Remplissez une CTA / VMC à la fois. Choisissez ensuite 1, 2 ou 3 par page imprimée
+            selon le client.
+          </p>
+          <FicheGroupementChoice
+            value={form.equipementsParFiche}
+            onChange={applyGroupement}
+            equipementCount={batchItems.length}
+            noteAnnuel={form.periode === 'annuel'}
+          />
+          <ul className="space-y-1.5">
+            {batchItems.map((item, idx) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => goToBatchPage(item.id)}
+                  className={[
+                    'flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left',
+                    item.isCurrent ? 'border-sky-400 bg-white' : 'border-line bg-white',
+                  ].join(' ')}
+                >
+                  {item.isCurrent ? (
+                    <Check className="h-4 w-4 shrink-0 text-sky-600" />
+                  ) : (
+                    <Circle className="h-4 w-4 shrink-0 text-slate-300" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold text-muted">
+                      {idx + 1}/{batchItems.length}
+                      {item.isCurrent ? ' · en cours' : ''}
+                    </span>
+                    <span className="block truncate text-sm font-semibold">{item.label}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="sticky top-0 z-20 -mx-1 overflow-x-auto bg-white/95 px-1 py-2 backdrop-blur">
         <div className="flex gap-1.5 rounded-2xl border border-line bg-white p-1 shadow-sm">
@@ -541,7 +684,12 @@ export function FicheMaintenanceCtaVmcPage() {
             onClick={() => void generatePdf()}
             className="min-h-12 rounded-full border border-line bg-white px-6 text-sm font-semibold"
           >
-            {busy ? 'PDF…' : 'Générer PDF'}
+            {busy
+              ? 'PDF…'
+              : batchItems.length > 1 &&
+                  normalizeEquipementsParFiche(form.equipementsParFiche) > 1
+                ? `PDF groupé — ${groupementSummary(batchItems.length, normalizeEquipementsParFiche(form.equipementsParFiche))}`
+                : 'Générer PDF'}
           </button>
         </div>
       </form>

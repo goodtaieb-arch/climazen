@@ -26,6 +26,8 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
+import { FicheGroupementModal } from '../components/FicheGroupementChoice'
+import type { EquipementsParFiche } from '../lib/ficheGroupement'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { blankFicheMaintenanceChaufferie } from '../lib/ficheMaintenanceChaufferie'
 import { blankFicheMaintenanceCtaVmc } from '../lib/ficheMaintenanceCtaVmc'
@@ -206,6 +208,7 @@ export function AppelOtPage() {
   const [awaitingRemoteSignature, setAwaitingRemoteSignature] = useState(false)
 
   const [msg, setMsg] = useState('')
+  const [groupementModal, setGroupementModal] = useState<null | 'clim' | 'cta'>(null)
   const scanBootRef = useRef(false)
 
   useEffect(() => {
@@ -605,7 +608,7 @@ export function AppelOtPage() {
     navigate(`/app/interventions/${draftIds[0]}?ot=${encodeURIComponent(id)}`)
   }
 
-  const openFicheMaint = () => {
+  const openFicheMaint = (perPage: EquipementsParFiche = 1) => {
     if (!otForm.chantierId) {
       alert('Site requis pour la fiche.')
       return
@@ -655,12 +658,11 @@ export function AppelOtPage() {
             (!f.numero || f.numero === otForm.numero),
         )
       if (existingFiche) {
-        if (otForm.numero && existingFiche.numero !== otForm.numero) {
-          upsertFicheMaintenanceClim({
-            ...existingFiche,
-            numero: otForm.numero,
-          })
-        }
+        upsertFicheMaintenanceClim({
+          ...existingFiche,
+          numero: otForm.numero || existingFiche.numero,
+          equipementsParFiche: perPage,
+        })
         ficheIds.push(existingFiche.id)
         continue
       }
@@ -685,6 +687,7 @@ export function AppelOtPage() {
         signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
         signatureClientImage: otForm.signatureClientImage || '',
         observations: otForm.observations || '',
+        equipementsParFiche: perPage,
       })
       ficheIds.push(ficheId)
     }
@@ -693,7 +696,9 @@ export function AppelOtPage() {
     persistOt({ ficheMaintenanceId: ficheIds[0], parcoursStep: 'docs' }, id)
     if (ficheIds.length > 1) {
       setMsg(
-        `${ficheIds.length} fiches checklist créées (une par équipement). Remplissez-les une par une.`,
+        perPage > 1
+          ? `${ficheIds.length} équipements prêts — PDF groupé (${perPage} par page) au choix du client. Remplissez-les un par un.`
+          : `${ficheIds.length} fiches checklist créées (une par équipement). Remplissez-les une par une.`,
       )
     }
     const q =
@@ -769,16 +774,25 @@ export function AppelOtPage() {
     )
   }
 
-  const openFicheCtaVmc = () => {
+  const openFicheCtaVmc = (perPage: EquipementsParFiche = 1) => {
     if (!otForm.chantierId) {
       alert('Site requis pour la fiche CTA / VMC.')
       return
     }
     const c = client
     const s = site
-    const eqId =
-      selectedEquipIds[0] || otForm.equipementId || (eqs[0]?.id ?? '')
-    const eq = eqs.find((e) => e.id === eqId)
+    const eqIds =
+      selectedEquipIds.length > 0
+        ? selectedEquipIds
+        : otForm.equipementId
+          ? [otForm.equipementId]
+          : eqs[0]?.id
+            ? [eqs[0].id]
+            : ([] as string[])
+    if (eqIds.length === 0) {
+      alert('Sélectionnez au moins un équipement pour la fiche CTA / VMC.')
+      return
+    }
     const adresse =
       [s?.adresse, s?.codePostal, s?.ville].filter(Boolean).join(', ') ||
       [c?.adresse, c?.codePostal, c?.ville].filter(Boolean).join(', ')
@@ -786,42 +800,45 @@ export function AppelOtPage() {
     const id = persistOt(
       {
         parcoursStep: 'docs',
-        equipementId: eqId || otForm.equipementId,
+        equipementIds: eqIds,
+        equipementId: eqIds[0],
       },
       otId,
     )
 
-    const existingFiche =
-      (data.fichesMaintenanceCtaVmc || []).find(
-        (f) =>
-          f.chantierId === otForm.chantierId &&
-          (!eqId || f.equipementId === eqId) &&
-          (f.numero === otForm.numero || !f.hasPdf),
-      ) || null
-
-    let ficheId = existingFiche?.id
-    if (existingFiche) {
-      if (otForm.numero && existingFiche.numero !== otForm.numero) {
+    const ficheIds: string[] = []
+    for (const eqId of eqIds) {
+      const eq = eqs.find((e) => e.id === eqId)
+      const existingFiche =
+        (data.fichesMaintenanceCtaVmc || []).find(
+          (f) =>
+            f.chantierId === otForm.chantierId &&
+            f.equipementId === eqId &&
+            (f.numero === otForm.numero || !f.hasPdf),
+        ) || null
+      if (existingFiche) {
         upsertFicheMaintenanceCtaVmc({
           ...existingFiche,
-          numero: otForm.numero,
+          numero: otForm.numero || existingFiche.numero,
+          equipementsParFiche: perPage,
         })
+        ficheIds.push(existingFiche.id)
+        continue
       }
-    } else {
       const raw = `${eq?.type || ''} ${eq?.nom || ''}`.toLowerCase()
       const hasCta = /cta|centrale/.test(raw)
       const hasVmc = /vmc|ventilation/.test(raw)
       const typeEquipement =
         hasCta && hasVmc ? 'cta_vmc' : hasCta ? 'cta' : hasVmc ? 'vmc' : 'cta_vmc'
       const base = blankFicheMaintenanceCtaVmc('mensuel')
-      ficheId = upsertFicheMaintenanceCtaVmc({
+      const ficheId = upsertFicheMaintenanceCtaVmc({
         ...base,
         numero: otForm.numero,
         date: otForm.date || today(),
         technicien: otForm.technicien,
         clientId: otForm.clientId,
         chantierId: otForm.chantierId,
-        equipementId: eqId || undefined,
+        equipementId: eqId,
         clientNom: c?.raisonSociale || '',
         adresse,
         marqueModele: eq
@@ -832,13 +849,24 @@ export function AppelOtPage() {
         signatureTechnicienImage: otForm.signatureTechnicienImage || user?.signatureImage || '',
         signatureClientImage: otForm.signatureClientImage || '',
         observations: otForm.observations || '',
+        equipementsParFiche: perPage,
       })
+      ficheIds.push(ficheId)
     }
-    if (!ficheId) return
-    persistOt({ ficheCtaVmcId: ficheId, parcoursStep: 'docs' }, id)
-    navigate(
-      `/app/fiche-maintenance-cta-vmc?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}`,
-    )
+    if (ficheIds.length === 0) return
+    persistOt({ ficheCtaVmcId: ficheIds[0], parcoursStep: 'docs' }, id)
+    if (ficheIds.length > 1) {
+      setMsg(
+        perPage > 1
+          ? `${ficheIds.length} CTA/VMC prêts — PDF groupé (${perPage} par page) au choix du client.`
+          : `${ficheIds.length} fiches CTA/VMC créées (une par équipement).`,
+      )
+    }
+    const q =
+      ficheIds.length > 1
+        ? `id=${encodeURIComponent(ficheIds[0])}&batch=${encodeURIComponent(ficheIds.join(','))}&ot=${encodeURIComponent(id)}`
+        : `id=${encodeURIComponent(ficheIds[0])}&ot=${encodeURIComponent(id)}`
+    navigate(`/app/fiche-maintenance-cta-vmc?${q}`)
   }
 
   const finishWithSignatures = () => {
@@ -1792,7 +1820,10 @@ export function AppelOtPage() {
             ) : null}
             <button
               type="button"
-              onClick={openFicheMaint}
+              onClick={() => {
+                if (selectedEquipIds.length > 1) setGroupementModal('clim')
+                else openFicheMaint(1)
+              }}
               className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-line bg-white px-4 py-3 text-left font-semibold active:bg-mist"
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
@@ -1800,7 +1831,7 @@ export function AppelOtPage() {
                 <span className="block text-sm">Fiche checklist clim (optionnel)</span>
                 <span className="block text-xs font-medium text-muted">
                   {selectedEquipIds.length > 1
-                    ? `${selectedEquipIds.length} équipements → 1 fiche chacun`
+                    ? `${selectedEquipIds.length} équipements — vous pourrez regrouper 2 ou 3 par page à l’impression`
                     : isMaint
                       ? 'Pas obligatoire en maintenance — le CERFA ou le rapport OT suffisent'
                       : 'Si vous voulez un PDF détaillé hors CERFA'}
@@ -1822,14 +1853,19 @@ export function AppelOtPage() {
             </button>
             <button
               type="button"
-              onClick={openFicheCtaVmc}
+              onClick={() => {
+                if (selectedEquipIds.length > 1) setGroupementModal('cta')
+                else openFicheCtaVmc(1)
+              }}
               className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-sky-200 bg-sky-50/60 px-4 py-3 text-left font-semibold active:bg-sky-50"
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-sky-700" />
               <span>
                 <span className="block text-sm">Fiche CTA / VMC</span>
                 <span className="block text-xs font-medium text-muted">
-                  1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire
+                  {selectedEquipIds.length > 1
+                    ? `${selectedEquipIds.length} équipements — regroupement 2 ou 3 par page possible`
+                    : '1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire'}
                 </span>
               </span>
             </button>
@@ -1943,6 +1979,22 @@ export function AppelOtPage() {
           </span>
         ) : null}
       </div>
+      <FicheGroupementModal
+        open={!!groupementModal}
+        title={
+          groupementModal === 'cta'
+            ? 'Impression des fiches CTA / VMC'
+            : 'Impression des fiches clim'
+        }
+        equipementCount={Math.max(selectedEquipIds.length, 2)}
+        onConfirm={(v) => {
+          const kind = groupementModal
+          setGroupementModal(null)
+          if (kind === 'cta') openFicheCtaVmc(v)
+          else openFicheMaint(v)
+        }}
+        onCancel={() => setGroupementModal(null)}
+      />
     </div>
   )
 }

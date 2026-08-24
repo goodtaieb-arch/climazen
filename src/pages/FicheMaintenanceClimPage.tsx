@@ -11,7 +11,13 @@ import {
   type FicheMaintResultat,
   type FicheMaintenanceClim,
 } from '../lib/ficheMaintenanceClim'
-import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
+import { buildFicheMaintenanceClimPdf, buildFicheMaintenanceClimGroupedPdf } from '../lib/ficheMaintenanceClimPdf'
+import { FicheGroupementChoice } from '../components/FicheGroupementChoice'
+import {
+  groupementSummary,
+  normalizeEquipementsParFiche,
+  type EquipementsParFiche,
+} from '../lib/ficheGroupement'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { otBaseNumero, sameOtNumero, formatOtNumero } from '../lib/ordreTravail'
 import { DecimalField } from '../components/DecimalField'
@@ -396,11 +402,69 @@ export function FicheMaintenanceClimPage() {
     return id
   }
 
+  const applyGroupement = (v: EquipementsParFiche) => {
+    setForm((f) => ({ ...f, equipementsParFiche: v }))
+    const currentId = existing?.id || editId
+    if (currentId) {
+      try {
+        upsertFicheMaintenanceClim({
+          ...form,
+          id: currentId,
+          equipementId: existing?.equipementId || form.equipementId,
+          chantierId: existing?.chantierId || form.chantierId,
+          equipementsParFiche: v,
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+    for (const id of batchIds) {
+      if (id === currentId) continue
+      const f = (data.fichesMaintenanceClim || []).find((x) => x.id === id)
+      if (!f) continue
+      upsertFicheMaintenanceClim({ ...f, equipementsParFiche: v })
+    }
+  }
+
+  const climPdfCompany = () => {
+    const op = data.operateur
+    return {
+      raisonSociale: op.raisonSociale,
+      adresse: op.adresse,
+      telephone: op.telephone,
+      email: op.email,
+      siret: op.siret,
+      logoImage: op.logoImage,
+    }
+  }
+
+  const collectBatchFiches = (currentId: string, withSig: Omit<FicheMaintenanceClim, 'id' | 'createdAt' | 'updatedAt'>): FicheMaintenanceClim[] => {
+    const ids = batchIds.length > 1 ? batchIds : [currentId]
+    return ids
+      .map((id) => {
+        if (id === currentId) {
+          return {
+            ...withSig,
+            id,
+            createdAt: existing?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          } as FicheMaintenanceClim
+        }
+        return (data.fichesMaintenanceClim || []).find((f) => f.id === id)
+      })
+      .filter((f): f is FicheMaintenanceClim => !!f)
+  }
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     const id = persist()
     alert('Fiche enregistrée.')
-    if (!editId) navigate(`/app/fiche-maintenance-clim?id=${encodeURIComponent(id)}`, { replace: true })
+    if (!editId) {
+      navigate(
+        `/app/fiche-maintenance-clim?id=${encodeURIComponent(id)}${batchQuery}${otQuery}`,
+        { replace: true },
+      )
+    }
   }
 
   const onPdf = async () => {
@@ -432,34 +496,47 @@ export function FicheMaintenanceClimPage() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         } as FicheMaintenanceClim)
-      const op = data.operateur
-      const blob = await buildFicheMaintenanceClimPdf(
-        {
-          ...fiche,
-          ...withSig,
-          id,
-        },
-        {
-          raisonSociale: op.raisonSociale,
-          adresse: op.adresse,
-          telephone: op.telephone,
-          email: op.email,
-          siret: op.siret,
-          logoImage: op.logoImage,
-        },
-      )
+      const company = climPdfCompany()
+      const perPage = normalizeEquipementsParFiche(withSig.equipementsParFiche)
+      const batchFiches = collectBatchFiches(id, withSig)
+      const blob =
+        perPage > 1 && batchFiches.length > 1
+          ? await buildFicheMaintenanceClimGroupedPdf(batchFiches, company, perPage)
+          : await buildFicheMaintenanceClimPdf(
+              {
+                ...fiche,
+                ...withSig,
+                id,
+              },
+              company,
+            )
       const url = URL.createObjectURL(blob)
       setPdfUrl(url)
-      upsertFicheMaintenanceClim({
-        ...withSig,
-        id,
-        hasPdf: true,
-        pdfFileName: `fiche-maint-clim-${form.date || today()}.pdf`,
-      })
-      if (id) {
-        setMarkedOk((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      const markIds =
+        perPage > 1 && batchFiches.length > 1 ? batchFiches.map((f) => f.id) : [id]
+      for (const fid of markIds) {
+        const base =
+          fid === id
+            ? { ...withSig, id }
+            : (data.fichesMaintenanceClim || []).find((f) => f.id === fid)
+        if (!base) continue
+        upsertFicheMaintenanceClim({
+          ...base,
+          id: fid,
+          hasPdf: true,
+          pdfFileName:
+            perPage > 1 && batchFiches.length > 1
+              ? `fiche-maint-clim-groupee-${form.date || today()}.pdf`
+              : `fiche-maint-clim-${form.date || today()}.pdf`,
+          equipementsParFiche: perPage,
+        })
       }
-      setSavedMsg('PDF généré pour cette fiche.')
+      setMarkedOk((prev) => [...new Set([...prev, ...markIds])])
+      setSavedMsg(
+        perPage > 1 && batchFiches.length > 1
+          ? `PDF groupé généré (${batchFiches.length} équipements, ${perPage} par page).`
+          : 'PDF généré pour cette fiche.',
+      )
     } catch (err) {
       alert(err instanceof Error ? err.message : 'PDF impossible')
     } finally {
@@ -504,44 +581,69 @@ export function FicheMaintenanceClimPage() {
         return
       }
 
-      const op = data.operateur
+      const company = climPdfCompany()
+      const perPage = normalizeEquipementsParFiche(form.equipementsParFiche)
+      const currentId = existing?.id || editId || persist()
+      const withSig = {
+        ...form,
+        signatureTechnicienImage: techSig,
+        signatureClientImage: form.signatureClientImage || '',
+      }
+
+      if (perPage > 1) {
+        const batchFiches = collectBatchFiches(currentId, withSig).filter((f) =>
+          okIds.has(f.id),
+        )
+        if (batchFiches.length === 0) {
+          alert(
+            'Cochez l’icône ✓ sur chaque fiche équipement quand elle est OK, puis régénérez l’ensemble.',
+          )
+          return
+        }
+        const blob = await buildFicheMaintenanceClimGroupedPdf(batchFiches, company, perPage)
+        if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+        setPdfUrl(URL.createObjectURL(blob))
+        for (const f of batchFiches) {
+          upsertFicheMaintenanceClim({
+            ...f,
+            hasPdf: true,
+            pdfFileName: `fiche-maint-clim-groupee-${f.date || today()}.pdf`,
+            equipementsParFiche: perPage,
+          })
+        }
+        setSavedMsg(
+          `PDF groupé régénéré (${batchFiches.length} équipements, ${perPage} par page).`,
+        )
+        return
+      }
+
       let done = 0
       for (const item of targets) {
         const fiche = (data.fichesMaintenanceClim || []).find((f) => f.id === item.id)
         if (!fiche) {
           throw new Error(`Fiche manquante pour « ${item.label} » — ouvrez-la, complétez, cochez ✓.`)
         }
-        const withSig: FicheMaintenanceClim = {
+        const signed: FicheMaintenanceClim = {
           ...fiche,
           signatureTechnicienImage:
             fiche.signatureTechnicienImage || techSig || user?.signatureImage || '',
-          signatureClientImage:
-            fiche.signatureClientImage || '',
+          signatureClientImage: fiche.signatureClientImage || '',
         }
-        if (!withSig.signatureTechnicienImage) {
+        if (!signed.signatureTechnicienImage) {
           throw new Error(`Signature manquante sur « ${item.label} ».`)
         }
-        const blob = await buildFicheMaintenanceClimPdf(withSig, {
-          raisonSociale: op.raisonSociale,
-          adresse: op.adresse,
-          telephone: op.telephone,
-          email: op.email,
-          siret: op.siret,
-          logoImage: op.logoImage,
-        })
-        // blob used to validate generation; PDF is client-side only for fiche
+        const blob = await buildFicheMaintenanceClimPdf(signed, company)
         void blob
         upsertFicheMaintenanceClim({
-          ...withSig,
-          id: withSig.id,
+          ...signed,
+          id: signed.id,
           hasPdf: true,
-          pdfFileName: `fiche-maint-clim-${withSig.date || today()}-${withSig.id.slice(0, 8)}.pdf`,
+          pdfFileName: `fiche-maint-clim-${signed.date || today()}-${signed.id.slice(0, 8)}.pdf`,
         })
         done += 1
       }
 
       setSavedMsg(`${done} fiche${done > 1 ? 's' : ''} PDF régénérée${done > 1 ? 's' : ''}.`)
-      // Recharger l’aperçu de la page courante
       if (editId) {
         const cur = (data.fichesMaintenanceClim || []).find((f) => f.id === editId)
         if (cur) {
@@ -552,14 +654,7 @@ export function FicheMaintenanceClimPage() {
               signatureTechnicienImage:
                 form.signatureTechnicienImage || techSig || cur.signatureTechnicienImage,
             },
-            {
-              raisonSociale: op.raisonSociale,
-              adresse: op.adresse,
-              telephone: op.telephone,
-              email: op.email,
-              siret: op.siret,
-              logoImage: op.logoImage,
-            },
+            company,
           )
           if (pdfUrl) URL.revokeObjectURL(pdfUrl)
           setPdfUrl(URL.createObjectURL(blob))
@@ -644,8 +739,14 @@ export function FicheMaintenanceClimPage() {
         <div className="space-y-2 rounded-2xl border border-accent/40 bg-accent-soft/30 p-4">
           <p className="text-sm font-semibold text-ink">Équipements de l’intervention</p>
           <p className="text-xs text-muted">
-            Ouvrez chaque page, cochez ✓ quand tout est bon, puis régénérez l’ensemble des fiches.
+            Remplissez une machine à la fois. En bas, choisissez si le client veut 1, 2 ou 3
+            équipements par page imprimée.
           </p>
+          <FicheGroupementChoice
+            value={form.equipementsParFiche}
+            onChange={applyGroupement}
+            equipementCount={batchItems.length}
+          />
           <ul className="space-y-1.5">
             {batchItems.map((item, idx) => {
               const ok = markedOk.includes(item.id) || item.hasPdf
@@ -1048,7 +1149,9 @@ export function FicheMaintenanceClimPage() {
               <FileText className="h-4 w-4" />
               {busy
                 ? 'Régénération…'
-                : `Régénérer l’ensemble (${Math.max(markedOk.length, batchItems.filter((b) => b.hasPdf).length) || batchItems.length} fiches)`}
+                : normalizeEquipementsParFiche(form.equipementsParFiche) > 1
+                  ? `PDF groupé — ${groupementSummary(batchItems.length, normalizeEquipementsParFiche(form.equipementsParFiche))}`
+                  : `Régénérer l’ensemble (${Math.max(markedOk.length, batchItems.filter((b) => b.hasPdf).length) || batchItems.length} fiches)`}
             </button>
           ) : null}
           {otReturnHref ? (
