@@ -33,7 +33,7 @@ export const SOCIAL_LINKS: SocialLink[] = [
   {
     id: 'youtube',
     label: 'YouTube',
-    href: 'https://www.youtube.com/@climazen',
+    href: 'https://www.youtube.com/channel/UCSM4g0G6hcC7yHKbyN3CCyw',
     enabled: true,
   },
   {
