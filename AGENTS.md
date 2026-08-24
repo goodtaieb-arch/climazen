@@ -11,3 +11,4 @@ Voir `README.md` pour le produit, le stack (Vite + React + Supabase) et les comm
 - **Hello-world métier :** landing → `/register` (compte société) → `/app` → `/app/clients` → Ajouter une fiche client. L’inscription cloud peut renvoyer un JWT même sans e-mail confirmé ; le login mot de passe fonctionne ensuite.
 - Relancer Vite après toute modification de `.env.local` (les `VITE_*` sont injectées au boot).
 - **Ne pas bloquer.** Si une étape bloque ou prend trop de temps (Docker, variables d’environnement, dépendances, services distants), arrêter la commande et enchaîner en local : écrire / modifier le code dans les fichiers, sans attendre l’infra. Pas de retry infini sur Docker ou les secrets.
+- **Continuité du code > modèle.** Si le quota Cursor Cloud est atteint, ne pas interrompre le travail : enchaîner avec n’importe quel modèle dispo (ChatGPT, DeepSeek, etc.) tant que le code continue d’être écrit dans les fichiers, sans perturbation.
