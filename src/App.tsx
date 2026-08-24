@@ -1,8 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, useParams, useSearchParams } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthContext'
 import { StoreProvider } from './lib/store'
 import { RequireAuth } from './components/RequireAuth'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { SentryRoutes } from './lib/sentry'
 import { AppLayout } from './components/AppLayout'
 import { PublicLayout } from './components/PublicLayout'
 import { Landing } from './pages/Landing'
@@ -68,7 +69,7 @@ export default function App() {
       <AuthProvider>
         <StoreProvider>
           <BrowserRouter>
-            <Routes>
+            <SentryRoutes>
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Landing />} />
                 <Route path="/contact" element={<ContactPage />} />
@@ -118,7 +119,7 @@ export default function App() {
                 <Route path="profil" element={<ProfilPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            </SentryRoutes>
           </BrowserRouter>
         </StoreProvider>
       </AuthProvider>
