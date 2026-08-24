@@ -86,7 +86,7 @@ Après un CERFA, utilise « Retour à l’OT — signer & clôturer » pour ne p
     paths: ['/app/interventions'],
     answer: `Pour un CERFA :
 1. Depuis l’OT → bouton CERFA, ou menu Interventions.
-2. Cochez les natures. Réparation vidange + neuf : bouton « Préparer cette intervention » en [4].
+2. Cochez les natures vous-même. Destruction / BSFF : « Démantèlement / récup. définitive (déchet) ». Réinjection prévue : « Récupération temporaire ».
 3. Fluide [7], puis en [11] : « Récupérer le gaz (D/E) » et/ou « Recharger du neuf (A/B/C) ».
 4. Signatures → « Enregistrer & générer ce CERFA ».
 
@@ -110,7 +110,7 @@ Le n° de série officiel reste obligatoire ; le surnom (ex. camion Luc) est opt
     keywords: ['definitive', 'définitive', 'dechet', 'déchet', 'demantelement', 'démantèlement', 'bsff', 'rebut'],
     paths: ['/app/interventions', '/app/stock'],
     answer: `Récupération définitive / démantèlement :
-- Nature « Démantèlement / récup. définitive », ou raccourci réparation en [4].
+- Nature « Démantèlement / récup. définitive (déchet) » — à cocher vous-même en [4].
 - Bouton orange « Récupérer le gaz (D / E) » → bouteille Récupération (déchet).
 - Ce gaz va au traitement / BSFF — jamais en recharge.
 
@@ -139,7 +139,7 @@ Dans Stock, le déchet apparaît dans le bloc orange, séparé du stock utilisab
     ],
     paths: ['/app/interventions', '/app/stock'],
     answer: `Vidanger pour destruction puis recharger du neuf :
-1. En [4], bouton « Préparer cette intervention ».
+1. En [4], cochez vous-même « Démantèlement / récup. définitive (déchet) » (et « Charge de fluide » si vous remettez du neuf). Pas de raccourci : c’est le tech qui choisit.
 2. Fluide [7].
 3. Bouton orange « Récupérer le gaz (D / E) » → bouteille Récupération (déchet).
 4. Bouton vert « Recharger du neuf (A / B / C) » → bouteille Vierge / Régénéré.

@@ -737,25 +737,6 @@ export function InterventionFormPage() {
     setNatures((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
   }
 
-  const applyPresetReparationRecupCharge = () => {
-    skipAutosaveRef.current = false
-    setNatures((prev) => {
-      const next = new Set(prev)
-      next.add('entretien_reparation')
-      next.add('charge')
-      next.add('recuperation')
-      return [...next]
-    })
-    setManips((prev) => {
-      const hasRecup = prev.some((m) => m.sens === 'entree')
-      const hasCharge = prev.some((m) => m.sens === 'sortie')
-      const next = [...prev]
-      if (!hasRecup) next.push(newManipLine('entree'))
-      if (!hasCharge) next.push(newManipLine('sortie'))
-      return next
-    })
-  }
-
   const buildDraft = (
     opts?: { keepEmptyManips?: boolean },
   ): Omit<CerfaDraft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } => {
@@ -1637,21 +1618,6 @@ export function InterventionFormPage() {
         </Section>
 
         <Section title="[4] Nature de l’intervention">
-          <div className="mb-3 rounded-xl border border-[#0f766e]/30 bg-[#0f766e]/5 px-3 py-3 text-sm">
-            <p className="font-semibold text-ink">Réparation avec vidange + gaz neuf ?</p>
-            <p className="mt-1 text-xs text-muted">
-              C’est le cas le plus fréquent : récupérer l’ancien gaz (destruction / BSFF) puis
-              recharger du neuf. Un seul CERFA, deux bouteilles : <strong>D</strong> (récup. déchet)
-              et <strong>A</strong> (vierge).
-            </p>
-            <button
-              type="button"
-              onClick={applyPresetReparationRecupCharge}
-              className="mt-2 inline-flex items-center rounded-full bg-[#0f766e] px-3 py-1.5 text-xs font-bold text-white"
-            >
-              Préparer cette intervention
-            </button>
-          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {ALL_NATURES.map((n) => (
               <label key={n} className="flex items-start gap-2 text-sm">
@@ -1665,6 +1631,12 @@ export function InterventionFormPage() {
               </label>
             ))}
           </div>
+          <p className="mt-2 text-xs text-muted">
+            Gaz envoyé en destruction / BSFF : cochez{' '}
+            <strong>Démantèlement / récup. définitive (déchet)</strong>.{' '}
+            <strong>Récupération temporaire</strong> uniquement si une réinjection est prévue.
+            L’app ne coche rien à votre place.
+          </p>
         </Section>
 
         <Section title="[5] Détecteur manuel de fuite *">
@@ -2095,11 +2067,6 @@ export function InterventionFormPage() {
               type="button"
               onClick={() => {
                 skipAutosaveRef.current = false
-                setNatures((prev) =>
-                  prev.includes('recuperation') || prev.includes('demantelement')
-                    ? prev
-                    : [...prev, 'recuperation'],
-                )
                 setManips((prev) => [...prev, newManipLine('entree')])
               }}
               className="inline-flex items-center gap-1.5 rounded-full border-2 border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-950 hover:bg-orange-100"
@@ -2111,7 +2078,6 @@ export function InterventionFormPage() {
               type="button"
               onClick={() => {
                 skipAutosaveRef.current = false
-                setNatures((prev) => (prev.includes('charge') ? prev : [...prev, 'charge']))
                 setManips((prev) => [...prev, newManipLine('sortie')])
               }}
               className="inline-flex items-center gap-1.5 rounded-full border-2 border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-100"
@@ -2123,8 +2089,10 @@ export function InterventionFormPage() {
           <p className="mt-2 text-xs text-muted">
             <strong>D / E</strong> s’affichent tout seuls sur une ligne « récupérer » (bouteille
             Récupération déchet ou Transfert). <strong>A / B / C</strong> sur une ligne « recharger »
-            (Vierge / Régénéré). Sans fluide [7], les bouteilles restent listées — en choisir une
-            remplit [7]. Annuler une sélection la remet dans le menu.
+            (Vierge / Régénéré). Cochez la nature en [4] vous-même : déchet ={' '}
+            <strong>Démantèlement / récup. définitive</strong>. Sans fluide [7], les bouteilles
+            restent listées — en choisir une remplit [7]. Annuler une sélection la remet dans le
+            menu.
           </p>
 
           {manips.length === 0 && bottleRequired && (
@@ -2138,14 +2106,12 @@ export function InterventionFormPage() {
               ) : modeRemplissageCerfa(natures) === 'temporaire' ? (
                 <>
                   Récupération temporaire : bouteille <strong>Transfert / Service</strong> (bouton
-                  D/E). Pour aussi remettre du neuf, cochez « Charge de fluide » ou utilisez le
-                  raccourci en [4].
+                  D/E). Pour aussi remettre du neuf, cochez « Charge de fluide » en [4].
                 </>
               ) : modeRemplissageCerfa(natures) === 'definitive' ? (
                 <>
                   Récupération définitive : bouteille <strong>Récupération (déchet)</strong> (bouton
-                  D/E). Pour recharger du neuf après réparation, cochez aussi « Charge de fluide »
-                  ou le raccourci en [4].
+                  D/E). Pour recharger du neuf, cochez aussi « Charge de fluide » en [4].
                 </>
               ) : (
                 <>
