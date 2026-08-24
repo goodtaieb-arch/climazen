@@ -2,9 +2,9 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v111'
+export const APP_VERSION = 'v112'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-08-23-v111-fiche-cta-vmc'
+export const APP_BUILD = '2026-08-24-v112-cerfa-annul-stock'
 
 export const APP_VERSION_LABEL = `${APP_VERSION} · ${APP_BUILD}`

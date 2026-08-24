@@ -9,6 +9,7 @@ import {
   mergeIdLists,
   pruneTombstones,
 } from './deletedEntities'
+import { purgeOrphanCerfaStock } from './stockMouvements'
 import { getSupabase } from './supabase'
 import { validatePasswordStrength } from './passwordPolicy'
 
@@ -658,6 +659,20 @@ export function mergeByIdLatest<T extends { id: string; updatedAt?: string; crea
   return [...map.values()]
 }
 
+
+/** Après fusion : recrédite le fluide des CERFA tombstonés, puis retire leurs mouvements. */
+function finalizeCerfaStockAfterMerge(data: AppData): { data: AppData; changed: boolean } {
+  const purged = purgeOrphanCerfaStock(data)
+  const before = purged.stockMouvements || []
+  const after = applyTombstones(before, purged.deletedEntityIds?.stockMouvements).filter(
+    (m) => !(purged.deletedEntityIds?.stock || []).includes(m.stockItemId),
+  )
+  if (after.length === before.length) {
+    return { data: purged, changed: purged !== data }
+  }
+  return { data: { ...purged, stockMouvements: after }, changed: true }
+}
+
 /**
  * Au chargement / sync : fusionne cloud + cache appareil.
  * - Cloud plus récent + pas de saisie locale en attente → cloud gagne (PC ↔ téléphone).
@@ -706,22 +721,24 @@ export function resolveRemoteVsLocal(
       },
       remote,
     )
+    const mergedRemote: AppData = {
+      ...remote,
+      operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
+      clients: applyTombstones(remote.clients, deletedEntityIds.clients),
+      chantiers: applyTombstones(remote.chantiers, deletedEntityIds.chantiers),
+      stock: applyTombstones(remote.stock, deletedEntityIds.stock),
+      // Garder les mouvements CERFA jusqu’au purge : ils servent à recréditer les kg.
+      stockMouvements: (remote.stockMouvements || []).filter(
+        (m) => !(deletedEntityIds.stock || []).includes(m.stockItemId),
+      ),
+      ordresTravail: applyTombstones(remote.ordresTravail, deletedEntityIds.ordresTravail),
+      interventions: applyTombstones(remote.interventions, deletedEntityIds.interventions),
+      deletedEntityIds,
+    }
+    const finalizedRemote = finalizeCerfaStockAfterMerge(mergedRemote)
     return {
-      data: {
-        ...remote,
-        operateur: mergeOperateurPreferFilled(remote.operateur, local.operateur),
-        clients: applyTombstones(remote.clients, deletedEntityIds.clients),
-        chantiers: applyTombstones(remote.chantiers, deletedEntityIds.chantiers),
-        stock: applyTombstones(remote.stock, deletedEntityIds.stock),
-        stockMouvements: applyTombstones(
-          remote.stockMouvements,
-          deletedEntityIds.stockMouvements,
-        ).filter((m) => !(deletedEntityIds.stock || []).includes(m.stockItemId)),
-        ordresTravail: applyTombstones(remote.ordresTravail, deletedEntityIds.ordresTravail),
-        interventions: applyTombstones(remote.interventions, deletedEntityIds.interventions),
-        deletedEntityIds,
-      },
-      shouldPushLocal: hasAnyTombstones(deletedEntityIds),
+      data: finalizedRemote.data,
+      shouldPushLocal: hasAnyTombstones(finalizedRemote.data.deletedEntityIds) || finalizedRemote.changed,
     }
   }
 
@@ -786,7 +803,7 @@ export function resolveRemoteVsLocal(
   clients = applyTombstones(clients, deletedEntityIds.clients)
   chantiers = applyTombstones(chantiers, deletedEntityIds.chantiers)
   stock = applyTombstones(stock, deletedEntityIds.stock)
-  stockMouvements = applyTombstones(stockMouvements, deletedEntityIds.stockMouvements).filter(
+  stockMouvements = stockMouvements.filter(
     (m) => !(deletedEntityIds.stock || []).includes(m.stockItemId),
   )
   ordresTravail = applyTombstones(ordresTravail, deletedEntityIds.ordresTravail)
@@ -814,7 +831,8 @@ export function resolveRemoteVsLocal(
     deletedEntityIds,
   }
 
-  const mergedW = appDataWeight(merged)
+  const finalized = finalizeCerfaStockAfterMerge(merged)
+  const mergedW = appDataWeight(finalized.data)
   const shouldPushLocal =
     hasPending ||
     mergedW > remoteW ||
@@ -822,9 +840,10 @@ export function resolveRemoteVsLocal(
     Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||
     Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
     Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim()) ||
-    hasAnyTombstones(deletedEntityIds)
+    hasAnyTombstones(finalized.data.deletedEntityIds) ||
+    finalized.changed
 
-  return { data: merged, shouldPushLocal }
+  return { data: finalized.data, shouldPushLocal }
 }
 
 const IMPORT_FLAG = 'climazen_import_done_v1'

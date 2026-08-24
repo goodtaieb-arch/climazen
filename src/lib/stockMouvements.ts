@@ -4,6 +4,7 @@ import { cerfaLabelFor, isBouteilleRetournee, sensMouvementPourContenant } from 
 import { adrInfoForFluide, findFluide, isFluideNonAssigne, sameFluideCode } from './fluides'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { assertMouvementCerfaLegal } from './stockRegles'
+import { withDeletedIds } from './deletedEntities'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -104,6 +105,7 @@ export function applyStockFromIntervention(
   }
 
   let mouvements = (data.stockMouvements || []).filter((m) => !previousIds.has(m.id))
+  const removedIds = [...previousIds]
   const label = cerfaLabelFor(intervention)
   const now = new Date().toISOString()
   const date = intervention.dateIntervention || now.slice(0, 10)
@@ -232,7 +234,14 @@ export function applyStockFromIntervention(
     }
   }
 
-  return { ...data, stock, stockMouvements: mouvements }
+  return {
+    ...data,
+    stock,
+    stockMouvements: mouvements,
+    deletedEntityIds: withDeletedIds(data.deletedEntityIds, {
+      stockMouvements: removedIds,
+    }),
+  }
 }
 
 function makeMouvement(opts: {
@@ -272,27 +281,66 @@ function makeMouvement(opts: {
   }
 }
 
-/** Restaure le stock si on supprime une fiche CERFA. */
-export function revertStockForIntervention(data: AppData, interventionId: string): AppData {
-  const previous = (data.stockMouvements || []).filter((m) => m.interventionId === interventionId)
-  if (previous.length === 0) return data
+/** True si le kg actuel de la bouteille correspond encore à l’effet de ce mouvement. */
+function mouvementLooksApplied(item: StockItem, m: StockMouvement): boolean {
+  const current = Number(item.quantiteKg) || 0
+  const apres = Number(m.quantiteApresKg)
+  const avant = Number(m.quantiteAvantKg)
+  if (!Number.isFinite(apres) || !Number.isFinite(avant)) return true
+  return Math.abs(current - apres) <= Math.abs(current - avant) + 1e-6
+}
 
-  let stock = data.stock.map((s) => ({ ...s }))
-  for (const m of previous) {
+function undoCerfaMouvements(
+  data: AppData,
+  previous: StockMouvement[],
+  opts?: { onlyIfStillApplied?: boolean },
+): AppData {
+  if (previous.length === 0) return data
+  const removedIds = previous.map((m) => m.id)
+  const removeSet = new Set(removedIds)
+  const now = new Date().toISOString()
+  const stock = data.stock.map((s) => ({ ...s }))
+  // Dernier mouvement d’abord : plusieurs lignes sur la même bouteille (re-sync).
+  const ordered = [...previous].reverse()
+  for (const m of ordered) {
     const idx = stock.findIndex((s) => s.id === m.stockItemId)
     if (idx < 0) continue
+    if (opts?.onlyIfStillApplied && !mouvementLooksApplied(stock[idx], m)) continue
     const delta = m.sens === 'sortie' ? m.quantiteKg : -m.quantiteKg
     stock[idx] = {
       ...stock[idx],
       quantiteKg: roundKg(Math.max(0, stock[idx].quantiteKg + delta)),
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     }
   }
   return {
     ...data,
     stock,
-    stockMouvements: (data.stockMouvements || []).filter((m) => m.interventionId !== interventionId),
+    stockMouvements: (data.stockMouvements || []).filter((m) => !removeSet.has(m.id)),
+    deletedEntityIds: withDeletedIds(data.deletedEntityIds, {
+      stockMouvements: removedIds,
+    }),
   }
+}
+
+/** Restaure le stock si on supprime / annule une fiche CERFA. */
+export function revertStockForIntervention(data: AppData, interventionId: string): AppData {
+  const previous = (data.stockMouvements || []).filter((m) => m.interventionId === interventionId)
+  return undoCerfaMouvements(data, previous)
+}
+
+/**
+ * CERFA supprimé / absent : retire ses mouvements fluide et recrédite la bouteille
+ * si la déduction est encore visible (évite un double crédit après une 1re annulation).
+ */
+export function purgeOrphanCerfaStock(data: AppData): AppData {
+  const liveIds = new Set((data.interventions || []).map((i) => i.id))
+  const deletedInter = new Set(data.deletedEntityIds?.interventions || [])
+  const ghosts = (data.stockMouvements || []).filter((m) => {
+    if (!isCerfaMouvement(m) || !m.interventionId) return false
+    return deletedInter.has(m.interventionId) || !liveIds.has(m.interventionId)
+  })
+  return undoCerfaMouvements(data, ghosts, { onlyIfStillApplied: true })
 }
 
 export function mouvementsForBottle(data: AppData, stockItemId: string): StockMouvement[] {

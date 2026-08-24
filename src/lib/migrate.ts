@@ -11,6 +11,7 @@ import type {
 } from './types'
 import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
+import { purgeOrphanCerfaStock } from './stockMouvements'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
 type LegacyChantier = Partial<Site> & {
@@ -202,7 +203,7 @@ export function migrateAppData(data: AppData): AppData {
   const sites = (data.chantiers || []).map((c) => migrateSite(c as unknown as LegacyChantier))
   const interventions = (data.interventions || []).map((i) => migrateIntervention(i, sites))
   const detecteurs = migrateDetecteurs(data)
-  return {
+  return purgeOrphanCerfaStock({
     ...data,
     chantiers: sites,
     interventions,
@@ -223,5 +224,5 @@ export function migrateAppData(data: AppData): AppData {
       stock: [],
       stockMouvements: [],
     },
-  }
+  })
 }
