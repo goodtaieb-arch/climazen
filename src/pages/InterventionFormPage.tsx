@@ -48,8 +48,8 @@ import {
   assertMouvementCerfaLegal,
   bouteilleCompatibleA2LPourFluide,
   bouteilleEligibleChargeCerfa,
-  bouteilleEligibleRemplissageSelonNatures,
   capaciteRestanteKg,
+  cerfaMixteRecupEtCharge,
   jaugeRemplissageRecup,
   modeRemplissageCerfa,
   resumeRegleContenant,
@@ -299,40 +299,51 @@ export function InterventionFormPage() {
   }, [installationDestination, destinationsOptions])
   const manipQtyTotal = manips.reduce((s, m) => s + (Number(m.quantiteKg) || 0), 0)
   const firstStockId = manips.find((m) => m.stockItemId)?.stockItemId || ''
-  const stockMatchingFluide = useMemo(() => {
+  /** Bouteilles D / E : on remplit depuis l’installation (déchet ou service). */
+  const stockRecupOptions = useMemo(() => {
     if (!denominationFluide) return []
-    const mode = modeRemplissageCerfa(natures)
+    const fluideOk = (fluide: string) => {
+      if (!fluide?.trim() || isFluideNonAssigne(fluide)) return true
+      return sameFluideCode(fluide, denominationFluide)
+    }
     return data.stock.filter((s) => {
       if (isBouteilleRetournee(s)) return false
       if (!bouteilleCompatibleA2LPourFluide(s, denominationFluide)) return false
-      const qty = Number(s.quantiteKg) || 0
+      const t = s.contenantType
+      if (t === 'recuperation') return fluideOk(s.fluide)
+      if (t === 'transfert') return fluideOk(s.fluide)
+      if (t === 'recycle' && bouteilleVisibleCerfaMemeVide(t)) return fluideOk(s.fluide)
+      return false
+    })
+  }, [data.stock, denominationFluide])
 
-      // ——— Remplissage depuis l’installation (récup) ———
-      if (mode === 'definitive') {
-        // Mise au rebut : uniquement Récupération (déchet)
-        if (s.contenantType !== 'recuperation') return false
-        if (isFluideNonAssigne(s.fluide)) return true
-        return sameFluideCode(s.fluide, denominationFluide)
-      }
-      if (mode === 'temporaire') {
-        // Réparation / réinjection prévue : uniquement Transfert / Service
-        if (s.contenantType !== 'transfert') return false
-        if (!s.fluide?.trim() || isFluideNonAssigne(s.fluide)) return true
-        return sameFluideCode(s.fluide, denominationFluide)
-      }
-
-      // ——— Charge / réinjection (pas de nature récup) ———
-      // Interdiction absolue : déchet jamais proposé
+  /** Bouteilles A / B / C : charge / appoint (jamais une récup. déchet). */
+  const stockChargeOptions = useMemo(() => {
+    if (!denominationFluide) return []
+    return data.stock.filter((s) => {
+      if (isBouteilleRetournee(s)) return false
+      if (!bouteilleCompatibleA2LPourFluide(s, denominationFluide)) return false
       if (s.contenantType === 'recuperation') return false
       if (!sameFluideCode(s.fluide, denominationFluide)) return false
+      const qty = Number(s.quantiteKg) || 0
       if (qty > 0) return bouteilleEligibleChargeCerfa(s, client?.id)
-      // Vide hors récup : recyclé même détenteur éventuel — pas le déchet
       if (s.contenantType === 'recycle' && bouteilleVisibleCerfaMemeVide(s.contenantType)) {
         return true
       }
       return false
     })
-  }, [data.stock, denominationFluide, client?.id, natures])
+  }, [data.stock, denominationFluide, client?.id])
+
+  const stockMatchingFluide = useMemo(() => {
+    const seen = new Set<string>()
+    const out: typeof data.stock = []
+    for (const s of [...stockRecupOptions, ...stockChargeOptions]) {
+      if (seen.has(s.id)) continue
+      seen.add(s.id)
+      out.push(s)
+    }
+    return out
+  }, [stockRecupOptions, stockChargeOptions])
 
   const destinationWrongFluide = useMemo(() => {
     if (!denominationFluide) return []
@@ -509,6 +520,23 @@ export function InterventionFormPage() {
     return () => window.clearTimeout(t)
   }, [])
 
+  // Recharger les bouteilles du brouillon si l’état local est encore vide (retour sur la fiche).
+  useEffect(() => {
+    const saved = (existing?.manipulations || []).filter((m) => m.stockItemId)
+    if (saved.length === 0) return
+    setManips((prev) => {
+      if (prev.some((m) => m.stockItemId)) return prev
+      return saved.map((m) => ({
+        key: crypto.randomUUID(),
+        stockItemId: m.stockItemId || '',
+        quantiteKg: m.quantiteKg || 0,
+        sens:
+          m.sens ||
+          (m.type === 'recuperation' ? 'entree' : ('sortie' as StockMouvementSens)),
+      }))
+    })
+  }, [existing?.id, existing?.updatedAt, existing?.manipulations])
+
   useEffect(() => {
     if (!chantier || existing) return
     const eq = findEquipement(chantier, equipementId || equipementFromQuery)
@@ -531,13 +559,17 @@ export function InterventionFormPage() {
     }
   }, [denominationFluide])
 
-  // Si fluide ou natures changent, retirer les bouteilles incompatibles
+  // Fluide / A2L : retirer seulement les bouteilles vraiment impossibles.
+  // Ne plus vider une récup. déchet si une nature « charge » est aussi cochée (cas réparation).
   useEffect(() => {
     if (!denominationFluide) {
-      setManips((prev) => (prev.some((m) => m.stockItemId) ? prev.map((m) => ({ ...m, stockItemId: '', quantiteKg: 0 })) : prev))
+      setManips((prev) =>
+        prev.some((m) => m.stockItemId)
+          ? prev.map((m) => ({ ...m, stockItemId: '', quantiteKg: 0 }))
+          : prev,
+      )
       return
     }
-    const mode = modeRemplissageCerfa(natures)
     setManips((prev) => {
       const next = prev.filter((m) => {
         if (!m.stockItemId) return true
@@ -545,16 +577,11 @@ export function InterventionFormPage() {
         if (!item) return false
         if (!fluideCompatibleAvecCerfa(item.fluide, denominationFluide)) return false
         if (!bouteilleCompatibleA2LPourFluide(item, denominationFluide)) return false
-        if (mode) {
-          return bouteilleEligibleRemplissageSelonNatures(item, natures)
-        }
-        // Charge / réinjection : déchet interdit
-        if (item.contenantType === 'recuperation') return false
         return true
       })
       return next.length === prev.length ? prev : next
     })
-  }, [denominationFluide, natures]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [denominationFluide]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Préremplir nom / qualité client depuis le site (pas l’image — signature à chaque intervention)
   useEffect(() => {
@@ -622,6 +649,7 @@ export function InterventionFormPage() {
   })
 
   const updateManip = (key: string, patch: Partial<ManipDraft>) => {
+    skipAutosaveRef.current = false
     setManips((prev) =>
       prev.map((m) => {
         if (m.key !== key) return m
@@ -681,6 +709,25 @@ export function InterventionFormPage() {
 
   const toggleNature = (n: NatureIntervention) => {
     setNatures((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
+  }
+
+  const applyPresetReparationRecupCharge = () => {
+    skipAutosaveRef.current = false
+    setNatures((prev) => {
+      const next = new Set(prev)
+      next.add('entretien_reparation')
+      next.add('charge')
+      next.add('recuperation')
+      return [...next]
+    })
+    setManips((prev) => {
+      const hasRecup = prev.some((m) => m.sens === 'entree')
+      const hasCharge = prev.some((m) => m.sens === 'sortie')
+      const next = [...prev]
+      if (!hasRecup) next.push(newManipLine('entree'))
+      if (!hasCharge) next.push(newManipLine('sortie'))
+      return next
+    })
   }
 
   const buildDraft = (
@@ -995,17 +1042,14 @@ export function InterventionFormPage() {
             : `N° de série invalide pour ${labelBouteilleAffichage(item)}.`,
         )
       }
-      const mode = modeRemplissageCerfa(natures)
-      if (mode && !bouteilleEligibleRemplissageSelonNatures(item, natures)) {
+      if (m.sens === 'sortie' && item.contenantType === 'recuperation') {
         throw new Error(
-          mode === 'temporaire'
-            ? `Récupération temporaire : utilisez uniquement une bouteille Transfert / Service (pas une Récupération déchet).`
-            : `Récupération définitive / démantèlement : utilisez uniquement une bouteille Récupération (déchet).`,
+          `Interdit : bouteille Récupération (déchet) en charge / réinjection. Utilisez-la en récupération (lettre D), puis une bouteille Vierge pour le gaz neuf.`,
         )
       }
-      if (!mode && item.contenantType === 'recuperation') {
+      if (m.sens === 'entree' && (item.contenantType === 'vierge' || item.contenantType === 'regenere')) {
         throw new Error(
-          `Interdit : bouteille Récupération (déchet) pour une charge / réinjection. Évacuez via BSFF.`,
+          `Bouteille ${CONTENANT_TYPE_LABELS[item.contenantType]} : uniquement une charge (sortie). Pour la vidange, ajoutez « Récupérer le gaz » et choisissez une bouteille Récupération (D) ou Transfert (E).`,
         )
       }
       if (!(m.quantiteKg > 0)) {
@@ -1567,6 +1611,21 @@ export function InterventionFormPage() {
         </Section>
 
         <Section title="[4] Nature de l’intervention">
+          <div className="mb-3 rounded-xl border border-[#0f766e]/30 bg-[#0f766e]/5 px-3 py-3 text-sm">
+            <p className="font-semibold text-ink">Réparation avec vidange + gaz neuf ?</p>
+            <p className="mt-1 text-xs text-muted">
+              C’est le cas le plus fréquent : récupérer l’ancien gaz (destruction / BSFF) puis
+              recharger du neuf. Un seul CERFA, deux bouteilles : <strong>D</strong> (récup. déchet)
+              et <strong>A</strong> (vierge).
+            </p>
+            <button
+              type="button"
+              onClick={applyPresetReparationRecupCharge}
+              className="mt-2 inline-flex items-center rounded-full bg-[#0f766e] px-3 py-1.5 text-xs font-bold text-white"
+            >
+              Préparer cette intervention
+            </button>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {ALL_NATURES.map((n) => (
               <label key={n} className="flex items-start gap-2 text-sm">
@@ -1753,7 +1812,10 @@ export function InterventionFormPage() {
                   .filter((x) => x.key !== m.key && x.stockItemId)
                   .map((x) => x.stockItemId),
               )
-              const optionsDispo = stockMatchingFluide.filter(
+              const pool =
+                m.sens === 'entree' ? stockRecupOptions : stockChargeOptions
+              const selected = item && !pool.some((s) => s.id === item.id) ? [item] : []
+              const optionsDispo = [...selected, ...pool].filter(
                 (s) => s.id === m.stockItemId || !dejaPrises.has(s.id),
               )
               const qtyRestante = item ? Number(item.quantiteKg) || 0 : 0
@@ -1983,33 +2045,66 @@ export function InterventionFormPage() {
             })}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setManips((prev) => [...prev, newManipLine()])}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-semibold text-slate hover:bg-mist"
-          >
-            <Plus className="h-4 w-4" />
-            Ajouter une bouteille
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                skipAutosaveRef.current = false
+                setNatures((prev) =>
+                  prev.includes('recuperation') || prev.includes('demantelement')
+                    ? prev
+                    : [...prev, 'recuperation'],
+                )
+                setManips((prev) => [...prev, newManipLine('entree')])
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-950 hover:bg-orange-100"
+            >
+              <Plus className="h-4 w-4" />
+              Récupérer le gaz (D / E)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                skipAutosaveRef.current = false
+                setNatures((prev) => (prev.includes('charge') ? prev : [...prev, 'charge']))
+                setManips((prev) => [...prev, newManipLine('sortie')])
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-100"
+            >
+              <Plus className="h-4 w-4" />
+              Recharger du neuf (A / B / C)
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            <strong>D / E</strong> s’affichent tout seuls sur une ligne « récupérer » (bouteille
+            Récupération déchet ou Transfert). <strong>A / B / C</strong> sur une ligne « recharger »
+            (Vierge / Régénéré). Choisissez le fluide [7] d’abord, sinon la liste reste vide.
+          </p>
 
           {manips.length === 0 && bottleRequired && (
             <p className="mt-2 rounded-xl bg-accent-soft/70 px-3 py-2 text-xs text-slate">
-              {modeRemplissageCerfa(natures) === 'temporaire' ? (
+              {cerfaMixteRecupEtCharge(natures) ? (
                 <>
-                  Récupération temporaire : uniquement bouteille{' '}
-                  <strong>Transfert / Service</strong> (réinjection prévue). Les bouteilles
-                  Récupération (déchet) sont bloquées.
+                  Sur ce CERFA vous pouvez les deux : bouton orange <strong>Récupérer le gaz (D / E)</strong>{' '}
+                  = bouteille Récupération déchet (destruction) ou Transfert, puis bouton vert{' '}
+                  <strong>Recharger du neuf (A / B / C)</strong> = Vierge / Régénéré.
+                </>
+              ) : modeRemplissageCerfa(natures) === 'temporaire' ? (
+                <>
+                  Récupération temporaire : bouteille <strong>Transfert / Service</strong> (bouton
+                  D/E). Pour aussi remettre du neuf, cochez « Charge de fluide » ou utilisez le
+                  raccourci en [4].
                 </>
               ) : modeRemplissageCerfa(natures) === 'definitive' ? (
                 <>
-                  Récupération définitive / démantèlement : uniquement bouteille{' '}
-                  <strong>Récupération (déchet)</strong> → traitement / BSFF. Pas de réinjection.
+                  Récupération définitive : bouteille <strong>Récupération (déchet)</strong> (bouton
+                  D/E). Pour recharger du neuf après réparation, cochez aussi « Charge de fluide »
+                  ou le raccourci en [4].
                 </>
               ) : (
                 <>
-                  Charge / appoint : bouteille <strong>Vierge</strong>,{' '}
-                  <strong>régénérée</strong> ou <strong>Transfert / Service</strong> (réinjection).
-                  Les bouteilles de récupération (déchet) sont bloquées.
+                  Charge : bouton vert <strong>Recharger du neuf</strong> (Vierge / Régénéré). Pour
+                  d’abord vidanger vers destruction, bouton orange <strong>Récupérer le gaz</strong>.
                 </>
               )}
             </p>

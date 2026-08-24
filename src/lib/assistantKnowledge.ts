@@ -86,11 +86,11 @@ Après un CERFA, utilise « Retour à l’OT — signer & clôturer » pour ne p
     paths: ['/app/interventions'],
     answer: `Pour un CERFA :
 1. Depuis l’OT → bouton CERFA, ou menu Interventions.
-2. Cochez les natures (récup. temporaire, démantèlement, charge…).
-3. Fluide [7], bouteilles [11], signatures.
-4. « Enregistrer & générer ce CERFA ».
+2. Cochez les natures. Réparation vidange + neuf : bouton « Préparer cette intervention » en [4].
+3. Fluide [7], puis en [11] : « Récupérer le gaz (D/E) » et/ou « Recharger du neuf (A/B/C) ».
+4. Signatures → « Enregistrer & générer ce CERFA ».
 
-Le PDF se voit sous le formulaire. Le brouillon se sauve aussi tout seul.`,
+Le PDF se voit sous le formulaire. Le brouillon (bouteilles comprises) se sauve tout seul.`,
   },
   {
     id: 'recup-temporaire',
@@ -110,11 +110,35 @@ Le n° de série officiel reste obligatoire ; le surnom (ex. camion Luc) est opt
     keywords: ['definitive', 'définitive', 'dechet', 'déchet', 'demantelement', 'démantèlement', 'bsff', 'rebut'],
     paths: ['/app/interventions', '/app/stock'],
     answer: `Récupération définitive / démantèlement :
-- Nature « Démantèlement / récup. définitive ».
-- Uniquement bouteilles « Récupération (déchet) ».
+- Nature « Démantèlement / récup. définitive », ou raccourci réparation en [4].
+- Bouton orange « Récupérer le gaz (D / E) » → bouteille Récupération (déchet).
 - Ce gaz va au traitement / BSFF — jamais en recharge.
 
-Dans Stock, il apparaît dans le bloc orange « Récupération déchet », séparé du stock utilisable.`,
+Pour vidanger puis remettre du neuf : même CERFA, ajoutez aussi « Recharger du neuf (A) ».
+
+Dans Stock, le déchet apparaît dans le bloc orange, séparé du stock utilisable.`,
+  },
+  {
+    id: 'reparation-recup-neuf',
+    title: 'Réparation : récup destruction + gaz neuf',
+    keywords: [
+      'reparation',
+      'réparation',
+      'destruction',
+      'neuf',
+      'recharge',
+      'vidange',
+      'bouteille d',
+      'bouteille e',
+      'appoint',
+    ],
+    paths: ['/app/interventions', '/app/stock'],
+    answer: `Vidanger pour destruction puis recharger du neuf :
+1. En [4], bouton « Préparer cette intervention ».
+2. Fluide [7].
+3. Bouton orange « Récupérer le gaz (D / E) » → bouteille Récupération (déchet).
+4. Bouton vert « Recharger du neuf (A / B / C) » → bouteille Vierge / Régénéré.
+Les lettres D/E et A/B/C se mettent toutes seules. Le choix de bouteille est enregistré dans le brouillon si vous quittez la page.`,
   },
   {
     id: 'stock',

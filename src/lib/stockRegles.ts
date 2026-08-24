@@ -134,6 +134,31 @@ export function modeRemplissageCerfa(
   return null
 }
 
+/** Charge / appoint / réparation : on peut sortir du fluide neuf (bouteilles A, B, C). */
+export function naturesImpliquentChargeCerfa(natures: NatureIntervention[]): boolean {
+  return natures.some(
+    (n) =>
+      n === 'charge' ||
+      n === 'entretien_reparation' ||
+      n === 'mise_en_service' ||
+      n === 'assemblage' ||
+      n === 'modification',
+  )
+}
+
+/** Récupération depuis l’installation (bouteilles D, E). */
+export function naturesImpliquentRecupCerfa(natures: NatureIntervention[]): boolean {
+  return natures.includes('recuperation') || natures.includes('demantelement')
+}
+
+/**
+ * Cas terrain fréquent : vidange (déchet ou service) + recharge neuve sur le même CERFA.
+ * Les deux familles de bouteilles doivent rester proposées.
+ */
+export function cerfaMixteRecupEtCharge(natures: NatureIntervention[]): boolean {
+  return naturesImpliquentRecupCerfa(natures) && naturesImpliquentChargeCerfa(natures)
+}
+
 /**
  * Bouteille autorisée pour remplir depuis l’installation selon le mode récup.
  * Temporaire → Transfert / Service uniquement.
