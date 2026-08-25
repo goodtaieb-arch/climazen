@@ -43,9 +43,12 @@ export const TIP_ADR = (
       dès que le fluide [7] est sélectionné.
     </span>
     <span className="mt-2 block text-white/80">
-      Structure : <strong className="text-white">UN [Code UN] + nom du gaz</strong>
+      Structure :{' '}
+      <strong className="text-white">
+        UN [code] [NOM OFFICIEL] (GAZ RÉFRIGÉRANT R xx), [classe]
+      </strong>
       <br />
-      Ex. : UN 3252 DIFLUOROMETHANE (REFRIGERANT GAS R 32)
+      Ex. : UN 3252 DIFLUOROMÉTHANE (GAZ RÉFRIGÉRANT R 32), 2.1
     </span>
   </>
 )

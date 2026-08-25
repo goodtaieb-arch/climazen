@@ -311,7 +311,7 @@ export function isFluideInflammableA2LOrA3(code: string): boolean {
  * Classification déchets CERFA [12] :
  * - Inflammable (A2L/A3/A2…) → rubrique 16 05 04*
  * - Non inflammable (A1…) → rubrique 14 06 01*
- * R-410A = A1 / UN 3163 → NON inflammable (pas 16 05 04*).
+ * R-410A = A1 / UN 1078 (déchet NSA) → NON inflammable (pas 16 05 04*).
  */
 export function isFluideAdrInflammable(fluideCode: string, codeUn?: string): boolean {
   const c = classeSecuriteFluide(fluideCode)
@@ -347,107 +347,139 @@ export type FluideAdrInfo = {
   denominationAdr: string
 }
 
+/** Chiffres du code UN (sans préfixe « UN », sans doublon). */
+export function digitsCodeUn(raw?: string | null): string {
+  return String(raw || '')
+    .replace(/^UN\s*/i, '')
+    .replace(/\D/g, '')
+}
+
+/** Nom usuel CERFA : R-32 → « R 32 », R-134a → « R 134a ». */
+export function formatNomUsuelGaz(code: string): string {
+  const raw = (code || '').trim()
+  const m = raw.match(/^R[-\s]?(.+)$/i)
+  if (!m) return raw
+  return `R ${m[1]}`
+}
+
+/**
+ * Chaîne ADR officielle, sans doublon de code UN :
+ * `UN [code] [NOM OFFICIEL] (GAZ RÉFRIGÉRANT [nom usuel]), [classe]`
+ * Les NSA n’ont pas de parenthèse « GAZ RÉFRIGÉRANT ».
+ */
+export function formatDenominationAdrOfficielle(opts: {
+  codeUn: string
+  nomOfficiel: string
+  nomUsuel?: string | null
+  classeDanger: string
+}): string {
+  const un = digitsCodeUn(opts.codeUn)
+  let nom = String(opts.nomOfficiel || '')
+    .replace(/^\d{3,4}\s+/, '')
+    .replace(/^UN\s*\d{3,4}\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const usuel = (opts.nomUsuel || '').trim()
+  const nomUp = nom.toUpperCase()
+  const dejaUsuel =
+    !usuel ||
+    nomUp.includes(usuel.toUpperCase()) ||
+    nomUp.includes('NSA') ||
+    nomUp.includes('GAZ RÉFRIGÉRANT') ||
+    nomUp.includes('GAZ REFRIGERANT')
+  const gaz = !dejaUsuel ? ` (GAZ RÉFRIGÉRANT ${usuel})` : ''
+  const classe = String(opts.classeDanger || '').trim()
+  const corps = [`UN ${un}`, `${nom}${gaz}`].filter((p) => p && p !== 'UN ').join(' ')
+  return classe ? `${corps}, ${classe}` : corps
+}
+
+/**
+ * Évite « 3252 UN 3252 … » quand le code UN est déjà dans la dénomination.
+ */
+export function libelleAdrSansDoublon(codeUn?: string, denominationAdr?: string): string {
+  let denom = (denominationAdr || '').trim()
+  const code = digitsCodeUn(codeUn)
+  if (!denom && !code) return ''
+  denom = denom.replace(/^\d{3,4}\s+(?=UN\s*\d{3,4}\b)/i, '').trim()
+  if (!denom) return code ? `UN ${code}` : ''
+  if (/^UN\s*\d{3,4}\b/i.test(denom)) return denom
+  if (code && denom.toUpperCase().startsWith(code)) {
+    const rest = denom.slice(code.length).trim()
+    return rest ? `UN ${code} ${rest}` : `UN ${code}`
+  }
+  return code ? `UN ${code} ${denom}` : denom
+}
+
+/** Libellé à imprimer sur le CERFA [12] — fluide d’abord, sinon nettoyage du texte saisi. */
+export function libelleAdrPourCerfa(opts: {
+  fluideType?: string
+  codeUn?: string
+  denominationAdr?: string
+}): string {
+  const auto = opts.fluideType ? adrInfoForFluide(opts.fluideType) : null
+  if (auto?.denominationAdr) return auto.denominationAdr
+  return libelleAdrSansDoublon(opts.codeUn, opts.denominationAdr)
+}
+
+function adrNamed(
+  codeUn: string,
+  nomOfficiel: string,
+  fluideCode: string,
+  classeDanger: string,
+): FluideAdrInfo {
+  return {
+    codeUn,
+    denominationAdr: formatDenominationAdrOfficielle({
+      codeUn,
+      nomOfficiel,
+      nomUsuel: formatNomUsuelGaz(fluideCode),
+      classeDanger,
+    }),
+  }
+}
+
+function adrNsa(codeUn: string, nomOfficiel: string, classeDanger: string): FluideAdrInfo {
+  return {
+    codeUn,
+    denominationAdr: formatDenominationAdrOfficielle({
+      codeUn,
+      nomOfficiel,
+      classeDanger,
+    }),
+  }
+}
+
 const FLUIDE_ADR: Record<string, FluideAdrInfo> = {
-  'R-32': {
-    codeUn: '3252',
-    denominationAdr: 'UN 3252 DIFLUOROMETHANE (REFRIGERANT GAS R 32)',
-  },
-  'R-134A': {
-    codeUn: '3159',
-    denominationAdr: 'UN 3159 1,1,1,2-TETRAFLUOROETHANE (REFRIGERANT GAS R 134a)',
-  },
-  'R-407C': {
-    codeUn: '3340',
-    denominationAdr: 'UN 3340 REFRIGERANT GAS R 407C',
-  },
-  'R-410A': {
-    codeUn: '3163',
-    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-410A)',
-  },
-  'R-404A': {
-    codeUn: '3337',
-    denominationAdr: 'UN 3337 REFRIGERANT GAS R 404A',
-  },
-  'R-507A': {
-    codeUn: '1078',
-    denominationAdr: 'UN 1078 REFRIGERANT GAS, N.O.S. (R-507A)',
-  },
-  'R-1234YF': {
-    codeUn: '3161',
-    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-1234yf)',
-  },
-  'R-1234ZE': {
-    codeUn: '3163',
-    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-1234ze)',
-  },
-  'R-1233ZD': {
-    codeUn: '3163',
-    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-1233zd)',
-  },
-  'R-454C': {
-    codeUn: '3161',
-    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-454C)',
-  },
-  'R-455A': {
-    codeUn: '3161',
-    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-455A)',
-  },
-  'R-454B': {
-    codeUn: '3161',
-    denominationAdr: 'UN 3161 LIQUEFIED GAS, FLAMMABLE, N.O.S. (R-454B)',
-  },
-  'R-448A': {
-    codeUn: '3163',
-    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-448A)',
-  },
-  'R-449A': {
-    codeUn: '3163',
-    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-449A)',
-  },
-  'R-452A': {
-    codeUn: '3163',
-    denominationAdr: 'UN 3163 LIQUEFIED GAS, N.O.S. (R-452A)',
-  },
-  'R-744': {
-    codeUn: '1013',
-    denominationAdr: 'UN 1013 CARBON DIOXIDE',
-  },
-  'R-717': {
-    codeUn: '1005',
-    denominationAdr: 'UN 1005 AMMONIA, ANHYDROUS',
-  },
-  'R-290': {
-    codeUn: '1978',
-    denominationAdr: 'UN 1978 PROPANE',
-  },
-  'R-600A': {
-    codeUn: '1969',
-    denominationAdr: 'UN 1969 ISOBUTANE',
-  },
-  'R-1270': {
-    codeUn: '1077',
-    denominationAdr: 'UN 1077 PROPYLENE',
-  },
-  'R-22': {
-    codeUn: '1018',
-    denominationAdr: 'UN 1018 CHLORODIFLUOROMETHANE (REFRIGERANT GAS R 22)',
-  },
-  'R-12': {
-    codeUn: '1028',
-    denominationAdr: 'UN 1028 DICHLORODIFLUOROMETHANE (REFRIGERANT GAS R 12)',
-  },
-  'R-502': {
-    codeUn: '1973',
-    denominationAdr: 'UN 1973 CHLORODIFLUOROMETHANE AND CHLOROPENTAFLUOROETHANE MIXTURE',
-  },
-  'R-408A': {
-    codeUn: '1078',
-    denominationAdr: 'UN 1078 REFRIGERANT GAS, N.O.S. (R-408A)',
-  },
-  'R-409A': {
-    codeUn: '1078',
-    denominationAdr: 'UN 1078 REFRIGERANT GAS, N.O.S. (R-409A)',
-  },
+  'R-32': adrNamed('3252', 'DIFLUOROMÉTHANE', 'R-32', '2.1'),
+  'R-134A': adrNamed('3159', 'TÉTRAFLUOROÉTHANE', 'R-134a', '2.2'),
+  'R-407C': adrNamed('3340', 'GAZ RÉFRIGÉRANT R 407C', 'R-407C', '2.2'),
+  'R-410A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-404A': adrNamed('3337', 'GAZ RÉFRIGÉRANT R 404A', 'R-404A', '2.2'),
+  'R-507A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-1234YF': adrNamed('3161', '2,3,3,3-TÉTRAFLUOROPROPÈNE', 'R-1234yf', '2.1'),
+  'R-1234ZE': adrNsa('3161', 'DÉCHET GAZ LIQUÉFIÉ INFLAMMABLE NSA', '2.1'),
+  'R-1233ZD': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-454C': adrNsa('3161', 'DÉCHET GAZ LIQUÉFIÉ INFLAMMABLE NSA', '2.1'),
+  'R-455A': adrNsa('3161', 'DÉCHET GAZ LIQUÉFIÉ INFLAMMABLE NSA', '2.1'),
+  'R-454B': adrNsa('3161', 'DÉCHET GAZ LIQUÉFIÉ INFLAMMABLE NSA', '2.1'),
+  'R-448A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-449A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-452A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-744': adrNamed('1013', 'DIOXYDE DE CARBONE', 'R-744', '2.2'),
+  'R-717': adrNamed('1005', 'AMMONIAC ANHYDRE', 'R-717', '2.3'),
+  'R-290': adrNamed('1978', 'PROPANE', 'R-290', '2.1'),
+  'R-600A': adrNamed('1969', 'ISOBUTANE', 'R-600A', '2.1'),
+  'R-1270': adrNamed('1077', 'PROPYLÈNE', 'R-1270', '2.1'),
+  'R-22': adrNamed('1018', 'CHLORODIFLUOROMÉTHANE', 'R-22', '2.2'),
+  'R-12': adrNamed('1028', 'DICHLORODIFLUOROMÉTHANE', 'R-12', '2.2'),
+  'R-502': adrNamed(
+    '1973',
+    'MÉLANGE CHLORODIFLUOROMÉTHANE ET CHLOROPENTAFLUOROÉTHANE',
+    'R-502',
+    '2.2',
+  ),
+  'R-408A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
+  'R-409A': adrNsa('1078', 'DÉCHET GAZ FRIGORIFIQUE NSA', '2.2'),
 }
 
 /**

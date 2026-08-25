@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, PDFName, PDFBool, rgb } from 'pdf-lib'
 import type { CerfaDraft, Client, Chantier, NatureIntervention } from './types'
 import { sensMouvementPourContenant } from './types'
-import { controlesPeriodiquesInfo, isFluideAdrInflammable } from './fluides'
+import { controlesPeriodiquesInfo, isFluideAdrInflammable, libelleAdrPourCerfa } from './fluides'
 import { formatKg, roundKg } from './decimal'
 import { findEquipement } from './migrate'
 
@@ -311,12 +311,16 @@ export async function buildCerfaPdf(opts: {
   if (bsff) setText(form, '11_BSFF', bsff)
 
   // [12] UN — inflammabilité selon le fluide (pas seulement le code UN)
-  // R-410A = A1 / UN 3163 → 14 06 01* non inflammable
-  // R-32 = A2L / UN 3252 → 16 05 04* inflammable
+  // R-410A = A1 / UN 1078 → 14 06 01* non inflammable (case NSA)
+  // R-32 = A2L / UN 3252 → 16 05 04* inflammable (autres, libellé officiel)
   const code = (draft.codeUn || '').toUpperCase()
   const fluideCerfa = draft.fluideType || chantier.fluideType || ''
   const inflammable = isFluideAdrInflammable(fluideCerfa, draft.codeUn)
-  const libelleAdr = `${draft.codeUn || ''} ${draft.denominationAdr || ''}`.trim()
+  const libelleAdr = libelleAdrPourCerfa({
+    fluideType: fluideCerfa,
+    codeUn: draft.codeUn,
+    denominationAdr: draft.denominationAdr,
+  })
 
   if (!inflammable && code.includes('1078')) {
     check(form, 'Case_12_UN1078', true)

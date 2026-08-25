@@ -1540,7 +1540,7 @@ export function StockPage() {
                   <input
                     value={form.denominationAdr || ''}
                     onChange={(e) => setForm({ ...form, denominationAdr: e.target.value })}
-                    placeholder="ex. UN 3252 DIFLUOROMETHANE (REFRIGERANT GAS R 32)"
+                    placeholder="ex. UN 3252 DIFLUOROMÉTHANE (GAZ RÉFRIGÉRANT R 32), 2.1"
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
                   />
                 </LabelHint>
