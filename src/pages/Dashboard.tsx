@@ -26,7 +26,7 @@ import {
   telHref,
   mailtoHref,
 } from '../lib/agenda'
-import { formatOtNumero } from '../lib/ordreTravail'
+import { formatOtAvancement, formatOtNumero } from '../lib/ordreTravail'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -550,6 +550,7 @@ export function Dashboard() {
                       {client?.raisonSociale || 'Client à renseigner'}
                       {chantier?.nom ? ` · ${chantier.nom}` : ''}
                       {o.date ? ` · ${o.date}` : ''}
+                      {formatOtAvancement(o) ? ` · avancement ${formatOtAvancement(o)}` : ''}
                     </p>
                   </div>
                   <Link

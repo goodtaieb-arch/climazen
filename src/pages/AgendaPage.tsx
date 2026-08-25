@@ -35,7 +35,7 @@ import {
   type AgendaEventType,
   type AgendaStatut,
 } from '../lib/agenda'
-import { TYPE_OT_LABELS, formatOtNumero, isOtCloture } from '../lib/ordreTravail'
+import { TYPE_OT_LABELS, formatOtAvancement, formatOtNumero, isOtCloture } from '../lib/ordreTravail'
 
 function formatFr(iso?: string) {
   if (!iso) return '—'
@@ -67,6 +67,7 @@ type ProgrammeItem =
       statut: string
       typeLabel: string
       numero: string
+      avancement?: string
     }
 
 export function AgendaPage() {
@@ -132,6 +133,7 @@ export function AgendaPage() {
         statut: o.statut,
         typeLabel: TYPE_OT_LABELS[o.typeOt],
         numero: o.numero,
+        avancement: formatOtAvancement(o) || undefined,
       }))
 
     return [...events, ...ots].sort((a, b) => {
@@ -374,6 +376,11 @@ export function AgendaPage() {
               {formatOtNumero(item.numero)}
             </span>
             <span className="text-[10px] font-bold uppercase text-muted">{item.typeLabel}</span>
+            {item.avancement ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-950">
+                {item.avancement}
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 font-display text-base font-semibold text-ink">{item.title}</p>
           <p className="text-sm text-muted">

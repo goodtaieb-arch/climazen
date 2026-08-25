@@ -20,6 +20,10 @@ import {
   otBaseNumero,
   OT_LABEL,
   formatLienCommande,
+  formatOtAvancement,
+  clampAvancementPct,
+  lastVisitePresence,
+  upsertVisitePresence,
   type TypeOt,
   type StatutOt,
 } from '../lib/ordreTravail'
@@ -27,6 +31,7 @@ import { formatOtCommercialBadge } from '../lib/chaineCommerciale'
 import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
+import { OtAvancementFields } from '../components/OtAvancementFields'
 import { allEquipements } from '../lib/cerfaBatch'
 
 export function OrdresTravailPage() {
@@ -153,6 +158,71 @@ export function OrdresTravailPage() {
     })
     navigate(`/app/ot?id=${encodeURIComponent(id)}`, { replace: true })
     alert(`OT enregistré — ${formatOtNumero(form.numero)}`)
+  }
+
+  const onValiderPresence = () => {
+    if (isOtCloture(form.statut)) {
+      alert('OT déjà clôturé.')
+      return
+    }
+    if (!form.signatureTechnicienImage) {
+      alert('Signature technicien requise pour valider la présence.')
+      return
+    }
+    if (!form.signatureClientImage) {
+      alert(
+        'Le client doit signer pour valider sa présence, même si l’intervention n’est pas terminée.',
+      )
+      return
+    }
+    const dateJour = form.date || new Date().toISOString().slice(0, 10)
+    const last = lastVisitePresence(form)
+    if (
+      last &&
+      last.date !== dateJour &&
+      last.signatureClientImage &&
+      last.signatureClientImage === form.signatureClientImage
+    ) {
+      alert(
+        'Pour valider la présence d’aujourd’hui, le client doit signer à nouveau (nouvelle signature).',
+      )
+      return
+    }
+    const pct = clampAvancementPct(form.avancementPct)
+    if (pct <= 0) {
+      alert('Indiquez le pourcentage d’avancement avant de valider la présence.')
+      return
+    }
+    const visites = upsertVisitePresence(form.visitesPresence, {
+      date: dateJour,
+      avancementPct: pct,
+      note: form.rapportAction,
+      signatureClientImage: form.signatureClientImage,
+      signatureTechnicienImage: form.signatureTechnicienImage,
+    })
+    const id = upsertOrdreTravail({
+      ...form,
+      id: existing?.id,
+      statut: 'en_cours',
+      interventionPartielle: pct < 100,
+      avancementPct: pct,
+      visitesPresence: visites,
+      signatureTechnicienImage: form.signatureTechnicienImage || user?.signatureImage || '',
+      signatureClientImage: form.signatureClientImage || '',
+    })
+    setForm((f) => ({
+      ...f,
+      statut: 'en_cours',
+      interventionPartielle: pct < 100,
+      avancementPct: pct,
+      visitesPresence: visites,
+    }))
+    navigate(`/app/ot?id=${encodeURIComponent(id)}`, { replace: true })
+    alert(
+      pct >= 100
+        ? 'Présence validée — 100 %. Vous pouvez clôturer.'
+        : `Présence client validée (${pct} %). L’OT reste ouvert.`,
+    )
   }
 
   const openNew = () => {
@@ -404,6 +474,12 @@ export function OrdresTravailPage() {
             />
           </label>
 
+          <OtAvancementFields
+            form={form}
+            disabled={isOtCloture(form.statut)}
+            onChange={(patch) => setForm({ ...form, ...patch })}
+          />
+
           <label className="block text-sm sm:w-56">
             <span className="mb-1 block font-semibold text-ink">Statut</span>
             <select
@@ -450,6 +526,15 @@ export function OrdresTravailPage() {
             >
               Enregistrer l’OT
             </button>
+            {!isOtCloture(form.statut) && (
+              <button
+                type="button"
+                onClick={onValiderPresence}
+                className="inline-flex min-h-12 items-center gap-2 rounded-xl border-2 border-amber-400 bg-amber-50 px-4 text-sm font-bold text-amber-950"
+              >
+                Valider la présence du jour
+              </button>
+            )}
             {form.chantierId && (
               <Link
                 to={`/app/interventions/new?chantier=${encodeURIComponent(form.chantierId)}${
@@ -573,6 +658,11 @@ export function OrdresTravailPage() {
                   >
                     {STATUT_OT_LABELS[o.statut]}
                   </span>
+                  {formatOtAvancement(o) ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
+                      Partiel {formatOtAvancement(o)}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-sm text-ink">{o.action || '—'}</p>
                 {(formatOtCommercialBadge(o) || formatLienCommande(o)) ? (

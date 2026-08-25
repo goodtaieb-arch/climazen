@@ -53,6 +53,83 @@ export function isOtCloture(statut: StatutOt | string | undefined): boolean {
   return statut === 'signe' || statut === 'termine'
 }
 
+/** Passage terrain (un jour) — signature client = preuve de présence, même si le chantier n’est pas fini. */
+export type VisitePresenceOt = {
+  id: string
+  date: string
+  avancementPct: number
+  note?: string
+  signatureClientImage?: string
+  signatureTechnicienImage?: string
+  createdAt: string
+}
+
+export function clampAvancementPct(n: unknown): number {
+  const v = Math.round(Number(n) || 0)
+  if (!Number.isFinite(v)) return 0
+  return Math.min(100, Math.max(0, v))
+}
+
+export function otAvancementPct(
+  ot: Pick<OrdreTravail, 'avancementPct' | 'statut'>,
+): number {
+  if (isOtCloture(ot.statut)) return 100
+  return clampAvancementPct(ot.avancementPct)
+}
+
+export function formatOtAvancement(
+  ot: Pick<OrdreTravail, 'avancementPct' | 'statut' | 'interventionPartielle'>,
+): string | null {
+  if (isOtCloture(ot.statut)) return null
+  const pct = otAvancementPct(ot)
+  if (!ot.interventionPartielle && pct <= 0) return null
+  return `${pct} %`
+}
+
+export function lastVisitePresence(
+  ot: Pick<OrdreTravail, 'visitesPresence'>,
+): VisitePresenceOt | undefined {
+  const list = ot.visitesPresence || []
+  return list.length ? list[list.length - 1] : undefined
+}
+
+export function presenceValideeLeJour(
+  ot: Pick<OrdreTravail, 'visitesPresence'>,
+  date: string,
+): boolean {
+  const d = (date || '').slice(0, 10)
+  return (ot.visitesPresence || []).some(
+    (v) => v.date === d && Boolean(v.signatureClientImage),
+  )
+}
+
+/** Une présence par jour : met à jour le passage du jour ou en ajoute un. */
+export function upsertVisitePresence(
+  visites: VisitePresenceOt[] | undefined,
+  visite: Omit<VisitePresenceOt, 'id' | 'createdAt'> & { id?: string },
+): VisitePresenceOt[] {
+  const next: VisitePresenceOt = {
+    id: visite.id || crypto.randomUUID(),
+    date: (visite.date || '').slice(0, 10),
+    avancementPct: clampAvancementPct(visite.avancementPct),
+    note: (visite.note || '').trim() || undefined,
+    signatureClientImage: visite.signatureClientImage,
+    signatureTechnicienImage: visite.signatureTechnicienImage,
+    createdAt: new Date().toISOString(),
+  }
+  const prev = [...(visites || [])]
+  const idx = prev.findIndex((v) => v.date === next.date)
+  if (idx >= 0) {
+    prev[idx] = {
+      ...next,
+      id: prev[idx].id,
+      createdAt: prev[idx].createdAt,
+    }
+    return prev
+  }
+  return [...prev, next]
+}
+
 /** Étapes du parcours appel client → intervention. */
 export const PARCOURS_APPEL_STEPS = [
   { id: 'ot', label: 'Appel / OT', hint: 'Décrire la demande' },
@@ -151,6 +228,15 @@ export interface OrdreTravail {
   signatureTechnicienImage?: string
   signatureClientImage?: string
   statut: StatutOt
+  /**
+   * Chantier sur plusieurs jours : pas encore terminé.
+   * La signature client reste obligatoire (présence), sans clôturer l’OT.
+   */
+  interventionPartielle?: boolean
+  /** 0–100 — dernier avancement déclaré. */
+  avancementPct?: number
+  /** Signatures de présence par jour de passage. */
+  visitesPresence?: VisitePresenceOt[]
   /** Étape parcours guidé (reprise) */
   parcoursStep?: ParcoursAppelStepId
   createdByUserId?: string
@@ -182,6 +268,9 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     sousGarantie: false,
     clientPayeurId: undefined,
     mainOeuvreIncluseContrat: false,
+    interventionPartielle: false,
+    avancementPct: 0,
+    visitesPresence: [],
   }
 }
 

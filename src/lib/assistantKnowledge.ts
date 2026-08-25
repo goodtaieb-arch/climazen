@@ -69,13 +69,15 @@ export const AIDE_TOPICS: AideTopic[] = [
   {
     id: 'parcours-ot',
     title: 'Parcours OT / Client appelle',
-    keywords: ['ot', 'ordre', 'appel', 'client appelle', 'cloturer', 'clôturer', 'parcours', 'etape', 'étape'],
+    keywords: ['ot', 'ordre', 'appel', 'client appelle', 'cloturer', 'clôturer', 'parcours', 'etape', 'étape', 'avancement', 'partiel', 'pourcentage', 'présence'],
     paths: ['/app/appel', '/app/ot'],
     answer: `Parcours terrain typique :
 1. Accueil → « Client appelle » (ou Ordres de travail).
 2. Remplir OT → Client → Site → Équipement(s).
 3. Étape Documents : CERFA (si fluide), fiche checklist optionnelle, signatures.
-4. « Clôturer signé » pour terminer.
+4. « Valider la présence du jour » (signature client, même si le travail n’est pas fini) ou « Clôturer signé » quand c’est terminé.
+
+Chantier sur plusieurs jours : cochez « Intervention partielle », mettez le %, faites signer le client à chaque passage. L’OT reste ouvert jusqu’à clôture.
 
 Après un CERFA, utilise « Retour à l’OT — signer & clôturer » pour ne pas tout quitter.`,
   },

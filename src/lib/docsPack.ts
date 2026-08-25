@@ -6,7 +6,7 @@ import { buildCerfaPdf, downloadBlob } from './cerfaPdf'
 import { buildFicheMaintenanceClimPdf } from './ficheMaintenanceClimPdf'
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
 import { loadCerfaPdf } from './pdfStore'
-import { TYPE_OT_LABELS, type OrdreTravail } from './ordreTravail'
+import { TYPE_OT_LABELS, formatOtAvancement, isOtCloture, type OrdreTravail } from './ordreTravail'
 import type { AppData, CerfaDraft, Client, Chantier } from './types'
 import { mailtoHref } from './agenda'
 import { allEquipements } from './cerfaBatch'
@@ -261,6 +261,20 @@ async function buildRapportOtPdf(
 
   drawSection('Demande / action', ot.action || '—')
   drawSection('Rapport d’action (réalisé)', ot.rapportAction || ot.action || '—')
+  const avancement = isOtCloture(ot.statut)
+    ? 'Terminé (100 %)'
+    : formatOtAvancement(ot) || (ot.interventionPartielle ? `${ot.avancementPct || 0} %` : '')
+  if (avancement) {
+    const visites = (ot.visitesPresence || [])
+      .map((v) => `${fmtDate(v.date)} · ${v.avancementPct} %${v.signatureClientImage ? ' · présence signée' : ''}`)
+      .join('\n')
+    drawSection(
+      'Avancement',
+      visites
+        ? `${avancement}${ot.interventionPartielle ? ' — intervention partielle' : ''}\n${visites}`
+        : `${avancement}${ot.interventionPartielle ? ' — intervention partielle (chantier en cours)' : ''}`,
+    )
+  }
   if (ot.observations?.trim()) {
     drawSection('Observations', ot.observations)
   }

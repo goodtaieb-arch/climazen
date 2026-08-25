@@ -41,6 +41,12 @@ import {
   isOtCloture,
   formatOtNumero,
   otBaseNumero,
+  clampAvancementPct,
+  otAvancementPct,
+  lastVisitePresence,
+  presenceValideeLeJour,
+  upsertVisitePresence,
+  formatOtAvancement,
   type TypeOt,
   type StatutOt,
   type ParcoursAppelStepId,
@@ -53,6 +59,7 @@ import {
 } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
+import { OtAvancementFields } from '../components/OtAvancementFields'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -844,6 +851,64 @@ export function AppelOtPage() {
     )
   }
 
+  const validatePresenceDuJour = () => {
+    if (isOtCloture(otForm.statut)) {
+      alert('OT déjà clôturé.')
+      return
+    }
+    if (!otForm.signatureTechnicienImage) {
+      alert('Signature technicien requise pour valider la présence.')
+      return
+    }
+    if (!otForm.signatureClientImage) {
+      alert(
+        'Le client doit signer pour valider sa présence, même si l’intervention n’est pas terminée.',
+      )
+      return
+    }
+    const dateJour = otForm.date || today()
+    const last = lastVisitePresence(otForm)
+    if (
+      last &&
+      last.date !== dateJour &&
+      last.signatureClientImage &&
+      last.signatureClientImage === otForm.signatureClientImage
+    ) {
+      alert(
+        'Pour valider la présence d’aujourd’hui, le client doit signer à nouveau (nouvelle signature).',
+      )
+      return
+    }
+    const pct = clampAvancementPct(otForm.avancementPct)
+    if (pct <= 0) {
+      alert('Indiquez le pourcentage d’avancement (ex. 30 %, 50 %) avant de valider la présence.')
+      return
+    }
+    const visites = upsertVisitePresence(otForm.visitesPresence, {
+      date: dateJour,
+      avancementPct: pct,
+      note: otForm.rapportAction,
+      signatureClientImage: otForm.signatureClientImage,
+      signatureTechnicienImage: otForm.signatureTechnicienImage,
+    })
+    persistOt({
+      statut: 'en_cours',
+      parcoursStep: 'docs',
+      rapportAction: otForm.rapportAction,
+      observations: otForm.observations,
+      interventionPartielle: pct < 100,
+      avancementPct: pct,
+      visitesPresence: visites,
+      signatureClientImage: otForm.signatureClientImage,
+      signatureTechnicienImage: otForm.signatureTechnicienImage,
+    })
+    setMsg(
+      pct >= 100
+        ? `Présence validée — 100 %. Vous pouvez clôturer l’OT.`
+        : `Présence client validée (${pct} %). L’OT reste ouvert pour la suite.`,
+    )
+  }
+
   const finishWithSignatures = () => {
     if (!otForm.signatureTechnicienImage) {
       alert('Signature technicien requise.')
@@ -868,10 +933,30 @@ export function AppelOtPage() {
       )
       return
     }
+    const pct = otAvancementPct(otForm)
+    if (otForm.interventionPartielle || (pct > 0 && pct < 100)) {
+      const ok = window.confirm(
+        `Avancement actuel : ${pct} %.\n\n` +
+          'Clôturer classe l’OT comme terminé (100 %).\n' +
+          'Si le chantier continue, annulez et utilisez « Valider la présence du jour ».',
+      )
+      if (!ok) return
+    }
+    const dateJour = otForm.date || today()
+    const visites = upsertVisitePresence(otForm.visitesPresence, {
+      date: dateJour,
+      avancementPct: 100,
+      note: otForm.rapportAction,
+      signatureClientImage: otForm.signatureClientImage,
+      signatureTechnicienImage: otForm.signatureTechnicienImage,
+    })
     const id = persistOt({
       statut: 'signe',
       parcoursStep: 'docs',
       rapportAction: otForm.rapportAction || otForm.action,
+      interventionPartielle: false,
+      avancementPct: 100,
+      visitesPresence: visites,
     })
     // Clôturer aussi les CERFA liés (plus de « brouillon à reprendre »)
     const linked = data.interventions.filter(
@@ -1714,6 +1799,7 @@ export function AppelOtPage() {
           <div className="rounded-xl bg-mist/60 px-3 py-2 text-sm">
             <p className="font-semibold text-ink">
               {TYPE_OT_LABELS[otForm.typeOt]} · {formatOtNumero(otForm.numero)}
+              {formatOtAvancement(otForm) ? ` · ${formatOtAvancement(otForm)}` : ''}
             </p>
             <p className="text-muted">{otForm.action}</p>
             <p className="mt-1 text-xs text-muted">
@@ -1771,6 +1857,12 @@ export function AppelOtPage() {
               placeholder="Ce qui a été fait…"
             />
           </label>
+
+          <OtAvancementFields
+            form={otForm}
+            disabled={otCloture}
+            onChange={(patch) => setOtForm({ ...otForm, ...patch })}
+          />
 
           <div className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-wide text-muted">Documents</p>
@@ -1878,6 +1970,26 @@ export function AppelOtPage() {
               onAwaitingRemoteChange={setAwaitingRemoteSignature}
               height={140}
             />
+            {!otCloture && otForm.signatureClientImage && lastVisitePresence(otForm)?.date !== (otForm.date || today()) ? (
+              <button
+                type="button"
+                className="text-xs font-semibold text-accent hover:underline"
+                onClick={() => setOtForm({ ...otForm, signatureClientImage: '' })}
+              >
+                Effacer pour une nouvelle signature du jour
+              </button>
+            ) : null}
+            {!otCloture && presenceValideeLeJour(otForm, otForm.date || today()) ? (
+              <p className="text-xs font-semibold text-emerald-800">
+                Présence déjà validée pour cette date. Au prochain passage, changez la date puis
+                faites signer à nouveau.
+              </p>
+            ) : (
+              <p className="text-xs text-muted">
+                Même si le travail n’est pas fini : le client signe pour attester que le technicien
+                est passé.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -1896,6 +2008,9 @@ export function AppelOtPage() {
                   observations: otForm.observations,
                   signatureTechnicienImage: otForm.signatureTechnicienImage,
                   signatureClientImage: otForm.signatureClientImage,
+                  interventionPartielle: otForm.interventionPartielle,
+                  avancementPct: clampAvancementPct(otForm.avancementPct),
+                  visitesPresence: otForm.visitesPresence,
                   statut: 'en_cours',
                 })
               }
@@ -1903,6 +2018,16 @@ export function AppelOtPage() {
             >
               Enregistrer l’OT
             </button>
+            {!otCloture && (
+              <button
+                type="button"
+                onClick={validatePresenceDuJour}
+                disabled={awaitingRemoteSignature && !otForm.signatureClientImage}
+                className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-amber-400 bg-amber-50 px-5 text-sm font-bold text-amber-950 disabled:opacity-50 sm:flex-none"
+              >
+                Valider la présence du jour
+              </button>
+            )}
             <button
               type="button"
               onClick={finishWithSignatures}
@@ -1923,7 +2048,7 @@ export function AppelOtPage() {
               ? 'Client absent : attendez que le client signe via le lien SMS/e-mail. La signature arrive seule — ensuite le bouton Clôturer se réactive.'
               : otCloture
                 ? 'OT déjà clôturé — modification exceptionnelle en cas d’erreur.'
-                : 'Signatures technicien + client sur l’OT (reprises sur le CERFA si besoin). La fiche checklist n’est pas exigée pour clôturer.'}
+                : 'Présence du jour : signatures + « Valider la présence » (OT reste ouvert). Clôturer signé = chantier terminé.'}
           </p>
         </section>
       )}
