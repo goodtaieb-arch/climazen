@@ -583,6 +583,7 @@ export function appDataWeight(data: AppData): number {
     (data.fichesMaintenanceChaufferie?.length || 0) * 2 +
     (data.fichesMaintenanceCtaVmc?.length || 0) * 2 +
     (data.ordresTravail?.length || 0) * 2 +
+    (data.personnelDossiers?.length || 0) * 8 +
     (o?.raisonSociale?.trim() ? 25 : 0) +
     (o?.adresse?.trim() ? 5 : 0) +
     (o?.siret?.trim() ? 5 : 0) +
@@ -778,6 +779,11 @@ export function resolveRemoteVsLocal(
   )
   const factures = mergeByIdLatest(remote.factures, local.factures, preferOnTie)
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
+  const personnelDossiers = mergeByIdLatest(
+    remote.personnelDossiers,
+    local.personnelDossiers,
+    preferOnTie,
+  )
   let stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
   const deletedEntityIds = pruneTombstones(
@@ -828,6 +834,7 @@ export function resolveRemoteVsLocal(
     commandesFournisseur,
     factures,
     agendaEvents,
+    personnelDossiers,
     deletedEntityIds,
   }
 
@@ -840,6 +847,7 @@ export function resolveRemoteVsLocal(
     Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||
     Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
     Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim()) ||
+    (personnelDossiers?.length || 0) > (remote.personnelDossiers?.length || 0) ||
     hasAnyTombstones(finalized.data.deletedEntityIds) ||
     finalized.changed
 

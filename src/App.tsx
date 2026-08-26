@@ -17,6 +17,7 @@ import { InterventionFormPage } from './pages/InterventionFormPage'
 import { OperateurPage } from './pages/OperateurPage'
 import { ProfilPage } from './pages/ProfilPage'
 import { EquipePage } from './pages/EquipePage'
+import { TechnicienDossierPage } from './pages/TechnicienDossierPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { FicheMaintenanceClimPage } from './pages/FicheMaintenanceClimPage'
@@ -114,6 +115,7 @@ export default function App() {
                 />
                 <Route path="scan-equip" element={<ScanEquipementPage />} />
                 <Route path="equipe" element={<EquipePage />} />
+                <Route path="equipe/:userId" element={<TechnicienDossierPage />} />
                 <Route path="operateur" element={<OperateurPage />} />
                 <Route path="profil" element={<ProfilPage />} />
               </Route>

@@ -4,6 +4,7 @@ import {
   Building2,
   ClipboardList,
   Ellipsis,
+  FolderOpen,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -173,7 +174,14 @@ export function AppLayout() {
     return () => window.removeEventListener('climazen:voice-state', onVoice)
   }, [])
 
-  const links = isOwner ? baseLinksOwner : baseLinksOperator
+  const links = isOwner
+    ? baseLinksOwner
+    : [
+        ...baseLinksOperator,
+        ...(user
+          ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+          : []),
+      ]
 
   const pageTone = toneForPath(pathname, links)
 
@@ -207,6 +215,9 @@ export function AppLayout() {
     { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
     { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
     { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
+    ...(user
+      ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+      : []),
     ...(isOwner
       ? [
           { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },

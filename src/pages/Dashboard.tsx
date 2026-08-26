@@ -4,6 +4,7 @@ import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  FolderOpen,
   Mail,
   MapPin,
   Package,
@@ -14,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import { allEquipements } from '../lib/cerfaBatch'
 import { matchesQuery } from '../components/SearchField'
 import { isBouteilleRetournee } from '../lib/types'
@@ -27,6 +29,12 @@ import {
   mailtoHref,
 } from '../lib/agenda'
 import { formatOtAvancement, formatOtNumero } from '../lib/ordreTravail'
+import {
+  alertesEquipe,
+  defaultPersonnelDossier,
+  formatDateFr,
+  labelStatutDocumentRh,
+} from '../lib/rhDocuments'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -62,6 +70,7 @@ const QUICK_START = [
 
 export function Dashboard() {
   const { data } = useStore()
+  const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -95,6 +104,18 @@ export function Dashboard() {
       .sort((a, b) => agendaSortDate(a).localeCompare(agendaSortDate(b)))
       .slice(0, 5)
   }, [data.agendaEvents])
+
+  const rhAlertes = useMemo(() => {
+    const dossiers = [...(data.personnelDossiers || [])]
+    if (user && !dossiers.some((d) => d.userId === user.id)) {
+      dossiers.push({
+        id: `virtual-${user.id}`,
+        ...defaultPersonnelDossier(user.id, user.fullName || 'Technicien'),
+      })
+    }
+    const alerts = alertesEquipe(dossiers, { userId: isOwner ? undefined : user?.id })
+    return alerts.slice(0, 8)
+  }, [data.personnelDossiers, isOwner, user])
 
   const steps = [
     {
@@ -462,6 +483,47 @@ export function Dashboard() {
           </>
         )}
       </section>
+
+      {!q.trim() && rhAlertes.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">Documents à renouveler</h2>
+            <Link
+              to={isOwner ? '/app/equipe' : user ? `/app/equipe/${user.id}` : '/app/profil'}
+              className="text-sm font-semibold text-accent hover:underline"
+            >
+              {isOwner ? 'Voir l’équipe' : 'Mon dossier'}
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {rhAlertes.map((a) => (
+              <li key={`${a.userId}-${a.type}-${a.documentId || 'miss'}`}>
+                <Link
+                  to={`/app/equipe/${a.userId}`}
+                  className="flex flex-col gap-1 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="font-display text-base font-bold text-ink">{a.label}</p>
+                    <p className="text-sm text-muted">
+                      {a.userName}
+                      {a.dateExpiration ? ` · limite ${formatDateFr(a.dateExpiration)}` : ''}
+                      {a.daysUntil != null && a.daysUntil < 0
+                        ? ` · expiré depuis ${Math.abs(a.daysUntil)} j`
+                        : a.daysUntil != null
+                          ? ` · dans ${a.daysUntil} j`
+                          : ''}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+                    <FolderOpen className="h-4 w-4" />
+                    {labelStatutDocumentRh(a.statut)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Rappels agenda — à contacter */}
       {!q.trim() && agendaAContacter.length > 0 && (

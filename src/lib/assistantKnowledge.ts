@@ -56,6 +56,7 @@ Parcours principaux :
 4) Clients / Sites → équipements du parc.
 5) Agenda → /app/agenda (RDV, rappels, maintenances).
 6) Mon entreprise → /app/operateur (logo, attestation, détecteurs).
+7) Équipe → dossier de chaque technicien (CNI, permis, aptitude froid, habilitation électrique, dates d’expiration).
 
 Règles stock / CERFA importantes :
 - Récupération temporaire (réinjection) → bouteilles Transfert / Service uniquement.
@@ -219,6 +220,37 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
 - Parc détecteurs de fuite (contrôle annuel) — obligatoire pour CERFA.`,
   },
   {
+    id: 'dossier-rh',
+    title: 'Dossier documents technicien',
+    keywords: [
+      'dossier',
+      'cni',
+      'permis',
+      'vitale',
+      'aptitude',
+      'habilitation',
+      'electrique',
+      'électrique',
+      'expiration',
+      'expire',
+      'expiré',
+      'document',
+      'equipe',
+      'équipe',
+      'rh',
+    ],
+    paths: ['/app/equipe', '/app/profil'],
+    answer: `Dossier de chaque technicien (Équipe → Dossier, ou Ma signature → Mon dossier) :
+• Identité (CNI / passeport / titre de séjour), permis, carte Vitale, visite médicale.
+• Attestation d’aptitude fluides (cat. I–IV) — obligatoire pour le froid, validité typique 5 ans.
+• Habilitation électrique (BR, B1V…) — obligatoire dès qu’on touche à l’électrique, recyclage ~3 ans.
+• Selon chantiers : SST, CACES nacelle, travail en hauteur, AIPR, amiante SS4.
+• Admin : RIB, justificatif de domicile, contrat, diplôme.
+
+Saisissez la date limite de chaque pièce. L’accueil affiche une alerte 45 jours avant, puis à l’expiration.
+L’attestation de capacité SOCIÉTÉ et le détecteur restent dans Mon entreprise.`,
+  },
+  {
     id: 'offline',
     title: 'Hors ligne / sync',
     keywords: ['offline', 'hors ligne', 'sync', 'synchron', 'reseau', 'réseau', 'connexion'],
@@ -277,6 +309,13 @@ export function suggestQuestionsForPath(pathname: string): string[] {
       'Agenda RDV demain 14h',
       'Planifie un rappel appel client',
       'Comment ajouter une visite ?',
+    ]
+  }
+  if (p.includes('/equipe') || p.includes('/profil')) {
+    return [
+      'Quels documents mettre dans le dossier technicien ?',
+      'Quelle validité pour l’aptitude froid ?',
+      'Habilitation électrique obligatoire ?',
     ]
   }
   if (p.includes('/operateur')) {

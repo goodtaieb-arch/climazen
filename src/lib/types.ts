@@ -620,6 +620,11 @@ export interface AppData {
   /** Agenda / rappels RDV maintenance */
   agendaEvents?: import('./agenda').AgendaEvent[]
   /**
+   * Dossiers RH des techniciens (CNI, permis, aptitude froid, habilitation…)
+   * avec dates d’expiration — coffre société.
+   */
+  personnelDossiers?: import('./rhDocuments').PersonnelDossier[]
+  /**
    * Ids supprimés (tombstones) — la sync ne doit pas les réimporter depuis le cloud.
    */
   deletedEntityIds?: import('./deletedEntities').DeletedEntityIds

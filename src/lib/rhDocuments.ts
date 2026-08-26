@@ -1,0 +1,483 @@
+/**
+ * Dossier RH par technicien — pièces d’identité, permis, attestations métier
+ * (aptitude froid, habilitation électrique…) avec dates d’expiration.
+ * Stocké dans le coffre société (AppData), pas sur le profil Auth.
+ */
+
+export const ALERTE_EXPIRATION_JOURS = 45
+
+export type TypeDocumentRh =
+  | 'cni'
+  | 'passeport'
+  | 'titre_sejour'
+  | 'permis_conduire'
+  | 'carte_vitale'
+  | 'attestation_aptitude_froid'
+  | 'habilitation_electrique'
+  | 'visite_medicale'
+  | 'sst'
+  | 'caces'
+  | 'travail_hauteur'
+  | 'aipr'
+  | 'amiante_ss4'
+  | 'rib'
+  | 'justificatif_domicile'
+  | 'contrat_travail'
+  | 'diplome'
+  | 'autre'
+
+export type StatutDocumentRh = 'ok' | 'bientot' | 'expire' | 'sans_date' | 'manquant'
+
+export type GroupeDocumentRh = 'identite' | 'sante' | 'conduite' | 'froid' | 'elec' | 'securite' | 'admin'
+
+export type DocumentRhCatalogItem = {
+  type: TypeDocumentRh
+  label: string
+  hint: string
+  groupe: GroupeDocumentRh
+  /** Durée de validité indicative (années) — pour proposer une date d’expiration. */
+  dureeIndicativeAns?: number
+  /** Une pièce parmi ce groupe suffit (ex. CNI ou passeport). */
+  identite?: boolean
+}
+
+export const TYPES_DOCUMENT_RH: DocumentRhCatalogItem[] = [
+  {
+    type: 'cni',
+    label: 'Carte d’identité',
+    hint: 'CNI en cours de validité (ou passeport / titre de séjour).',
+    groupe: 'identite',
+    dureeIndicativeAns: 15,
+    identite: true,
+  },
+  {
+    type: 'passeport',
+    label: 'Passeport',
+    hint: 'Alternative à la CNI.',
+    groupe: 'identite',
+    dureeIndicativeAns: 10,
+    identite: true,
+  },
+  {
+    type: 'titre_sejour',
+    label: 'Titre de séjour',
+    hint: 'Si le technicien n’a pas de CNI française.',
+    groupe: 'identite',
+    identite: true,
+  },
+  {
+    type: 'permis_conduire',
+    label: 'Permis de conduire',
+    hint: 'Obligatoire s’il conduit (véhicule société ou perso sur chantiers).',
+    groupe: 'conduite',
+  },
+  {
+    type: 'carte_vitale',
+    label: 'Carte Vitale',
+    hint: 'Carte Vitale / attestation de droits.',
+    groupe: 'sante',
+  },
+  {
+    type: 'visite_medicale',
+    label: 'Visite médicale (médecine du travail)',
+    hint: 'Aptitude au poste — à renouveler selon le médecin du travail.',
+    groupe: 'sante',
+    dureeIndicativeAns: 2,
+  },
+  {
+    type: 'attestation_aptitude_froid',
+    label: 'Attestation d’aptitude fluides (F-Gas)',
+    hint: 'Cat. I, II, III ou IV — obligatoire pour toute manipulation de fluide. Validité typique 5 ans.',
+    groupe: 'froid',
+    dureeIndicativeAns: 5,
+  },
+  {
+    type: 'habilitation_electrique',
+    label: 'Habilitation électrique',
+    hint: 'B1V, BR, B2V, H0… — obligatoire dès qu’on touche à l’électrique. Recyclage typique 3 ans.',
+    groupe: 'elec',
+    dureeIndicativeAns: 3,
+  },
+  {
+    type: 'sst',
+    label: 'SST / PSC1',
+    hint: 'Sauveteur secouriste du travail — recyclage tous les 2 ans.',
+    groupe: 'securite',
+    dureeIndicativeAns: 2,
+  },
+  {
+    type: 'caces',
+    label: 'CACES (nacelle / chariot)',
+    hint: 'Si nacelle, PEMP ou chariot (bouteilles, toiture). Recyclage typique 5 ans.',
+    groupe: 'securite',
+    dureeIndicativeAns: 5,
+  },
+  {
+    type: 'travail_hauteur',
+    label: 'Travail en hauteur / harnais',
+    hint: 'Toitures, échelles, EPI antichute.',
+    groupe: 'securite',
+    dureeIndicativeAns: 3,
+  },
+  {
+    type: 'aipr',
+    label: 'AIPR',
+    hint: 'Si travaux à proximité de réseaux (voirie, terrassement).',
+    groupe: 'securite',
+    dureeIndicativeAns: 5,
+  },
+  {
+    type: 'amiante_ss4',
+    label: 'Amiante sous-section 4',
+    hint: 'Si interventions sur matériaux susceptibles d’amiante.',
+    groupe: 'securite',
+    dureeIndicativeAns: 3,
+  },
+  {
+    type: 'rib',
+    label: 'RIB',
+    hint: 'Coordonnées bancaires (paie).',
+    groupe: 'admin',
+  },
+  {
+    type: 'justificatif_domicile',
+    label: 'Justificatif de domicile',
+    hint: 'Moins de 3 mois en général.',
+    groupe: 'admin',
+  },
+  {
+    type: 'contrat_travail',
+    label: 'Contrat de travail / DPAE',
+    hint: 'Contrat, avenants, DPAE.',
+    groupe: 'admin',
+  },
+  {
+    type: 'diplome',
+    label: 'Diplôme / titre pro',
+    hint: 'CAP, BP, mention complémentaire, titre professionnel.',
+    groupe: 'admin',
+  },
+  {
+    type: 'autre',
+    label: 'Autre document',
+    hint: 'Mutuelle, badge, formation incendie, etc.',
+    groupe: 'admin',
+  },
+]
+
+const CATALOG_BY_TYPE = new Map(TYPES_DOCUMENT_RH.map((item) => [item.type, item]))
+
+export function catalogDocumentRh(type: TypeDocumentRh): DocumentRhCatalogItem {
+  return CATALOG_BY_TYPE.get(type) || TYPES_DOCUMENT_RH[TYPES_DOCUMENT_RH.length - 1]
+}
+
+export function labelDocumentRh(type: TypeDocumentRh): string {
+  return catalogDocumentRh(type).label
+}
+
+export interface DocumentRh {
+  id: string
+  type: TypeDocumentRh
+  /** Précision : Cat. I, BR, CACES 3A… */
+  libelle?: string
+  numero?: string
+  /** YYYY-MM-DD */
+  dateObtention?: string
+  /** YYYY-MM-DD — vide = pas de date limite connue */
+  dateExpiration?: string
+  fichierNom?: string
+  /** Photo / scan compressé (data URL) */
+  fichierDataUrl?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PersonnelDossier {
+  id: string
+  userId: string
+  userName: string
+  /** Manipulation fluides — aptitude F-Gas obligatoire */
+  toucheFroid: boolean
+  /** Travail sur parties électriques */
+  toucheElectricite: boolean
+  /** Conduit pour se rendre sur chantier */
+  conduitVehicule: boolean
+  notes?: string
+  documents: DocumentRh[]
+  updatedAt: string
+}
+
+export function defaultPersonnelDossier(
+  userId: string,
+  userName: string,
+  now = new Date().toISOString(),
+): Omit<PersonnelDossier, 'id'> {
+  return {
+    userId,
+    userName,
+    toucheFroid: true,
+    toucheElectricite: true,
+    conduitVehicule: true,
+    documents: [],
+    updatedAt: now,
+  }
+}
+
+export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDossier[] {
+  const byUser = new Map<string, PersonnelDossier>()
+  for (const raw of list || []) {
+    if (!raw || typeof raw !== 'object') continue
+    const userId = String(raw.userId || '').trim()
+    if (!userId) continue
+    const documents = Array.isArray(raw.documents)
+      ? raw.documents.filter((d): d is DocumentRh => Boolean(d && d.id && d.type))
+      : []
+    const next: PersonnelDossier = {
+      id: raw.id || userId,
+      userId,
+      userName: String(raw.userName || '').trim() || 'Technicien',
+      toucheFroid: raw.toucheFroid !== false,
+      toucheElectricite: raw.toucheElectricite !== false,
+      conduitVehicule: raw.conduitVehicule !== false,
+      notes: raw.notes || undefined,
+      documents,
+      updatedAt: raw.updatedAt || '',
+    }
+    const prev = byUser.get(userId)
+    if (!prev || (next.updatedAt || '') >= (prev.updatedAt || '')) {
+      byUser.set(userId, next)
+    }
+  }
+  return [...byUser.values()]
+}
+
+export function dossierForUser(
+  dossiers: PersonnelDossier[] | undefined,
+  userId: string | undefined | null,
+): PersonnelDossier | undefined {
+  if (!userId) return undefined
+  return (dossiers || []).find((d) => d.userId === userId)
+}
+
+export function daysUntilIso(dateIso: string, now = new Date()): number | null {
+  const raw = (dateIso || '').trim()
+  if (!raw) return null
+  const d = new Date(`${raw.slice(0, 10)}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  const today = new Date(now)
+  today.setHours(12, 0, 0, 0)
+  return Math.round((d.getTime() - today.getTime()) / 86_400_000)
+}
+
+export function statutDocumentRh(
+  doc: Pick<DocumentRh, 'dateExpiration'>,
+  now = new Date(),
+): Exclude<StatutDocumentRh, 'manquant'> {
+  const days = daysUntilIso(doc.dateExpiration || '', now)
+  if (days == null) return 'sans_date'
+  if (days < 0) return 'expire'
+  if (days <= ALERTE_EXPIRATION_JOURS) return 'bientot'
+  return 'ok'
+}
+
+export function typesIdentiteRh(): TypeDocumentRh[] {
+  return TYPES_DOCUMENT_RH.filter((t) => t.identite).map((t) => t.type)
+}
+
+/** Pièces exigées selon l’activité du technicien. */
+export function typesRequisPourDossier(
+  dossier: Pick<PersonnelDossier, 'toucheFroid' | 'toucheElectricite' | 'conduitVehicule'> | undefined,
+): TypeDocumentRh[] {
+  const d = dossier || defaultPersonnelDossier('', '')
+  const required: TypeDocumentRh[] = ['cni', 'carte_vitale', 'visite_medicale']
+  if (d.conduitVehicule) required.push('permis_conduire')
+  if (d.toucheFroid) required.push('attestation_aptitude_froid')
+  if (d.toucheElectricite) required.push('habilitation_electrique')
+  return required
+}
+
+function hasIdentiteValide(docs: DocumentRh[]): boolean {
+  return docs.some((doc) => catalogDocumentRh(doc.type).identite)
+}
+
+export type AlerteDocumentRh = {
+  userId: string
+  userName: string
+  documentId?: string
+  type: TypeDocumentRh
+  label: string
+  statut: StatutDocumentRh
+  dateExpiration?: string
+  daysUntil?: number | null
+  libelle?: string
+}
+
+export function alertesPourDossier(
+  dossier: PersonnelDossier,
+  now = new Date(),
+): AlerteDocumentRh[] {
+  const alerts: AlerteDocumentRh[] = []
+  const docs = dossier.documents || []
+  const required = typesRequisPourDossier(dossier)
+
+  for (const type of required) {
+    const isIdentite = catalogDocumentRh(type).identite
+    const present = isIdentite
+      ? hasIdentiteValide(docs)
+      : docs.some((doc) => doc.type === type)
+    if (!present) {
+      alerts.push({
+        userId: dossier.userId,
+        userName: dossier.userName,
+        type,
+        label: labelDocumentRh(type),
+        statut: 'manquant',
+      })
+    }
+  }
+
+  for (const doc of docs) {
+    const statut = statutDocumentRh(doc, now)
+    if (statut === 'ok') continue
+    if (statut === 'sans_date') {
+      const requis = required.includes(doc.type) || catalogDocumentRh(doc.type).identite
+      if (!requis) continue
+    }
+    const days = daysUntilIso(doc.dateExpiration || '', now)
+    alerts.push({
+      userId: dossier.userId,
+      userName: dossier.userName,
+      documentId: doc.id,
+      type: doc.type,
+      label: doc.libelle?.trim()
+        ? `${labelDocumentRh(doc.type)} — ${doc.libelle.trim()}`
+        : labelDocumentRh(doc.type),
+      statut,
+      dateExpiration: doc.dateExpiration,
+      daysUntil: days,
+      libelle: doc.libelle,
+    })
+  }
+
+  const order: Record<StatutDocumentRh, number> = {
+    expire: 0,
+    manquant: 1,
+    bientot: 2,
+    sans_date: 3,
+    ok: 4,
+  }
+  return alerts.sort((a, b) => order[a.statut] - order[b.statut])
+}
+
+export function alertesEquipe(
+  dossiers: PersonnelDossier[] | undefined,
+  opts?: { userId?: string | null; now?: Date },
+): AlerteDocumentRh[] {
+  const list = dossiers || []
+  const scoped = opts?.userId ? list.filter((d) => d.userId === opts.userId) : list
+  return scoped.flatMap((d) => alertesPourDossier(d, opts?.now))
+}
+
+export function resumeAlertesDossier(dossier: PersonnelDossier | undefined, now = new Date()) {
+  if (!dossier) {
+    return { expire: 0, bientot: 0, manquant: 0, sansDate: 0, total: 0 }
+  }
+  const alerts = alertesPourDossier(dossier, now)
+  const expire = alerts.filter((a) => a.statut === 'expire').length
+  const bientot = alerts.filter((a) => a.statut === 'bientot').length
+  const manquant = alerts.filter((a) => a.statut === 'manquant').length
+  const sansDate = alerts.filter((a) => a.statut === 'sans_date').length
+  return { expire, bientot, manquant, sansDate, total: alerts.length }
+}
+
+export function resumeAlertesTexte(
+  resume: ReturnType<typeof resumeAlertesDossier>,
+  opts?: { vide?: boolean },
+): string {
+  if (resume.total === 0) return opts?.vide ? 'dossier vide' : 'documents à jour'
+  const parts: string[] = []
+  if (resume.expire) parts.push(`${resume.expire} expiré${resume.expire > 1 ? 's' : ''}`)
+  if (resume.bientot) parts.push(`${resume.bientot} bientôt`)
+  if (resume.manquant) parts.push(`${resume.manquant} manquant${resume.manquant > 1 ? 's' : ''}`)
+  if (resume.sansDate) parts.push(`${resume.sansDate} sans date`)
+  return parts.join(' · ')
+}
+
+export function formatDateFr(iso?: string): string {
+  const raw = (iso || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return iso?.trim() || '—'
+  const [y, m, d] = raw.split('-')
+  return `${d}/${m}/${y}`
+}
+
+export function addYearsIso(iso: string, years: number): string {
+  const raw = (iso || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return ''
+  const d = new Date(`${raw}T12:00:00`)
+  d.setFullYear(d.getFullYear() + years)
+  return d.toISOString().slice(0, 10)
+}
+
+export function labelStatutDocumentRh(statut: StatutDocumentRh): string {
+  if (statut === 'expire') return 'Expiré'
+  if (statut === 'bientot') return 'Expire bientôt'
+  if (statut === 'manquant') return 'Manquant'
+  if (statut === 'sans_date') return 'Sans date limite'
+  return 'Valide'
+}
+
+/** Compresse une photo de pièce (JPEG) pour rester dans le coffre société. */
+export function fileToDocumentScanDataUrl(file: File): Promise<{ dataUrl: string; nom: string }> {
+  return new Promise((resolve, reject) => {
+    const nom = file.name || 'document'
+    if (file.type === 'application/pdf') {
+      if (file.size > 400 * 1024) {
+        reject(new Error('PDF trop lourd (max 400 Ko). Prenez une photo du document.'))
+        return
+      }
+      const reader = new FileReader()
+      reader.onerror = () => reject(new Error('Lecture du PDF impossible.'))
+      reader.onload = () => resolve({ dataUrl: String(reader.result || ''), nom })
+      reader.readAsDataURL(file)
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Choisissez une photo (JPG, PNG, WebP) ou un PDF léger.'))
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      reject(new Error('Image trop lourde (max 8 Mo).'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Lecture de l’image impossible.'))
+    reader.onload = () => {
+      const src = String(reader.result || '')
+      const img = new Image()
+      img.onerror = () => reject(new Error('Image illisible.'))
+      img.onload = () => {
+        const max = 1280
+        let w = img.width
+        let h = img.height
+        const ratio = Math.min(max / w, max / h, 1)
+        w = Math.max(1, Math.round(w * ratio))
+        h = Math.max(1, Math.round(h * ratio))
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Canvas indisponible.'))
+          return
+        }
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.72), nom })
+      }
+      img.src = src
+    }
+    reader.readAsDataURL(file)
+  })
+}

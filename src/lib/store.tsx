@@ -51,6 +51,12 @@ import {
 import type { AgendaEvent } from './agenda'
 import { buildAutoAgendaEvents } from './agenda'
 import {
+  defaultPersonnelDossier,
+  migratePersonnelDossiers,
+  type DocumentRh,
+  type PersonnelDossier,
+} from './rhDocuments'
+import {
   getCloudUpdatedAt,
   getPendingSync,
   isBrowserOnline,
@@ -246,6 +252,19 @@ type Store = {
     d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
   deleteDetecteur: (id: string) => Promise<void>
+  /** Crée / met à jour le dossier RH d’un technicien (activité + notes). */
+  upsertPersonnelDossier: (
+    d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
+      id?: string
+      documents?: DocumentRh[]
+    },
+  ) => string
+  upsertPersonnelDocument: (
+    userId: string,
+    userName: string,
+    doc: Omit<DocumentRh, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  deletePersonnelDocument: (userId: string, documentId: string) => void
   resetDemo: () => void
   /** Remplace les données cloud par un payload (import local). */
   replaceData: (next: AppData) => Promise<void>
@@ -2031,6 +2050,111 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [persistNow],
   )
 
+  const upsertPersonnelDossier = useCallback(
+    (
+      d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
+        id?: string
+        documents?: DocumentRh[]
+      },
+    ) => {
+      const now = new Date().toISOString()
+      const prev = dataRef.current
+      const list = migratePersonnelDossiers(prev.personnelDossiers)
+      const existing = list.find((x) => x.id === d.id || x.userId === d.userId)
+      const id = d.id || existing?.id || uuid()
+      const nextDossier: PersonnelDossier = {
+        ...(existing || defaultPersonnelDossier(d.userId, d.userName, now)),
+        id,
+        userId: d.userId,
+        userName: d.userName.trim() || existing?.userName || 'Technicien',
+        toucheFroid: d.toucheFroid,
+        toucheElectricite: d.toucheElectricite,
+        conduitVehicule: d.conduitVehicule,
+        notes: d.notes?.trim() || undefined,
+        documents: d.documents ?? existing?.documents ?? [],
+        updatedAt: now,
+      }
+      const nextList = existing
+        ? list.map((x) => (x.id === existing.id || x.userId === d.userId ? nextDossier : x))
+        : [...list, nextDossier]
+      setData({
+        ...prev,
+        personnelDossiers: migratePersonnelDossiers(nextList),
+      })
+      return id
+    },
+    [],
+  )
+
+  const upsertPersonnelDocument = useCallback(
+    (
+      userId: string,
+      userName: string,
+      doc: Omit<DocumentRh, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+    ) => {
+      const now = new Date().toISOString()
+      const prev = dataRef.current
+      const list = migratePersonnelDossiers(prev.personnelDossiers)
+      const existing = list.find((x) => x.userId === userId)
+      const dossierId = existing?.id || uuid()
+      const docId = doc.id || uuid()
+      const prevDoc = existing?.documents.find((x) => x.id === docId)
+      const nextDoc: DocumentRh = {
+        id: docId,
+        type: doc.type,
+        libelle: doc.libelle?.trim() || undefined,
+        numero: doc.numero?.trim() || undefined,
+        dateObtention: doc.dateObtention?.trim() || undefined,
+        dateExpiration: doc.dateExpiration?.trim() || undefined,
+        fichierNom: doc.fichierNom?.trim() || undefined,
+        fichierDataUrl: doc.fichierDataUrl || undefined,
+        notes: doc.notes?.trim() || undefined,
+        createdAt: prevDoc?.createdAt || now,
+        updatedAt: now,
+      }
+      const documents = prevDoc
+        ? (existing?.documents || []).map((x) => (x.id === docId ? nextDoc : x))
+        : [...(existing?.documents || []), nextDoc]
+      const nextDossier: PersonnelDossier = {
+        ...(existing || defaultPersonnelDossier(userId, userName, now)),
+        id: dossierId,
+        userId,
+        userName: userName.trim() || existing?.userName || 'Technicien',
+        documents,
+        updatedAt: now,
+      }
+      const nextList = existing
+        ? list.map((x) => (x.userId === userId ? nextDossier : x))
+        : [...list, nextDossier]
+      setData({
+        ...prev,
+        personnelDossiers: migratePersonnelDossiers(nextList),
+      })
+      return docId
+    },
+    [],
+  )
+
+  const deletePersonnelDocument = useCallback((userId: string, documentId: string) => {
+    const now = new Date().toISOString()
+    const prev = dataRef.current
+    const list = migratePersonnelDossiers(prev.personnelDossiers)
+    const existing = list.find((x) => x.userId === userId)
+    if (!existing) return
+    setData({
+      ...prev,
+      personnelDossiers: list.map((x) =>
+        x.userId === userId
+          ? {
+              ...x,
+              documents: x.documents.filter((d) => d.id !== documentId),
+              updatedAt: now,
+            }
+          : x,
+      ),
+    })
+  }, [])
+
   const resetDemo = useCallback(() => {
     if (!orgId) return
     const demo = seedDemoData()
@@ -2095,6 +2219,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteIntervention,
       upsertDetecteur,
       deleteDetecteur,
+      upsertPersonnelDossier,
+      upsertPersonnelDocument,
+      deletePersonnelDocument,
       resetDemo,
       replaceData,
     }),
@@ -2149,6 +2276,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteIntervention,
       upsertDetecteur,
       deleteDetecteur,
+      upsertPersonnelDossier,
+      upsertPersonnelDocument,
+      deletePersonnelDocument,
       resetDemo,
       replaceData,
     ],

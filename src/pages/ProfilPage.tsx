@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { FolderOpen } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { SignaturePad } from '../components/SignaturePad'
@@ -8,6 +9,11 @@ import { DetecteursParc } from '../components/DetecteursParc'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_HINT, validatePasswordStrength } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
+import {
+  defaultPersonnelDossier,
+  dossierForUser,
+  resumeAlertesDossier,
+} from '../lib/rhDocuments'
 
 /**
  * Espace personnel opérateur : signature (obligatoire pour CERFA) + MDP.
@@ -16,6 +22,11 @@ import { Nav3dIcon } from '../components/Nav3dIcon'
 export function ProfilPage() {
   const { data } = useStore()
   const { user, organization, isOwner, saveMySignature, updatePassword } = useAuth()
+  const ownDossier = dossierForUser(data.personnelDossiers, user?.id)
+  const ownResume = resumeAlertesDossier(
+    ownDossier ||
+      (user ? { id: '', ...defaultPersonnelDossier(user.id, user.fullName || 'Technicien') } : undefined),
+  )
 
   const [signNom, setSignNom] = useState(user?.signataireNom || user?.fullName || '')
   const [signQualite, setSignQualite] = useState(
@@ -98,6 +109,37 @@ export function ProfilPage() {
           </p>
         </div>
       </div>
+
+      {user && (
+        <Link
+          to={`/app/equipe/${user.id}`}
+          className="flex items-start gap-3 rounded-2xl border border-line bg-white p-5 transition hover:border-accent"
+        >
+          <FolderOpen className="mt-0.5 h-6 w-6 shrink-0 text-accent" />
+          <div>
+            <div className="font-display text-base font-semibold text-ink">Mon dossier documents</div>
+            <p className="mt-1 text-sm text-muted">
+              CNI, permis, carte Vitale, aptitude froid, habilitation électrique… dates limites et
+              alertes d’expiration.
+            </p>
+            {ownResume.total > 0 ? (
+              <p className="mt-2 text-sm font-semibold text-amber-800">
+                {ownResume.expire ? `${ownResume.expire} expiré${ownResume.expire > 1 ? 's' : ''}` : ''}
+                {ownResume.expire && (ownResume.bientot || ownResume.manquant) ? ' · ' : ''}
+                {ownResume.bientot ? `${ownResume.bientot} bientôt` : ''}
+                {(ownResume.expire || ownResume.bientot) && ownResume.manquant ? ' · ' : ''}
+                {ownResume.manquant
+                  ? `${ownResume.manquant} manquant${ownResume.manquant > 1 ? 's' : ''}`
+                  : ''}
+              </p>
+            ) : ownDossier ? (
+              <p className="mt-2 text-sm font-semibold text-emerald-800">Documents à jour</p>
+            ) : (
+              <p className="mt-2 text-sm font-semibold text-accent">Ouvrir le dossier →</p>
+            )}
+          </div>
+        </Link>
+      )}
 
       {!isOwner && (
         <div className="rounded-2xl border border-line bg-white p-5 text-sm text-muted">

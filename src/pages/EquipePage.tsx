@@ -1,12 +1,13 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
-import { KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
+import { Link, Navigate } from 'react-router-dom'
+import { FolderOpen, KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
 import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { useStore } from '../lib/store'
+import { dossierForUser, resumeAlertesDossier, resumeAlertesTexte, defaultPersonnelDossier } from '../lib/rhDocuments'
 
 export function EquipePage() {
   const {
@@ -118,6 +119,10 @@ export function EquipePage() {
           <li>
             Un salarié qui part : bouton <strong>Désactiver</strong> — il ne peut plus se connecter.
           </li>
+          <li>
+            Chaque fiche a un <strong>dossier documents</strong> (CNI, permis, carte Vitale, aptitude
+            froid, habilitation électrique…) avec date limite et alerte d’expiration.
+          </li>
         </ul>
       </div>
 
@@ -198,7 +203,14 @@ export function EquipePage() {
           Membres ({members.length})
         </div>
         <ul className="divide-y divide-line">
-          {members.map((m) => (
+          {members.map((m) => {
+            const dossier = dossierForUser(data.personnelDossiers, m.id)
+            const effective = dossier || {
+              id: '',
+              ...defaultPersonnelDossier(m.id, m.fullName),
+            }
+            const resume = resumeAlertesDossier(effective)
+            return (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div>
                 <div className="font-medium">
@@ -214,10 +226,26 @@ export function EquipePage() {
                       ? ` · détecteur ${det.identification}`
                       : ' · aucun détecteur attribué'
                   })()}
+                  {` · ${resumeAlertesTexte(resume, { vide: !dossier })}`}
                 </div>
               </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to={`/app/equipe/${m.id}`}
+                  className={[
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',
+                    resume.expire || resume.manquant
+                      ? 'bg-red-100 text-red-800'
+                      : resume.bientot
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'border border-line text-muted hover:bg-mist',
+                  ].join(' ')}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" /> Dossier
+                  {resume.total > 0 ? ` (${resume.total})` : ''}
+                </Link>
               {m.role === 'operateur' && m.id !== user?.id && (
-                <div className="flex flex-wrap gap-2">
+                <>
                   <button
                     type="button"
                     onClick={() => void onResetPassword(m.id, m.email || m.username)}
@@ -247,10 +275,12 @@ export function EquipePage() {
                       </>
                     )}
                   </button>
-                </div>
+                </>
               )}
+              </div>
             </li>
-          ))}
+            )
+          })}
         </ul>
       </div>
     </div>
