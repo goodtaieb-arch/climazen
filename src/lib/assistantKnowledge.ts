@@ -247,7 +247,7 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
 • Selon chantiers : SST, CACES nacelle, travail en hauteur, AIPR, amiante SS4.
 • Admin : RIB, justificatif de domicile, contrat, diplôme.
 
-Saisissez la date limite de chaque pièce. L’accueil affiche une alerte 45 jours avant, puis à l’expiration.
+Saisissez la date limite des pièces que vous enregistrez. L’accueil alerte 45 jours avant, puis à l’expiration. Les pièces non disponibles se masquent avec la croix rouge — rien n’est imposé.
 L’attestation de capacité SOCIÉTÉ et le détecteur restent dans Mon entreprise.`,
   },
   {

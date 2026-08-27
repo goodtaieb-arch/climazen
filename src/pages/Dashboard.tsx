@@ -31,7 +31,6 @@ import {
 import { formatOtAvancement, formatOtNumero } from '../lib/ordreTravail'
 import {
   alertesEquipe,
-  defaultPersonnelDossier,
   formatDateFr,
   labelStatutDocumentRh,
 } from '../lib/rhDocuments'
@@ -106,15 +105,8 @@ export function Dashboard() {
   }, [data.agendaEvents])
 
   const rhAlertes = useMemo(() => {
-    const dossiers = [...(data.personnelDossiers || [])]
-    if (user && !dossiers.some((d) => d.userId === user.id)) {
-      dossiers.push({
-        id: `virtual-${user.id}`,
-        ...defaultPersonnelDossier(user.id, user.fullName || 'Technicien'),
-      })
-    }
-    const alerts = alertesEquipe(dossiers, { userId: isOwner ? undefined : user?.id })
-    return alerts.slice(0, 8)
+    const alerts = alertesEquipe(data.personnelDossiers, { userId: isOwner ? undefined : user?.id })
+    return alerts.filter((a) => a.statut === 'expire' || a.statut === 'bientot').slice(0, 8)
   }, [data.personnelDossiers, isOwner, user])
 
   const steps = [

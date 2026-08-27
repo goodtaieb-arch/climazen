@@ -205,6 +205,8 @@ export interface PersonnelDossier {
   conduitVehicule: boolean
   notes?: string
   documents: DocumentRh[]
+  /** Types masqués par la secrétaire (croix) — pas d’obligation, pas d’alerte « manquant ». */
+  typesMasques?: TypeDocumentRh[]
   updatedAt: string
 }
 
@@ -242,6 +244,9 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       conduitVehicule: raw.conduitVehicule !== false,
       notes: raw.notes || undefined,
       documents,
+      typesMasques: Array.isArray(raw.typesMasques)
+        ? raw.typesMasques.filter((t): t is TypeDocumentRh => Boolean(t))
+        : [],
       updatedAt: raw.updatedAt || '',
     }
     const prev = byUser.get(userId)
@@ -285,20 +290,52 @@ export function typesIdentiteRh(): TypeDocumentRh[] {
   return TYPES_DOCUMENT_RH.filter((t) => t.identite).map((t) => t.type)
 }
 
-/** Pièces exigées selon l’activité du technicien. */
-export function typesRequisPourDossier(
+/** Suggestions selon l’activité — jamais obligatoires. */
+export function typesSuggeresPourDossier(
   dossier: Pick<PersonnelDossier, 'toucheFroid' | 'toucheElectricite' | 'conduitVehicule'> | undefined,
 ): TypeDocumentRh[] {
   const d = dossier || defaultPersonnelDossier('', '')
-  const required: TypeDocumentRh[] = ['cni', 'carte_vitale', 'visite_medicale']
-  if (d.conduitVehicule) required.push('permis_conduire')
-  if (d.toucheFroid) required.push('attestation_aptitude_froid')
-  if (d.toucheElectricite) required.push('habilitation_electrique')
-  return required
+  const suggested: TypeDocumentRh[] = ['cni', 'carte_vitale', 'visite_medicale']
+  if (d.conduitVehicule) suggested.push('permis_conduire')
+  if (d.toucheFroid) suggested.push('attestation_aptitude_froid')
+  if (d.toucheElectricite) suggested.push('habilitation_electrique')
+  return suggested
 }
 
-function hasIdentiteValide(docs: DocumentRh[]): boolean {
-  return docs.some((doc) => catalogDocumentRh(doc.type).identite)
+/** @deprecated utiliser typesSuggeresPourDossier */
+export function typesRequisPourDossier(
+  dossier: Pick<PersonnelDossier, 'toucheFroid' | 'toucheElectricite' | 'conduitVehicule'> | undefined,
+): TypeDocumentRh[] {
+  return typesSuggeresPourDossier(dossier)
+}
+
+export function typesAMasquer(type: TypeDocumentRh): TypeDocumentRh[] {
+  return catalogDocumentRh(type).identite ? typesIdentiteRh() : [type]
+}
+
+/** Cartes affichées : suggestions non masquées + types déjà enregistrés. */
+export function typesAffichesPourDossier(dossier: PersonnelDossier): TypeDocumentRh[] {
+  const masked = new Set(dossier.typesMasques || [])
+  const docs = dossier.documents || []
+  const hasIdentite = docs.some((d) => catalogDocumentRh(d.type).identite)
+  const out: TypeDocumentRh[] = []
+  const seen = new Set<TypeDocumentRh>()
+  const push = (type: TypeDocumentRh) => {
+    const key = catalogDocumentRh(type).identite ? 'cni' : type
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(key)
+  }
+  for (const type of typesSuggeresPourDossier(dossier)) {
+    if (catalogDocumentRh(type).identite) {
+      if (masked.has('cni') && !hasIdentite) continue
+    } else if (masked.has(type) && !docs.some((d) => d.type === type)) {
+      continue
+    }
+    push(type)
+  }
+  for (const doc of docs) push(doc.type)
+  return out
 }
 
 export type AlerteDocumentRh = {
@@ -318,32 +355,9 @@ export function alertesPourDossier(
   now = new Date(),
 ): AlerteDocumentRh[] {
   const alerts: AlerteDocumentRh[] = []
-  const docs = dossier.documents || []
-  const required = typesRequisPourDossier(dossier)
-
-  for (const type of required) {
-    const isIdentite = catalogDocumentRh(type).identite
-    const present = isIdentite
-      ? hasIdentiteValide(docs)
-      : docs.some((doc) => doc.type === type)
-    if (!present) {
-      alerts.push({
-        userId: dossier.userId,
-        userName: dossier.userName,
-        type,
-        label: labelDocumentRh(type),
-        statut: 'manquant',
-      })
-    }
-  }
-
-  for (const doc of docs) {
+  for (const doc of dossier.documents || []) {
     const statut = statutDocumentRh(doc, now)
     if (statut === 'ok') continue
-    if (statut === 'sans_date') {
-      const requis = required.includes(doc.type) || catalogDocumentRh(doc.type).identite
-      if (!requis) continue
-    }
     const days = daysUntilIso(doc.dateExpiration || '', now)
     alerts.push({
       userId: dossier.userId,
@@ -359,7 +373,6 @@ export function alertesPourDossier(
       libelle: doc.libelle,
     })
   }
-
   const order: Record<StatutDocumentRh, number> = {
     expire: 0,
     manquant: 1,
@@ -399,8 +412,7 @@ export function resumeAlertesTexte(
   const parts: string[] = []
   if (resume.expire) parts.push(`${resume.expire} expiré${resume.expire > 1 ? 's' : ''}`)
   if (resume.bientot) parts.push(`${resume.bientot} bientôt`)
-  if (resume.manquant) parts.push(`${resume.manquant} manquant${resume.manquant > 1 ? 's' : ''}`)
-  if (resume.sansDate) parts.push(`${resume.sansDate} sans date`)
+  if (resume.sansDate) parts.push(`${resume.sansDate} sans date limite`)
   return parts.join(' · ')
 }
 

@@ -53,6 +53,7 @@ import { buildAutoAgendaEvents } from './agenda'
 import {
   defaultPersonnelDossier,
   migratePersonnelDossiers,
+  typesAMasquer,
   type DocumentRh,
   type PersonnelDossier,
 } from './rhDocuments'
@@ -2071,6 +2072,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toucheElectricite: d.toucheElectricite,
         conduitVehicule: d.conduitVehicule,
         notes: d.notes?.trim() || undefined,
+        typesMasques: d.typesMasques ?? existing?.typesMasques,
         documents: d.documents ?? existing?.documents ?? [],
         updatedAt: now,
       }
@@ -2115,11 +2117,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const documents = prevDoc
         ? (existing?.documents || []).map((x) => (x.id === docId ? nextDoc : x))
         : [...(existing?.documents || []), nextDoc]
+      const unmask = typesAMasquer(doc.type)
+      const typesMasques = (existing?.typesMasques || []).filter((t) => !unmask.includes(t))
       const nextDossier: PersonnelDossier = {
         ...(existing || defaultPersonnelDossier(userId, userName, now)),
         id: dossierId,
         userId,
         userName: userName.trim() || existing?.userName || 'Technicien',
+        typesMasques,
         documents,
         updatedAt: now,
       }

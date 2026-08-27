@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, FileText, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Camera, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
@@ -19,7 +19,8 @@ import {
   resumeAlertesDossier,
   statutDocumentRh,
   TYPES_DOCUMENT_RH,
-  typesRequisPourDossier,
+  typesAMasquer,
+  typesAffichesPourDossier,
   type DocumentRh,
   type PersonnelDossier,
   type StatutDocumentRh,
@@ -129,13 +130,13 @@ export function TechnicienDossierPage() {
     () => resumeAlertesDossier({ ...dossier, userName: displayName }),
     [dossier, displayName],
   )
-  const requis = typesRequisPourDossier(dossier)
+  const pieces = typesAffichesPourDossier(dossier)
 
   if (!userId) return <Navigate to="/app/equipe" replace />
   if (!user) return <Navigate to="/login" replace />
   if (!canAccess) return <Navigate to="/app" replace />
 
-  const persistActivite = () => {
+  const persistDossier = (patch?: { typesMasques?: TypeDocumentRh[] }) => {
     upsertPersonnelDossier({
       id: stored?.id,
       userId,
@@ -145,6 +146,15 @@ export function TechnicienDossierPage() {
       conduitVehicule,
       notes,
       documents: stored?.documents,
+      typesMasques: patch?.typesMasques ?? stored?.typesMasques,
+    })
+  }
+
+  const persistActivite = () => persistDossier()
+
+  const masquerType = (type: TypeDocumentRh) => {
+    persistDossier({
+      typesMasques: [...new Set([...(stored?.typesMasques || []), ...typesAMasquer(type)])],
     })
   }
 
@@ -224,14 +234,13 @@ export function TechnicienDossierPage() {
 
       {resume.total > 0 && (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm">
-          <div className="font-display font-semibold text-ink">Alertes documents</div>
+          <div className="font-display font-semibold text-ink">Alertes d’expiration</div>
           <p className="mt-1 text-muted">
             {resume.expire ? `${resume.expire} expiré${resume.expire > 1 ? 's' : ''}` : null}
-            {resume.expire && (resume.bientot || resume.manquant) ? ' · ' : null}
+            {resume.expire && resume.bientot ? ' · ' : null}
             {resume.bientot ? `${resume.bientot} bientôt` : null}
-            {(resume.expire || resume.bientot) && resume.manquant ? ' · ' : null}
-            {resume.manquant ? `${resume.manquant} manquant${resume.manquant > 1 ? 's' : ''}` : null}
-            {resume.sansDate ? ` · ${resume.sansDate} sans date` : null}
+            {(resume.expire || resume.bientot) && resume.sansDate ? ' · ' : null}
+            {resume.sansDate ? `${resume.sansDate} sans date limite` : null}
           </p>
           <ul className="mt-2 space-y-1">
             {alerts.slice(0, 8).map((a) => (
@@ -252,7 +261,8 @@ export function TechnicienDossierPage() {
       <section className="rounded-2xl border border-line bg-white p-5">
         <h2 className="font-display text-lg font-semibold">Activité du poste</h2>
         <p className="mt-1 text-sm text-muted">
-          Ça détermine les pièces obligatoires. Décochez si le collègue ne fait jamais ça.
+          Ça aide à proposer des pièces. Décochez si le collègue ne fait jamais ça. Rien n’est
+          obligatoire : masquez une pièce avec la croix rouge.
         </p>
         <div className="mt-3 grid gap-2 text-sm">
           <label className="flex items-start gap-2">
@@ -312,7 +322,13 @@ export function TechnicienDossierPage() {
 
       <section className="rounded-2xl border border-line bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">Pièces à jour</h2>
+          <div>
+            <h2 className="font-display text-lg font-semibold">Pièces à suivre</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Choisissez ce que vous avez. Croix rouge = retirer de la liste. Les alertes ne
+              concernent que les dates d’expiration des pièces enregistrées.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => openNew()}
@@ -321,13 +337,37 @@ export function TechnicienDossierPage() {
             <Plus className="h-4 w-4" /> Ajouter un document
           </button>
         </div>
+        {pieces.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">
+            Aucune pièce affichée.{' '}
+            <button type="button" onClick={() => openNew()} className="font-semibold text-accent hover:underline">
+              Ajoutez un document
+            </button>
+            {(stored?.typesMasques?.length || 0) > 0 ? (
+              <>
+                {' '}
+                ou{' '}
+                <button
+                  type="button"
+                  onClick={() => persistDossier({ typesMasques: [] })}
+                  className="font-semibold text-accent hover:underline"
+                >
+                  réafficher les pièces masquées
+                </button>
+                .
+              </>
+            ) : (
+              '.'
+            )}
+          </p>
+        ) : (
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-          {requis.map((type) => {
+          {pieces.map((type) => {
             const identite = catalogDocumentRh(type).identite
             const docs = identite
               ? dossier.documents.filter((d) => catalogDocumentRh(d.type).identite)
               : dossier.documents.filter((d) => d.type === type)
-            const worst: StatutDocumentRh = docs.length
+            const worst: StatutDocumentRh | null = docs.length
               ? docs
                   .map((d) => statutDocumentRh(d))
                   .sort((a, b) => {
@@ -340,23 +380,36 @@ export function TechnicienDossierPage() {
                     }
                     return order[a] - order[b]
                   })[0]
-              : 'manquant'
+              : null
             return (
-              <li key={type} className="rounded-xl border border-line p-3">
+              <li key={type} className="relative rounded-xl border border-line p-3 pr-10">
+                {docs.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => masquerType(type)}
+                  className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-red-600 hover:bg-red-50"
+                  aria-label={`Retirer ${catalogDocumentRh(type).label} de la liste`}
+                  title="Retirer de la liste"
+                >
+                  <X className="h-5 w-5" strokeWidth={2.5} />
+                </button>
+                ) : null}
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold text-ink">{catalogDocumentRh(type).label}</div>
                     <p className="mt-0.5 text-xs text-muted">{catalogDocumentRh(type).hint}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${statutClass(worst)}`}>
-                    {labelStatutDocumentRh(worst)}
-                  </span>
+                  {worst ? (
+                    <span className={`mr-6 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${statutClass(worst)}`}>
+                      {labelStatutDocumentRh(worst)}
+                    </span>
+                  ) : null}
                 </div>
                 {docs.length === 0 ? (
                   <button
                     type="button"
                     onClick={() => openNew(type)}
-                    className="mt-2 text-xs font-semibold text-accent hover:underline"
+                    className="mt-2 inline-flex min-h-9 items-center rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover"
                   >
                     Ajouter
                   </button>
@@ -373,6 +426,7 @@ export function TechnicienDossierPage() {
             )
           })}
         </ul>
+        )}
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-line bg-white">
@@ -381,8 +435,8 @@ export function TechnicienDossierPage() {
         </div>
         {dossier.documents.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted">
-            Aucun document pour l’instant. Ajoutez au minimum : identité, carte Vitale, visite
-            médicale, aptitude froid, habilitation électrique, permis.
+            Aucun document pour l’instant. Ajoutez seulement les pièces dont vous avez une copie.
+            L’alerte se déclenche sur la date limite.
           </p>
         ) : (
           <ul className="divide-y divide-line">

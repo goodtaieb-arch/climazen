@@ -234,7 +234,7 @@ export function EquipePage() {
                   to={`/app/equipe/${m.id}`}
                   className={[
                     'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',
-                    resume.expire || resume.manquant
+                    resume.expire
                       ? 'bg-red-100 text-red-800'
                       : resume.bientot
                         ? 'bg-amber-100 text-amber-900'

@@ -122,15 +122,13 @@ export function ProfilPage() {
               CNI, permis, carte Vitale, aptitude froid, habilitation électrique… dates limites et
               alertes d’expiration.
             </p>
-            {ownResume.total > 0 ? (
+            {ownResume.expire || ownResume.bientot || ownResume.sansDate ? (
               <p className="mt-2 text-sm font-semibold text-amber-800">
                 {ownResume.expire ? `${ownResume.expire} expiré${ownResume.expire > 1 ? 's' : ''}` : ''}
-                {ownResume.expire && (ownResume.bientot || ownResume.manquant) ? ' · ' : ''}
+                {ownResume.expire && ownResume.bientot ? ' · ' : ''}
                 {ownResume.bientot ? `${ownResume.bientot} bientôt` : ''}
-                {(ownResume.expire || ownResume.bientot) && ownResume.manquant ? ' · ' : ''}
-                {ownResume.manquant
-                  ? `${ownResume.manquant} manquant${ownResume.manquant > 1 ? 's' : ''}`
-                  : ''}
+                {(ownResume.expire || ownResume.bientot) && ownResume.sansDate ? ' · ' : ''}
+                {ownResume.sansDate ? `${ownResume.sansDate} sans date limite` : ''}
               </p>
             ) : ownDossier ? (
               <p className="mt-2 text-sm font-semibold text-emerald-800">Documents à jour</p>
