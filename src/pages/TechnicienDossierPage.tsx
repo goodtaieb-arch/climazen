@@ -1,6 +1,6 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, FileText, FolderOpen, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Camera, FileText, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
@@ -65,6 +65,7 @@ export function TechnicienDossierPage() {
   const [fileError, setFileError] = useState('')
   const [fileBusy, setFileBusy] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<DocumentRh | null>(null)
+  const scanInputRef = useRef<HTMLInputElement>(null)
 
   const canAccess = Boolean(user && userId && (isOwner || user.id === userId))
 
@@ -530,11 +531,13 @@ export function TechnicienDossierPage() {
                   </p>
                 )}
               </div>
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold text-ink">Photo / scan</span>
+              <div className="sm:col-span-2">
+                <span className="mb-1 block text-sm font-semibold text-ink">Photo / scan</span>
                 <input
+                  ref={scanInputRef}
                   type="file"
                   accept="image/*,application/pdf"
+                  className="hidden"
                   disabled={fileBusy}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
@@ -551,19 +554,52 @@ export function TechnicienDossierPage() {
                       )
                       .finally(() => setFileBusy(false))
                   }}
-                  className="block w-full text-sm"
                 />
+                <button
+                  type="button"
+                  disabled={fileBusy}
+                  onClick={() => scanInputRef.current?.click()}
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-accent/50 bg-accent-soft/50 px-4 text-sm font-semibold text-ink shadow-sm hover:bg-accent-soft disabled:opacity-60"
+                >
+                  {fileBusy ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Chargement…
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-5 w-5 text-accent" />
+                      {form.fichierDataUrl ? 'Changer la photo / le scan' : 'Prendre une photo ou choisir un fichier'}
+                    </>
+                  )}
+                </button>
+                <p className="mt-1.5 text-xs text-muted">
+                  Appareil photo ou fichier (JPG, PNG, PDF léger).
+                </p>
                 {form.fichierDataUrl?.startsWith('data:image/') ? (
                   <img
                     src={form.fichierDataUrl}
-                    alt=""
-                    className="mt-2 h-20 rounded-lg border border-line object-cover"
+                    alt={form.fichierNom || 'scan'}
+                    className="mt-2 h-24 w-auto max-w-full rounded-xl border border-line object-cover"
                   />
                 ) : form.fichierNom ? (
-                  <p className="mt-1 text-xs text-muted">{form.fichierNom}</p>
+                  <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-ink">
+                    <FileText className="h-3.5 w-3.5" /> {form.fichierNom}
+                  </p>
+                ) : null}
+                {form.fichierDataUrl ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, fichierDataUrl: undefined, fichierNom: undefined }))
+                    }
+                    className="mt-2 block text-xs font-semibold text-muted hover:underline"
+                  >
+                    Retirer le fichier
+                  </button>
                 ) : null}
                 {fileError ? <p className="mt-1 text-xs text-danger">{fileError}</p> : null}
-              </label>
+              </div>
               <label className="block text-sm sm:col-span-2">
                 <span className="mb-1 block font-semibold text-ink">Notes</span>
                 <textarea
