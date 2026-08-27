@@ -15,6 +15,7 @@ import {
   dossierForUser,
   resumeAlertesDossier,
 } from '../lib/rhDocuments'
+import { cloudPasteHint } from '../lib/cloudLinkGuard'
 
 /**
  * Espace perso : signature CERFA, détecteur (plus tard véhicules / outillage).
@@ -143,8 +144,9 @@ export function ProfilPage() {
         <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5">
           <div className="font-display text-base font-semibold text-ink">Photos de pièces</div>
           <p className="mt-1 text-sm text-muted">
-            Ouvre <strong>votre</strong> dossier Drive exact (collé par le gérant dans Équipe).
-            Si le dossier est public, l’app n’ouvre rien — Drive doit demander un compte.
+            Ouvre <strong>votre</strong> dossier cloud exact (collé par le gérant dans Équipe).
+            Si le dossier est public, l’app n’ouvre rien — l’alerte dépend du cloud (Google Drive,
+            OneDrive ou SharePoint).
           </p>
           <div className="mt-3">
             <DossierCloudTechButton
@@ -152,12 +154,11 @@ export function ProfilPage() {
               lienCloudDossier={ownDossier?.lienCloudDossier}
               label="Ouvrir mon dossier cloud"
             />
-            {!ownDossier?.lienCloudDossier ? (
-              <p className="mt-2 text-sm text-muted">
-                Le gérant colle le lien <strong>exact</strong> de votre dossier dans Équipe (sous
-                votre nom). Partage Drive : Restreint, pas « toute personne avec le lien ».
-              </p>
-            ) : null}
+            <p className="mt-2 text-sm text-muted">
+              {ownDossier?.lienCloudDossier
+                ? cloudPasteHint(ownDossier.lienCloudDossier)
+                : 'Le gérant colle le lien exact de votre dossier dans Équipe (sous votre nom) : Google Drive, OneDrive ou SharePoint, en partage privé.'}
+            </p>
           </div>
         </div>
       ) : null}

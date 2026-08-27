@@ -11,7 +11,7 @@ export type CloudLinkVerdict =
   | 'needs_probe'
   | 'restricted_hint'
 
-const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com'])
+export type CloudKind = 'drive' | 'onedrive' | 'sharepoint' | 'unknown'
 
 export function hostnameOf(url: string): string {
   try {
@@ -21,11 +21,92 @@ export function hostnameOf(url: string): string {
   }
 }
 
+export function cloudKindFromHost(host: string): CloudKind {
+  const h = (host || '').toLowerCase()
+  if (h === 'drive.google.com' || h === 'docs.google.com') return 'drive'
+  if (h === 'onedrive.live.com' || h === '1drv.ms') return 'onedrive'
+  if (h.endsWith('.sharepoint.com') || h === 'sharepoint.com') return 'sharepoint'
+  return 'unknown'
+}
+
+export function cloudKindFromUrl(raw?: string): CloudKind {
+  const href = normalizeLienCloudRh(raw)
+  if (!href) return 'unknown'
+  return cloudKindFromHost(hostnameOf(href))
+}
+
+export function cloudLabel(kind: CloudKind): string {
+  if (kind === 'drive') return 'Google Drive'
+  if (kind === 'onedrive') return 'OneDrive'
+  if (kind === 'sharepoint') return 'SharePoint'
+  return 'cloud'
+}
+
+/** Consigne affichée sous le champ, selon le cloud collé. */
+export function cloudPasteHint(raw?: string): string {
+  const kind = cloudKindFromUrl(raw)
+  if (kind === 'drive') {
+    return 'Google Drive détecté. Partager → Restreint (pas « Toute personne disposant du lien ») → uniquement les e-mails autorisés. Drive demandera le compte Google.'
+  }
+  if (kind === 'onedrive') {
+    return 'OneDrive détecté. Partager → Personnes spécifiques (pas « Quiconque dispose du lien ») → compte Microsoft.'
+  }
+  if (kind === 'sharepoint') {
+    return 'SharePoint détecté. Partager → Personnes de l’organisation / personnes précises (pas « Tout le monde ») → compte Microsoft 365.'
+  }
+  const s = (raw || '').trim()
+  if (!s) {
+    return 'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
+  }
+  return 'Cloud non reconnu. Uniquement Google Drive, OneDrive ou SharePoint, en partage privé.'
+}
+
+export function cloudAlertMessage(
+  kind: CloudKind,
+  error: 'public' | 'unverifiable' | 'invalid' | 'ok' | 'missing',
+): string {
+  const name = cloudLabel(kind)
+  if (error === 'missing') {
+    return 'Pas de lien exact pour cet opérateur. Collez son dossier Google Drive, OneDrive ou SharePoint (Équipe → sous son nom).'
+  }
+  if (error === 'invalid') {
+    if (kind === 'unknown') {
+      return 'Lien invalide. Collez le lien https exact du dossier de CET opérateur (Google Drive, OneDrive ou SharePoint).'
+    }
+    return `${name} : lien invalide. Collez le lien https exact du dossier de CET opérateur.`
+  }
+  if (error === 'public') {
+    if (kind === 'drive') {
+      return 'Google Drive : ce dossier est public (« Toute personne disposant du lien »). Action arrêtée.\n\nDans Drive : Partager → Restreint → ajoutez seulement les e-mails autorisés. Ensuite Drive demandera le compte Google (identifiant + mot de passe).'
+    }
+    if (kind === 'onedrive') {
+      return 'OneDrive : ce dossier est public (« Quiconque dispose du lien » ou raccourci 1drv.ms). Action arrêtée.\n\nDans OneDrive : Partager → Personnes spécifiques (pas Quiconque) → compte Microsoft.'
+    }
+    if (kind === 'sharepoint') {
+      return 'SharePoint : ce lien est ouvert aux invités / tout le monde. Action arrêtée.\n\nDans SharePoint : Partager → Personnes de l’organisation ou personnes précises, pas « Tout le monde ». Compte Microsoft 365 obligatoire.'
+    }
+    return 'Ce dossier est public (« toute personne avec le lien »). Action arrêtée. Passez le partage en privé (compte + mot de passe).'
+  }
+  if (error === 'unverifiable') {
+    if (kind === 'drive') {
+      return 'Google Drive : impossible de vérifier que le dossier n’est pas public. Action arrêtée.\n\nRefaites un lien Restreint (Partager → Restreint), pas « Toute personne disposant du lien ».'
+    }
+    if (kind === 'onedrive') {
+      return 'OneDrive : impossible de vérifier que le dossier n’est pas public. Action arrêtée.\n\nRefaites un lien Personnes spécifiques, pas « Quiconque dispose du lien ».'
+    }
+    if (kind === 'sharepoint') {
+      return 'SharePoint : impossible de vérifier que le dossier n’est pas public. Action arrêtée.\n\nRefaites un lien pour personnes précises / organisation, pas « Tout le monde ».'
+    }
+    return 'Impossible de vérifier que le dossier n’est pas public. Action arrêtée.'
+  }
+  if (kind === 'drive') return 'Google Drive privé — le compte Google sera demandé.'
+  if (kind === 'onedrive') return 'OneDrive privé — le compte Microsoft sera demandé.'
+  if (kind === 'sharepoint') return 'SharePoint privé — le compte Microsoft 365 sera demandé.'
+  return 'Dossier privé — le cloud demandera le compte.'
+}
+
 export function isAllowedCloudHost(host: string): boolean {
-  if (DRIVE_HOSTS.has(host)) return true
-  if (host === 'onedrive.live.com' || host === '1drv.ms') return true
-  if (host.endsWith('.sharepoint.com') || host === 'sharepoint.com') return true
-  return false
+  return cloudKindFromHost(host) !== 'unknown'
 }
 
 /** Lien Google Drive / OneDrive / SharePoint « n’importe qui avec le lien ». */
@@ -89,34 +170,30 @@ export type CloudLinkCheckResult = {
   message: string
 }
 
-const PUBLIC_MSG =
-  'Ce dossier est public (« toute personne avec le lien »). Action arrêtée. Dans Drive / OneDrive : Partager → Restreint, puis uniquement les e-mails autorisés.'
-
-const UNVERIFIABLE_MSG =
-  'Impossible de vérifier que le dossier n’est pas public. Action arrêtée — collez un lien Restreint (identifiant + mot de passe Drive).'
-
 export function localCloudLinkCheck(raw?: string): CloudLinkCheckResult | null {
+  const kind = cloudKindFromUrl(raw)
   const verdict = classifyCloudLink(raw)
   if (verdict === 'invalid') {
     return {
       ok: false,
       error: 'invalid',
-      message: 'Lien invalide. Collez le lien https exact du dossier de CET opérateur (Drive, OneDrive, SharePoint).',
+      message: cloudAlertMessage(kind, 'invalid'),
     }
   }
   if (verdict === 'public') {
-    return { ok: false, error: 'public', message: PUBLIC_MSG }
+    return { ok: false, error: 'public', message: cloudAlertMessage(kind, 'public') }
   }
   return null
 }
 
 /** Contrôle serveur : ouvre seulement si le stockage n’est pas public. */
 export async function verifyCloudLinkRestricted(raw?: string): Promise<CloudLinkCheckResult> {
+  const kind = cloudKindFromUrl(raw)
   const local = localCloudLinkCheck(raw)
   if (local) return local
   const href = normalizeLienCloudRh(raw)
   if (!href) {
-    return { ok: false, error: 'invalid', message: 'Lien manquant.' }
+    return { ok: false, error: 'invalid', message: cloudAlertMessage('unknown', 'missing') }
   }
   try {
     const res = await fetch('/api/check-cloud-link', {
@@ -125,30 +202,32 @@ export async function verifyCloudLinkRestricted(raw?: string): Promise<CloudLink
       body: JSON.stringify({ url: href }),
     })
     if (!res.ok) {
-      return { ok: false, error: 'unverifiable', message: UNVERIFIABLE_MSG }
+      return { ok: false, error: 'unverifiable', message: cloudAlertMessage(kind, 'unverifiable') }
     }
     const data = (await res.json()) as {
       ok?: boolean
       restricted?: boolean
       error?: CloudLinkCheckResult['error']
       message?: string
+      cloud?: CloudKind
     }
+    const usedKind = data.cloud || kind
     if (data.ok && data.restricted) {
-      return { ok: true, restricted: true, message: 'Dossier privé — Drive demandera le compte.' }
+      return { ok: true, restricted: true, message: cloudAlertMessage(usedKind, 'ok') }
     }
     if (data.error === 'public') {
-      return { ok: false, error: 'public', message: data.message || PUBLIC_MSG }
+      return { ok: false, error: 'public', message: cloudAlertMessage(usedKind, 'public') }
     }
     if (data.error === 'invalid') {
       return {
         ok: false,
         error: 'invalid',
-        message: data.message || 'Lien invalide.',
+        message: cloudAlertMessage(usedKind, 'invalid'),
       }
     }
-    return { ok: false, error: 'unverifiable', message: data.message || UNVERIFIABLE_MSG }
+    return { ok: false, error: 'unverifiable', message: cloudAlertMessage(usedKind, 'unverifiable') }
   } catch {
-    return { ok: false, error: 'unverifiable', message: UNVERIFIABLE_MSG }
+    return { ok: false, error: 'unverifiable', message: cloudAlertMessage(kind, 'unverifiable') }
   }
 }
 
@@ -159,8 +238,7 @@ export async function openExactOperatorCloudLink(raw?: string): Promise<CloudLin
     return {
       ok: false,
       error: 'invalid',
-      message:
-        'Pas de lien exact pour cet opérateur. Collez le dossier Drive / OneDrive de CE technicien (Équipe → sous son nom).',
+      message: cloudAlertMessage('unknown', 'missing'),
     }
   }
   const check = await verifyCloudLinkRestricted(href)

@@ -7,6 +7,9 @@ import {
 } from '../src/lib/rhDocuments'
 import {
   classifyCloudLink,
+  cloudAlertMessage,
+  cloudKindFromUrl,
+  cloudPasteHint,
   extractGoogleDriveId,
   localCloudLinkCheck,
 } from '../src/lib/cloudLinkGuard'
@@ -50,6 +53,30 @@ assert.equal(
 )
 assert.equal(classifyCloudLink('javascript:alert(1)'), 'invalid')
 assert.equal(localCloudLinkCheck('https://1drv.ms/f/s!abc')?.error, 'public')
+assert.match(localCloudLinkCheck('https://1drv.ms/f/s!abc')?.message || '', /OneDrive/)
+assert.match(
+  localCloudLinkCheck('https://contoso-my.sharepoint.com/:f:/g/personal/a/xyz?e=TOKEN')
+    ?.message || '',
+  /SharePoint/,
+)
+assert.match(
+  localCloudLinkCheck('https://drive.google.com/uc?id=ABCDEFGHIJ123')?.message || '',
+  /Google Drive/,
+)
+assert.equal(cloudKindFromUrl('https://drive.google.com/drive/folders/abc'), 'drive')
+assert.equal(cloudKindFromUrl('https://onedrive.live.com/?cid=x'), 'onedrive')
+assert.equal(cloudKindFromUrl('https://contoso.sharepoint.com/sites/rh'), 'sharepoint')
+assert.match(cloudPasteHint('https://drive.google.com/drive/folders/x'), /Google Drive/)
+assert.match(cloudPasteHint('https://onedrive.live.com/redir'), /OneDrive/)
+assert.match(cloudPasteHint('https://contoso.sharepoint.com/sites/x'), /SharePoint/)
+assert.match(cloudAlertMessage('drive', 'public'), /Google Drive/)
+assert.match(cloudAlertMessage('onedrive', 'public'), /OneDrive/)
+assert.match(cloudAlertMessage('sharepoint', 'public'), /SharePoint/)
+assert.equal(cloudAlertMessage('onedrive', 'public').includes('Google Drive'), false)
+assert.equal(cloudAlertMessage('drive', 'public').includes('OneDrive'), false)
+assert.match(cloudAlertMessage('drive', 'unverifiable'), /Restreint/)
+assert.match(cloudAlertMessage('onedrive', 'unverifiable'), /Personnes spécifiques/)
+assert.match(cloudAlertMessage('sharepoint', 'unverifiable'), /Tout le monde/)
 assert.equal(
   extractGoogleDriveId('https://drive.google.com/drive/folders/AbCdEfGhIjK1234567'),
   'AbCdEfGhIjK1234567',

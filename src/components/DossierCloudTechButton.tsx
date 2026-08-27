@@ -1,7 +1,7 @@
 import { useState, type MouseEvent } from 'react'
 import { ExternalLink, FolderOpen, Loader2 } from 'lucide-react'
 import { hrefDossierCloudTech } from '../lib/rhDocuments'
-import { openExactOperatorCloudLink } from '../lib/cloudLinkGuard'
+import { cloudKindFromUrl, cloudLabel, openExactOperatorCloudLink } from '../lib/cloudLinkGuard'
 
 type Props = {
   techName: string
@@ -57,8 +57,9 @@ export function DossierCloudTechButton({
     }
   }
 
+  const cloudName = cloudLabel(cloudKindFromUrl(href))
   const title = href
-    ? `Ouvrir le dossier exact de ${techName} (bloqué s’il est public)`
+    ? `Ouvrir le dossier ${cloudName} exact de ${techName} (bloqué s’il est public)`
     : `Collez d’abord le lien exact du dossier de ${techName} (Équipe)`
 
   return (

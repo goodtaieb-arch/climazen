@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import { telHref } from '../lib/agenda'
-import { verifyCloudLinkRestricted } from '../lib/cloudLinkGuard'
+import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import {
   addYearsIso,
   alertesPourDossier,
@@ -356,6 +356,7 @@ export function TechnicienDossierPage() {
               }}
               className="h-10 w-full rounded-xl border border-line px-3 text-sm"
             />
+            <p className="mt-1 text-xs text-muted">{cloudPasteHint(lienCloudDossier)}</p>
           </label>
         )}
         {dossier.lienCloudDossier ? (
@@ -382,8 +383,8 @@ export function TechnicienDossierPage() {
         ) : (
           <p className="mt-2 text-muted">
             Collez le lien <strong>exact</strong> du dossier de <strong>{displayName}</strong>{' '}
-            (Drive → Partager → Restreint). L’app n’utilise plus le dossier général société pour
-            ouvrir les pièces.
+            (Google Drive, OneDrive ou SharePoint, en partage privé). L’app n’utilise plus le
+            dossier général société pour ouvrir les pièces.
           </p>
         )}
       </div>
@@ -763,6 +764,7 @@ export function TechnicienDossierPage() {
                   }}
                   className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
                 />
+                <p className="mt-1 text-xs text-muted">{cloudPasteHint(form.lienCloud)}</p>
               </label>
               <Field
                 label="Lien valable jusqu’au (optionnel)"

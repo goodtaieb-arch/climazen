@@ -75,11 +75,46 @@ const PUBLIC_MARKERS =
 const LOGIN_MARKERS =
   /accounts\.google\.com|ServiceLogin|signin\/identifier|login\.microsoftonline\.com|you need access|you need permission|demander l.acc[eè]s|sign in to continue|connexion requise|choisissez un compte/i
 
-const PUBLIC_MSG =
-  'Ce dossier est public (« toute personne avec le lien »). Action arrêtée. Dans Drive / OneDrive : Partager → Restreint, uniquement les comptes autorisés.'
+function cloudKind(host) {
+  const h = String(host || '').toLowerCase()
+  if (h === 'drive.google.com' || h === 'docs.google.com') return 'drive'
+  if (h === 'onedrive.live.com' || h === '1drv.ms') return 'onedrive'
+  if (h.endsWith('.sharepoint.com') || h === 'sharepoint.com') return 'sharepoint'
+  return 'unknown'
+}
 
-const UNVERIFIABLE_MSG =
-  'Impossible de vérifier que le dossier n’est pas public. Action arrêtée.'
+function alertMessage(kind, error) {
+  if (error === 'invalid') {
+    if (kind === 'unknown') {
+      return 'Lien invalide. Collez le lien https exact du dossier de CET opérateur (Google Drive, OneDrive ou SharePoint).'
+    }
+    const name =
+      kind === 'drive' ? 'Google Drive' : kind === 'onedrive' ? 'OneDrive' : 'SharePoint'
+    return `${name} : lien invalide. Collez le lien https exact du dossier de CET opérateur.`
+  }
+  if (error === 'public') {
+    if (kind === 'drive') {
+      return 'Google Drive : ce dossier est public (« Toute personne disposant du lien »). Action arrêtée.\n\nDans Drive : Partager → Restreint → ajoutez seulement les e-mails autorisés. Ensuite Drive demandera le compte Google (identifiant + mot de passe).'
+    }
+    if (kind === 'onedrive') {
+      return 'OneDrive : ce dossier est public (« Quiconque dispose du lien » ou raccourci 1drv.ms). Action arrêtée.\n\nDans OneDrive : Partager → Personnes spécifiques (pas Quiconque) → compte Microsoft.'
+    }
+    if (kind === 'sharepoint') {
+      return 'SharePoint : ce lien est ouvert aux invités / tout le monde. Action arrêtée.\n\nDans SharePoint : Partager → Personnes de l’organisation ou personnes précises, pas « Tout le monde ». Compte Microsoft 365 obligatoire.'
+    }
+    return 'Ce dossier est public. Action arrêtée. Passez le partage en privé.'
+  }
+  if (kind === 'drive') {
+    return 'Google Drive : impossible de vérifier que le dossier n’est pas public. Action arrêtée.\n\nRefaites un lien Restreint (Partager → Restreint), pas « Toute personne disposant du lien ».'
+  }
+  if (kind === 'onedrive') {
+    return 'OneDrive : impossible de vérifier que le dossier n’est pas public. Action arrêtée.\n\nRefaites un lien Personnes spécifiques, pas « Quiconque dispose du lien ».'
+  }
+  if (kind === 'sharepoint') {
+    return 'SharePoint : impossible de vérifier que le dossier n’est pas public. Action arrêtée.\n\nRefaites un lien pour personnes précises / organisation, pas « Tout le monde ».'
+  }
+  return 'Impossible de vérifier que le dossier n’est pas public. Action arrêtée.'
+}
 
 async function readLimited(res, max = 180000) {
   const text = await res.text()
@@ -161,27 +196,40 @@ export default async function handler(req, res) {
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {}
     const href = normalizeHttps(body.url)
+    const kind = cloudKind(hostnameOf(href))
     if (!href) {
       return res.status(200).json({
         ok: false,
         error: 'invalid',
-        message: 'Lien https invalide.',
+        cloud: 'unknown',
+        message: alertMessage('unknown', 'invalid'),
       })
     }
     if (!isAllowedHost(hostnameOf(href))) {
       return res.status(200).json({
         ok: false,
         error: 'invalid',
-        message: 'Hôte non autorisé. Uniquement Google Drive, OneDrive ou SharePoint.',
+        cloud: 'unknown',
+        message: alertMessage('unknown', 'invalid'),
       })
     }
 
     const quick = classify(href)
     if (quick === 'invalid') {
-      return res.status(200).json({ ok: false, error: 'invalid', message: 'Lien invalide.' })
+      return res.status(200).json({
+        ok: false,
+        error: 'invalid',
+        cloud: kind,
+        message: alertMessage(kind, 'invalid'),
+      })
     }
     if (quick === 'public') {
-      return res.status(200).json({ ok: false, error: 'public', message: PUBLIC_MSG })
+      return res.status(200).json({
+        ok: false,
+        error: 'public',
+        cloud: kind,
+        message: alertMessage(kind, 'public'),
+      })
     }
 
     const ac = new AbortController()
@@ -193,12 +241,22 @@ export default async function handler(req, res) {
         : await probeMicrosoft(href, ac.signal)
 
       if (result === 'restricted') {
-        return res.status(200).json({ ok: true, restricted: true })
+        return res.status(200).json({ ok: true, restricted: true, cloud: kind })
       }
       if (result === 'public') {
-        return res.status(200).json({ ok: false, error: 'public', message: PUBLIC_MSG })
+        return res.status(200).json({
+          ok: false,
+          error: 'public',
+          cloud: kind,
+          message: alertMessage(kind, 'public'),
+        })
       }
-      return res.status(200).json({ ok: false, error: 'unverifiable', message: UNVERIFIABLE_MSG })
+      return res.status(200).json({
+        ok: false,
+        error: 'unverifiable',
+        cloud: kind,
+        message: alertMessage(kind, 'unverifiable'),
+      })
     } finally {
       clearTimeout(timer)
     }
@@ -206,7 +264,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: false,
       error: 'unverifiable',
-      message: UNVERIFIABLE_MSG,
+      cloud: 'unknown',
+      message: alertMessage('unknown', 'unverifiable'),
     })
   }
 }

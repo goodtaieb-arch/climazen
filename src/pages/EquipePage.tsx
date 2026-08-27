@@ -17,7 +17,7 @@ import {
   normalizeLienCloudRh,
   normalizePersonnelRetiresUserIds,
 } from '../lib/rhDocuments'
-import { verifyCloudLinkRestricted } from '../lib/cloudLinkGuard'
+import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { telHref } from '../lib/agenda'
 
 function MemberPhoneField({
@@ -113,7 +113,7 @@ function MemberCloudLinkField({
     <label className="mt-1.5 block max-w-xl">
       <span className="mb-0.5 flex items-center gap-1 text-[11px] font-semibold text-muted">
         <Cloud className="h-3 w-3" />
-        Lien exact du dossier de CET opérateur (Restreint)
+        Lien exact du dossier de CET opérateur (privé)
       </span>
       <input
         type="url"
@@ -130,7 +130,10 @@ function MemberCloudLinkField({
         className="h-8 w-full rounded-lg border border-line bg-white px-2 text-xs text-ink"
       />
       {busy ? <span className="text-[11px] text-muted">Vérification du partage…</span> : null}
-      {err ? <span className="text-[11px] text-danger">{err}</span> : null}
+      {err ? <span className="mt-0.5 block text-[11px] text-danger">{err}</span> : null}
+      {!err && !busy ? (
+        <span className="mt-0.5 block text-[11px] text-muted">{cloudPasteHint(draft)}</span>
+      ) : null}
     </label>
   )
 }
@@ -294,10 +297,11 @@ export function EquipePage() {
             scans d’identité ne sont pas stockés — seulement le type et la date d’expiration.
           </li>
           <li>
-            Bouton <strong>Photos pièces</strong> : envoie vers le dossier Drive <strong>exact
-            de cet opérateur</strong> (pas le dossier général). Collez son lien sous le nom.
-            Si le dossier est <strong>public</strong> (« toute personne avec le lien »), l’app
-            <strong>arrête</strong> et n’ouvre rien — il faut Partager → Restreint + compte Drive.
+            Bouton <strong>Photos pièces</strong> : envoie vers le dossier{' '}
+            <strong>exact de cet opérateur</strong> (Google Drive, OneDrive ou SharePoint).
+            Collez son lien sous le nom. Si le partage est <strong>public</strong>, l’app{' '}
+            <strong>arrête</strong> et affiche l’alerte du cloud utilisé (Drive Restreint,
+            OneDrive Personnes spécifiques, ou SharePoint organisation).
           </li>
           <li>
             Les <strong>pièces d’identité</strong> (CNI, passeport, Vitale, RIB…) ne sont visibles
