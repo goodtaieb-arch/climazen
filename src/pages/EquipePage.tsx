@@ -110,9 +110,9 @@ function MemberCloudLinkField({
   }
 
   return (
-    <label className="mt-1.5 block max-w-xl">
+    <label className="mt-1.5 block w-full min-w-0 max-w-xl">
       <span className="mb-0.5 flex items-center gap-1 text-[11px] font-semibold text-muted">
-        <Cloud className="h-3 w-3" />
+        <Cloud className="h-3 w-3 shrink-0" />
         Lien exact du dossier de CET opérateur (privé)
       </span>
       <input
@@ -127,12 +127,16 @@ function MemberCloudLinkField({
           setErr('')
         }}
         onBlur={() => void commit()}
-        className="h-8 w-full rounded-lg border border-line bg-white px-2 text-xs text-ink"
+        className="h-8 w-full min-w-0 rounded-lg border border-line bg-white px-2 text-xs text-ink"
       />
       {busy ? <span className="text-[11px] text-muted">Vérification du partage…</span> : null}
-      {err ? <span className="mt-0.5 block text-[11px] text-danger">{err}</span> : null}
+      {err ? (
+        <span className="mt-0.5 block whitespace-pre-wrap text-[11px] text-danger">{err}</span>
+      ) : null}
       {!err && !busy ? (
-        <span className="mt-0.5 block text-[11px] text-muted">{cloudPasteHint(draft)}</span>
+        <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+          {cloudPasteHint(draft)}
+        </span>
       ) : null}
     </label>
   )
@@ -426,8 +430,9 @@ export function EquipePage() {
             const hasRhAcces = (data.personnelRhAccesUserIds || []).includes(m.id)
             const racineCloud = data.operateur.lienCloudRhRacine
             return (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
+            <li key={m.id} className="flex flex-col gap-3 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-[min(100%,16rem)] flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-medium">
                   <span>{m.fullName}</span>
                   <MemberPhoneField
@@ -435,9 +440,11 @@ export function EquipePage() {
                     canEdit={isOwner}
                     onSave={(next) => setPersonnelTelephone(m.id, m.fullName, next)}
                   />
-                  <span className="text-xs font-normal text-muted">{m.email || m.username}</span>
+                  <span className="break-all text-xs font-normal text-muted">
+                    {m.email || m.username}
+                  </span>
                 </div>
-                <div className="text-xs text-muted">
+                <div className="text-xs leading-snug text-muted">
                   {m.role === 'owner' ? 'Compte officiel société' : 'Opérateur'}
                   {m.active === false ? ' · désactivé' : ''}
                   {m.role !== 'owner' && hasRhAcces ? ' · accès identités / RH' : ''}
@@ -449,13 +456,8 @@ export function EquipePage() {
                   })()}
                   {` · ${resumeAlertesTexte(resume, { vide: !dossier })}`}
                 </div>
-                <MemberCloudLinkField
-                  value={dossier?.lienCloudDossier}
-                  canEdit={isOwner}
-                  onSave={(next) => setPersonnelLienCloud(m.id, m.fullName, next)}
-                />
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex max-w-full flex-wrap gap-2">
                 <Link
                   to={`/app/equipe/${m.id}`}
                   className={[
@@ -533,6 +535,12 @@ export function EquipePage() {
                 </>
               )}
               </div>
+              </div>
+              <MemberCloudLinkField
+                value={dossier?.lienCloudDossier}
+                canEdit={isOwner}
+                onSave={(next) => setPersonnelLienCloud(m.id, m.fullName, next)}
+              />
             </li>
             )
           })}
