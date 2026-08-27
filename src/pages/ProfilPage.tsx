@@ -143,19 +143,19 @@ export function ProfilPage() {
         <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5">
           <div className="font-display text-base font-semibold text-ink">Photos de pièces</div>
           <p className="mt-1 text-sm text-muted">
-            Ouvre votre dossier cloud (Drive / OneDrive) pour y déposer CNI, permis, F-Gas… Les
-            scans ne restent pas dans ClimaZEN.
+            Ouvre <strong>votre</strong> dossier Drive exact (collé par le gérant dans Équipe).
+            Si le dossier est public, l’app n’ouvre rien — Drive doit demander un compte.
           </p>
           <div className="mt-3">
             <DossierCloudTechButton
               techName={user.fullName || 'Technicien'}
               lienCloudDossier={ownDossier?.lienCloudDossier}
-              racineCloud={data.operateur.lienCloudRhRacine}
               label="Ouvrir mon dossier cloud"
             />
-            {!ownDossier?.lienCloudDossier && !data.operateur.lienCloudRhRacine ? (
+            {!ownDossier?.lienCloudDossier ? (
               <p className="mt-2 text-sm text-muted">
-                Le gérant colle le lien dans Équipe (sous votre nom) ou dans Mon entreprise.
+                Le gérant colle le lien <strong>exact</strong> de votre dossier dans Équipe (sous
+                votre nom). Partage Drive : Restreint, pas « toute personne avec le lien ».
               </p>
             ) : null}
           </div>

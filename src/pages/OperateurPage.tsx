@@ -7,6 +7,7 @@ import { FACTURATION_PLATEFORMES, type Operateur } from '../lib/types'
 import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { normalizeLienCloudRh } from '../lib/rhDocuments'
+import { verifyCloudLinkRestricted } from '../lib/cloudLinkGuard'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
   if (operateur.raisonSociale?.trim() || !orgName?.trim()) return operateur
@@ -49,6 +50,13 @@ export function OperateurPage() {
     if (racine && !normalizeLienCloudRh(racine)) {
       setFormError('Lien cloud invalide — collez un lien https (Drive, OneDrive, SharePoint).')
       return
+    }
+    if (racine) {
+      const check = await verifyCloudLinkRestricted(racine)
+      if (!check.ok) {
+        setFormError(check.message)
+        return
+      }
     }
     setSaving(true)
     try {
@@ -143,11 +151,9 @@ export function OperateurPage() {
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Dossier cloud RH</h2>
           <p className="mb-3 text-sm text-muted">
-            Un seul lien : le dossier général de la société (Drive, OneDrive ou SharePoint). ClimaZEN
-            classe ensuite : <strong>ClimaZEN → Dossiers techniciens → nom du tech → catégorie</strong>
-            (Identité, Froid F-Gas, Électricité…). Sur chaque tech, vous pouvez aussi coller{' '}
-            <strong>son</strong> sous-dossier : le bouton <strong>Photos pièces</strong> l’ouvre
-            directement.
+            Un classement (Drive / OneDrive). Le bouton <strong>Photos pièces</strong> n’ouvre
+            que le lien <strong>exact de chaque opérateur</strong> (collé dans Équipe), et
+            seulement s’il n’est <strong>pas public</strong>.
           </p>
           <Field
             label="Lien du dossier général"

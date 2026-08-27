@@ -1,50 +1,82 @@
-import { ExternalLink, FolderOpen } from 'lucide-react'
+import { useState, type MouseEvent } from 'react'
+import { ExternalLink, FolderOpen, Loader2 } from 'lucide-react'
 import { hrefDossierCloudTech } from '../lib/rhDocuments'
+import { openExactOperatorCloudLink } from '../lib/cloudLinkGuard'
 
 type Props = {
   techName: string
   lienCloudDossier?: string
+  /** Ignoré à l’ouverture : uniquement le lien exact de l’opérateur. */
   racineCloud?: string
-  /** Libellé court du bouton */
   label?: string
   className?: string
-  /** compact = pastille liste équipe */
   variant?: 'button' | 'link' | 'compact'
+  /** Sur OT : ne rien afficher tant que le lien exact n’est pas collé. */
+  hideIfMissing?: boolean
 }
 
-/** Ouvre le dossier cloud du tech (photos de pièces : CNI, permis, F-Gas…). */
+/** Ouvre le dossier cloud EXACT du tech, après contrôle « pas public ». */
 export function DossierCloudTechButton({
   techName,
   lienCloudDossier,
-  racineCloud,
   label = 'Photos pièces',
   className = '',
   variant = 'button',
+  hideIfMissing = false,
 }: Props) {
-  const href = hrefDossierCloudTech({
-    racineCloud,
-    lienCloudDossier,
-    techName,
-  })
-  if (!href) return null
+  const href = hrefDossierCloudTech({ lienCloudDossier, techName })
+  const [busy, setBusy] = useState(false)
+  if (hideIfMissing && !href) return null
 
-  const cls =
+  const clsBase =
     variant === 'compact'
-      ? 'inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-hover'
+      ? 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold'
       : variant === 'link'
-        ? 'inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline'
-        : 'inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover'
+        ? 'inline-flex items-center gap-1.5 text-sm font-semibold'
+        : 'inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold'
+
+  const clsEnabled =
+    variant === 'link'
+      ? 'text-accent hover:underline'
+      : 'bg-accent text-ink hover:bg-accent-hover'
+
+  const clsDisabled = 'cursor-not-allowed border border-line bg-mist text-muted'
+
+  const onOpen = async (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (busy) return
+    setBusy(true)
+    try {
+      const result = await openExactOperatorCloudLink(href)
+      if (!result.ok) {
+        window.alert(result.message)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const title = href
+    ? `Ouvrir le dossier exact de ${techName} (bloqué s’il est public)`
+    : `Collez d’abord le lien exact du dossier de ${techName} (Équipe)`
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={[cls, className].filter(Boolean).join(' ')}
-      title={`Ouvrir le dossier cloud de ${techName} (photos de pièces)`}
+    <button
+      type="button"
+      onClick={(e) => void onOpen(e)}
+      disabled={!href || busy}
+      className={[clsBase, href ? clsEnabled : clsDisabled, className].filter(Boolean).join(' ')}
+      title={title}
     >
-      {variant === 'link' ? <FolderOpen className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />}
-      {label}
-    </a>
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : variant === 'link' ? (
+        <FolderOpen className="h-3.5 w-3.5" />
+      ) : (
+        <ExternalLink className="h-3.5 w-3.5" />
+      )}
+      {busy ? 'Vérification…' : label}
+    </button>
   )
 }

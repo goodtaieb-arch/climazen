@@ -326,9 +326,8 @@ export function lienDossierCloudRh(baseUrl: string | undefined, segments: string
 }
 
 /**
- * Dossier cloud du technicien pour y déposer les photos de pièces.
- * 1) Lien collé sur SA fiche (Drive perso / sous-dossier)
- * 2) Sinon dossier général société + chemin ClimaZEN → Dossiers techniciens → nom
+ * Dossier EXACT de cet opérateur (jamais le dossier général société).
+ * Sans lien collé sur SA fiche → undefined (le bouton n’ouvre rien).
  */
 export function hrefDossierCloudTech(opts: {
   racineCloud?: string
@@ -336,12 +335,7 @@ export function hrefDossierCloudTech(opts: {
   techName: string
   type?: TypeDocumentRh
 }): string | undefined {
-  const perso = normalizeLienCloudRh(opts.lienCloudDossier)
-  if (perso) return perso
-  return lienDossierCloudRh(
-    opts.racineCloud,
-    segmentsDossierCloudRh({ techName: opts.techName, type: opts.type }),
-  )
+  return normalizeLienCloudRh(opts.lienCloudDossier)
 }
 
 /** Lien https uniquement — Drive / OneDrive / SharePoint. Rejette javascript: et data:. */
