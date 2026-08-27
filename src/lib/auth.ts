@@ -121,7 +121,7 @@ function authErrorMessage(err: { message?: string; code?: string; name?: string 
     return 'Connexion réseau impossible vers Supabase. Sur iPhone : désactive les bloqueurs de contenu / « Protéger du suivi », ou essaie Chrome. Évite parfois la navigation privée.'
   }
   if (/invalid login credentials/i.test(msg)) {
-    return 'E-mail ou mot de passe incorrect. Sur téléphone : tape le MDP à la main (pas l’auto-remplissage). Si tu es connecté sur l’ordi → Mon entreprise → Changer mon mot de passe, puis utilise ce MDP ici.'
+    return 'E-mail ou mot de passe incorrect. Sur téléphone : tape le MDP à la main (pas l’auto-remplissage). Si tu es connecté sur l’ordi → Mon profil → Changer mon mot de passe, puis utilise ce MDP ici.'
   }
   if (/email not confirmed/i.test(msg)) {
     return 'Confirmez votre e-mail (lien reçu), puis reconnectez-vous.'

@@ -16,8 +16,7 @@ import {
 } from '../lib/rhDocuments'
 
 /**
- * Espace personnel opérateur : signature (obligatoire pour CERFA) + MDP.
- * Invisible / non modifiable par l’administrateur.
+ * Espace perso : signature CERFA, détecteur (plus tard véhicules / outillage).
  */
 export function ProfilPage() {
   const { data, peutVoirIdentitesRh } = useStore()
@@ -101,11 +100,10 @@ export function ProfilPage() {
       <div className="flex items-center gap-3">
         <Nav3dIcon to="/app/profil" size={52} float delay="0.2s" className="shrink-0" />
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Ma signature</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Mon profil</h1>
           <p className="mt-1 text-muted">
-            {organization?.name || data.operateur.raisonSociale || 'Société'} — signature{' '}
-            <strong>personnelle</strong>, visible seulement par vous. Sans elle, le CERFA ne peut pas
-            être validé.
+            {organization?.name || data.operateur.raisonSociale || 'Société'} — signature CERFA,
+            détecteur de fuite. Votre matériel perso, pas le cadre société.
           </p>
         </div>
       </div>
@@ -152,21 +150,7 @@ export function ProfilPage() {
         </div>
       )}
 
-      {/* Détecteur : opérateur = le sien ; gérant = rappel vers Mon entreprise */}
-      {!isOwner ? (
-        <DetecteursParc />
-      ) : (
-        <div className="rounded-2xl border border-line bg-white p-5 text-sm">
-          <h2 className="font-display text-base font-semibold text-ink">Parc détecteurs</h2>
-          <p className="mt-1 text-muted">
-            Ajoutez et affectez les détecteurs dans{' '}
-            <Link to="/app/operateur" className="font-semibold text-accent underline">
-              Mon entreprise
-            </Link>
-            .
-          </p>
-        </div>
-      )}
+      <DetecteursParc />
 
       <form
         onSubmit={onSubmitSignature}

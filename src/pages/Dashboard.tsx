@@ -395,7 +395,7 @@ export function Dashboard() {
                 delay="0.9s"
               />
               <CircleHomeTile
-                title="Ma signature"
+                title="Mon profil"
                 img={ICON3D.signaturePad}
                 to="/app/profil"
                 delay="1.05s"

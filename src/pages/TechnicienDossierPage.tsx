@@ -245,7 +245,7 @@ export function TechnicienDossierPage() {
         <div className="min-w-0">
           <Link to={backTo} className="inline-flex items-center gap-1 text-xs font-semibold text-accent">
             <ArrowLeft className="h-3.5 w-3.5" />
-            {canSeeIdentite && userId !== user.id ? 'Équipe' : 'Ma signature'}
+            {canSeeIdentite && userId !== user.id ? 'Équipe' : 'Mon profil'}
           </Link>
           <h1 className="font-display text-3xl font-bold tracking-tight">Dossier {displayName}</h1>
           <p className="mt-1 text-sm text-muted">
@@ -544,7 +544,7 @@ export function TechnicienDossierPage() {
       <p className="text-xs text-muted">
         Autres pièces utiles selon les chantiers : SST, CACES nacelle, travail en hauteur, AIPR,
         amiante SS4, RIB, contrat, diplôme. L’attestation de capacité société et le contrôle
-        annuel du détecteur restent dans Mon entreprise — ce n’est pas le dossier individuel.
+        annuel du détecteur sont dans Mon profil — ce n’est pas le dossier RH.
       </p>
 
       {formOpen && (

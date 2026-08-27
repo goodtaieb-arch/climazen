@@ -10,9 +10,9 @@ import {
   MapPin,
   Mic,
   Package,
-  PenLine,
   Settings,
   Sparkles,
+  User,
   Users,
   X,
 } from 'lucide-react'
@@ -126,7 +126,7 @@ const baseLinksOwner = [
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
-  { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
+  { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
 const baseLinksOperator = [
@@ -138,7 +138,7 @@ const baseLinksOperator = [
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
-  { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
+  { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
 /** Nav terrain mobile (<768px) : 4 actions principales */
@@ -216,7 +216,7 @@ export function AppLayout() {
     { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
     { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
     { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-    { to: '/app/profil', label: 'Ma signature', icon: PenLine, tone: 'equipe' },
+    { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
     ...(user
       ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
       : []),

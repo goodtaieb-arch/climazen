@@ -48,7 +48,7 @@ export function assertDetecteurValidePourCerfa(
 
   if (!identification) {
     throw new Error(
-      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans « Mon entreprise » / « Ma signature » (parc détecteurs) et attribuez-le au technicien.',
+      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans Mon profil (parc détecteurs) et attribuez-le au technicien.',
     )
   }
   if (!controleDate) {

@@ -980,7 +980,7 @@ export function InterventionFormPage() {
     }
     if (!signatureOperateurImage) {
       throw new Error(
-        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Ma signature », puis validez le CERFA.',
+        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Mon profil », puis validez le CERFA.',
       )
     }
     if (status === 'signe' || status === 'envoye') {
@@ -1646,7 +1646,7 @@ export function InterventionFormPage() {
               ? ' Prérempli depuis votre détecteur attribué.'
               : monDetecteur
                 ? ' Prérempli depuis le détecteur enregistré.'
-                : ' Aucun détecteur enregistré — ajoutez-en un dans « Mon entreprise ».'}
+                : ' Aucun détecteur enregistré — ajoutez-en un dans « Mon profil ».'}
           </p>
           {!monDetecteur && (
             <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">

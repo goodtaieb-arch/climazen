@@ -114,7 +114,7 @@ export function EquipePage() {
           </li>
           <li>
             Flux typique : le gérant prend l’appel client → crée l’OT →{' '}
-            <strong>affecte un technicien</strong> (et un détecteur ci-dessous / Mon entreprise).
+            <strong>affecte un technicien</strong>. Détecteur de fuite : dans Mon profil.
           </li>
           <li>
             Astreinte week-end : le technicien peut aussi créer l’OT / CERFA lui-même — tout arrive

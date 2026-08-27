@@ -543,7 +543,7 @@ export function ChantiersPage() {
       }
       // Plusieurs équipements → même flux que maintenance (1 CERFA / équipement)
       if (!user.signatureImage) {
-        alert('Enregistrez d’abord votre signature dans « Ma signature ».')
+        alert('Enregistrez d’abord votre signature dans « Mon profil ».')
         return
       }
       setBatchBusy(picker.site.id)
@@ -589,7 +589,7 @@ export function ChantiersPage() {
     }
 
     if (!user.signatureImage) {
-      alert('Enregistrez d’abord votre signature dans « Ma signature ».')
+      alert('Enregistrez d’abord votre signature dans « Mon profil ».')
       return
     }
 

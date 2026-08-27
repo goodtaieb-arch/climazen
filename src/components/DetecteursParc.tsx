@@ -269,8 +269,8 @@ export function DetecteursParc({ team: teamProp }: Props) {
         ) : (
           <form onSubmit={(e) => void onCreateMine(e)} className="grid gap-3 sm:grid-cols-2">
             <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-              Aucun détecteur nominatif. Ajoutez le vôtre ici (ou demandez au gérant de vous en
-              attribuer un dans Mon entreprise).
+            Aucun détecteur nominatif. Ajoutez le vôtre ici (ou le gérant vous en attribue un
+            dans Mon profil).
             </p>
             <Field
               label="Identification / réf. *"
@@ -308,8 +308,8 @@ export function DetecteursParc({ team: teamProp }: Props) {
       <div>
         <h2 className="font-display mb-1 text-lg font-semibold">Parc détecteurs manuels [5]</h2>
         <p className="text-sm text-muted">
-          Ajoutez chaque détecteur avec sa date de contrôle, puis affectez-le à un technicien. Le
-          CERFA reprend automatiquement le détecteur de l’opérateur connecté.
+          Ajoutez un détecteur, puis affectez-le à un technicien. Le CERFA reprend
+          automatiquement celui de l’opérateur connecté. Les comptes restent dans Équipe.
         </p>
       </div>
 

@@ -407,7 +407,7 @@ export function FicheMaintenanceClimPage() {
     const techSig = form.signatureTechnicienImage || user?.signatureImage || ''
     if (!techSig) {
       alert(
-        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Ma signature », comme pour le CERFA.',
+        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Mon profil », comme pour le CERFA.',
       )
       return
     }
@@ -473,7 +473,7 @@ export function FicheMaintenanceClimPage() {
     const techSig = form.signatureTechnicienImage || user?.signatureImage || ''
     if (!techSig) {
       alert(
-        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Ma signature », comme pour le CERFA.',
+        'Signature manuscrite opérateur obligatoire. Enregistrez-la dans « Mon profil », comme pour le CERFA.',
       )
       return
     }
@@ -1016,7 +1016,7 @@ export function FicheMaintenanceClimPage() {
           </div>
           {!user?.signatureImage && (
             <p className="mt-2 text-xs text-danger">
-              Aucune signature opérateur en profil — enregistrez-la dans « Ma signature » avant le
+              Aucune signature opérateur en profil — enregistrez-la dans « Mon profil » avant le
               PDF.
             </p>
           )}

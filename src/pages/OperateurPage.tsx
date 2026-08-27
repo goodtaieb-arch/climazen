@@ -2,10 +2,8 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
-import { DetecteursParc } from '../components/DetecteursParc'
 import { useAuth } from '../lib/AuthContext'
 import { FACTURATION_PLATEFORMES, type Operateur } from '../lib/types'
-import type { UserAccount } from '../lib/auth'
 import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 
@@ -17,7 +15,7 @@ function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operate
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
   const { data, setOperateur, setCompanyLogo, resetDemo, loading } = useStore()
-  const { user, organization, isOwner, listTeam, refreshUser } = useAuth()
+  const { organization, isOwner, refreshUser } = useAuth()
 
   const [form, setForm] = useState(() => withOrgDefaults(data.operateur, organization?.name))
   const [dirty, setDirty] = useState(false)
@@ -26,26 +24,18 @@ export function OperateurPage() {
   const [formError, setFormError] = useState('')
   const [logoBusy, setLogoBusy] = useState(false)
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
-  const [team, setTeam] = useState<UserAccount[]>([])
 
   const patchForm = (patch: Partial<Operateur> | ((prev: Operateur) => Operateur)) => {
     setDirty(true)
     setForm((prev) => (typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }))
   }
 
-  // Ne pas écraser la saisie en cours (ex. après ajout d’un détecteur qui touche operateur)
+  // Ne pas écraser la saisie en cours
   useEffect(() => {
     if (loading || dirty) return
     setForm(withOrgDefaults(data.operateur, organization?.name))
     setExpertMake(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   }, [data.operateur, organization?.name, loading, dirty])
-
-  useEffect(() => {
-    if (!isOwner) return
-    void listTeam()
-      .then(setTeam)
-      .catch(() => setTeam([]))
-  }, [isOwner, listTeam, user?.organizationId])
 
   if (!isOwner) {
     return <Navigate to="/app/profil" replace />
@@ -98,8 +88,8 @@ export function OperateurPage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Mon entreprise</h1>
           <p className="mt-1 text-muted">
-            Compte administrateur · {organization?.name || 'Société'} — cadre [1], logo, facturation.
-            Les signatures personnelles sont hors de cette page (chaque opérateur a la sienne).
+            Compte administrateur · {organization?.name || 'Société'} — cadre [1], logo, attestation,
+            facturation. Signature, détecteur et matériel perso : dans <strong>Mon profil</strong>.
           </p>
         </div>
       </div>
@@ -332,8 +322,6 @@ export function OperateurPage() {
           )}
         </div>
       </form>
-
-      <DetecteursParc team={team} />
 
       <button
         type="button"

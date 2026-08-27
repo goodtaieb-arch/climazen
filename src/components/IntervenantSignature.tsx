@@ -16,7 +16,7 @@ type Props = {
 }
 
 /**
- * Signature intervenant — préremplie automatiquement depuis « Ma signature ».
+ * Signature intervenant — préremplie automatiquement depuis Mon profil.
  */
 export function IntervenantSignature({
   nom,
@@ -50,7 +50,7 @@ export function IntervenantSignature({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-sm font-semibold">{label}</h3>
         <Link to="/app/profil" className="text-xs font-medium text-accent hover:underline">
-          Ma signature
+          Mon profil
         </Link>
       </div>
 
@@ -63,7 +63,7 @@ export function IntervenantSignature({
         <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-danger">
           Aucune signature en profil. Enregistrez-la une fois dans{' '}
           <Link to="/app/profil" className="font-semibold underline">
-            Ma signature
+            Mon profil
           </Link>
           .
         </p>
@@ -128,7 +128,7 @@ export function IntervenantSignature({
           value={image}
           onChange={onImageChange}
           height={height}
-          hint="Ou enregistrez-la une fois dans Ma signature pour l’auto-remplissage."
+          hint="Ou enregistrez-la une fois dans Mon profil pour l’auto-remplissage."
         />
       )}
     </div>

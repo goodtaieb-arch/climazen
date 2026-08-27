@@ -55,8 +55,9 @@ Parcours principaux :
 3) Stock fluides → /app/stock (utilisable vs fluide récupéré).
 4) Clients / Sites → équipements du parc.
 5) Agenda → /app/agenda (RDV, rappels, maintenances).
-6) Mon entreprise → /app/operateur (logo, attestation, détecteurs).
-7) Équipe → dossier de chaque technicien (CNI, permis, aptitude froid, habilitation électrique, dates d’expiration).
+6) Mon entreprise → /app/operateur (logo, SIRET, attestation — administration).
+7) Mon profil → /app/profil (signature CERFA, détecteur de fuite).
+8) Équipe → comptes techniciens et dossiers RH.
 
 Règles stock / CERFA importantes :
 - Récupération temporaire (réinjection) → bouteilles Transfert / Service uniquement.
@@ -204,7 +205,7 @@ Dans les menus : « Surnom (N° de série : BOT-XXX) ». Jamais mettre « Transf
     keywords: ['signature', 'signer', 'technicien', 'client', 'detenteur', 'détenteur'],
     paths: ['/app/appel', '/app/profil', '/app/interventions'],
     answer: `Signatures :
-- Technicien : Ma signature (/app/profil) — reprise automatiquement sur OT et CERFA.
+- Technicien : Mon profil (/app/profil) — reprise automatiquement sur OT et CERFA.
 - Client : signature à chaque intervention (pad vide sur chaque nouvel OT / CERFA / fiche). Pas de réutilisation auto de l’ancienne signature site.
 
 Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé ».`,
@@ -212,12 +213,22 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
   {
     id: 'entreprise',
     title: 'Mon entreprise',
-    keywords: ['entreprise', 'logo', 'attestation', 'siret', 'operateur', 'opérateur', 'detecteur', 'détecteur'],
+    keywords: ['entreprise', 'logo', 'attestation', 'siret', 'operateur', 'opérateur'],
     paths: ['/app/operateur'],
-    answer: `Mon entreprise (/app/operateur) :
+    answer: `Mon entreprise (/app/operateur) — administration seulement :
 - Raison sociale, SIRET, attestation de capacité.
 - Logo (apparaît sur le rapport OT).
-- Parc détecteurs de fuite (contrôle annuel) — obligatoire pour CERFA.`,
+Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
+  },
+  {
+    id: 'profil',
+    title: 'Mon profil',
+    keywords: ['profil', 'signature', 'detecteur', 'détecteur', 'ma signature'],
+    paths: ['/app/profil'],
+    answer: `Mon profil (/app/profil) :
+- Signature CERFA personnelle (reprise auto sur les fiches).
+- Détecteur de fuite : le gérant crée un détecteur et l’affecte à un tech ; le tech voit le sien.
+Équipe reste pour les comptes techniciens, pas pour le matériel.`,
   },
   {
     id: 'dossier-rh',
@@ -240,7 +251,7 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
       'rh',
     ],
     paths: ['/app/equipe', '/app/profil'],
-    answer: `Dossier de chaque technicien (Équipe → Dossier, ou Ma signature → Mon dossier) :
+    answer: `Dossier de chaque technicien (Équipe → Dossier, ou Mon profil → Mon dossier) :
 • Identité (CNI / passeport / titre de séjour), permis, carte Vitale, visite médicale.
 • Attestation d’aptitude fluides (cat. I–IV) — obligatoire pour le froid, validité typique 5 ans.
 • Habilitation électrique (BR, B1V…) — obligatoire dès qu’on touche à l’électrique, recyclage ~3 ans.
@@ -250,7 +261,7 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
 Saisissez la date limite des pièces que vous enregistrez. L’accueil alerte 45 jours avant, puis à l’expiration. Les pièces non disponibles se masquent avec la croix rouge — rien n’est imposé.
 Les photos d’identité / scans ne sont pas stockés. Pour ouvrir la bonne pièce, collez un lien temporaire (Drive / OneDrive) sur la fiche — le fichier reste dans le cloud de la société.
 Les pièces d’identité (CNI, passeport, Vitale, RIB) ne sont visibles que par le gérant et les personnes qu’il autorise dans Équipe → « Donner accès identités » (secrétariat, accueil d’appels / agent IA). Un technicien ne voit pas le dossier identité d’un collègue.
-L’attestation de capacité SOCIÉTÉ et le détecteur restent dans Mon entreprise.`,
+L’attestation de capacité SOCIÉTÉ reste dans Mon entreprise. Le détecteur de fuite est dans Mon profil.`,
   },
   {
     id: 'offline',

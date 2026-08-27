@@ -170,11 +170,11 @@ export function buildMaintenanceCerfaDrafts(input: MaintenanceCerfaInput): Cerfa
     throw new Error('Sélectionnez au moins un équipement fluide du site.')
   }
   if (!input.signatureOperateurImage) {
-    throw new Error('Signature opérateur obligatoire — enregistrez-la dans Ma signature.')
+    throw new Error('Signature opérateur obligatoire — enregistrez-la dans Mon profil.')
   }
   if (!input.detecteurIdentification?.trim()) {
     throw new Error(
-      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans le parc détecteurs.',
+      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans Mon profil (parc détecteurs).',
     )
   }
   if (!input.detecteurControleDate?.trim()) {
