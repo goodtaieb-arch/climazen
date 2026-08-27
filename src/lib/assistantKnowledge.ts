@@ -266,7 +266,7 @@ Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
 • Admin : RIB, justificatif de domicile, contrat, diplôme.
 
 Saisissez la date limite des pièces que vous enregistrez. L’accueil alerte 45 jours avant, puis à l’expiration. Les pièces non disponibles se masquent avec la croix rouge — rien n’est imposé.
-Les photos d’identité / scans ne sont pas stockés dans ClimaZEN. Sur chaque tech : bouton « Photos pièces » qui ouvre UNIQUEMENT le lien exact de CET opérateur (collé sous son nom dans Équipe). Google Drive, OneDrive ou SharePoint. Si le dossier est public, l’app arrête et affiche l’alerte du cloud utilisé (Drive Restreint, OneDrive Personnes spécifiques, SharePoint organisation) — identifiant + mot de passe obligatoires.
+Les photos d’identité / scans ne sont pas stockés dans ClimaZEN. Sur chaque tech : bouton « Photos pièces » qui ouvre UNIQUEMENT le lien exact de CET opérateur (collé sous son nom dans Équipe). Google Drive, OneDrive ou SharePoint. Après la MAJ, un bandeau explique quoi faire dans VOTRE cloud (Drive Restreint, OneDrive Personnes spécifiques, SharePoint organisation). Si le dossier est public, l’app arrête et affiche l’alerte du cloud utilisé — identifiant + mot de passe obligatoires.
 Les pièces d’identité (CNI, passeport, Vitale, RIB) ne sont visibles que par le gérant et les personnes qu’il autorise dans Équipe → « Donner accès identités » (secrétariat, accueil d’appels / agent IA). Un technicien ne voit pas le dossier identité d’un collègue.
 L’attestation de capacité SOCIÉTÉ reste dans Mon entreprise. Le détecteur de fuite est dans Mon profil.`,
   },

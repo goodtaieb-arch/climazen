@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import { ImportLocalBanner } from './ImportLocalBanner'
+import { CloudShareWarningBanner } from './CloudShareWarningBanner'
 import { AideAssistant } from './AideAssistant'
 import { VoiceCommandsFab } from './VoiceCommandsFab'
 import { Nav3dIcon } from './Nav3dIcon'
@@ -389,6 +390,7 @@ export function AppLayout() {
         </div>
         <div className="overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <ImportLocalBanner />
+          <CloudShareWarningBanner />
           {offline && (
             <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-slate">
               <p className="font-semibold">Mode hors ligne</p>

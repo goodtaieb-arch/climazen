@@ -42,6 +42,48 @@ export function cloudLabel(kind: CloudKind): string {
   return 'cloud'
 }
 
+export type CloudSetupStep = {
+  kind: Exclude<CloudKind, 'unknown'>
+  title: string
+  body: string
+}
+
+/** Ce que l’utilisateur doit faire dans SON cloud (après MAJ / si le dossier est public). */
+export const CLOUD_SETUP_STEPS: CloudSetupStep[] = [
+  {
+    kind: 'drive',
+    title: 'Google Drive',
+    body: 'Ouvrez le dossier → Partager → Restreint (pas « Toute personne disposant du lien ») → ajoutez seulement les e-mails autorisés. Drive demandera le compte Google (identifiant + mot de passe).',
+  },
+  {
+    kind: 'onedrive',
+    title: 'OneDrive',
+    body: 'Ouvrez le dossier → Partager → Personnes spécifiques (pas « Quiconque dispose du lien », pas de raccourci 1drv.ms). OneDrive demandera le compte Microsoft.',
+  },
+  {
+    kind: 'sharepoint',
+    title: 'SharePoint',
+    body: 'Ouvrez le dossier → Partager → personnes de l’organisation ou personnes précises (pas « Tout le monde » / pas d’invité). SharePoint demandera le compte Microsoft 365.',
+  },
+]
+
+export function collectCloudKinds(urls: Array<string | undefined>): CloudKind[] {
+  const out: CloudKind[] = []
+  for (const u of urls) {
+    const k = cloudKindFromUrl(u)
+    if (k !== 'unknown' && !out.includes(k)) out.push(k)
+  }
+  return out
+}
+
+export function orderedCloudSetupSteps(preferred?: CloudKind[]): CloudSetupStep[] {
+  const pref = (preferred || []).filter((k): k is Exclude<CloudKind, 'unknown'> => k !== 'unknown')
+  if (!pref.length) return CLOUD_SETUP_STEPS
+  const first = CLOUD_SETUP_STEPS.filter((s) => pref.includes(s.kind))
+  const rest = CLOUD_SETUP_STEPS.filter((s) => !pref.includes(s.kind))
+  return [...first, ...rest]
+}
+
 /** Consigne affichée sous le champ, selon le cloud collé. */
 export function cloudPasteHint(raw?: string): string {
   const kind = cloudKindFromUrl(raw)

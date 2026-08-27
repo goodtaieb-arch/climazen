@@ -10,8 +10,10 @@ import {
   cloudAlertMessage,
   cloudKindFromUrl,
   cloudPasteHint,
+  collectCloudKinds,
   extractGoogleDriveId,
   localCloudLinkCheck,
+  orderedCloudSetupSteps,
 } from '../src/lib/cloudLinkGuard'
 
 assert.equal(normalizeLienCloudRh('javascript:alert(1)'), undefined)
@@ -77,6 +79,16 @@ assert.equal(cloudAlertMessage('drive', 'public').includes('OneDrive'), false)
 assert.match(cloudAlertMessage('drive', 'unverifiable'), /Restreint/)
 assert.match(cloudAlertMessage('onedrive', 'unverifiable'), /Personnes spécifiques/)
 assert.match(cloudAlertMessage('sharepoint', 'unverifiable'), /Tout le monde/)
+assert.deepEqual(
+  collectCloudKinds(['https://onedrive.live.com/?cid=x', 'https://example.com']),
+  ['onedrive'],
+)
+assert.equal(orderedCloudSetupSteps(['onedrive'])[0]?.kind, 'onedrive')
+assert.equal(orderedCloudSetupSteps(['sharepoint'])[0]?.title, 'SharePoint')
+assert.equal(orderedCloudSetupSteps()[0]?.kind, 'drive')
+assert.ok(orderedCloudSetupSteps()[0]?.body.includes('Restreint'))
+assert.ok(orderedCloudSetupSteps()[1]?.body.includes('Personnes spécifiques'))
+assert.ok(orderedCloudSetupSteps()[2]?.body.includes('Tout le monde'))
 assert.equal(
   extractGoogleDriveId('https://drive.google.com/drive/folders/AbCdEfGhIjK1234567'),
   'AbCdEfGhIjK1234567',
