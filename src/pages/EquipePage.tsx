@@ -1,18 +1,20 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { FolderOpen, KeyRound, Phone, ShieldCheck, Trash2, UserPlus, UserX, UserCheck } from 'lucide-react'
+import { Cloud, FolderOpen, KeyRound, Phone, ShieldCheck, Trash2, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
 import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import { useStore } from '../lib/store'
 import {
   dossierForUser,
   resumeAlertesDossier,
   resumeAlertesTexte,
   defaultPersonnelDossier,
+  normalizeLienCloudRh,
   normalizePersonnelRetiresUserIds,
 } from '../lib/rhDocuments'
 import { telHref } from '../lib/agenda'
@@ -62,6 +64,63 @@ function MemberPhoneField({
   )
 }
 
+function MemberCloudLinkField({
+  value,
+  canEdit,
+  onSave,
+}: {
+  value?: string
+  canEdit: boolean
+  onSave: (next: string) => void
+}) {
+  const [draft, setDraft] = useState(value || '')
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    setDraft(value || '')
+    setErr('')
+  }, [value])
+
+  if (!canEdit) return null
+
+  const commit = () => {
+    const next = draft.trim()
+    if (!next) {
+      setErr('')
+      if ((value || '').trim()) onSave('')
+      return
+    }
+    if (!normalizeLienCloudRh(next)) {
+      setErr('Lien https (Drive, OneDrive, SharePoint)')
+      return
+    }
+    setErr('')
+    if (next !== (value || '').trim()) onSave(next)
+  }
+
+  return (
+    <label className="mt-1.5 block max-w-xl">
+      <span className="mb-0.5 flex items-center gap-1 text-[11px] font-semibold text-muted">
+        <Cloud className="h-3 w-3" />
+        Lien dossier cloud (photos de pièces)
+      </span>
+      <input
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        placeholder="https://drive.google.com/drive/folders/…"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setErr('')
+        }}
+        onBlur={commit}
+        className="h-8 w-full rounded-lg border border-line bg-white px-2 text-xs text-ink"
+      />
+      {err ? <span className="text-[11px] text-danger">{err}</span> : null}
+    </label>
+  )
+}
+
 export function EquipePage() {
   const {
     user,
@@ -73,8 +132,14 @@ export function EquipePage() {
     resetOperatorPassword,
     listTeam,
   } = useAuth()
-  const { data, setPersonnelRhAcces, setPersonnelTelephone, retirePersonnel, peutVoirIdentitesRh } =
-    useStore()
+  const {
+    data,
+    setPersonnelRhAcces,
+    setPersonnelTelephone,
+    setPersonnelLienCloud,
+    retirePersonnel,
+    peutVoirIdentitesRh,
+  } = useStore()
   const detecteurs = data.detecteurs || []
   const detectorFor = (userId: string) =>
     detecteurs.find((d) => d.assigneeUserId === userId)
@@ -215,6 +280,11 @@ export function EquipePage() {
             scans d’identité ne sont pas stockés — seulement le type et la date d’expiration.
           </li>
           <li>
+            Bouton <strong>Photos pièces</strong> : ouvre le dossier cloud de ce tech (Drive /
+            OneDrive). Collez son lien sous le nom, ou un dossier général dans Mon entreprise.
+            C’est là qu’on range les photos de CNI, permis, F-Gas… pas dans ClimaZEN.
+          </li>
+          <li>
             Les <strong>pièces d’identité</strong> (CNI, passeport, Vitale, RIB…) ne sont visibles
             que par le <strong>gérant</strong> et les personnes qu’il autorise (secrétariat,
             accueil d’appels / agent IA). Un technicien ne voit pas le dossier identité d’un
@@ -335,9 +405,10 @@ export function EquipePage() {
             }
             const resume = resumeAlertesDossier(effective)
             const hasRhAcces = (data.personnelRhAccesUserIds || []).includes(m.id)
+            const racineCloud = data.operateur.lienCloudRhRacine
             return (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-medium">
                   <span>{m.fullName}</span>
                   <MemberPhoneField
@@ -359,6 +430,11 @@ export function EquipePage() {
                   })()}
                   {` · ${resumeAlertesTexte(resume, { vide: !dossier })}`}
                 </div>
+                <MemberCloudLinkField
+                  value={dossier?.lienCloudDossier}
+                  canEdit={isOwner}
+                  onSave={(next) => setPersonnelLienCloud(m.id, m.fullName, next)}
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link
@@ -375,6 +451,12 @@ export function EquipePage() {
                   <FolderOpen className="h-3.5 w-3.5" /> Dossier
                   {resume.total > 0 ? ` (${resume.total})` : ''}
                 </Link>
+                <DossierCloudTechButton
+                  techName={m.fullName}
+                  lienCloudDossier={dossier?.lienCloudDossier}
+                  racineCloud={racineCloud}
+                  variant="compact"
+                />
               {isOwner && m.role !== 'owner' && m.id !== user?.id && (
                 <button
                   type="button"

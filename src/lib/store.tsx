@@ -277,6 +277,8 @@ type Store = {
   setPersonnelRhAcces: (userId: string, granted: boolean) => void
   /** Gérant : portable pro du technicien (affiché dans Équipe). */
   setPersonnelTelephone: (userId: string, userName: string, telephone: string) => void
+  /** Gérant (ou le tech lui-même) : lien Drive / OneDrive de SON dossier photos pièces. */
+  setPersonnelLienCloud: (userId: string, userName: string, url: string) => void
   /** Gérant : retire le tech de l’équipe (départ) — plus listé. */
   retirePersonnel: (userId: string) => void
   /** Identités + dossiers des collègues : gérant ou personnel autorisé. */
@@ -2112,6 +2114,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           d.telephone !== undefined
             ? d.telephone.trim() || undefined
             : existing?.telephone,
+        lienCloudDossier:
+          d.lienCloudDossier !== undefined
+            ? d.lienCloudDossier.trim() || undefined
+            : existing?.lienCloudDossier,
         toucheFroid: d.toucheFroid,
         toucheElectricite: d.toucheElectricite,
         conduitVehicule: d.conduitVehicule,
@@ -2261,6 +2267,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const setPersonnelLienCloud = useCallback((userId: string, userName: string, url: string) => {
+    const actor = rhActorRef.current
+    if (!actor) return
+    const id = String(userId || '').trim()
+    if (!id) return
+    if (!actor.isOwner && actor.userId !== id) return
+    const prev = dataRef.current
+    const list = migratePersonnelDossiers(prev.personnelDossiers)
+    const existing = list.find((x) => x.userId === id)
+    const now = new Date().toISOString()
+    const nextDossier: PersonnelDossier = {
+      ...(existing || defaultPersonnelDossier(id, userName || 'Technicien', now)),
+      id: existing?.id || id,
+      userId: id,
+      userName: (userName || existing?.userName || 'Technicien').trim(),
+      lienCloudDossier: url.trim() || undefined,
+      updatedAt: now,
+    }
+    const nextList = existing
+      ? list.map((x) => (x.userId === id ? nextDossier : x))
+      : [...list, nextDossier]
+    setData({
+      ...prev,
+      personnelDossiers: migratePersonnelDossiers(nextList),
+    })
+  }, [])
+
   const retirePersonnel = useCallback((userId: string) => {
     const actor = rhActorRef.current
     if (!actor?.isOwner) return
@@ -2349,6 +2382,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deletePersonnelDocument,
       setPersonnelRhAcces,
       setPersonnelTelephone,
+      setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
       resetDemo,
@@ -2410,6 +2444,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deletePersonnelDocument,
       setPersonnelRhAcces,
       setPersonnelTelephone,
+      setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRhFlag,
       resetDemo,

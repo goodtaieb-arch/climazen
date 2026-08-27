@@ -9,6 +9,7 @@ import { DetecteursParc } from '../components/DetecteursParc'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_HINT, validatePasswordStrength } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
+import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import {
   defaultPersonnelDossier,
   dossierForUser,
@@ -137,6 +138,29 @@ export function ProfilPage() {
           </div>
         </Link>
       )}
+
+      {user ? (
+        <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5">
+          <div className="font-display text-base font-semibold text-ink">Photos de pièces</div>
+          <p className="mt-1 text-sm text-muted">
+            Ouvre votre dossier cloud (Drive / OneDrive) pour y déposer CNI, permis, F-Gas… Les
+            scans ne restent pas dans ClimaZEN.
+          </p>
+          <div className="mt-3">
+            <DossierCloudTechButton
+              techName={user.fullName || 'Technicien'}
+              lienCloudDossier={ownDossier?.lienCloudDossier}
+              racineCloud={data.operateur.lienCloudRhRacine}
+              label="Ouvrir mon dossier cloud"
+            />
+            {!ownDossier?.lienCloudDossier && !data.operateur.lienCloudRhRacine ? (
+              <p className="mt-2 text-sm text-muted">
+                Le gérant colle le lien dans Équipe (sous votre nom) ou dans Mon entreprise.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {!isOwner && (
         <div className="rounded-2xl border border-line bg-white p-5 text-sm text-muted">
