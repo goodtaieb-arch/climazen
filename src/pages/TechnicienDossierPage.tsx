@@ -103,6 +103,23 @@ export function TechnicienDossierPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored?.id, stored?.updatedAt, displayName])
 
+  useEffect(() => {
+    if (!formOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFormOpen(false)
+        setForm(blankDoc())
+      }
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [formOpen])
+
   const alerts = useMemo(
     () => alertesPourDossier({ ...dossier, userName: displayName }),
     [dossier, displayName],
@@ -298,7 +315,7 @@ export function TechnicienDossierPage() {
           <button
             type="button"
             onClick={() => openNew()}
-            className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white"
           >
             <Plus className="h-4 w-4" /> Ajouter un document
           </button>
@@ -440,126 +457,143 @@ export function TechnicienDossierPage() {
       </p>
 
       {formOpen && (
-        <form
-          onSubmit={onSaveDoc}
-          className="grid gap-3 rounded-2xl border border-accent/40 bg-white p-5 sm:grid-cols-2"
+        <div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/45 p-3 pb-20 sm:items-center sm:pb-3"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rh-doc-form-title"
+          onClick={() => {
+            setFormOpen(false)
+            setForm(blankDoc())
+          }}
         >
-          <h2 className="font-display text-lg font-semibold sm:col-span-2">
-            {form.id ? 'Modifier le document' : 'Nouveau document'}
-          </h2>
-          <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block font-semibold text-ink">Type *</span>
-            <select
-              required
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TypeDocumentRh }))}
-              className="h-12 w-full rounded-xl border border-line px-3"
-            >
-              {TYPES_DOCUMENT_RH.map((t) => (
-                <option key={t.type} value={t.type}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs text-muted">{catalogDocumentRh(form.type).hint}</span>
-          </label>
-          <Field
-            label="Précision (cat. I, BR, CACES…)"
-            value={form.libelle}
-            onChange={(v) => setForm((f) => ({ ...f, libelle: v }))}
-          />
-          <Field
-            label="N° / référence"
-            value={form.numero}
-            onChange={(v) => setForm((f) => ({ ...f, numero: v }))}
-          />
-          <Field
-            label="Date d’obtention"
-            type="date"
-            value={form.dateObtention}
-            onChange={(v) => setForm((f) => ({ ...f, dateObtention: v }))}
-          />
-          <div>
-            <Field
-              label="Date limite / expiration"
-              type="date"
-              value={form.dateExpiration}
-              onChange={(v) => setForm((f) => ({ ...f, dateExpiration: v }))}
-            />
-            {catalogDocumentRh(form.type).dureeIndicativeAns && form.dateObtention ? (
-              <button
-                type="button"
-                onClick={proposerExpiration}
-                className="mt-1 text-xs font-semibold text-accent hover:underline"
-              >
-                Proposer +{catalogDocumentRh(form.type).dureeIndicativeAns} ans
-              </button>
-            ) : (
-              <p className="mt-1 text-xs text-muted">
-                L’alerte se déclenche 45 jours avant cette date, puis le jour J.
-              </p>
-            )}
-          </div>
-          <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block font-semibold text-ink">Photo / scan</span>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              disabled={fileBusy}
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                e.target.value = ''
-                if (!file) return
-                setFileError('')
-                setFileBusy(true)
-                void fileToDocumentScanDataUrl(file)
-                  .then(({ dataUrl, nom }) => {
-                    setForm((f) => ({ ...f, fichierDataUrl: dataUrl, fichierNom: nom }))
-                  })
-                  .catch((err) => setFileError(err instanceof Error ? err.message : 'Import impossible'))
-                  .finally(() => setFileBusy(false))
-              }}
-              className="block w-full text-sm"
-            />
-            {form.fichierDataUrl?.startsWith('data:image/') ? (
-              <img
-                src={form.fichierDataUrl}
-                alt=""
-                className="mt-2 h-20 rounded-lg border border-line object-cover"
+          <form
+            onSubmit={onSaveDoc}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[min(88dvh,40rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-white p-5 shadow-xl"
+          >
+            <h2 id="rh-doc-form-title" className="font-display text-lg font-semibold">
+              {form.id ? 'Modifier le document' : 'Nouveau document'}
+            </h2>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-semibold text-ink">Type *</span>
+                <select
+                  required
+                  autoFocus
+                  value={form.type}
+                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TypeDocumentRh }))}
+                  className="h-12 w-full rounded-xl border border-line px-3"
+                >
+                  {TYPES_DOCUMENT_RH.map((t) => (
+                    <option key={t.type} value={t.type}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs text-muted">{catalogDocumentRh(form.type).hint}</span>
+              </label>
+              <Field
+                label="Précision (cat. I, BR, CACES…)"
+                value={form.libelle}
+                onChange={(v) => setForm((f) => ({ ...f, libelle: v }))}
               />
-            ) : form.fichierNom ? (
-              <p className="mt-1 text-xs text-muted">{form.fichierNom}</p>
-            ) : null}
-            {fileError ? <p className="mt-1 text-xs text-danger">{fileError}</p> : null}
-          </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block font-semibold text-ink">Notes</span>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              rows={2}
-              className="w-full rounded-xl border border-line px-3 py-2"
-            />
-          </label>
-          <div className="flex flex-wrap gap-2 sm:col-span-2">
-            <button
-              type="submit"
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
-            >
-              Enregistrer
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFormOpen(false)
-                setForm(blankDoc())
-              }}
-              className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-muted"
-            >
-              Annuler
-            </button>
-          </div>
-        </form>
+              <Field
+                label="N° / référence"
+                value={form.numero}
+                onChange={(v) => setForm((f) => ({ ...f, numero: v }))}
+              />
+              <Field
+                label="Date d’obtention"
+                type="date"
+                value={form.dateObtention}
+                onChange={(v) => setForm((f) => ({ ...f, dateObtention: v }))}
+              />
+              <div>
+                <Field
+                  label="Date limite / expiration"
+                  type="date"
+                  value={form.dateExpiration}
+                  onChange={(v) => setForm((f) => ({ ...f, dateExpiration: v }))}
+                />
+                {catalogDocumentRh(form.type).dureeIndicativeAns && form.dateObtention ? (
+                  <button
+                    type="button"
+                    onClick={proposerExpiration}
+                    className="mt-1 text-xs font-semibold text-accent hover:underline"
+                  >
+                    Proposer +{catalogDocumentRh(form.type).dureeIndicativeAns} ans
+                  </button>
+                ) : (
+                  <p className="mt-1 text-xs text-muted">
+                    L’alerte se déclenche 45 jours avant cette date, puis le jour J.
+                  </p>
+                )}
+              </div>
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-semibold text-ink">Photo / scan</span>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  disabled={fileBusy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    setFileError('')
+                    setFileBusy(true)
+                    void fileToDocumentScanDataUrl(file)
+                      .then(({ dataUrl, nom }) => {
+                        setForm((f) => ({ ...f, fichierDataUrl: dataUrl, fichierNom: nom }))
+                      })
+                      .catch((err) =>
+                        setFileError(err instanceof Error ? err.message : 'Import impossible'),
+                      )
+                      .finally(() => setFileBusy(false))
+                  }}
+                  className="block w-full text-sm"
+                />
+                {form.fichierDataUrl?.startsWith('data:image/') ? (
+                  <img
+                    src={form.fichierDataUrl}
+                    alt=""
+                    className="mt-2 h-20 rounded-lg border border-line object-cover"
+                  />
+                ) : form.fichierNom ? (
+                  <p className="mt-1 text-xs text-muted">{form.fichierNom}</p>
+                ) : null}
+                {fileError ? <p className="mt-1 text-xs text-danger">{fileError}</p> : null}
+              </label>
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-semibold text-ink">Notes</span>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  className="w-full rounded-xl border border-line px-3 py-2"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <button
+                  type="submit"
+                  className="min-h-12 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
+                >
+                  Enregistrer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormOpen(false)
+                    setForm(blankDoc())
+                  }}
+                  className="min-h-12 rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-muted"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
       <ConfirmDialog
