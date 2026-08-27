@@ -51,8 +51,9 @@ export function DetecteursParc({ team: teamProp }: Props) {
   }, [isOwner, listTeam, teamProp, user?.organizationId])
 
   const team = useMemo(() => {
+    const retired = new Set(data.personnelRetiresUserIds || [])
     const base = (teamProp && teamProp.length > 0 ? teamProp : teamLocal).filter(
-      (m) => m.active !== false,
+      (m) => m.active !== false && !retired.has(m.id),
     )
     // Toujours pouvoir s’affecter soi-même (même si listTeam échoue)
     if (user && !base.some((m) => m.id === user.id)) {
@@ -71,7 +72,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
       ]
     }
     return base
-  }, [teamProp, teamLocal, user])
+  }, [teamProp, teamLocal, user, data.personnelRetiresUserIds])
 
   /** Une seule personne = tout est au nom du gérant, pas besoin d’Équipe. */
   const isSolo = team.length <= 1

@@ -1,13 +1,66 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { FolderOpen, KeyRound, ShieldCheck, UserPlus, UserX, UserCheck } from 'lucide-react'
+import { FolderOpen, KeyRound, Phone, ShieldCheck, Trash2, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
 import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStore } from '../lib/store'
-import { dossierForUser, resumeAlertesDossier, resumeAlertesTexte, defaultPersonnelDossier } from '../lib/rhDocuments'
+import {
+  dossierForUser,
+  resumeAlertesDossier,
+  resumeAlertesTexte,
+  defaultPersonnelDossier,
+  normalizePersonnelRetiresUserIds,
+} from '../lib/rhDocuments'
+import { telHref } from '../lib/agenda'
+
+function MemberPhoneField({
+  value,
+  canEdit,
+  onSave,
+}: {
+  value?: string
+  canEdit: boolean
+  onSave: (next: string) => void
+}) {
+  const [draft, setDraft] = useState(value || '')
+  useEffect(() => {
+    setDraft(value || '')
+  }, [value])
+  const href = telHref(draft)
+
+  if (!canEdit) {
+    if (!draft.trim()) return null
+    return href ? (
+      <a href={href} className="text-sm font-semibold text-accent hover:underline">
+        {draft}
+      </a>
+    ) : (
+      <span className="text-sm font-semibold text-ink">{draft}</span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Phone className="h-3.5 w-3.5 text-muted" />
+      <input
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        placeholder="06 12 34 56 78"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft.trim() !== (value || '').trim()) onSave(draft)
+        }}
+        className="h-8 w-36 rounded-lg border border-line bg-white px-2 text-sm font-semibold text-ink"
+      />
+    </span>
+  )
+}
 
 export function EquipePage() {
   const {
@@ -16,28 +69,37 @@ export function EquipePage() {
     isOwner,
     createOperator,
     setOperatorActive,
+    removeOperator,
     resetOperatorPassword,
     listTeam,
   } = useAuth()
-  const { data, setPersonnelRhAcces, peutVoirIdentitesRh } = useStore()
+  const { data, setPersonnelRhAcces, setPersonnelTelephone, retirePersonnel, peutVoirIdentitesRh } =
+    useStore()
   const detecteurs = data.detecteurs || []
   const detectorFor = (userId: string) =>
     detecteurs.find((d) => d.assigneeUserId === userId)
+  const retiredIds = new Set(normalizePersonnelRetiresUserIds(data.personnelRetiresUserIds))
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [telephone, setTelephone] = useState('')
   const [password, setPassword] = useState(() => generateTempPassword())
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [busy, setBusy] = useState(false)
   const [members, setMembers] = useState<UserAccount[]>([])
+  const [pendingDelete, setPendingDelete] = useState<UserAccount | null>(null)
   const [createdCodes, setCreatedCodes] = useState<{
     email: string
     password: string
   } | null>(null)
 
   const refresh = async () => {
-    const team = await listTeam()
-    setMembers(team)
+    try {
+      const team = await listTeam()
+      setMembers(team)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de charger l’équipe')
+    }
   }
 
   useEffect(() => {
@@ -48,6 +110,8 @@ export function EquipePage() {
 
   if (!isOwner && !peutVoirIdentitesRh) return <Navigate to="/app" replace />
 
+  const visibleMembers = members.filter((m) => !retiredIds.has(m.id))
+
   const onCreate = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
@@ -56,12 +120,17 @@ export function EquipePage() {
     setBusy(true)
     try {
       const { user: op } = await createOperator({ fullName, email, password })
+      if (telephone.trim()) {
+        setPersonnelTelephone(op.id, op.fullName || fullName, telephone)
+      }
       setCreatedCodes({ email: op.email, password })
       setOk(`Opérateur créé — connexion avec l’e-mail ${op.email}.`)
       setFullName('')
       setEmail('')
+      setTelephone('')
       setPassword(generateTempPassword())
       await refresh()
+      setMembers((prev) => (prev.some((m) => m.id === op.id) ? prev : [...prev, op]))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     } finally {
@@ -83,6 +152,23 @@ export function EquipePage() {
       setOk(`Lien de réinitialisation envoyé à ${sentTo}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
+    }
+  }
+
+  const onConfirmDelete = async () => {
+    const m = pendingDelete
+    if (!m) return
+    setError('')
+    setOk('')
+    try {
+      await removeOperator(m.id)
+      retirePersonnel(m.id)
+      setPendingDelete(null)
+      setOk(`${m.fullName} a été retiré de l’équipe.`)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Suppression impossible')
+      setPendingDelete(null)
     }
   }
 
@@ -121,7 +207,8 @@ export function EquipePage() {
             dans le <strong>coffre société</strong> (visible par le gérant).
           </li>
           <li>
-            Un salarié qui part : bouton <strong>Désactiver</strong> — il ne peut plus se connecter.
+            Un salarié qui part : bouton <strong>Supprimer</strong> — il disparaît de l’équipe et
+            ne peut plus se connecter. <strong>Désactiver</strong> = pause temporaire (toujours visible).
           </li>
           <li>
             Chaque fiche a un <strong>dossier documents</strong> (dates limites + alertes). Les
@@ -200,6 +287,18 @@ export function EquipePage() {
             className="h-11 w-full rounded-xl border border-line px-3"
           />
         </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-semibold text-ink">Téléphone (portable)</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={telephone}
+            onChange={(e) => setTelephone(e.target.value)}
+            placeholder="06 12 34 56 78"
+            className="h-11 w-full rounded-xl border border-line px-3"
+          />
+        </label>
         <PasswordField
           label="Mot de passe temporaire *"
           required
@@ -220,12 +319,15 @@ export function EquipePage() {
       </form>
       )}
 
+      {!isOwner && error && <p className="text-sm text-danger">{error}</p>}
+      {!isOwner && ok && <p className="text-sm text-accent">{ok}</p>}
+
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         <div className="border-b border-line px-4 py-3 font-display font-semibold">
-          Membres ({members.length})
+          Membres ({visibleMembers.length})
         </div>
         <ul className="divide-y divide-line">
-          {members.map((m) => {
+          {visibleMembers.map((m) => {
             const dossier = dossierForUser(data.personnelDossiers, m.id)
             const effective = dossier || {
               id: '',
@@ -235,9 +337,14 @@ export function EquipePage() {
             const hasRhAcces = (data.personnelRhAccesUserIds || []).includes(m.id)
             return (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <div>
-                <div className="font-medium">
-                  {m.fullName}{' '}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-medium">
+                  <span>{m.fullName}</span>
+                  <MemberPhoneField
+                    value={dossier?.telephone}
+                    canEdit={isOwner}
+                    onSave={(next) => setPersonnelTelephone(m.id, m.fullName, next)}
+                  />
                   <span className="text-xs font-normal text-muted">{m.email || m.username}</span>
                 </div>
                 <div className="text-xs text-muted">
@@ -315,6 +422,13 @@ export function EquipePage() {
                       </>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete(m)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                  </button>
                 </>
               )}
               </div>
@@ -323,6 +437,15 @@ export function EquipePage() {
           })}
         </ul>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={`Retirer ${pendingDelete?.fullName || 'ce technicien'} de l’équipe ?`}
+        message="Il disparaît de la liste, ne pourra plus se connecter, et ne sera plus proposé pour les OT / détecteurs. Les CERFA déjà faits restent. L’e-mail reste réservé (vous ne pourrez pas recréer le même compte)."
+        confirmLabel="Supprimer de l’équipe"
+        onConfirm={() => void onConfirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

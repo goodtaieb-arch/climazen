@@ -299,6 +299,8 @@ export async function createOperatorAccount(opts: {
 }
 
 export async function listOrgUsers(organizationId: string): Promise<UserAccount[]> {
+  const orgId = String(organizationId || '').trim()
+  if (!orgId) return []
   const sb = getSupabase()
   // Pas de signature_image : personnelle, invisible pour l’admin / collègues
   const { data, error } = await sb
@@ -306,8 +308,7 @@ export async function listOrgUsers(organizationId: string): Promise<UserAccount[
     .select(
       'id, organization_id, email, full_name, role, active, signataire_nom, signataire_qualite, created_at',
     )
-    .eq('organization_id', organizationId)
-    .order('role', { ascending: true })
+    .eq('organization_id', orgId)
   if (error) throw new Error(error.message)
   return (data || [])
     .map((row) =>
@@ -317,7 +318,7 @@ export async function listOrgUsers(organizationId: string): Promise<UserAccount[
       }),
     )
     .sort((a, b) => {
-      if (a.role === b.role) return a.fullName.localeCompare(b.fullName)
+      if (a.role === b.role) return a.fullName.localeCompare(b.fullName, 'fr')
       return a.role === 'owner' ? -1 : 1
     })
 }
@@ -335,6 +336,13 @@ export async function setUserActive(userId: string, active: boolean, byOwner: Us
     .single()
   if (error) throw new Error(error.message || 'Opérateur introuvable.')
   return mapProfile(data)
+}
+
+/** Gérant : retire un opérateur (plus de connexion). Le compte Auth reste, l’e-mail est réservé. */
+export async function removeOperatorAccount(userId: string, byOwner: UserAccount) {
+  if (byOwner.role !== 'owner') throw new Error('Action réservée au compte officiel.')
+  if (userId === byOwner.id) throw new Error('Impossible de supprimer votre propre compte.')
+  return setUserActive(userId, false, byOwner)
 }
 
 export async function updateUserProfile(
@@ -494,6 +502,7 @@ export async function saveOrgDataRemote(
       ...data,
       personnelDossiers: protectedRh.personnelDossiers,
       personnelRhAccesUserIds: protectedRh.personnelRhAccesUserIds,
+      personnelRetiresUserIds: protectedRh.personnelRetiresUserIds,
     }
   }
   const light = stripHeavy(toSave)
@@ -827,9 +836,18 @@ export function resolveRemoteVsLocal(
         personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(
           local.personnelRhAccesUserIds ?? remote.personnelRhAccesUserIds,
         ),
+        personnelRetiresUserIds: mergeIdLists(
+          remote.personnelRetiresUserIds,
+          local.personnelRetiresUserIds,
+        ),
       }
   const personnelDossiers = protectedRh.personnelDossiers
   const personnelRhAccesUserIds = protectedRh.personnelRhAccesUserIds
+  const personnelRetiresUserIds = mergeIdLists(
+    remote.personnelRetiresUserIds,
+    local.personnelRetiresUserIds,
+    protectedRh.personnelRetiresUserIds,
+  )
   let stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
   const deletedEntityIds = pruneTombstones(
@@ -882,6 +900,7 @@ export function resolveRemoteVsLocal(
     agendaEvents,
     personnelDossiers,
     personnelRhAccesUserIds,
+    personnelRetiresUserIds,
     deletedEntityIds,
   }
 

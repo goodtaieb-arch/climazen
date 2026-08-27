@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Users } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
+import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
 
 type Props = {
@@ -23,13 +24,16 @@ export function TechnicienAssignField({
   className = '',
 }: Props) {
   const { listTeam, user, organization } = useAuth()
+  const { data } = useStore()
   const [team, setTeam] = useState<UserAccount[]>([])
+  const retiredIds = data.personnelRetiresUserIds
 
   useEffect(() => {
     let cancelled = false
+    const retired = new Set(retiredIds || [])
     void listTeam().then((members) => {
       if (cancelled) return
-      const active = members.filter((m) => m.active !== false)
+      const active = members.filter((m) => m.active !== false && !retired.has(m.id))
       // Toujours inclure le compte connecté (patron) s’il n’est pas dans la liste
       if (user && !active.some((m) => m.id === user.id)) {
         active.unshift({
@@ -43,7 +47,7 @@ export function TechnicienAssignField({
     return () => {
       cancelled = true
     }
-  }, [listTeam, user, organization?.id])
+  }, [listTeam, user, organization?.id, retiredIds])
 
   const selectValue = technicienUserId || ''
 
