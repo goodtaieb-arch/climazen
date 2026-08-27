@@ -53,6 +53,7 @@ import { buildAutoAgendaEvents } from './agenda'
 import {
   defaultPersonnelDossier,
   migratePersonnelDossiers,
+  sanitizeDocumentRh,
   typesAMasquer,
   type DocumentRh,
   type PersonnelDossier,
@@ -2101,7 +2102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const dossierId = existing?.id || uuid()
       const docId = doc.id || uuid()
       const prevDoc = existing?.documents.find((x) => x.id === docId)
-      const nextDoc: DocumentRh = {
+      const nextDoc: DocumentRh = sanitizeDocumentRh({
         id: docId,
         type: doc.type,
         libelle: doc.libelle?.trim() || undefined,
@@ -2110,10 +2111,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         dateExpiration: doc.dateExpiration?.trim() || undefined,
         fichierNom: doc.fichierNom?.trim() || undefined,
         fichierDataUrl: doc.fichierDataUrl || undefined,
+        scanConfirme: Boolean(doc.fichierDataUrl || doc.fichierNom || prevDoc?.scanConfirme),
         notes: doc.notes?.trim() || undefined,
         createdAt: prevDoc?.createdAt || now,
         updatedAt: now,
-      }
+      })
       const documents = prevDoc
         ? (existing?.documents || []).map((x) => (x.id === docId ? nextDoc : x))
         : [...(existing?.documents || []), nextDoc]

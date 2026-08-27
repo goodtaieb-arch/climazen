@@ -120,8 +120,8 @@ export function EquipePage() {
             Un salarié qui part : bouton <strong>Désactiver</strong> — il ne peut plus se connecter.
           </li>
           <li>
-            Chaque fiche a un <strong>dossier documents</strong> (CNI, permis, carte Vitale, aptitude
-            froid, habilitation électrique…) avec date limite et alerte d’expiration.
+            Chaque fiche a un <strong>dossier documents</strong> (dates limites + alertes). Les
+            scans d’identité ne sont pas stockés — seulement le type et la date d’expiration.
           </li>
         </ul>
       </div>

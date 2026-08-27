@@ -186,8 +186,10 @@ export interface DocumentRh {
   /** YYYY-MM-DD — vide = pas de date limite connue */
   dateExpiration?: string
   fichierNom?: string
-  /** Photo / scan compressé (data URL) */
+  /** Photo / scan — jamais persisté (protection identités). Aperçu formulaire seulement. */
   fichierDataUrl?: string
+  /** Une copie papier / photo a été vue, sans être stockée. */
+  scanConfirme?: boolean
   notes?: string
   createdAt: string
   updatedAt: string
@@ -226,6 +228,33 @@ export function defaultPersonnelDossier(
   }
 }
 
+export function maskNumeroRh(numero?: string): string | undefined {
+  const raw = (numero || '').trim()
+  if (!raw) return undefined
+  if (/^[…*]/.test(raw)) return raw
+  const compact = raw.replace(/\s+/g, '')
+  const tail = compact.slice(-4)
+  return `…${tail}`
+}
+
+export function sanitizeDocumentRh(doc: DocumentRh): DocumentRh {
+  const hadFile = Boolean(doc.fichierDataUrl || doc.fichierNom || doc.scanConfirme)
+  return {
+    ...doc,
+    numero: maskNumeroRh(doc.numero),
+    fichierDataUrl: undefined,
+    fichierNom: undefined,
+    scanConfirme: hadFile || undefined,
+  }
+}
+
+export function sanitizePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDossier[] {
+  return migratePersonnelDossiers(list).map((d) => ({
+    ...d,
+    documents: (d.documents || []).map(sanitizeDocumentRh),
+  }))
+}
+
 export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDossier[] {
   const byUser = new Map<string, PersonnelDossier>()
   for (const raw of list || []) {
@@ -233,7 +262,9 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
     const userId = String(raw.userId || '').trim()
     if (!userId) continue
     const documents = Array.isArray(raw.documents)
-      ? raw.documents.filter((d): d is DocumentRh => Boolean(d && d.id && d.type))
+      ? raw.documents
+          .filter((d): d is DocumentRh => Boolean(d && d.id && d.type))
+          .map(sanitizeDocumentRh)
       : []
     const next: PersonnelDossier = {
       id: raw.id || userId,

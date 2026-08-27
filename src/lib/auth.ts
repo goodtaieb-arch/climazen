@@ -12,6 +12,7 @@ import {
 import { purgeOrphanCerfaStock } from './stockMouvements'
 import { getSupabase } from './supabase'
 import { validatePasswordStrength } from './passwordPolicy'
+import { sanitizePersonnelDossiers } from './rhDocuments'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -496,6 +497,7 @@ function stripHeavy(data: AppData): AppData {
   return {
     ...data,
     operateur: opRest,
+    personnelDossiers: sanitizePersonnelDossiers(data.personnelDossiers),
     interventions: data.interventions.map((rest) => {
       const { cerfaPdfBase64: _drop, ...clean } = rest as typeof rest & { cerfaPdfBase64?: string }
       return clean

@@ -226,10 +226,21 @@ export function TechnicienDossierPage() {
           </Link>
           <h1 className="font-display text-3xl font-bold tracking-tight">Dossier {displayName}</h1>
           <p className="mt-1 text-sm text-muted">
-            {member?.email || (userId === user.id ? user.email : '')} — pièces d’identité, permis,
-            aptitude froid, habilitation électrique, avec date limite et alerte.
+            {member?.email || (userId === user.id ? user.email : '')} — dates limites et alertes
+            d’expiration. Les scans d’identité ne sont pas enregistrés.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-line bg-mist/60 p-4 text-sm text-slate">
+        <div className="font-display font-semibold text-ink">Protection des identités</div>
+        <p className="mt-1">
+          En cas de piratage du coffre, on ne doit pas retrouver les CNI / cartes Vitale en photo.
+          ClimaZEN enregistre seulement le <strong>type</strong> et la <strong>date limite</strong>
+          (pour l’alerte). Le numéro est masqué (4 derniers caractères). La photo sert à relire la
+          date, puis elle est <strong>jetée</strong> — pas de copie dans le cloud ni sur le
+          téléphone.
+        </p>
       </div>
 
       {resume.total > 0 && (
@@ -456,31 +467,13 @@ export function TechnicienDossierPage() {
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted">
-                      {doc.numero ? `n° ${doc.numero} · ` : ''}
+                      {doc.numero ? `réf. ${doc.numero} · ` : ''}
                       {doc.dateObtention ? `obtenu ${formatDateFr(doc.dateObtention)} · ` : ''}
                       {doc.dateExpiration
                         ? `limite ${formatDateFr(doc.dateExpiration)}`
                         : 'pas de date limite'}
+                      {doc.scanConfirme ? ' · scan vu (non stocké)' : ''}
                     </p>
-                    {doc.fichierDataUrl ? (
-                      doc.fichierDataUrl.startsWith('data:image/') ? (
-                        <a href={doc.fichierDataUrl} target="_blank" rel="noreferrer">
-                          <img
-                            src={doc.fichierDataUrl}
-                            alt={doc.fichierNom || 'scan'}
-                            className="mt-2 h-16 rounded-lg border border-line object-cover"
-                          />
-                        </a>
-                      ) : (
-                        <a
-                          href={doc.fichierDataUrl}
-                          download={doc.fichierNom || 'document.pdf'}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent"
-                        >
-                          <FileText className="h-3.5 w-3.5" /> {doc.fichierNom || 'Fichier'}
-                        </a>
-                      )
-                    ) : null}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -554,7 +547,7 @@ export function TechnicienDossierPage() {
                 onChange={(v) => setForm((f) => ({ ...f, libelle: v }))}
               />
               <Field
-                label="N° / référence"
+                label="N° / référence (4 derniers caractères)"
                 value={form.numero}
                 onChange={(v) => setForm((f) => ({ ...f, numero: v }))}
               />
@@ -628,7 +621,8 @@ export function TechnicienDossierPage() {
                   )}
                 </button>
                 <p className="mt-1.5 text-xs text-muted">
-                  Appareil photo ou fichier (JPG, PNG, PDF léger).
+                  Aperçu pour relire la date — la photo n’est pas enregistrée (protection des
+                  identités).
                 </p>
                 {form.fichierDataUrl?.startsWith('data:image/') ? (
                   <img

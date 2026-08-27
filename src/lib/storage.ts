@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import type { AppData, Operateur } from './types'
 import { migrateAppData } from './migrate'
+import { sanitizePersonnelDossiers } from './rhDocuments'
 
 export const defaultOperateur = (): Operateur => ({
   id: uuid(),
@@ -102,6 +103,7 @@ export function saveData(data: AppData, organizationId?: string | null) {
     const key = dataKeyForOrg(organizationId)
     const light: AppData = {
       ...data,
+      personnelDossiers: sanitizePersonnelDossiers(data.personnelDossiers),
       interventions: data.interventions.map((rest) => {
         const { cerfaPdfBase64: _drop, ...clean } = rest as typeof rest & { cerfaPdfBase64?: string }
         return clean
