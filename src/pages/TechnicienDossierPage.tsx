@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, ExternalLink, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Camera, Copy, ExternalLink, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
@@ -11,14 +11,18 @@ import {
   addYearsIso,
   alertesPourDossier,
   catalogDocumentRh,
+  cloudRhAccepteCheminImbrique,
   defaultPersonnelDossier,
   dossierForUser,
   estDocumentRhAdminSeulement,
   fileToDocumentScanDataUrl,
+  formatCheminCloudRh,
   formatDateFr,
   labelStatutDocumentRh,
+  lienDossierCloudRh,
   normalizeLienCloudRh,
   resumeAlertesDossier,
+  segmentsDossierCloudRh,
   statutDocumentRh,
   TYPES_DOCUMENT_RH,
   typesAMasquer,
@@ -63,7 +67,7 @@ function statutClass(statut: StatutDocumentRh) {
 
 export function TechnicienDossierPage() {
   const { userId } = useParams()
-  const { user, listTeam } = useAuth()
+  const { user, isOwner, listTeam } = useAuth()
   const { data, upsertPersonnelDossier, upsertPersonnelDocument, deletePersonnelDocument, peutVoirIdentitesRh } =
     useStore()
   const [member, setMember] = useState<UserAccount | null>(null)
@@ -72,6 +76,7 @@ export function TechnicienDossierPage() {
   const [fileError, setFileError] = useState('')
   const [fileBusy, setFileBusy] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<DocumentRh | null>(null)
+  const [cheminCopie, setCheminCopie] = useState(false)
   const scanInputRef = useRef<HTMLInputElement>(null)
 
   const canSeeIdentite = peutVoirIdentitesRh
@@ -144,6 +149,21 @@ export function TechnicienDossierPage() {
   if (!canAccess) return <Navigate to="/app" replace />
 
   const defaultDocType: TypeDocumentRh = canSeeIdentite ? 'cni' : 'attestation_aptitude_froid'
+  const racineCloud = data.operateur.lienCloudRhRacine
+  const segsTech = segmentsDossierCloudRh({ techName: displayName })
+  const cheminTech = formatCheminCloudRh(segsTech)
+  const hrefDossierTech = lienDossierCloudRh(racineCloud, segsTech)
+  const cloudImbrique = cloudRhAccepteCheminImbrique(racineCloud)
+  const segsPiece = segmentsDossierCloudRh({ techName: displayName, type: form.type })
+  const cheminPiece = formatCheminCloudRh(segsPiece)
+  const hrefDossierPiece = lienDossierCloudRh(racineCloud, segsPiece)
+
+  const copierChemin = (chemin: string) => {
+    void navigator.clipboard?.writeText(chemin).then(() => {
+      setCheminCopie(true)
+      window.setTimeout(() => setCheminCopie(false), 1600)
+    })
+  }
 
   const persistDossier = (patch?: { typesMasques?: TypeDocumentRh[] }) => {
     upsertPersonnelDossier({
@@ -270,6 +290,51 @@ export function TechnicienDossierPage() {
           <p className="mt-1">
             Ici : aptitude fluides, habilitation électrique, CACES… Les pièces d’identité sont
             gérées par l’administration. Les scans ne sont pas enregistrés.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-line bg-white p-4 text-sm">
+        <div className="font-display font-semibold text-ink">Dossier cloud</div>
+        {racineCloud ? (
+          <>
+            <p className="mt-1 font-medium text-ink">{cheminTech}</p>
+            <p className="mt-1 text-muted">
+              {cloudImbrique
+                ? 'SharePoint / OneDrive : l’app ouvre le sous-dossier du technicien.'
+                : 'Google Drive : ouvrez le dossier général, puis rangez dans ce chemin (l’app ne peut pas créer les sous-dossiers toute seule).'}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {hrefDossierTech ? (
+                <a
+                  href={hrefDossierTech}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Ouvrir le dossier
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => copierChemin(cheminTech)}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-semibold hover:bg-mist"
+              >
+                <Copy className="h-3.5 w-3.5" /> {cheminCopie ? 'Chemin copié' : 'Copier le chemin'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="mt-1 text-muted">
+            Un seul lien général, collé par le gérant dans{' '}
+            {isOwner ? (
+              <Link to="/app/operateur" className="font-semibold text-accent underline">
+                Mon entreprise
+              </Link>
+            ) : (
+              <strong>Mon entreprise</strong>
+            )}
+            . L’app classe ensuite : ClimaZEN → Dossiers techniciens → {displayName}.
           </p>
         )}
       </div>
@@ -516,6 +581,21 @@ export function TechnicienDossierPage() {
                         Ouvrir la pièce
                         {doc.lienCloudExpire ? ` · lien jusqu’au ${formatDateFr(doc.lienCloudExpire)}` : ''}
                       </a>
+                    ) : hrefDossierTech ? (
+                      <a
+                        href={
+                          lienDossierCloudRh(
+                            racineCloud,
+                            segmentsDossierCloudRh({ techName: displayName, type: doc.type }),
+                          ) || hrefDossierTech
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-semibold hover:bg-mist"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                        Dossier {formatCheminCloudRh(segmentsDossierCloudRh({ techName: displayName, type: doc.type }).slice(-1))}
+                      </a>
                     ) : null}
                   </div>
                   <div className="flex gap-2">
@@ -597,7 +677,25 @@ export function TechnicienDossierPage() {
                 onChange={(v) => setForm((f) => ({ ...f, numero: v }))}
               />
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold text-ink">Lien cloud (Drive, OneDrive…)</span>
+                <span className="mb-1 block font-semibold text-ink">Classement cloud</span>
+                <p className="rounded-xl bg-mist px-3 py-2 text-sm font-medium text-ink">{cheminPiece}</p>
+                <p className="mt-1 text-xs text-muted">
+                  Déposez le fichier dans ce sous-dossier. Lien fichier optionnel si vous voulez ouvrir
+                  directement la pièce.
+                </p>
+                {hrefDossierPiece ? (
+                  <a
+                    href={hrefDossierPiece}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Ouvrir ce dossier
+                  </a>
+                ) : null}
+              </label>
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-semibold text-ink">Lien fichier (optionnel)</span>
                 <input
                   type="url"
                   inputMode="url"
@@ -609,10 +707,6 @@ export function TechnicienDossierPage() {
                   }}
                   className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
                 />
-                <p className="mt-1 text-xs text-muted">
-                  Collez un lien de partage temporaire du fichier dans le cloud de la société. Le
-                  document reste chez vous — ClimaZEN ouvre directement la bonne pièce.
-                </p>
               </label>
               <Field
                 label="Lien valable jusqu’au (optionnel)"

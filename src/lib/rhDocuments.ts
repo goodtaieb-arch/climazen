@@ -247,6 +247,75 @@ export function maskNumeroRh(numero?: string): string | undefined {
   return `…${tail}`
 }
 
+export const LABEL_GROUPE_RH: Record<GroupeDocumentRh, string> = {
+  identite: 'Identité',
+  sante: 'Santé',
+  conduite: 'Conduite',
+  froid: 'Froid F-Gas',
+  elec: 'Électricité',
+  securite: 'Sécurité',
+  admin: 'Administratif',
+}
+
+export const CLOUD_RH_RACINE = 'ClimaZEN'
+export const CLOUD_RH_TECHNICIENS = 'Dossiers techniciens'
+
+export function nomDossierCloudSafe(raw: string): string {
+  return (raw || '')
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'Technicien'
+}
+
+export function labelGroupeRh(groupe: GroupeDocumentRh): string {
+  return LABEL_GROUPE_RH[groupe] || groupe
+}
+
+/** ClimaZEN → Dossiers techniciens → Tech 1 → Identité */
+export function segmentsDossierCloudRh(opts: {
+  techName: string
+  type?: TypeDocumentRh
+}): string[] {
+  const tech = nomDossierCloudSafe(opts.techName)
+  const segs = [CLOUD_RH_RACINE, CLOUD_RH_TECHNICIENS, tech]
+  if (opts.type) segs.push(labelGroupeRh(catalogDocumentRh(opts.type).groupe))
+  return segs
+}
+
+export function formatCheminCloudRh(segments: string[]): string {
+  return segments.join(' → ')
+}
+
+export function cloudRhAccepteCheminImbrique(raw?: string): boolean {
+  const href = normalizeLienCloudRh(raw)
+  if (!href) return false
+  try {
+    const u = new URL(href)
+    const host = u.hostname.toLowerCase()
+    if (host.includes('sharepoint.com') && !u.pathname.includes(':')) return true
+    if (host.includes('onedrive.live.com') && u.pathname.includes('/Documents')) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+/** SharePoint / OneDrive chemin : on peut ouvrir le sous-dossier. Drive : dossier général seulement. */
+export function lienDossierCloudRh(baseUrl: string | undefined, segments: string[]): string | undefined {
+  const base = normalizeLienCloudRh(baseUrl)
+  if (!base) return undefined
+  if (!cloudRhAccepteCheminImbrique(base)) return base
+  try {
+    const u = new URL(base)
+    const extra = segments.map((s) => encodeURIComponent(s).replace(/%20/g, '%20')).join('/')
+    u.pathname = `${u.pathname.replace(/\/+$/, '')}/${extra}`
+    return u.href
+  } catch {
+    return base
+  }
+}
+
 /** Lien https uniquement — Drive / OneDrive / SharePoint. Rejette javascript: et data:. */
 export function normalizeLienCloudRh(raw?: string): string | undefined {
   const s = (raw || '').trim()

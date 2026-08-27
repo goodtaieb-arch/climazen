@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import { FACTURATION_PLATEFORMES, type Operateur } from '../lib/types'
 import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
+import { normalizeLienCloudRh } from '../lib/rhDocuments'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
   if (operateur.raisonSociale?.trim() || !orgName?.trim()) return operateur
@@ -44,11 +45,17 @@ export function OperateurPage() {
   const onSubmitCompany = async (e: FormEvent) => {
     e.preventDefault()
     setFormError('')
+    const racine = (form.lienCloudRhRacine || '').trim()
+    if (racine && !normalizeLienCloudRh(racine)) {
+      setFormError('Lien cloud invalide — collez un lien https (Drive, OneDrive, SharePoint).')
+      return
+    }
     setSaving(true)
     try {
       await setOperateur({
         ...form,
         facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
+        lienCloudRhRacine: normalizeLienCloudRh(form.lienCloudRhRacine) || '',
       })
       setDirty(false)
       void refreshUser().catch(() => undefined)
@@ -132,6 +139,24 @@ export function OperateurPage() {
           onChange={(v) => patchForm({ telephone: v })}
         />
         <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
+
+        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+          <h2 className="font-display mb-1 text-base font-semibold">Dossier cloud RH</h2>
+          <p className="mb-3 text-sm text-muted">
+            Un seul lien : le dossier général de la société (Drive, OneDrive ou SharePoint). ClimaZEN
+            classe ensuite : <strong>ClimaZEN → Dossiers techniciens → nom du tech → catégorie</strong>
+            (Identité, Froid F-Gas, Électricité…).
+          </p>
+          <Field
+            label="Lien du dossier général"
+            value={form.lienCloudRhRacine || ''}
+            onChange={(v) => patchForm({ lienCloudRhRacine: v })}
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Créez une fois cette arborescence dans le cloud, puis rangez chaque pièce dans le bon
+            sous-dossier. Les scans ne sont pas stockés dans ClimaZEN.
+          </p>
+        </div>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">

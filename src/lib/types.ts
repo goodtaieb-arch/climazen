@@ -112,6 +112,11 @@ export interface Operateur {
   /** create_client | create_devis | create_facture */
   facturationActionDefaut?: FacturationAction
   /**
+   * Dossier cloud général de la société (Drive / OneDrive / SharePoint).
+   * ClimaZEN classe ensuite : ClimaZEN → Dossiers techniciens → Nom du tech → catégorie.
+   */
+  lienCloudRhRacine?: string
+  /**
    * Installations de destination habituelles (CERFA [13]) —
    * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.
    */

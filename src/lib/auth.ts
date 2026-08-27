@@ -646,6 +646,7 @@ export function mergeOperateurPreferFilled(
     facturationPlateforme: remote?.facturationPlateforme || local?.facturationPlateforme,
     facturationWebhookUrl: pickNonEmpty(remote?.facturationWebhookUrl, local?.facturationWebhookUrl),
     facturationActionDefaut: remote?.facturationActionDefaut || local?.facturationActionDefaut,
+    lienCloudRhRacine: pickNonEmpty(remote?.lienCloudRhRacine, local?.lienCloudRhRacine),
   }
 }
 
