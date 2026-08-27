@@ -36,8 +36,12 @@ export function EquipePage() {
   } | null>(null)
 
   const refresh = async () => {
-    const team = await listTeam()
-    setMembers(team)
+    try {
+      const team = await listTeam()
+      setMembers(team)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de charger l’équipe')
+    }
   }
 
   useEffect(() => {
@@ -62,6 +66,7 @@ export function EquipePage() {
       setEmail('')
       setPassword(generateTempPassword())
       await refresh()
+      setMembers((prev) => (prev.some((m) => m.id === op.id) ? prev : [...prev, op]))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     } finally {

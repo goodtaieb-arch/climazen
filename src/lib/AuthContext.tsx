@@ -272,8 +272,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const listTeam = useCallback(async () => {
     if (!user) return []
     void teamTick
-    return listOrgUsers(user.organizationId)
-  }, [user, teamTick])
+    const orgId = user.organizationId || organization?.id || ''
+    return listOrgUsers(orgId)
+  }, [user, organization?.id, teamTick])
 
   const value = useMemo(
     () => ({

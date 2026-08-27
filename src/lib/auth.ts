@@ -299,6 +299,8 @@ export async function createOperatorAccount(opts: {
 }
 
 export async function listOrgUsers(organizationId: string): Promise<UserAccount[]> {
+  const orgId = String(organizationId || '').trim()
+  if (!orgId) return []
   const sb = getSupabase()
   // Pas de signature_image : personnelle, invisible pour l’admin / collègues
   const { data, error } = await sb
@@ -306,8 +308,7 @@ export async function listOrgUsers(organizationId: string): Promise<UserAccount[
     .select(
       'id, organization_id, email, full_name, role, active, signataire_nom, signataire_qualite, created_at',
     )
-    .eq('organization_id', organizationId)
-    .order('role', { ascending: true })
+    .eq('organization_id', orgId)
   if (error) throw new Error(error.message)
   return (data || [])
     .map((row) =>
@@ -317,7 +318,7 @@ export async function listOrgUsers(organizationId: string): Promise<UserAccount[
       }),
     )
     .sort((a, b) => {
-      if (a.role === b.role) return a.fullName.localeCompare(b.fullName)
+      if (a.role === b.role) return a.fullName.localeCompare(b.fullName, 'fr')
       return a.role === 'owner' ? -1 : 1
     })
 }

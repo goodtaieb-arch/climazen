@@ -1,4 +1,5 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, Trash2, UserPlus } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -18,13 +19,15 @@ function today() {
 
 export function DetecteursParc({ team: teamProp }: Props) {
   const { data, upsertDetecteur, deleteDetecteur } = useStore()
-  const { user, isOwner, listTeam } = useAuth()
+  const { user, isOwner, organization, listTeam } = useAuth()
   const detecteurs = data.detecteurs || []
   const mine = detecteurForUser(data, user?.id)
+  const orgId = user?.organizationId || organization?.id || ''
 
-  const [teamLocal, setTeamLocal] = useState<UserAccount[]>([])
+  const [teamRemote, setTeamRemote] = useState<UserAccount[]>([])
   const [teamError, setTeamError] = useState('')
   const [teamLoading, setTeamLoading] = useState(false)
+  const [teamLoaded, setTeamLoaded] = useState(false)
 
   const [editId, setEditId] = useState<string | null>(null)
   const [identification, setIdentification] = useState('')
@@ -35,46 +38,85 @@ export function DetecteursParc({ team: teamProp }: Props) {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
-  // Charger l’équipe si non fournie (owner)
-  useEffect(() => {
-    if (!isOwner) return
-    if (teamProp && teamProp.length > 0) return
+  const loadTeam = useCallback(async () => {
+    if (!orgId) return
     setTeamLoading(true)
     setTeamError('')
-    void listTeam()
-      .then((t) => setTeamLocal(t))
-      .catch((err) => {
-        setTeamError(err instanceof Error ? err.message : 'Impossible de charger l’équipe')
-        setTeamLocal([])
-      })
-      .finally(() => setTeamLoading(false))
-  }, [isOwner, listTeam, teamProp, user?.organizationId])
+    try {
+      const t = await listTeam()
+      setTeamRemote(t)
+      setTeamLoaded(true)
+    } catch (err) {
+      setTeamError(err instanceof Error ? err.message : 'Impossible de charger l’équipe')
+      setTeamLoaded(true)
+    } finally {
+      setTeamLoading(false)
+    }
+  }, [orgId, listTeam])
+
+  useEffect(() => {
+    if (!isOwner) return
+    let cancelled = false
+    void loadTeam().then(() => {
+      if (cancelled) return
+    })
+    const onFocus = () => {
+      void loadTeam()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [isOwner, loadTeam])
 
   const team = useMemo(() => {
-    const base = (teamProp && teamProp.length > 0 ? teamProp : teamLocal).filter(
-      (m) => m.active !== false,
-    )
-    // Toujours pouvoir s’affecter soi-même (même si listTeam échoue)
-    if (user && !base.some((m) => m.id === user.id)) {
-      return [
-        {
-          id: user.id,
-          organizationId: user.organizationId,
-          email: user.email,
-          username: user.username,
-          fullName: user.fullName || user.email || 'Moi',
-          role: user.role,
-          active: true,
-          createdAt: user.createdAt,
-        } as UserAccount,
-        ...base,
-      ]
+    const map = new Map<string, UserAccount>()
+    const add = (m: {
+      id?: string
+      email?: string
+      username?: string
+      fullName?: string
+      createdAt?: string
+      organizationId?: string
+      role?: UserAccount['role']
+      active?: boolean
+    }) => {
+      const id = String(m.id || '').trim()
+      if (!id) return
+      const prev = map.get(id)
+      map.set(id, {
+        id,
+        email: m.email || prev?.email || '',
+        username: m.username || prev?.username || m.email || prev?.email || '',
+        fullName: (m.fullName || prev?.fullName || '').trim() || 'Technicien',
+        createdAt: m.createdAt || prev?.createdAt || '',
+        organizationId: m.organizationId || prev?.organizationId || orgId,
+        role: m.role || prev?.role || 'operateur',
+        active: m.active ?? prev?.active ?? true,
+      })
     }
-    return base
-  }, [teamProp, teamLocal, user])
+    if (user) add(user)
+    for (const d of data.personnelDossiers || []) {
+      add({ id: d.userId, fullName: d.userName, role: 'operateur', active: true })
+    }
+    for (const det of detecteurs) {
+      if (det.assigneeUserId) {
+        add({
+          id: det.assigneeUserId,
+          fullName: det.assigneeName,
+          role: 'operateur',
+          active: true,
+        })
+      }
+    }
+    for (const m of teamRemote) add(m)
+    for (const m of teamProp || []) add(m)
+    return [...map.values()].filter((m) => m.active !== false)
+  }, [teamProp, teamRemote, user, orgId, data.personnelDossiers, detecteurs])
 
-  /** Une seule personne = tout est au nom du gérant, pas besoin d’Équipe. */
-  const isSolo = team.length <= 1
+  /** Vrai seulement si l’équipe a bien été chargée et qu’il n’y a qu’un compte. */
+  const isSolo = teamLoaded && !teamError && team.length <= 1
 
   // Nouveau détecteur : pré-affecté au gérant connecté (surtout entreprise solo)
   useEffect(() => {
@@ -388,7 +430,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
             value={assigneeUserId}
             onChange={(e) => setAssigneeUserId(e.target.value)}
           >
-            {!isSolo && <option value="">— Non attribué (fallback société) —</option>}
+            <option value="">— Non attribué (fallback société) —</option>
             {team.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.fullName || m.email}
@@ -398,22 +440,40 @@ export function DetecteursParc({ team: teamProp }: Props) {
             ))}
           </select>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {!isSolo && (
-              <button
-                type="button"
-                onClick={assignToMe}
-                className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-white px-3 text-xs font-semibold active:bg-mist"
-              >
-                <UserPlus className="h-3.5 w-3.5" /> M’affecter ce détecteur
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={assignToMe}
+              className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-white px-3 text-xs font-semibold active:bg-mist"
+            >
+              <UserPlus className="h-3.5 w-3.5" /> M’affecter ce détecteur
+            </button>
             {teamLoading && <span className="text-xs text-muted">Chargement équipe…</span>}
-            {teamError && <span className="text-xs text-danger">{teamError}</span>}
-            {!teamLoading && isSolo && (
-              <span className="text-xs text-muted">
-                Entreprise solo — détecteur attribué à vous (gérant). Pas besoin d’activer Équipe.
+            {teamError && (
+              <span className="text-xs text-danger">
+                {teamError}{' '}
+                <button type="button" className="font-semibold underline" onClick={() => void loadTeam()}>
+                  Réessayer
+                </button>
               </span>
             )}
+            <span className="text-xs text-muted">
+              {isSolo
+                ? 'Un seul compte chargé — les techniciens doivent avoir un compte dans '
+                : team.length <= 1
+                  ? 'Liste incomplète ? Comptes dans '
+                  : 'Comptes dans '}
+              <Link to="/app/equipe" className="font-semibold text-accent underline">
+                Équipe
+              </Link>
+              {' · '}
+              <button
+                type="button"
+                className="font-semibold text-accent underline"
+                onClick={() => void loadTeam()}
+              >
+                Recharger la liste
+              </button>
+            </span>
           </div>
         </label>
         <Field
