@@ -12,7 +12,13 @@ import {
 import { purgeOrphanCerfaStock } from './stockMouvements'
 import { getSupabase } from './supabase'
 import { validatePasswordStrength } from './passwordPolicy'
-import { sanitizePersonnelDossiers } from './rhDocuments'
+import {
+  sanitizePersonnelDossiers,
+  protectPersonnelRhOnSave,
+  normalizePersonnelRhAccesUserIds,
+  peutVoirIdentitesRh,
+  type RhAccessActor,
+} from './rhDocuments'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -473,9 +479,24 @@ export async function loadOrgDataRemote(organizationId: string): Promise<OrgData
 export async function saveOrgDataRemote(
   organizationId: string,
   data: AppData,
+  actor?: RhAccessActor,
 ): Promise<{ updatedAt: string }> {
   const sb = getSupabase()
-  const light = stripHeavy(data)
+  let toSave = data
+  if (actor && !actor.isOwner) {
+    const remote = await loadOrgDataRemote(organizationId)
+    const protectedRh = protectPersonnelRhOnSave({
+      previous: remote.data,
+      incoming: data,
+      actor,
+    })
+    toSave = {
+      ...data,
+      personnelDossiers: protectedRh.personnelDossiers,
+      personnelRhAccesUserIds: protectedRh.personnelRhAccesUserIds,
+    }
+  }
+  const light = stripHeavy(toSave)
   const updatedAt = new Date().toISOString()
   const { error } = await sb.from('org_data').upsert(
     {
@@ -688,6 +709,7 @@ export function resolveRemoteVsLocal(
     remoteUpdatedAt?: string | null
     knownCloudAt?: string | null
     hasLocalPending?: boolean
+    actor?: RhAccessActor
   },
 ): { data: AppData; shouldPushLocal: boolean } {
   const localW = appDataWeight(local)
@@ -781,11 +803,32 @@ export function resolveRemoteVsLocal(
   )
   const factures = mergeByIdLatest(remote.factures, local.factures, preferOnTie)
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
-  const personnelDossiers = mergeByIdLatest(
+  const mergedDossiers = mergeByIdLatest(
     remote.personnelDossiers,
     local.personnelDossiers,
     preferOnTie,
   )
+  const actor = opts?.actor
+  const canSeeIdentite = Boolean(
+    actor && (actor.isOwner || peutVoirIdentitesRh(actor, remote.personnelRhAccesUserIds)),
+  )
+  const protectedRh = actor
+    ? protectPersonnelRhOnSave({
+        previous: remote,
+        incoming: {
+          ...local,
+          personnelDossiers: canSeeIdentite ? mergedDossiers : local.personnelDossiers,
+        },
+        actor,
+      })
+    : {
+        personnelDossiers: mergedDossiers,
+        personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(
+          local.personnelRhAccesUserIds ?? remote.personnelRhAccesUserIds,
+        ),
+      }
+  const personnelDossiers = protectedRh.personnelDossiers
+  const personnelRhAccesUserIds = protectedRh.personnelRhAccesUserIds
   let stockMouvements = mergeByIdLatest(remote.stockMouvements, local.stockMouvements, preferOnTie)
 
   const deletedEntityIds = pruneTombstones(
@@ -837,6 +880,7 @@ export function resolveRemoteVsLocal(
     factures,
     agendaEvents,
     personnelDossiers,
+    personnelRhAccesUserIds,
     deletedEntityIds,
   }
 

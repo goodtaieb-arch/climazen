@@ -32,6 +32,7 @@ export function emptyData(): AppData {
     factures: [],
     agendaEvents: [],
     personnelDossiers: [],
+    personnelRhAccesUserIds: [],
     deletedEntityIds: {
       clients: [],
       chantiers: [],
@@ -85,6 +86,7 @@ export function loadData(organizationId?: string | null): AppData {
       factures: parsed.factures || [],
       agendaEvents: parsed.agendaEvents || [],
       personnelDossiers: parsed.personnelDossiers || [],
+      personnelRhAccesUserIds: parsed.personnelRhAccesUserIds || [],
       deletedEntityIds: parsed.deletedEntityIds || {
         clients: [],
         chantiers: [],
@@ -203,6 +205,7 @@ export function seedDemoData(): AppData {
     stockMouvements: [],
     interventions: [],
     personnelDossiers: [],
+    personnelRhAccesUserIds: [],
   }
 }
 

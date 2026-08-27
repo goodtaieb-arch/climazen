@@ -68,8 +68,8 @@ const QUICK_START = [
 ] as const
 
 export function Dashboard() {
-  const { data } = useStore()
-  const { user, isOwner } = useAuth()
+  const { data, peutVoirIdentitesRh } = useStore()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -105,9 +105,11 @@ export function Dashboard() {
   }, [data.agendaEvents])
 
   const rhAlertes = useMemo(() => {
-    const alerts = alertesEquipe(data.personnelDossiers, { userId: isOwner ? undefined : user?.id })
+    const alerts = alertesEquipe(data.personnelDossiers, {
+      userId: peutVoirIdentitesRh ? undefined : user?.id,
+    })
     return alerts.filter((a) => a.statut === 'expire' || a.statut === 'bientot').slice(0, 8)
-  }, [data.personnelDossiers, isOwner, user])
+  }, [data.personnelDossiers, peutVoirIdentitesRh, user])
 
   const steps = [
     {
@@ -481,10 +483,10 @@ export function Dashboard() {
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">Documents à renouveler</h2>
             <Link
-              to={isOwner ? '/app/equipe' : user ? `/app/equipe/${user.id}` : '/app/profil'}
+              to={peutVoirIdentitesRh ? '/app/equipe' : user ? `/app/equipe/${user.id}` : '/app/profil'}
               className="text-sm font-semibold text-accent hover:underline"
             >
-              {isOwner ? 'Voir l’équipe' : 'Mon dossier'}
+              {peutVoirIdentitesRh ? 'Voir l’équipe' : 'Mon dossier'}
             </Link>
           </div>
           <ul className="space-y-2">

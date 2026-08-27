@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { FolderOpen, KeyRound, UserPlus, UserX, UserCheck } from 'lucide-react'
+import { FolderOpen, KeyRound, ShieldCheck, UserPlus, UserX, UserCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
@@ -19,7 +19,7 @@ export function EquipePage() {
     resetOperatorPassword,
     listTeam,
   } = useAuth()
-  const { data } = useStore()
+  const { data, setPersonnelRhAcces, peutVoirIdentitesRh } = useStore()
   const detecteurs = data.detecteurs || []
   const detectorFor = (userId: string) =>
     detecteurs.find((d) => d.assigneeUserId === userId)
@@ -41,12 +41,12 @@ export function EquipePage() {
   }
 
   useEffect(() => {
-    if (!isOwner) return
+    if (!isOwner && !peutVoirIdentitesRh) return
     void refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.organizationId, isOwner])
+  }, [user?.organizationId, isOwner, peutVoirIdentitesRh])
 
-  if (!isOwner) return <Navigate to="/app" replace />
+  if (!isOwner && !peutVoirIdentitesRh) return <Navigate to="/app" replace />
 
   const onCreate = async (e: FormEvent) => {
     e.preventDefault()
@@ -93,11 +93,15 @@ export function EquipePage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Équipe / Opérateurs</h1>
           <p className="mt-1 text-muted">
-            Société <strong>{organization?.name}</strong> — l’administrateur crée les accès employés.
+            Société <strong>{organization?.name}</strong>
+            {isOwner
+              ? ' — l’administrateur crée les accès employés et donne le droit de voir les identités.'
+              : ' — dossiers RH (identités comprises), accès donné par le gérant.'}
           </p>
         </div>
       </div>
 
+      {isOwner ? (
       <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5 text-sm text-slate">
         <div className="font-display text-base font-semibold text-ink">Grande entreprise — coffre partagé</div>
         <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -123,8 +127,24 @@ export function EquipePage() {
             Chaque fiche a un <strong>dossier documents</strong> (dates limites + alertes). Les
             scans d’identité ne sont pas stockés — seulement le type et la date d’expiration.
           </li>
+          <li>
+            Les <strong>pièces d’identité</strong> (CNI, passeport, Vitale, RIB…) ne sont visibles
+            que par le <strong>gérant</strong> et les personnes qu’il autorise (secrétariat,
+            accueil d’appels / agent IA). Un technicien ne voit pas le dossier identité d’un
+            collègue. Bouton <strong>Donner accès identités</strong> sur la fiche de la personne.
+          </li>
         </ul>
       </div>
+      ) : (
+      <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5 text-sm text-slate">
+        <div className="font-display text-base font-semibold text-ink">Dossiers RH autorisés</div>
+        <p className="mt-2">
+          Le gérant vous a donné l’accès aux pièces d’identité de l’équipe (secrétariat, accueil
+          d’appels). Ouvrez le dossier d’un technicien pour les dates limites. Les scans ne sont
+          pas stockés dans ClimaZEN.
+        </p>
+      </div>
+      )}
 
       {createdCodes && (
         <div className="rounded-2xl border border-accent/40 bg-accent-soft/50 p-5 text-sm text-slate">
@@ -151,6 +171,7 @@ export function EquipePage() {
         </div>
       )}
 
+      {isOwner && (
       <form
         onSubmit={onCreate}
         className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
@@ -197,6 +218,7 @@ export function EquipePage() {
           {busy ? 'Création…' : 'Créer le compte opérateur'}
         </button>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         <div className="border-b border-line px-4 py-3 font-display font-semibold">
@@ -210,6 +232,7 @@ export function EquipePage() {
               ...defaultPersonnelDossier(m.id, m.fullName),
             }
             const resume = resumeAlertesDossier(effective)
+            const hasRhAcces = (data.personnelRhAccesUserIds || []).includes(m.id)
             return (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div>
@@ -220,6 +243,7 @@ export function EquipePage() {
                 <div className="text-xs text-muted">
                   {m.role === 'owner' ? 'Compte officiel société' : 'Opérateur'}
                   {m.active === false ? ' · désactivé' : ''}
+                  {m.role !== 'owner' && hasRhAcces ? ' · accès identités / RH' : ''}
                   {(() => {
                     const det = detectorFor(m.id)
                     return det
@@ -244,7 +268,23 @@ export function EquipePage() {
                   <FolderOpen className="h-3.5 w-3.5" /> Dossier
                   {resume.total > 0 ? ` (${resume.total})` : ''}
                 </Link>
-              {m.role === 'operateur' && m.id !== user?.id && (
+              {isOwner && m.role !== 'owner' && m.id !== user?.id && (
+                <button
+                  type="button"
+                  onClick={() => setPersonnelRhAcces(m.id, !hasRhAcces)}
+                  className={[
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',
+                    hasRhAcces
+                      ? 'bg-accent-soft text-slate'
+                      : 'border border-line text-muted hover:bg-mist',
+                  ].join(' ')}
+                  title="Autorise à voir les pièces d’identité de toute l’équipe (secrétariat, accueil d’appels)"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {hasRhAcces ? 'Identités : oui' : 'Donner accès identités'}
+                </button>
+              )}
+              {isOwner && m.role === 'operateur' && m.id !== user?.id && (
                 <>
                   <button
                     type="button"

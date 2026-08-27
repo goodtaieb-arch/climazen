@@ -249,6 +249,7 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
 
 Saisissez la date limite des pièces que vous enregistrez. L’accueil alerte 45 jours avant, puis à l’expiration. Les pièces non disponibles se masquent avec la croix rouge — rien n’est imposé.
 Les photos d’identité / scans ne sont pas stockés. Pour ouvrir la bonne pièce, collez un lien temporaire (Drive / OneDrive) sur la fiche — le fichier reste dans le cloud de la société.
+Les pièces d’identité (CNI, passeport, Vitale, RIB) ne sont visibles que par le gérant et les personnes qu’il autorise dans Équipe → « Donner accès identités » (secrétariat, accueil d’appels / agent IA). Un technicien ne voit pas le dossier identité d’un collègue.
 L’attestation de capacité SOCIÉTÉ et le détecteur restent dans Mon entreprise.`,
   },
   {

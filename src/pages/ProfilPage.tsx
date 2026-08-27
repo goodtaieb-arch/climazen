@@ -20,7 +20,7 @@ import {
  * Invisible / non modifiable par l’administrateur.
  */
 export function ProfilPage() {
-  const { data } = useStore()
+  const { data, peutVoirIdentitesRh } = useStore()
   const { user, organization, isOwner, saveMySignature, updatePassword } = useAuth()
   const ownDossier = dossierForUser(data.personnelDossiers, user?.id)
   const ownResume = resumeAlertesDossier(
@@ -119,8 +119,9 @@ export function ProfilPage() {
           <div>
             <div className="font-display text-base font-semibold text-ink">Mon dossier documents</div>
             <p className="mt-1 text-sm text-muted">
-              CNI, permis, carte Vitale, aptitude froid, habilitation électrique… dates limites et
-              alertes d’expiration.
+              {isOwner || peutVoirIdentitesRh
+                ? 'CNI, permis, carte Vitale, aptitude froid, habilitation électrique… dates limites et alertes d’expiration. Les identités restent dans l’administration.'
+                : 'Aptitude froid, habilitation électrique, CACES… dates limites et alertes. Les pièces d’identité sont gérées par l’administration.'}
             </p>
             {ownResume.expire || ownResume.bientot || ownResume.sansDate ? (
               <p className="mt-2 text-sm font-semibold text-amber-800">

@@ -625,6 +625,11 @@ export interface AppData {
    */
   personnelDossiers?: import('./rhDocuments').PersonnelDossier[]
   /**
+   * Employés autorisés par le gérant à voir les pièces d’identité de toute l’équipe
+   * (secrétariat, accueil d’appels / agent IA). Le compte owner a toujours l’accès.
+   */
+  personnelRhAccesUserIds?: string[]
+  /**
    * Ids supprimés (tombstones) — la sync ne doit pas les réimporter depuis le cloud.
    */
   deletedEntityIds?: import('./deletedEntities').DeletedEntityIds

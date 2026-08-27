@@ -13,6 +13,7 @@ import {
   catalogDocumentRh,
   defaultPersonnelDossier,
   dossierForUser,
+  estDocumentRhAdminSeulement,
   fileToDocumentScanDataUrl,
   formatDateFr,
   labelStatutDocumentRh,
@@ -62,8 +63,8 @@ function statutClass(statut: StatutDocumentRh) {
 
 export function TechnicienDossierPage() {
   const { userId } = useParams()
-  const { user, isOwner, listTeam } = useAuth()
-  const { data, upsertPersonnelDossier, upsertPersonnelDocument, deletePersonnelDocument } =
+  const { user, listTeam } = useAuth()
+  const { data, upsertPersonnelDossier, upsertPersonnelDocument, deletePersonnelDocument, peutVoirIdentitesRh } =
     useStore()
   const [member, setMember] = useState<UserAccount | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -73,14 +74,15 @@ export function TechnicienDossierPage() {
   const [pendingDelete, setPendingDelete] = useState<DocumentRh | null>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
 
-  const canAccess = Boolean(user && userId && (isOwner || user.id === userId))
+  const canSeeIdentite = peutVoirIdentitesRh
+  const canAccess = Boolean(user && userId && (canSeeIdentite || user.id === userId))
 
   useEffect(() => {
-    if (!canAccess || !isOwner) return
+    if (!canAccess || !canSeeIdentite) return
     void listTeam().then((team) => {
       setMember(team.find((m) => m.id === userId) || null)
     })
-  }, [canAccess, isOwner, listTeam, userId])
+  }, [canAccess, canSeeIdentite, listTeam, userId])
 
   const stored = dossierForUser(data.personnelDossiers, userId)
   const displayName =
@@ -135,11 +137,13 @@ export function TechnicienDossierPage() {
     () => resumeAlertesDossier({ ...dossier, userName: displayName }),
     [dossier, displayName],
   )
-  const pieces = typesAffichesPourDossier(dossier)
+  const pieces = typesAffichesPourDossier(dossier, { inclureAdmin: canSeeIdentite })
 
   if (!userId) return <Navigate to="/app/equipe" replace />
   if (!user) return <Navigate to="/login" replace />
   if (!canAccess) return <Navigate to="/app" replace />
+
+  const defaultDocType: TypeDocumentRh = canSeeIdentite ? 'cni' : 'attestation_aptitude_froid'
 
   const persistDossier = (patch?: { typesMasques?: TypeDocumentRh[] }) => {
     upsertPersonnelDossier({
@@ -164,7 +168,9 @@ export function TechnicienDossierPage() {
   }
 
   const openNew = (type?: TypeDocumentRh) => {
-    setForm({ ...blankDoc(), type: type || 'cni' })
+    const nextType = type || defaultDocType
+    if (!canSeeIdentite && estDocumentRhAdminSeulement(nextType)) return
+    setForm({ ...blankDoc(), type: nextType })
     setFileError('')
     setFormOpen(true)
   }
@@ -189,6 +195,10 @@ export function TechnicienDossierPage() {
 
   const onSaveDoc = (e: FormEvent) => {
     e.preventDefault()
+    if (!canSeeIdentite && estDocumentRhAdminSeulement(form.type)) {
+      setFileError('Les pièces d’identité sont réservées à l’administration.')
+      return
+    }
     if (form.lienCloud.trim() && !normalizeLienCloudRh(form.lienCloud)) {
       setFileError('Lien invalide — collez un lien https (Drive, OneDrive, SharePoint).')
       return
@@ -226,7 +236,7 @@ export function TechnicienDossierPage() {
     setForm((f) => ({ ...f, dateExpiration: addYearsIso(f.dateObtention, years) }))
   }
 
-  const backTo = isOwner && userId !== user.id ? '/app/equipe' : '/app/profil'
+  const backTo = canSeeIdentite && userId !== user.id ? '/app/equipe' : '/app/profil'
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -235,7 +245,7 @@ export function TechnicienDossierPage() {
         <div className="min-w-0">
           <Link to={backTo} className="inline-flex items-center gap-1 text-xs font-semibold text-accent">
             <ArrowLeft className="h-3.5 w-3.5" />
-            {isOwner && userId !== user.id ? 'Équipe' : 'Ma signature'}
+            {canSeeIdentite && userId !== user.id ? 'Équipe' : 'Ma signature'}
           </Link>
           <h1 className="font-display text-3xl font-bold tracking-tight">Dossier {displayName}</h1>
           <p className="mt-1 text-sm text-muted">
@@ -246,15 +256,22 @@ export function TechnicienDossierPage() {
       </div>
 
       <div className="rounded-2xl border border-line bg-mist/60 p-4 text-sm text-slate">
-        <div className="font-display font-semibold text-ink">Protection des identités</div>
-        <p className="mt-1">
-          En cas de piratage du coffre, on ne doit pas retrouver les CNI / cartes Vitale en photo.
-          ClimaZEN enregistre seulement le <strong>type</strong> et la <strong>date limite</strong>
-          (pour l’alerte). Le numéro est masqué (4 derniers caractères). Pour retrouver la pièce :
-          collez un <strong>lien temporaire</strong> vers le fichier dans le cloud de la société
-          (Drive / OneDrive / SharePoint). La photo d’aperçu est <strong>jetée</strong> — pas de
-          copie dans ClimaZEN.
-        </p>
+        <div className="font-display font-semibold text-ink">
+          {canSeeIdentite ? 'Protection des identités' : 'Attestations & habilitations'}
+        </div>
+        {canSeeIdentite ? (
+          <p className="mt-1">
+            Les pièces d’identité (CNI, passeport, Vitale, RIB…) sont visibles{' '}
+            <strong>seulement par le gérant</strong> et le personnel qu’il autorise (secrétariat,
+            accueil d’appels). Un technicien ne voit pas celles d’un collègue. Les scans ne sont
+            pas enregistrés — type, date limite, numéro masqué, lien cloud temporaire.
+          </p>
+        ) : (
+          <p className="mt-1">
+            Ici : aptitude fluides, habilitation électrique, CACES… Les pièces d’identité sont
+            gérées par l’administration. Les scans ne sont pas enregistrés.
+          </p>
+        )}
       </div>
 
       {resume.total > 0 && (
@@ -559,7 +576,9 @@ export function TechnicienDossierPage() {
                   onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TypeDocumentRh }))}
                   className="h-12 w-full rounded-xl border border-line px-3"
                 >
-                  {TYPES_DOCUMENT_RH.map((t) => (
+                  {TYPES_DOCUMENT_RH.filter(
+                    (t) => canSeeIdentite || !estDocumentRhAdminSeulement(t.type),
+                  ).map((t) => (
                     <option key={t.type} value={t.type}>
                       {t.label}
                     </option>

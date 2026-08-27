@@ -158,7 +158,7 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
 
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
-  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud } =
+  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud, peutVoirIdentitesRh } =
     useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -178,9 +178,11 @@ export function AppLayout() {
     ? baseLinksOwner
     : [
         ...baseLinksOperator,
-        ...(user
-          ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-          : []),
+        ...(peutVoirIdentitesRh
+          ? [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]
+          : user
+            ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+            : []),
       ]
 
   const pageTone = toneForPath(pathname, links)
@@ -223,7 +225,9 @@ export function AppLayout() {
           { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
           { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
         ]
-      : []),
+      : peutVoirIdentitesRh
+        ? [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]
+        : []),
   ]
 
   return (

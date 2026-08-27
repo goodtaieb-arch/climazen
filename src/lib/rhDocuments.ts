@@ -39,6 +39,8 @@ export type DocumentRhCatalogItem = {
   dureeIndicativeAns?: number
   /** Une pièce parmi ce groupe suffit (ex. CNI ou passeport). */
   identite?: boolean
+  /** Visible seulement par le gérant et le personnel RH autorisé. */
+  accesAdmin?: boolean
 }
 
 export const TYPES_DOCUMENT_RH: DocumentRhCatalogItem[] = [
@@ -76,6 +78,7 @@ export const TYPES_DOCUMENT_RH: DocumentRhCatalogItem[] = [
     label: 'Carte Vitale',
     hint: 'Carte Vitale / attestation de droits.',
     groupe: 'sante',
+    accesAdmin: true,
   },
   {
     type: 'visite_medicale',
@@ -138,18 +141,21 @@ export const TYPES_DOCUMENT_RH: DocumentRhCatalogItem[] = [
     label: 'RIB',
     hint: 'Coordonnées bancaires (paie).',
     groupe: 'admin',
+    accesAdmin: true,
   },
   {
     type: 'justificatif_domicile',
     label: 'Justificatif de domicile',
     hint: 'Moins de 3 mois en général.',
     groupe: 'admin',
+    accesAdmin: true,
   },
   {
     type: 'contrat_travail',
     label: 'Contrat de travail / DPAE',
     hint: 'Contrat, avenants, DPAE.',
     groupe: 'admin',
+    accesAdmin: true,
   },
   {
     type: 'diplome',
@@ -342,6 +348,134 @@ export function typesIdentiteRh(): TypeDocumentRh[] {
   return TYPES_DOCUMENT_RH.filter((t) => t.identite).map((t) => t.type)
 }
 
+/** CNI, passeport, Vitale, RIB… — pas pour un technicien qui consulte un collègue. */
+export function estDocumentRhAdminSeulement(type: TypeDocumentRh): boolean {
+  const item = catalogDocumentRh(type)
+  return Boolean(item.identite || item.accesAdmin)
+}
+
+export type RhAccessActor = {
+  userId: string
+  isOwner: boolean
+}
+
+export function normalizePersonnelRhAccesUserIds(ids?: string[] | null): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of ids || []) {
+    const id = String(raw || '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+/** Gérant, ou employé (secrétariat / accueil appels) autorisé par le gérant. */
+export function peutVoirIdentitesRh(
+  actor: RhAccessActor | undefined | null,
+  accesUserIds?: string[] | null,
+): boolean {
+  if (!actor?.userId) return false
+  if (actor.isOwner) return true
+  return normalizePersonnelRhAccesUserIds(accesUserIds).includes(actor.userId)
+}
+
+export function scopePersonnelDossiersForViewer(
+  list: PersonnelDossier[] | undefined,
+  actor: RhAccessActor,
+  accesUserIds?: string[] | null,
+): PersonnelDossier[] {
+  const all = migratePersonnelDossiers(list)
+  if (peutVoirIdentitesRh(actor, accesUserIds)) return all
+  const own = all.find((d) => d.userId === actor.userId)
+  if (!own) return []
+  return [
+    {
+      ...own,
+      documents: (own.documents || []).filter((d) => !estDocumentRhAdminSeulement(d.type)),
+      typesMasques: (own.typesMasques || []).filter((t) => !estDocumentRhAdminSeulement(t)),
+    },
+  ]
+}
+
+export function applyPersonnelRhScopeToAppData<T extends {
+  personnelDossiers?: PersonnelDossier[]
+  personnelRhAccesUserIds?: string[]
+}>(data: T, actor: RhAccessActor): T {
+  const acces = normalizePersonnelRhAccesUserIds(data.personnelRhAccesUserIds)
+  return {
+    ...data,
+    personnelRhAccesUserIds: acces,
+    personnelDossiers: scopePersonnelDossiersForViewer(data.personnelDossiers, actor, acces),
+  }
+}
+
+/** Un tech sans accès RH ne doit pas écraser les identités / dossiers des autres. */
+export function mergePersonnelDossiersSansAccesIdentite(params: {
+  previous?: PersonnelDossier[]
+  incoming?: PersonnelDossier[]
+  actorUserId: string
+}): PersonnelDossier[] {
+  const prev = migratePersonnelDossiers(params.previous)
+  const incoming = migratePersonnelDossiers(params.incoming)
+  const incomingOwn = incoming.find((d) => d.userId === params.actorUserId)
+  const prevOwn = prev.find((d) => d.userId === params.actorUserId)
+  const others = prev.filter((d) => d.userId !== params.actorUserId)
+  if (!incomingOwn) return sanitizePersonnelDossiers(prev)
+
+  const identiteDocs = (prevOwn?.documents || []).filter((d) => estDocumentRhAdminSeulement(d.type))
+  const workDocs = (incomingOwn.documents || []).filter((d) => !estDocumentRhAdminSeulement(d.type))
+  const identiteMasques = (prevOwn?.typesMasques || []).filter((t) => estDocumentRhAdminSeulement(t))
+  const workMasques = (incomingOwn.typesMasques || []).filter((t) => !estDocumentRhAdminSeulement(t))
+  const base = prevOwn || {
+    ...defaultPersonnelDossier(incomingOwn.userId, incomingOwn.userName),
+    id: incomingOwn.id,
+  }
+  const mergedOwn: PersonnelDossier = {
+    ...base,
+    ...incomingOwn,
+    id: prevOwn?.id || incomingOwn.id,
+    userId: params.actorUserId,
+    documents: [...identiteDocs, ...workDocs],
+    typesMasques: [...new Set([...identiteMasques, ...workMasques])],
+    updatedAt: incomingOwn.updatedAt || prevOwn?.updatedAt || new Date().toISOString(),
+  }
+  return sanitizePersonnelDossiers([...others, mergedOwn])
+}
+
+export function protectPersonnelRhOnSave<T extends {
+  personnelDossiers?: PersonnelDossier[]
+  personnelRhAccesUserIds?: string[]
+}>(params: { previous: T; incoming: T; actor: RhAccessActor }): {
+  personnelDossiers: PersonnelDossier[]
+  personnelRhAccesUserIds: string[]
+} {
+  const prevAcces = normalizePersonnelRhAccesUserIds(params.previous.personnelRhAccesUserIds)
+  if (params.actor.isOwner) {
+    return {
+      personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(
+        params.incoming.personnelRhAccesUserIds,
+      ),
+      personnelDossiers: sanitizePersonnelDossiers(params.incoming.personnelDossiers),
+    }
+  }
+  if (peutVoirIdentitesRh(params.actor, prevAcces)) {
+    return {
+      personnelRhAccesUserIds: prevAcces,
+      personnelDossiers: sanitizePersonnelDossiers(params.incoming.personnelDossiers),
+    }
+  }
+  return {
+    personnelRhAccesUserIds: prevAcces,
+    personnelDossiers: mergePersonnelDossiersSansAccesIdentite({
+      previous: params.previous.personnelDossiers,
+      incoming: params.incoming.personnelDossiers,
+      actorUserId: params.actor.userId,
+    }),
+  }
+}
+
 /** Suggestions selon l’activité — jamais obligatoires. */
 export function typesSuggeresPourDossier(
   dossier: Pick<PersonnelDossier, 'toucheFroid' | 'toucheElectricite' | 'conduitVehicule'> | undefined,
@@ -366,7 +500,10 @@ export function typesAMasquer(type: TypeDocumentRh): TypeDocumentRh[] {
 }
 
 /** Cartes affichées : suggestions non masquées + types déjà enregistrés. */
-export function typesAffichesPourDossier(dossier: PersonnelDossier): TypeDocumentRh[] {
+export function typesAffichesPourDossier(
+  dossier: PersonnelDossier,
+  opts?: { inclureAdmin?: boolean },
+): TypeDocumentRh[] {
   const masked = new Set(dossier.typesMasques || [])
   const docs = dossier.documents || []
   const hasIdentite = docs.some((d) => catalogDocumentRh(d.type).identite)
@@ -387,6 +524,9 @@ export function typesAffichesPourDossier(dossier: PersonnelDossier): TypeDocumen
     push(type)
   }
   for (const doc of docs) push(doc.type)
+  if (opts?.inclureAdmin === false) {
+    return out.filter((t) => !estDocumentRhAdminSeulement(t))
+  }
   return out
 }
 

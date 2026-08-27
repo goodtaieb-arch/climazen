@@ -51,12 +51,17 @@ import {
 import type { AgendaEvent } from './agenda'
 import { buildAutoAgendaEvents } from './agenda'
 import {
+  applyPersonnelRhScopeToAppData,
   defaultPersonnelDossier,
+  estDocumentRhAdminSeulement,
   migratePersonnelDossiers,
+  normalizePersonnelRhAccesUserIds,
+  peutVoirIdentitesRh,
   sanitizeDocumentRh,
   typesAMasquer,
   type DocumentRh,
   type PersonnelDossier,
+  type RhAccessActor,
 } from './rhDocuments'
 import {
   getCloudUpdatedAt,
@@ -267,6 +272,10 @@ type Store = {
     doc: Omit<DocumentRh, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deletePersonnelDocument: (userId: string, documentId: string) => void
+  /** Gérant seulement : autorise un employé (secrétariat, accueil appels) à voir les identités. */
+  setPersonnelRhAcces: (userId: string, granted: boolean) => void
+  /** Identités + dossiers des collègues : gérant ou personnel autorisé. */
+  peutVoirIdentitesRh: boolean
   resetDemo: () => void
   /** Remplace les données cloud par un payload (import local). */
   replaceData: (next: AppData) => Promise<void>
@@ -275,8 +284,13 @@ type Store = {
 const Ctx = createContext<Store | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
   const orgId = user?.organizationId || null
+  const rhActor: RhAccessActor | undefined = user?.id
+    ? { userId: user.id, isOwner: Boolean(isOwner || user.role === 'owner') }
+    : undefined
+  const rhActorRef = useRef(rhActor)
+  rhActorRef.current = rhActor
 
   const [data, setData] = useState<AppData>(() => emptyData())
   const [loading, setLoading] = useState(false)
@@ -306,6 +320,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return merged
   }
 
+  const applyRhView = (payload: AppData): AppData => {
+    const actor = rhActorRef.current
+    if (!actor) return payload
+    return applyPersonnelRhScopeToAppData(payload, actor)
+  }
+
   const markPending = useCallback(
     (pending: boolean) => {
       setPendingSync(orgId, pending)
@@ -330,8 +350,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           remoteUpdatedAt: remotePack.updatedAt,
           knownCloudAt: getCloudUpdatedAt(orgId),
           hasLocalPending: true,
+          actor: rhActorRef.current,
         })
-        payload = applyLocalLogo(merged, orgId)
+        payload = applyRhView(applyLocalLogo(merged, orgId))
         skipNextSave.current = true
         dataRef.current = payload
         setData(payload)
@@ -340,7 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         /* réseau partiel → pousser le local quand même */
       }
       saveData(payload, orgId)
-      const { updatedAt } = await saveOrgDataRemote(orgId, payload)
+      const { updatedAt } = await saveOrgDataRemote(orgId, payload, rhActorRef.current)
       setCloudUpdatedAt(orgId, updatedAt)
       markSynced(orgId)
       setPendingSyncState(false)
@@ -380,8 +401,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         remoteUpdatedAt: remotePack.updatedAt,
         knownCloudAt: known,
         hasLocalPending: false,
+        actor: rhActorRef.current,
       })
-      const merged = applyLocalLogo(resolved, orgId)
+      const merged = applyRhView(applyLocalLogo(resolved, orgId))
       skipNextSave.current = true
       dataRef.current = merged
       setData(merged)
@@ -458,10 +480,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPendingSyncState(hadPending)
 
       const useLocal = () => {
-        const local = applyLocalLogo(loadData(orgId), orgId)
+        const local = applyRhView(applyLocalLogo(loadData(orgId), orgId))
         skipNextSave.current = true
         dataRef.current = local
         setData(local)
+        saveData(local, orgId)
         setHydrated(true)
       }
 
@@ -500,9 +523,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             remoteUpdatedAt: remotePack.updatedAt,
             knownCloudAt: getCloudUpdatedAt(orgId),
             hasLocalPending: hadPending,
+            actor: rhActorRef.current,
           },
         )
-        const merged = applyLocalLogo(resolved, orgId)
+        const merged = applyRhView(applyLocalLogo(resolved, orgId))
         skipNextSave.current = true
         dataRef.current = merged
         setData(merged)
@@ -554,7 +578,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      void saveOrgDataRemote(orgId, data)
+      void saveOrgDataRemote(orgId, data, rhActorRef.current)
         .then(({ updatedAt }) => {
           setCloudUpdatedAt(orgId, updatedAt)
           markSynced(orgId)
@@ -578,16 +602,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const replaceData = useCallback(
     async (next: AppData) => {
       if (!orgId) return
+      const viewed = applyRhView(next)
       skipNextSave.current = true
-      setData(next)
-      saveData(next, orgId)
+      setData(viewed)
+      saveData(viewed, orgId)
       if (!isBrowserOnline()) {
         markPending(true)
         setOffline(true)
         return
       }
       try {
-        const { updatedAt } = await saveOrgDataRemote(orgId, next)
+        const { updatedAt } = await saveOrgDataRemote(orgId, viewed, rhActorRef.current)
         setCloudUpdatedAt(orgId, updatedAt)
         markSynced(orgId)
         setPendingSyncState(false)
@@ -604,17 +629,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (next: AppData) => {
       if (!orgId) return
       if (saveTimer.current) clearTimeout(saveTimer.current)
+      const viewed = applyRhView(next)
       skipNextSave.current = true
-      dataRef.current = next
-      setData(next)
-      saveData(next, orgId)
+      dataRef.current = viewed
+      setData(viewed)
+      saveData(viewed, orgId)
       if (!isBrowserOnline()) {
         markPending(true)
         setOffline(true)
         return
       }
       try {
-        const { updatedAt } = await saveOrgDataRemote(orgId, next)
+        const { updatedAt } = await saveOrgDataRemote(orgId, viewed, rhActorRef.current)
         setCloudUpdatedAt(orgId, updatedAt)
         markSynced(orgId)
         setPendingSyncState(false)
@@ -2059,11 +2085,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         documents?: DocumentRh[]
       },
     ) => {
+      const actor = rhActorRef.current
+      if (!actor) return ''
       const now = new Date().toISOString()
       const prev = dataRef.current
+      const canSee = peutVoirIdentitesRh(actor, prev.personnelRhAccesUserIds)
+      if (!canSee && d.userId !== actor.userId) return ''
       const list = migratePersonnelDossiers(prev.personnelDossiers)
       const existing = list.find((x) => x.id === d.id || x.userId === d.userId)
       const id = d.id || existing?.id || uuid()
+      let documents = d.documents ?? existing?.documents ?? []
+      if (!canSee) {
+        documents = documents.filter((x) => !estDocumentRhAdminSeulement(x.type))
+      }
       const nextDossier: PersonnelDossier = {
         ...(existing || defaultPersonnelDossier(d.userId, d.userName, now)),
         id,
@@ -2074,7 +2108,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         conduitVehicule: d.conduitVehicule,
         notes: d.notes?.trim() || undefined,
         typesMasques: d.typesMasques ?? existing?.typesMasques,
-        documents: d.documents ?? existing?.documents ?? [],
+        documents,
         updatedAt: now,
       }
       const nextList = existing
@@ -2097,6 +2131,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ) => {
       const now = new Date().toISOString()
       const prev = dataRef.current
+      const actor = rhActorRef.current
+      if (!actor) return ''
+      const canSee = peutVoirIdentitesRh(actor, prev.personnelRhAccesUserIds)
+      if (!canSee && userId !== actor.userId) return ''
+      if (!canSee && estDocumentRhAdminSeulement(doc.type)) return ''
       const list = migratePersonnelDossiers(prev.personnelDossiers)
       const existing = list.find((x) => x.userId === userId)
       const dossierId = existing?.id || uuid()
@@ -2147,9 +2186,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deletePersonnelDocument = useCallback((userId: string, documentId: string) => {
     const now = new Date().toISOString()
     const prev = dataRef.current
+    const actor = rhActorRef.current
+    if (!actor) return
+    const canSee = peutVoirIdentitesRh(actor, prev.personnelRhAccesUserIds)
+    if (!canSee && userId !== actor.userId) return
     const list = migratePersonnelDossiers(prev.personnelDossiers)
     const existing = list.find((x) => x.userId === userId)
     if (!existing) return
+    const target = existing.documents.find((d) => d.id === documentId)
+    if (!canSee && target && estDocumentRhAdminSeulement(target.type)) return
     setData({
       ...prev,
       personnelDossiers: list.map((x) =>
@@ -2164,17 +2209,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const setPersonnelRhAcces = useCallback((userId: string, granted: boolean) => {
+    const actor = rhActorRef.current
+    if (!actor?.isOwner) return
+    const id = String(userId || '').trim()
+    if (!id || id === actor.userId) return
+    const prev = dataRef.current
+    const current = new Set(normalizePersonnelRhAccesUserIds(prev.personnelRhAccesUserIds))
+    if (granted) current.add(id)
+    else current.delete(id)
+    setData({
+      ...prev,
+      personnelRhAccesUserIds: [...current],
+    })
+  }, [])
+
   const resetDemo = useCallback(() => {
     if (!orgId) return
     const demo = seedDemoData()
     skipNextSave.current = true
     setData(demo)
     saveData(demo, orgId)
-    void saveOrgDataRemote(orgId, demo).then(({ updatedAt }) => {
+    void saveOrgDataRemote(orgId, demo, rhActorRef.current).then(({ updatedAt }) => {
       setCloudUpdatedAt(orgId, updatedAt)
       markSynced(orgId)
     })
   }, [orgId])
+
+  const peutVoirIdentitesRhFlag = peutVoirIdentitesRh(rhActor, data.personnelRhAccesUserIds)
 
   const value = useMemo(
     () => ({
@@ -2231,6 +2293,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
+      setPersonnelRhAcces,
+      peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
       resetDemo,
       replaceData,
     }),
@@ -2288,6 +2352,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
+      setPersonnelRhAcces,
+      peutVoirIdentitesRhFlag,
       resetDemo,
       replaceData,
     ],
