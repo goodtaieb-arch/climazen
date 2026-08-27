@@ -3,6 +3,8 @@ import { Users } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
+import { DossierCloudTechButton } from './DossierCloudTechButton'
+import { dossierForUser } from '../lib/rhDocuments'
 
 type Props = {
   technicien: string
@@ -52,7 +54,7 @@ export function TechnicienAssignField({
   const selectValue = technicienUserId || ''
 
   return (
-    <label className={`block text-sm ${className}`}>
+    <div className={`block text-sm ${className}`}>
       <span className="mb-1 flex items-center gap-1.5 font-semibold text-ink">
         <Users className="h-3.5 w-3.5 text-accent" />
         {label}
@@ -94,6 +96,17 @@ export function TechnicienAssignField({
           Le gérant prend l’appel, crée l’OT, puis affecte le technicien qui interviendra.
         </p>
       )}
-    </label>
+      {selectValue ? (
+        <div className="mt-2">
+          <DossierCloudTechButton
+            techName={team.find((t) => t.id === selectValue)?.fullName || technicien || 'Technicien'}
+            lienCloudDossier={dossierForUser(data.personnelDossiers, selectValue)?.lienCloudDossier}
+            racineCloud={data.operateur.lienCloudRhRacine}
+            variant="link"
+            label="Photos pièces — ouvrir son dossier cloud"
+          />
+        </div>
+      ) : null}
+    </div>
   )
 }

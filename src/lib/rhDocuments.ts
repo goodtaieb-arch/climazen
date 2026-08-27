@@ -221,6 +221,11 @@ export interface PersonnelDossier {
   documents: DocumentRh[]
   /** Types masqués par la secrétaire (croix) — pas d’obligation, pas d’alerte « manquant ». */
   typesMasques?: TypeDocumentRh[]
+  /**
+   * Lien https du dossier cloud de CE technicien (Drive / OneDrive / SharePoint).
+   * Prioritaire sur le dossier général société : un bouton ouvre directement ses photos de pièces.
+   */
+  lienCloudDossier?: string
   updatedAt: string
 }
 
@@ -237,6 +242,7 @@ export function defaultPersonnelDossier(
     toucheElectricite: true,
     conduitVehicule: true,
     documents: [],
+    lienCloudDossier: undefined,
     updatedAt: now,
   }
 }
@@ -319,6 +325,25 @@ export function lienDossierCloudRh(baseUrl: string | undefined, segments: string
   }
 }
 
+/**
+ * Dossier cloud du technicien pour y déposer les photos de pièces.
+ * 1) Lien collé sur SA fiche (Drive perso / sous-dossier)
+ * 2) Sinon dossier général société + chemin ClimaZEN → Dossiers techniciens → nom
+ */
+export function hrefDossierCloudTech(opts: {
+  racineCloud?: string
+  lienCloudDossier?: string
+  techName: string
+  type?: TypeDocumentRh
+}): string | undefined {
+  const perso = normalizeLienCloudRh(opts.lienCloudDossier)
+  if (perso) return perso
+  return lienDossierCloudRh(
+    opts.racineCloud,
+    segmentsDossierCloudRh({ techName: opts.techName, type: opts.type }),
+  )
+}
+
 /** Lien https uniquement — Drive / OneDrive / SharePoint. Rejette javascript: et data:. */
 export function normalizeLienCloudRh(raw?: string): string | undefined {
   const s = (raw || '').trim()
@@ -378,6 +403,7 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       typesMasques: Array.isArray(raw.typesMasques)
         ? raw.typesMasques.filter((t): t is TypeDocumentRh => Boolean(t))
         : [],
+      lienCloudDossier: normalizeLienCloudRh(raw.lienCloudDossier),
       updatedAt: raw.updatedAt || '',
     }
     const prev = byUser.get(userId)

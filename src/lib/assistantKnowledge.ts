@@ -250,6 +250,12 @@ Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
       'equipe',
       'équipe',
       'rh',
+      'drive',
+      'onedrive',
+      'photos',
+      'piece',
+      'pièce',
+      'cloud',
     ],
     paths: ['/app/equipe', '/app/profil'],
     answer: `Dossier de chaque technicien (Équipe → Dossier, ou Mon profil → Mon dossier) :
@@ -260,7 +266,7 @@ Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
 • Admin : RIB, justificatif de domicile, contrat, diplôme.
 
 Saisissez la date limite des pièces que vous enregistrez. L’accueil alerte 45 jours avant, puis à l’expiration. Les pièces non disponibles se masquent avec la croix rouge — rien n’est imposé.
-Les photos d’identité / scans ne sont pas stockés dans ClimaZEN. Le gérant colle UN lien de dossier général dans Mon entreprise ; l’app classe : ClimaZEN → Dossiers techniciens → nom du tech → catégorie (Identité, Froid F-Gas…).
+Les photos d’identité / scans ne sont pas stockés dans ClimaZEN. Sur chaque tech : bouton « Photos pièces » qui ouvre SON dossier cloud (Drive / OneDrive). Le gérant colle le lien sous le nom dans Équipe, ou un dossier général dans Mon entreprise (ClimaZEN → Dossiers techniciens → nom du tech → catégorie).
 Les pièces d’identité (CNI, passeport, Vitale, RIB) ne sont visibles que par le gérant et les personnes qu’il autorise dans Équipe → « Donner accès identités » (secrétariat, accueil d’appels / agent IA). Un technicien ne voit pas le dossier identité d’un collègue.
 L’attestation de capacité SOCIÉTÉ reste dans Mon entreprise. Le détecteur de fuite est dans Mon profil.`,
   },

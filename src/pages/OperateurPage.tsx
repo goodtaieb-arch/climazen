@@ -145,7 +145,9 @@ export function OperateurPage() {
           <p className="mb-3 text-sm text-muted">
             Un seul lien : le dossier général de la société (Drive, OneDrive ou SharePoint). ClimaZEN
             classe ensuite : <strong>ClimaZEN → Dossiers techniciens → nom du tech → catégorie</strong>
-            (Identité, Froid F-Gas, Électricité…).
+            (Identité, Froid F-Gas, Électricité…). Sur chaque tech, vous pouvez aussi coller{' '}
+            <strong>son</strong> sous-dossier : le bouton <strong>Photos pièces</strong> l’ouvre
+            directement.
           </p>
           <Field
             label="Lien du dossier général"

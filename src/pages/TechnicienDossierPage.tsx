@@ -19,6 +19,7 @@ import {
   fileToDocumentScanDataUrl,
   formatCheminCloudRh,
   formatDateFr,
+  hrefDossierCloudTech,
   labelStatutDocumentRh,
   lienDossierCloudRh,
   normalizeLienCloudRh,
@@ -69,7 +70,7 @@ function statutClass(statut: StatutDocumentRh) {
 export function TechnicienDossierPage() {
   const { userId } = useParams()
   const { user, isOwner, listTeam } = useAuth()
-  const { data, upsertPersonnelDossier, upsertPersonnelDocument, deletePersonnelDocument, peutVoirIdentitesRh } =
+  const { data, upsertPersonnelDossier, upsertPersonnelDocument, deletePersonnelDocument, setPersonnelLienCloud, peutVoirIdentitesRh } =
     useStore()
   const [member, setMember] = useState<UserAccount | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -110,6 +111,7 @@ export function TechnicienDossierPage() {
   const [conduitVehicule, setConduitVehicule] = useState(dossier.conduitVehicule)
   const [notes, setNotes] = useState(dossier.notes || '')
   const [telephone, setTelephone] = useState(dossier.telephone || '')
+  const [lienCloudDossier, setLienCloudDossier] = useState(dossier.lienCloudDossier || '')
 
   useEffect(() => {
     setToucheFroid(dossier.toucheFroid)
@@ -117,6 +119,7 @@ export function TechnicienDossierPage() {
     setConduitVehicule(dossier.conduitVehicule)
     setNotes(dossier.notes || '')
     setTelephone(dossier.telephone || '')
+    setLienCloudDossier(dossier.lienCloudDossier || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored?.id, stored?.updatedAt, displayName])
 
@@ -155,11 +158,20 @@ export function TechnicienDossierPage() {
   const racineCloud = data.operateur.lienCloudRhRacine
   const segsTech = segmentsDossierCloudRh({ techName: displayName })
   const cheminTech = formatCheminCloudRh(segsTech)
-  const hrefDossierTech = lienDossierCloudRh(racineCloud, segsTech)
+  const hrefDossierTech = hrefDossierCloudTech({
+    racineCloud,
+    lienCloudDossier: dossier.lienCloudDossier || lienCloudDossier,
+    techName: displayName,
+  })
   const cloudImbrique = cloudRhAccepteCheminImbrique(racineCloud)
   const segsPiece = segmentsDossierCloudRh({ techName: displayName, type: form.type })
   const cheminPiece = formatCheminCloudRh(segsPiece)
-  const hrefDossierPiece = lienDossierCloudRh(racineCloud, segsPiece)
+  const hrefDossierPiece = hrefDossierCloudTech({
+    racineCloud,
+    lienCloudDossier: dossier.lienCloudDossier || lienCloudDossier,
+    techName: displayName,
+    type: form.type,
+  })
 
   const copierChemin = (chemin: string) => {
     void navigator.clipboard?.writeText(chemin).then(() => {
@@ -174,6 +186,11 @@ export function TechnicienDossierPage() {
       userId,
       userName: displayName,
       telephone,
+      lienCloudDossier: (() => {
+        const t = lienCloudDossier.trim()
+        if (!t) return ''
+        return normalizeLienCloudRh(t) || stored?.lienCloudDossier || ''
+      })(),
       toucheFroid,
       toucheElectricite,
       conduitVehicule,
@@ -312,15 +329,43 @@ export function TechnicienDossierPage() {
       </div>
 
       <div className="rounded-2xl border border-line bg-white p-4 text-sm">
-        <div className="font-display font-semibold text-ink">Dossier cloud</div>
-        {racineCloud ? (
+        <div className="font-display font-semibold text-ink">Dossier cloud — photos de pièces</div>
+        <p className="mt-1 text-muted">
+          Les scans (CNI, permis, F-Gas…) se déposent ici, pas dans ClimaZEN. Un bouton ouvre le
+          dossier de <strong>{displayName}</strong>.
+        </p>
+        {(isOwner || user.id === userId) && (
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs font-semibold text-ink">
+              Lien de SON dossier (Drive / OneDrive / SharePoint)
+            </span>
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://drive.google.com/drive/folders/…"
+              value={lienCloudDossier}
+              onChange={(e) => setLienCloudDossier(e.target.value)}
+              onBlur={() => {
+                const next = lienCloudDossier.trim()
+                if (next && !normalizeLienCloudRh(next)) return
+                setPersonnelLienCloud(userId, displayName, next)
+              }}
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
+          </label>
+        )}
+        {dossier.lienCloudDossier || racineCloud ? (
           <>
-            <p className="mt-1 font-medium text-ink">{cheminTech}</p>
-            <p className="mt-1 text-muted">
-              {cloudImbrique
-                ? 'SharePoint / OneDrive : l’app ouvre le sous-dossier du technicien.'
-                : 'Google Drive : ouvrez le dossier général, puis rangez dans ce chemin (l’app ne peut pas créer les sous-dossiers toute seule).'}
-            </p>
+            {!dossier.lienCloudDossier && racineCloud ? (
+              <>
+                <p className="mt-2 font-medium text-ink">{cheminTech}</p>
+                <p className="mt-1 text-muted">
+                  {cloudImbrique
+                    ? 'SharePoint / OneDrive : l’app ouvre le sous-dossier du technicien.'
+                    : 'Google Drive : dossier général société — rangez dans ce chemin, ou collez ci-dessus le lien du sous-dossier du tech.'}
+                </p>
+              </>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {hrefDossierTech ? (
                 <a
@@ -329,7 +374,7 @@ export function TechnicienDossierPage() {
                   rel="noopener noreferrer"
                   className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" /> Ouvrir le dossier
+                  <ExternalLink className="h-3.5 w-3.5" /> Ouvrir le dossier photos
                 </a>
               ) : null}
               <button
@@ -342,8 +387,8 @@ export function TechnicienDossierPage() {
             </div>
           </>
         ) : (
-          <p className="mt-1 text-muted">
-            Un seul lien général, collé par le gérant dans{' '}
+          <p className="mt-2 text-muted">
+            Collez le lien du dossier de ce tech ci-dessus, ou un dossier général société dans{' '}
             {isOwner ? (
               <Link to="/app/operateur" className="font-semibold text-accent underline">
                 Mon entreprise
@@ -351,7 +396,7 @@ export function TechnicienDossierPage() {
             ) : (
               <strong>Mon entreprise</strong>
             )}
-            . L’app classe ensuite : ClimaZEN → Dossiers techniciens → {displayName}.
+            .
           </p>
         )}
       </div>
