@@ -635,6 +635,11 @@ export interface AppData {
    */
   personnelRhAccesUserIds?: string[]
   /**
+   * Techniciens retirés de l’équipe (départ société) — plus affichés, plus d’affectation.
+   * Le compte Auth est aussi désactivé (plus de connexion).
+   */
+  personnelRetiresUserIds?: string[]
+  /**
    * Ids supprimés (tombstones) — la sync ne doit pas les réimporter depuis le cloud.
    */
   deletedEntityIds?: import('./deletedEntities').DeletedEntityIds

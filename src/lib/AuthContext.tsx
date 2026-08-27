@@ -17,6 +17,7 @@ import {
   registerCompany,
   requestPasswordReset,
   sendOperatorPasswordReset,
+  removeOperatorAccount,
   setUserActive,
   updatePassword,
   updateUserProfile,
@@ -70,6 +71,7 @@ type AuthCtx = {
     fullName: string
   }) => Promise<{ user: UserAccount }>
   setOperatorActive: (userId: string, active: boolean) => Promise<void>
+  removeOperator: (userId: string) => Promise<void>
   resetOperatorPassword: (userId: string) => Promise<{ email: string }>
   requestPasswordReset: (email: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
@@ -238,6 +240,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   )
 
+  const removeOperatorFn = useCallback(
+    async (userId: string) => {
+      if (!user) throw new Error('Non connecté')
+      await removeOperatorAccount(userId, user)
+      setTeamTick((t) => t + 1)
+    },
+    [user],
+  )
+
   const resetOperatorPasswordFn = useCallback(
     async (userId: string) => {
       if (!user) throw new Error('Non connecté')
@@ -289,6 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       createOperator,
       setOperatorActive: setOperatorActiveFn,
+      removeOperator: removeOperatorFn,
       resetOperatorPassword: resetOperatorPasswordFn,
       requestPasswordReset: requestPasswordResetFn,
       updatePassword: updatePasswordFn,
@@ -306,6 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       createOperator,
       setOperatorActiveFn,
+      removeOperatorFn,
       resetOperatorPasswordFn,
       requestPasswordResetFn,
       updatePasswordFn,

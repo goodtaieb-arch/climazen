@@ -209,6 +209,8 @@ export interface PersonnelDossier {
   id: string
   userId: string
   userName: string
+  /** Portable pro — visible dans Équipe à côté du nom / e-mail */
+  telephone?: string
   /** Manipulation fluides — aptitude F-Gas obligatoire */
   toucheFroid: boolean
   /** Travail sur parties électriques */
@@ -230,6 +232,7 @@ export function defaultPersonnelDossier(
   return {
     userId,
     userName,
+    telephone: undefined,
     toucheFroid: true,
     toucheElectricite: true,
     conduitVehicule: true,
@@ -366,6 +369,7 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       id: raw.id || userId,
       userId,
       userName: String(raw.userName || '').trim() || 'Technicien',
+      telephone: String(raw.telephone || '').trim() || undefined,
       toucheFroid: raw.toucheFroid !== false,
       toucheElectricite: raw.toucheElectricite !== false,
       conduitVehicule: raw.conduitVehicule !== false,
@@ -440,6 +444,11 @@ export function normalizePersonnelRhAccesUserIds(ids?: string[] | null): string[
   return out
 }
 
+/** Comptes retirés de l’équipe (départ) — plus listés, plus d’affectation. */
+export function normalizePersonnelRetiresUserIds(ids?: string[] | null): string[] {
+  return normalizePersonnelRhAccesUserIds(ids)
+}
+
 /** Gérant, ou employé (secrétariat / accueil appels) autorisé par le gérant. */
 export function peutVoirIdentitesRh(
   actor: RhAccessActor | undefined | null,
@@ -471,11 +480,13 @@ export function scopePersonnelDossiersForViewer(
 export function applyPersonnelRhScopeToAppData<T extends {
   personnelDossiers?: PersonnelDossier[]
   personnelRhAccesUserIds?: string[]
+  personnelRetiresUserIds?: string[]
 }>(data: T, actor: RhAccessActor): T {
   const acces = normalizePersonnelRhAccesUserIds(data.personnelRhAccesUserIds)
   return {
     ...data,
     personnelRhAccesUserIds: acces,
+    personnelRetiresUserIds: normalizePersonnelRetiresUserIds(data.personnelRetiresUserIds),
     personnelDossiers: scopePersonnelDossiersForViewer(data.personnelDossiers, actor, acces),
   }
 }
@@ -516,15 +527,21 @@ export function mergePersonnelDossiersSansAccesIdentite(params: {
 export function protectPersonnelRhOnSave<T extends {
   personnelDossiers?: PersonnelDossier[]
   personnelRhAccesUserIds?: string[]
+  personnelRetiresUserIds?: string[]
 }>(params: { previous: T; incoming: T; actor: RhAccessActor }): {
   personnelDossiers: PersonnelDossier[]
   personnelRhAccesUserIds: string[]
+  personnelRetiresUserIds: string[]
 } {
   const prevAcces = normalizePersonnelRhAccesUserIds(params.previous.personnelRhAccesUserIds)
+  const prevRetires = normalizePersonnelRetiresUserIds(params.previous.personnelRetiresUserIds)
   if (params.actor.isOwner) {
     return {
       personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(
         params.incoming.personnelRhAccesUserIds,
+      ),
+      personnelRetiresUserIds: normalizePersonnelRetiresUserIds(
+        params.incoming.personnelRetiresUserIds,
       ),
       personnelDossiers: sanitizePersonnelDossiers(params.incoming.personnelDossiers),
     }
@@ -532,11 +549,13 @@ export function protectPersonnelRhOnSave<T extends {
   if (peutVoirIdentitesRh(params.actor, prevAcces)) {
     return {
       personnelRhAccesUserIds: prevAcces,
+      personnelRetiresUserIds: prevRetires,
       personnelDossiers: sanitizePersonnelDossiers(params.incoming.personnelDossiers),
     }
   }
   return {
     personnelRhAccesUserIds: prevAcces,
+    personnelRetiresUserIds: prevRetires,
     personnelDossiers: mergePersonnelDossiersSansAccesIdentite({
       previous: params.previous.personnelDossiers,
       incoming: params.incoming.personnelDossiers,

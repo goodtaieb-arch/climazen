@@ -56,6 +56,7 @@ import {
   estDocumentRhAdminSeulement,
   migratePersonnelDossiers,
   normalizePersonnelRhAccesUserIds,
+  normalizePersonnelRetiresUserIds,
   peutVoirIdentitesRh,
   sanitizeDocumentRh,
   typesAMasquer,
@@ -274,6 +275,10 @@ type Store = {
   deletePersonnelDocument: (userId: string, documentId: string) => void
   /** Gérant seulement : autorise un employé (secrétariat, accueil appels) à voir les identités. */
   setPersonnelRhAcces: (userId: string, granted: boolean) => void
+  /** Gérant : portable pro du technicien (affiché dans Équipe). */
+  setPersonnelTelephone: (userId: string, userName: string, telephone: string) => void
+  /** Gérant : retire le tech de l’équipe (départ) — plus listé. */
+  retirePersonnel: (userId: string) => void
   /** Identités + dossiers des collègues : gérant ou personnel autorisé. */
   peutVoirIdentitesRh: boolean
   resetDemo: () => void
@@ -2103,6 +2108,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         id,
         userId: d.userId,
         userName: d.userName.trim() || existing?.userName || 'Technicien',
+        telephone:
+          d.telephone !== undefined
+            ? d.telephone.trim() || undefined
+            : existing?.telephone,
         toucheFroid: d.toucheFroid,
         toucheElectricite: d.toucheElectricite,
         conduitVehicule: d.conduitVehicule,
@@ -2224,6 +2233,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const setPersonnelTelephone = useCallback((userId: string, userName: string, telephone: string) => {
+    const actor = rhActorRef.current
+    if (!actor) return
+    const id = String(userId || '').trim()
+    if (!id) return
+    if (!actor.isOwner && actor.userId !== id) return
+    const prev = dataRef.current
+    const list = migratePersonnelDossiers(prev.personnelDossiers)
+    const existing = list.find((x) => x.userId === id)
+    const now = new Date().toISOString()
+    const tel = telephone.trim() || undefined
+    const nextDossier: PersonnelDossier = {
+      ...(existing || defaultPersonnelDossier(id, userName || 'Technicien', now)),
+      id: existing?.id || id,
+      userId: id,
+      userName: (userName || existing?.userName || 'Technicien').trim(),
+      telephone: tel,
+      updatedAt: now,
+    }
+    const nextList = existing
+      ? list.map((x) => (x.userId === id ? nextDossier : x))
+      : [...list, nextDossier]
+    setData({
+      ...prev,
+      personnelDossiers: migratePersonnelDossiers(nextList),
+    })
+  }, [])
+
+  const retirePersonnel = useCallback((userId: string) => {
+    const actor = rhActorRef.current
+    if (!actor?.isOwner) return
+    const id = String(userId || '').trim()
+    if (!id || id === actor.userId) return
+    const prev = dataRef.current
+    const retired = new Set(normalizePersonnelRetiresUserIds(prev.personnelRetiresUserIds))
+    retired.add(id)
+    const acces = new Set(normalizePersonnelRhAccesUserIds(prev.personnelRhAccesUserIds))
+    acces.delete(id)
+    setData({
+      ...prev,
+      personnelRetiresUserIds: [...retired],
+      personnelRhAccesUserIds: [...acces],
+    })
+  }, [])
+
   const resetDemo = useCallback(() => {
     if (!orgId) return
     const demo = seedDemoData()
@@ -2294,6 +2348,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPersonnelDocument,
       deletePersonnelDocument,
       setPersonnelRhAcces,
+      setPersonnelTelephone,
+      retirePersonnel,
       peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
       resetDemo,
       replaceData,
@@ -2353,6 +2409,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPersonnelDocument,
       deletePersonnelDocument,
       setPersonnelRhAcces,
+      setPersonnelTelephone,
+      retirePersonnel,
       peutVoirIdentitesRhFlag,
       resetDemo,
       replaceData,

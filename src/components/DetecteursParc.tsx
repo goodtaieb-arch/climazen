@@ -71,6 +71,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
   }, [isOwner, loadTeam])
 
   const team = useMemo(() => {
+    const retired = new Set(data.personnelRetiresUserIds || [])
     const map = new Map<string, UserAccount>()
     const add = (m: {
       id?: string
@@ -83,7 +84,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
       active?: boolean
     }) => {
       const id = String(m.id || '').trim()
-      if (!id) return
+      if (!id || retired.has(id)) return
       const prev = map.get(id)
       map.set(id, {
         id,
@@ -113,7 +114,7 @@ export function DetecteursParc({ team: teamProp }: Props) {
     for (const m of teamRemote) add(m)
     for (const m of teamProp || []) add(m)
     return [...map.values()].filter((m) => m.active !== false)
-  }, [teamProp, teamRemote, user, orgId, data.personnelDossiers, detecteurs])
+  }, [teamProp, teamRemote, user, orgId, data.personnelDossiers, data.personnelRetiresUserIds, detecteurs])
 
   /** Vrai seulement si l’équipe a bien été chargée et qu’il n’y a qu’un compte. */
   const isSolo = teamLoaded && !teamError && team.length <= 1

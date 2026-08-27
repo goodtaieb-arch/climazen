@@ -105,11 +105,14 @@ export function Dashboard() {
   }, [data.agendaEvents])
 
   const rhAlertes = useMemo(() => {
+    const retired = new Set(data.personnelRetiresUserIds || [])
     const alerts = alertesEquipe(data.personnelDossiers, {
       userId: peutVoirIdentitesRh ? undefined : user?.id,
     })
-    return alerts.filter((a) => a.statut === 'expire' || a.statut === 'bientot').slice(0, 8)
-  }, [data.personnelDossiers, peutVoirIdentitesRh, user])
+    return alerts
+      .filter((a) => !retired.has(a.userId) && (a.statut === 'expire' || a.statut === 'bientot'))
+      .slice(0, 8)
+  }, [data.personnelDossiers, data.personnelRetiresUserIds, peutVoirIdentitesRh, user])
 
   const steps = [
     {

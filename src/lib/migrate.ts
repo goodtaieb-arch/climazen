@@ -12,7 +12,7 @@ import type {
 import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { purgeOrphanCerfaStock } from './stockMouvements'
-import { migratePersonnelDossiers, normalizePersonnelRhAccesUserIds } from './rhDocuments'
+import { migratePersonnelDossiers, normalizePersonnelRhAccesUserIds, normalizePersonnelRetiresUserIds } from './rhDocuments'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
 type LegacyChantier = Partial<Site> & {
@@ -221,6 +221,7 @@ export function migrateAppData(data: AppData): AppData {
     agendaEvents: data.agendaEvents || [],
     personnelDossiers: migratePersonnelDossiers(data.personnelDossiers),
     personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(data.personnelRhAccesUserIds),
+    personnelRetiresUserIds: normalizePersonnelRetiresUserIds(data.personnelRetiresUserIds),
     deletedEntityIds: data.deletedEntityIds || {
       clients: [],
       chantiers: [],

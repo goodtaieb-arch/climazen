@@ -7,6 +7,7 @@ import type { UserAccount } from '../lib/auth'
 import { Field } from './ClientsPage'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Nav3dIcon } from '../components/Nav3dIcon'
+import { telHref } from '../lib/agenda'
 import {
   addYearsIso,
   alertesPourDossier,
@@ -108,12 +109,14 @@ export function TechnicienDossierPage() {
   const [toucheElectricite, setToucheElectricite] = useState(dossier.toucheElectricite)
   const [conduitVehicule, setConduitVehicule] = useState(dossier.conduitVehicule)
   const [notes, setNotes] = useState(dossier.notes || '')
+  const [telephone, setTelephone] = useState(dossier.telephone || '')
 
   useEffect(() => {
     setToucheFroid(dossier.toucheFroid)
     setToucheElectricite(dossier.toucheElectricite)
     setConduitVehicule(dossier.conduitVehicule)
     setNotes(dossier.notes || '')
+    setTelephone(dossier.telephone || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored?.id, stored?.updatedAt, displayName])
 
@@ -170,6 +173,7 @@ export function TechnicienDossierPage() {
       id: stored?.id,
       userId,
       userName: displayName,
+      telephone,
       toucheFroid,
       toucheElectricite,
       conduitVehicule,
@@ -240,6 +244,7 @@ export function TechnicienDossierPage() {
       upsertPersonnelDossier({
         userId,
         userName: displayName,
+        telephone,
         toucheFroid,
         toucheElectricite,
         conduitVehicule,
@@ -269,6 +274,18 @@ export function TechnicienDossierPage() {
           </Link>
           <h1 className="font-display text-3xl font-bold tracking-tight">Dossier {displayName}</h1>
           <p className="mt-1 text-sm text-muted">
+            {telephone.trim() ? (
+              <>
+                {telHref(telephone) ? (
+                  <a href={telHref(telephone) || undefined} className="font-semibold text-accent hover:underline">
+                    {telephone.trim()}
+                  </a>
+                ) : (
+                  <span className="font-semibold text-ink">{telephone.trim()}</span>
+                )}
+                {' · '}
+              </>
+            ) : null}
             {member?.email || (userId === user.id ? user.email : '')} — dates limites et alertes
             d’expiration. Les scans d’identité ne sont pas enregistrés.
           </p>
@@ -371,6 +388,16 @@ export function TechnicienDossierPage() {
           Ça aide à proposer des pièces. Décochez si le collègue ne fait jamais ça. Rien n’est
           obligatoire : masquez une pièce avec la croix rouge.
         </p>
+        <div className="mt-3 max-w-sm">
+          <Field
+            label="Téléphone portable"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={telephone}
+            onChange={setTelephone}
+          />
+        </div>
         <div className="mt-3 grid gap-2 text-sm">
           <label className="flex items-start gap-2">
             <input
