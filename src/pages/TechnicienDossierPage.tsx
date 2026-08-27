@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Camera, ExternalLink, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
@@ -16,6 +16,7 @@ import {
   fileToDocumentScanDataUrl,
   formatDateFr,
   labelStatutDocumentRh,
+  normalizeLienCloudRh,
   resumeAlertesDossier,
   statutDocumentRh,
   TYPES_DOCUMENT_RH,
@@ -35,6 +36,8 @@ type DocForm = {
   dateObtention: string
   dateExpiration: string
   notes: string
+  lienCloud: string
+  lienCloudExpire: string
   fichierNom?: string
   fichierDataUrl?: string
 }
@@ -46,6 +49,8 @@ const blankDoc = (): DocForm => ({
   dateObtention: '',
   dateExpiration: '',
   notes: '',
+  lienCloud: '',
+  lienCloudExpire: '',
 })
 
 function statutClass(statut: StatutDocumentRh) {
@@ -173,6 +178,8 @@ export function TechnicienDossierPage() {
       dateObtention: doc.dateObtention || '',
       dateExpiration: doc.dateExpiration || '',
       notes: doc.notes || '',
+      lienCloud: doc.lienCloud || '',
+      lienCloudExpire: doc.lienCloudExpire || '',
       fichierNom: doc.fichierNom,
       fichierDataUrl: doc.fichierDataUrl,
     })
@@ -182,6 +189,10 @@ export function TechnicienDossierPage() {
 
   const onSaveDoc = (e: FormEvent) => {
     e.preventDefault()
+    if (form.lienCloud.trim() && !normalizeLienCloudRh(form.lienCloud)) {
+      setFileError('Lien invalide — collez un lien https (Drive, OneDrive, SharePoint).')
+      return
+    }
     upsertPersonnelDocument(userId, displayName, {
       id: form.id,
       type: form.type,
@@ -190,6 +201,8 @@ export function TechnicienDossierPage() {
       dateObtention: form.dateObtention,
       dateExpiration: form.dateExpiration,
       notes: form.notes,
+      lienCloud: form.lienCloud,
+      lienCloudExpire: form.lienCloudExpire,
       fichierNom: form.fichierNom,
       fichierDataUrl: form.fichierDataUrl,
     })
@@ -237,9 +250,10 @@ export function TechnicienDossierPage() {
         <p className="mt-1">
           En cas de piratage du coffre, on ne doit pas retrouver les CNI / cartes Vitale en photo.
           ClimaZEN enregistre seulement le <strong>type</strong> et la <strong>date limite</strong>
-          (pour l’alerte). Le numéro est masqué (4 derniers caractères). La photo sert à relire la
-          date, puis elle est <strong>jetée</strong> — pas de copie dans le cloud ni sur le
-          téléphone.
+          (pour l’alerte). Le numéro est masqué (4 derniers caractères). Pour retrouver la pièce :
+          collez un <strong>lien temporaire</strong> vers le fichier dans le cloud de la société
+          (Drive / OneDrive / SharePoint). La photo d’aperçu est <strong>jetée</strong> — pas de
+          copie dans ClimaZEN.
         </p>
       </div>
 
@@ -474,6 +488,18 @@ export function TechnicienDossierPage() {
                         : 'pas de date limite'}
                       {doc.scanConfirme ? ' · scan vu (non stocké)' : ''}
                     </p>
+                    {doc.lienCloud ? (
+                      <a
+                        href={doc.lienCloud}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Ouvrir la pièce
+                        {doc.lienCloudExpire ? ` · lien jusqu’au ${formatDateFr(doc.lienCloudExpire)}` : ''}
+                      </a>
+                    ) : null}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -550,6 +576,30 @@ export function TechnicienDossierPage() {
                 label="N° / référence (4 derniers caractères)"
                 value={form.numero}
                 onChange={(v) => setForm((f) => ({ ...f, numero: v }))}
+              />
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-semibold text-ink">Lien cloud (Drive, OneDrive…)</span>
+                <input
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://…"
+                  value={form.lienCloud}
+                  onChange={(e) => {
+                    setFileError('')
+                    setForm((f) => ({ ...f, lienCloud: e.target.value }))
+                  }}
+                  className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
+                />
+                <p className="mt-1 text-xs text-muted">
+                  Collez un lien de partage temporaire du fichier dans le cloud de la société. Le
+                  document reste chez vous — ClimaZEN ouvre directement la bonne pièce.
+                </p>
+              </label>
+              <Field
+                label="Lien valable jusqu’au (optionnel)"
+                type="date"
+                value={form.lienCloudExpire}
+                onChange={(v) => setForm((f) => ({ ...f, lienCloudExpire: v }))}
               />
               <Field
                 label="Date d’obtention"

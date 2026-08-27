@@ -2109,6 +2109,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         numero: doc.numero?.trim() || undefined,
         dateObtention: doc.dateObtention?.trim() || undefined,
         dateExpiration: doc.dateExpiration?.trim() || undefined,
+        lienCloud: doc.lienCloud?.trim() || undefined,
+        lienCloudExpire: doc.lienCloudExpire?.trim() || undefined,
         fichierNom: doc.fichierNom?.trim() || undefined,
         fichierDataUrl: doc.fichierDataUrl || undefined,
         scanConfirme: Boolean(doc.fichierDataUrl || doc.fichierNom || prevDoc?.scanConfirme),

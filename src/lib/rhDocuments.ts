@@ -190,6 +190,10 @@ export interface DocumentRh {
   fichierDataUrl?: string
   /** Une copie papier / photo a été vue, sans être stockée. */
   scanConfirme?: boolean
+  /** Lien https vers le fichier dans le cloud société (Drive, OneDrive, SharePoint…). */
+  lienCloud?: string
+  /** Fin de validité du lien de partage (lien temporaire). */
+  lienCloudExpire?: string
   notes?: string
   createdAt: string
   updatedAt: string
@@ -237,6 +241,21 @@ export function maskNumeroRh(numero?: string): string | undefined {
   return `…${tail}`
 }
 
+/** Lien https uniquement — Drive / OneDrive / SharePoint. Rejette javascript: et data:. */
+export function normalizeLienCloudRh(raw?: string): string | undefined {
+  const s = (raw || '').trim()
+  if (!s) return undefined
+  let url: URL
+  try {
+    url = new URL(s)
+  } catch {
+    return undefined
+  }
+  if (url.protocol !== 'https:') return undefined
+  if (s.length > 2000) return undefined
+  return url.href
+}
+
 export function sanitizeDocumentRh(doc: DocumentRh): DocumentRh {
   const hadFile = Boolean(doc.fichierDataUrl || doc.fichierNom || doc.scanConfirme)
   return {
@@ -245,6 +264,8 @@ export function sanitizeDocumentRh(doc: DocumentRh): DocumentRh {
     fichierDataUrl: undefined,
     fichierNom: undefined,
     scanConfirme: hadFile || undefined,
+    lienCloud: normalizeLienCloudRh(doc.lienCloud),
+    lienCloudExpire: (doc.lienCloudExpire || '').trim() || undefined,
   }
 }
 
@@ -388,21 +409,35 @@ export function alertesPourDossier(
   const alerts: AlerteDocumentRh[] = []
   for (const doc of dossier.documents || []) {
     const statut = statutDocumentRh(doc, now)
-    if (statut === 'ok') continue
-    const days = daysUntilIso(doc.dateExpiration || '', now)
-    alerts.push({
-      userId: dossier.userId,
-      userName: dossier.userName,
-      documentId: doc.id,
-      type: doc.type,
-      label: doc.libelle?.trim()
-        ? `${labelDocumentRh(doc.type)} — ${doc.libelle.trim()}`
-        : labelDocumentRh(doc.type),
-      statut,
-      dateExpiration: doc.dateExpiration,
-      daysUntil: days,
-      libelle: doc.libelle,
-    })
+    if (statut !== 'ok') {
+      const days = daysUntilIso(doc.dateExpiration || '', now)
+      alerts.push({
+        userId: dossier.userId,
+        userName: dossier.userName,
+        documentId: doc.id,
+        type: doc.type,
+        label: doc.libelle?.trim()
+          ? `${labelDocumentRh(doc.type)} — ${doc.libelle.trim()}`
+          : labelDocumentRh(doc.type),
+        statut,
+        dateExpiration: doc.dateExpiration,
+        daysUntil: days,
+        libelle: doc.libelle,
+      })
+    }
+    const lienDays = daysUntilIso(doc.lienCloudExpire || '', now)
+    if (lienDays != null && lienDays <= ALERTE_EXPIRATION_JOURS) {
+      alerts.push({
+        userId: dossier.userId,
+        userName: dossier.userName,
+        documentId: `${doc.id}-lien`,
+        type: doc.type,
+        label: `Lien cloud — ${labelDocumentRh(doc.type)}`,
+        statut: lienDays < 0 ? 'expire' : 'bientot',
+        dateExpiration: doc.lienCloudExpire,
+        daysUntil: lienDays,
+      })
+    }
   }
   const order: Record<StatutDocumentRh, number> = {
     expire: 0,
