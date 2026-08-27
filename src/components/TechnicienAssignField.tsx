@@ -104,6 +104,7 @@ export function TechnicienAssignField({
             racineCloud={data.operateur.lienCloudRhRacine}
             variant="link"
             label="Photos pièces — ouvrir son dossier cloud"
+            hideIfMissing
           />
         </div>
       ) : null}

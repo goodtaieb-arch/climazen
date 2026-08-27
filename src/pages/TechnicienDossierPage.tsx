@@ -1,18 +1,19 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, Copy, ExternalLink, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Camera, Copy, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
 import { Field } from './ClientsPage'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Nav3dIcon } from '../components/Nav3dIcon'
+import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import { telHref } from '../lib/agenda'
+import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import {
   addYearsIso,
   alertesPourDossier,
   catalogDocumentRh,
-  cloudRhAccepteCheminImbrique,
   defaultPersonnelDossier,
   dossierForUser,
   estDocumentRhAdminSeulement,
@@ -21,7 +22,6 @@ import {
   formatDateFr,
   hrefDossierCloudTech,
   labelStatutDocumentRh,
-  lienDossierCloudRh,
   normalizeLienCloudRh,
   resumeAlertesDossier,
   segmentsDossierCloudRh,
@@ -155,22 +155,13 @@ export function TechnicienDossierPage() {
   if (!canAccess) return <Navigate to="/app" replace />
 
   const defaultDocType: TypeDocumentRh = canSeeIdentite ? 'cni' : 'attestation_aptitude_froid'
-  const racineCloud = data.operateur.lienCloudRhRacine
   const segsTech = segmentsDossierCloudRh({ techName: displayName })
   const cheminTech = formatCheminCloudRh(segsTech)
-  const hrefDossierTech = hrefDossierCloudTech({
-    racineCloud,
-    lienCloudDossier: dossier.lienCloudDossier || lienCloudDossier,
-    techName: displayName,
-  })
-  const cloudImbrique = cloudRhAccepteCheminImbrique(racineCloud)
   const segsPiece = segmentsDossierCloudRh({ techName: displayName, type: form.type })
   const cheminPiece = formatCheminCloudRh(segsPiece)
   const hrefDossierPiece = hrefDossierCloudTech({
-    racineCloud,
     lienCloudDossier: dossier.lienCloudDossier || lienCloudDossier,
     techName: displayName,
-    type: form.type,
   })
 
   const copierChemin = (chemin: string) => {
@@ -234,15 +225,18 @@ export function TechnicienDossierPage() {
     setFormOpen(true)
   }
 
-  const onSaveDoc = (e: FormEvent) => {
+  const onSaveDoc = async (e: FormEvent) => {
     e.preventDefault()
     if (!canSeeIdentite && estDocumentRhAdminSeulement(form.type)) {
       setFileError('Les pièces d’identité sont réservées à l’administration.')
       return
     }
-    if (form.lienCloud.trim() && !normalizeLienCloudRh(form.lienCloud)) {
-      setFileError('Lien invalide — collez un lien https (Drive, OneDrive, SharePoint).')
-      return
+    if (form.lienCloud.trim()) {
+      const check = await verifyCloudLinkRestricted(form.lienCloud)
+      if (!check.ok) {
+        setFileError(check.message)
+        return
+      }
     }
     upsertPersonnelDocument(userId, displayName, {
       id: form.id,
@@ -346,37 +340,37 @@ export function TechnicienDossierPage() {
               value={lienCloudDossier}
               onChange={(e) => setLienCloudDossier(e.target.value)}
               onBlur={() => {
-                const next = lienCloudDossier.trim()
-                if (next && !normalizeLienCloudRh(next)) return
-                setPersonnelLienCloud(userId, displayName, next)
+                void (async () => {
+                  const next = lienCloudDossier.trim()
+                  if (!next) {
+                    setPersonnelLienCloud(userId, displayName, '')
+                    return
+                  }
+                  const check = await verifyCloudLinkRestricted(next)
+                  if (!check.ok) {
+                    window.alert(check.message)
+                    return
+                  }
+                  setPersonnelLienCloud(userId, displayName, next)
+                })()
               }}
               className="h-10 w-full rounded-xl border border-line px-3 text-sm"
             />
+            <p className="mt-1 text-xs text-muted">{cloudPasteHint(lienCloudDossier)}</p>
           </label>
         )}
-        {dossier.lienCloudDossier || racineCloud ? (
+        {dossier.lienCloudDossier ? (
           <>
-            {!dossier.lienCloudDossier && racineCloud ? (
-              <>
-                <p className="mt-2 font-medium text-ink">{cheminTech}</p>
-                <p className="mt-1 text-muted">
-                  {cloudImbrique
-                    ? 'SharePoint / OneDrive : l’app ouvre le sous-dossier du technicien.'
-                    : 'Google Drive : dossier général société — rangez dans ce chemin, ou collez ci-dessus le lien du sous-dossier du tech.'}
-                </p>
-              </>
-            ) : null}
+            <p className="mt-2 text-muted">
+              Ouverture uniquement du dossier <strong>exact</strong> de cet opérateur. Si le
+              partage est public, l’app n’ouvre rien.
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {hrefDossierTech ? (
-                <a
-                  href={hrefDossierTech}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> Ouvrir le dossier photos
-                </a>
-              ) : null}
+              <DossierCloudTechButton
+                techName={displayName}
+                lienCloudDossier={dossier.lienCloudDossier || lienCloudDossier}
+                label="Ouvrir le dossier photos"
+              />
               <button
                 type="button"
                 onClick={() => copierChemin(cheminTech)}
@@ -388,15 +382,9 @@ export function TechnicienDossierPage() {
           </>
         ) : (
           <p className="mt-2 text-muted">
-            Collez le lien du dossier de ce tech ci-dessus, ou un dossier général société dans{' '}
-            {isOwner ? (
-              <Link to="/app/operateur" className="font-semibold text-accent underline">
-                Mon entreprise
-              </Link>
-            ) : (
-              <strong>Mon entreprise</strong>
-            )}
-            .
+            Collez le lien <strong>exact</strong> du dossier de <strong>{displayName}</strong>{' '}
+            (Google Drive, OneDrive ou SharePoint, en partage privé). L’app n’utilise plus le
+            dossier général société pour ouvrir les pièces.
           </p>
         )}
       </div>
@@ -643,32 +631,26 @@ export function TechnicienDossierPage() {
                       {doc.scanConfirme ? ' · scan vu (non stocké)' : ''}
                     </p>
                     {doc.lienCloud ? (
-                      <a
-                        href={doc.lienCloud}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-ink hover:bg-accent-hover"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Ouvrir la pièce
-                        {doc.lienCloudExpire ? ` · lien jusqu’au ${formatDateFr(doc.lienCloudExpire)}` : ''}
-                      </a>
-                    ) : hrefDossierTech ? (
-                      <a
-                        href={
-                          lienDossierCloudRh(
-                            racineCloud,
-                            segmentsDossierCloudRh({ techName: displayName, type: doc.type }),
-                          ) || hrefDossierTech
+                      <DossierCloudTechButton
+                        techName={displayName}
+                        lienCloudDossier={doc.lienCloud}
+                        label={
+                          doc.lienCloudExpire
+                            ? `Ouvrir la pièce · jusqu’au ${formatDateFr(doc.lienCloudExpire)}`
+                            : 'Ouvrir la pièce'
                         }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-semibold hover:bg-mist"
-                      >
-                        <FolderOpen className="h-3.5 w-3.5" />
-                        Dossier {formatCheminCloudRh(segmentsDossierCloudRh({ techName: displayName, type: doc.type }).slice(-1))}
-                      </a>
-                    ) : null}
+                        className="mt-2"
+                      />
+                    ) : (
+                      <DossierCloudTechButton
+                        techName={displayName}
+                        lienCloudDossier={dossier.lienCloudDossier}
+                        label={`Dossier ${formatCheminCloudRh(segmentsDossierCloudRh({ techName: displayName, type: doc.type }).slice(-1))}`}
+                        variant="compact"
+                        hideIfMissing
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -711,7 +693,7 @@ export function TechnicienDossierPage() {
           }}
         >
           <form
-            onSubmit={onSaveDoc}
+            onSubmit={(e) => void onSaveDoc(e)}
             onClick={(e) => e.stopPropagation()}
             className="max-h-[min(88dvh,40rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-line bg-white p-5 shadow-xl"
           >
@@ -756,15 +738,18 @@ export function TechnicienDossierPage() {
                   directement la pièce.
                 </p>
                 {hrefDossierPiece ? (
-                  <a
-                    href={hrefDossierPiece}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> Ouvrir ce dossier
-                  </a>
-                ) : null}
+                  <DossierCloudTechButton
+                    techName={displayName}
+                    lienCloudDossier={hrefDossierPiece}
+                    label="Ouvrir le dossier de cet opérateur"
+                    variant="link"
+                    className="mt-2"
+                  />
+                ) : (
+                  <p className="mt-2 text-xs text-muted">
+                    Collez d’abord le lien exact du dossier de cet opérateur (ci-dessus).
+                  </p>
+                )}
               </label>
               <label className="block text-sm sm:col-span-2">
                 <span className="mb-1 block font-semibold text-ink">Lien fichier (optionnel)</span>
@@ -779,6 +764,7 @@ export function TechnicienDossierPage() {
                   }}
                   className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
                 />
+                <p className="mt-1 text-xs text-muted">{cloudPasteHint(form.lienCloud)}</p>
               </label>
               <Field
                 label="Lien valable jusqu’au (optionnel)"
