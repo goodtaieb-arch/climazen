@@ -19,6 +19,7 @@ import type {
   Site,
   StockItem,
   Voiture,
+  Outillage,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
 import {
@@ -265,6 +266,10 @@ type Store = {
     v: Omit<Voiture, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
   deleteVoiture: (id: string) => Promise<void>
+  upsertOutillage: (
+    o: Omit<Outillage, 'id' | 'updatedAt'> & { id?: string },
+  ) => Promise<string>
+  deleteOutillage: (id: string) => Promise<void>
   /** Crée / met à jour le dossier RH d’un technicien (activité + notes). */
   upsertPersonnelDossier: (
     d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
@@ -2147,6 +2152,127 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [persistNow],
   )
 
+  const syncDetecteurFromOutillage = (
+    list: Outillage[],
+    detecteurs: DetecteurManuel[],
+    now: string,
+  ): DetecteurManuel[] => {
+    const detOutillages = list.filter((o) => o.type === 'detecteur_fuite' && o.identification.trim())
+    let nextDetecteurs = [...(detecteurs || [])]
+    for (const o of detOutillages) {
+      const existing = nextDetecteurs.find((d) => d.id === o.id)
+      const nextDet: DetecteurManuel = {
+        id: o.id,
+        identification: o.identification.trim(),
+        controleDate: o.controleDate || '',
+        assigneeUserId: o.assigneeUserId,
+        assigneeName: o.assigneeName,
+        notes: o.notes,
+        updatedAt: now,
+      }
+      if (existing) {
+        nextDetecteurs = nextDetecteurs.map((d) => (d.id === o.id ? nextDet : d))
+      } else {
+        nextDetecteurs = [...nextDetecteurs.filter((d) => d.id !== o.id), nextDet]
+      }
+    }
+    const outillageDetIds = new Set(detOutillages.map((o) => o.id))
+    nextDetecteurs = nextDetecteurs.filter(
+      (d) => !outillageDetIds.has(d.id) || detOutillages.some((o) => o.id === d.id),
+    )
+    return nextDetecteurs
+  }
+
+  const upsertOutillage = useCallback(
+    async (o: Omit<Outillage, 'id' | 'updatedAt'> & { id?: string }) => {
+      const id = o.id ?? uuid()
+      const now = new Date().toISOString()
+      const prev = dataRef.current
+      const list = prev.outillages || []
+      const existing = list.find((x) => x.id === id)
+      let nextList: Outillage[]
+      const nextO: Outillage = {
+        id,
+        type: o.type,
+        identification: o.identification.trim(),
+        marque: o.marque?.trim() || undefined,
+        modele: o.modele?.trim() || undefined,
+        controleDate: o.controleDate || undefined,
+        assigneeUserId: o.assigneeUserId || undefined,
+        assigneeName: o.assigneeName || undefined,
+        notes: o.notes || undefined,
+        updatedAt: now,
+      }
+      if (nextO.assigneeUserId) {
+        nextList = list.map((x) =>
+          x.assigneeUserId === nextO.assigneeUserId &&
+          x.type === nextO.type &&
+          x.id !== id
+            ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
+            : x,
+        )
+      } else {
+        nextList = [...list]
+      }
+      if (existing) {
+        nextList = nextList.map((x) => (x.id === id ? nextO : x))
+      } else {
+        nextList = [...nextList.filter((x) => x.id !== id), nextO]
+      }
+
+      let nextDetecteurs = prev.detecteurs || []
+      if (nextO.type === 'detecteur_fuite') {
+        nextDetecteurs = syncDetecteurFromOutillage(nextList, nextDetecteurs, now)
+      }
+
+      const unassigned = nextDetecteurs.find((x) => !x.assigneeUserId)
+      const next: AppData = {
+        ...prev,
+        outillages: nextList,
+        detecteurs: nextDetecteurs,
+        operateur: {
+          ...prev.operateur,
+          detecteurIdentification:
+            unassigned?.identification ||
+            nextDetecteurs[0]?.identification ||
+            prev.operateur.detecteurIdentification,
+          detecteurControleDate:
+            unassigned?.controleDate ||
+            nextDetecteurs[0]?.controleDate ||
+            prev.operateur.detecteurControleDate,
+        },
+      }
+      await persistNow(next)
+      return id
+    },
+    [persistNow],
+  )
+
+  const deleteOutillage = useCallback(
+    async (id: string) => {
+      const prev = dataRef.current
+      const removed = (prev.outillages || []).find((x) => x.id === id)
+      const nextList = (prev.outillages || []).filter((x) => x.id !== id)
+      let nextDetecteurs = prev.detecteurs || []
+      if (removed?.type === 'detecteur_fuite') {
+        nextDetecteurs = nextDetecteurs.filter((d) => d.id !== id)
+      }
+      const unassigned = nextDetecteurs.find((x) => !x.assigneeUserId)
+      const next: AppData = {
+        ...prev,
+        outillages: nextList,
+        detecteurs: nextDetecteurs,
+        operateur: {
+          ...prev.operateur,
+          detecteurIdentification: unassigned?.identification || nextDetecteurs[0]?.identification || '',
+          detecteurControleDate: unassigned?.controleDate || nextDetecteurs[0]?.controleDate || '',
+        },
+      }
+      await persistNow(next)
+    },
+    [persistNow],
+  )
+
   const upsertPersonnelDossier = useCallback(
     (
       d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
@@ -2441,6 +2567,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteDetecteur,
       upsertVoiture,
       deleteVoiture,
+      upsertOutillage,
+      deleteOutillage,
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
@@ -2505,6 +2633,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteDetecteur,
       upsertVoiture,
       deleteVoiture,
+      upsertOutillage,
+      deleteOutillage,
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
