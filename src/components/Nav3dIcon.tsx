@@ -20,7 +20,11 @@ export function Nav3dIcon({
   if (!src) return null
   return (
     <span
-      className={['inline-flex items-center justify-center', float ? 'float-3d' : '', className]
+      className={[
+        'inline-flex max-h-full max-w-full items-center justify-center overflow-hidden',
+        float ? 'float-3d' : '',
+        className,
+      ]
         .filter(Boolean)
         .join(' ')}
       style={float ? { animationDelay: delay } : undefined}
@@ -30,7 +34,7 @@ export function Nav3dIcon({
         alt=""
         width={size}
         height={size}
-        className="object-contain drop-shadow-md"
+        className="max-h-full max-w-full object-contain drop-shadow-md"
         style={{ width: size, height: size }}
         loading="eager"
         decoding="async"
