@@ -10,6 +10,7 @@ import {
   receptionPreserved,
 } from '../src/lib/attributionMateriel'
 import { blankEtatLieux, documentsEcart, erreurEtatLieux } from '../src/lib/voitures'
+import { cycleMarqueZone, resumeMarquesCarrosserie } from '../src/lib/voitureConstat'
 import type { AppData, Outillage, Voiture } from '../src/lib/types'
 
 const items: Outillage[] = [
@@ -204,5 +205,15 @@ assert.deepEqual(ecart.extra, [])
 
 const v = data.voitures?.[0] as Voiture
 assert.equal(v.documentsFournis?.includes('carte_grise'), true)
+
+let marques = cycleMarqueZone([], 'capot')
+assert.equal(marques[0]?.type, 'rayure')
+marques = cycleMarqueZone(marques, 'capot')
+assert.equal(marques[0]?.type, 'bosse')
+marques = cycleMarqueZone(marques, 'capot')
+assert.equal(marques.length, 0)
+marques = cycleMarqueZone([{ zone: 'toit', type: 'bosse' }], 'parechoc_av')
+assert.equal(marques.length, 2)
+assert.equal(resumeMarquesCarrosserie(marques), '1 bosse, 1 rayure')
 
 console.log('test-outillage: ok')

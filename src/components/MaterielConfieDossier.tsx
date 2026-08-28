@@ -13,6 +13,7 @@ import {
   voitureTitreCourt,
 } from '../lib/voitures'
 import { ReceptionMaterielBlock } from './ReceptionMaterielBlock'
+import { VoitureConstatSchema } from './VoitureConstatSchema'
 import { Field } from '../pages/ClientsPage'
 import { outillageTypeLabel } from '../lib/outillageCatalog'
 import type { Outillage, Voiture } from '../lib/types'
@@ -67,6 +68,11 @@ function VoitureInventaire({ v }: { v: Voiture }) {
           ) : null}
           {formatResumeEtatLieux(etat) ? (
             <div className="text-xs text-muted">{formatResumeEtatLieux(etat)}</div>
+          ) : null}
+          {etat.marquesCarrosserie?.length ? (
+            <div className="mt-2">
+              <VoitureConstatSchema marques={etat.marquesCarrosserie} readOnly />
+            </div>
           ) : null}
         </>
       ) : null}

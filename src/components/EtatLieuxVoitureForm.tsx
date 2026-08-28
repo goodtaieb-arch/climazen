@@ -7,6 +7,7 @@ import {
   VOITURE_PNEUS_LABELS,
   voitureTitreCourt,
 } from '../lib/voitures'
+import { VoitureConstatSchema } from './VoitureConstatSchema'
 import { Field } from '../pages/ClientsPage'
 
 type Props = {
@@ -132,6 +133,11 @@ export function EtatLieuxVoitureForm({ voiture, value, onChange, error }: Props)
           label: VOITURE_PNEUS_LABELS[id],
         }))}
         onChange={(pneus) => onChange({ ...value, pneus })}
+      />
+
+      <VoitureConstatSchema
+        marques={value.marquesCarrosserie}
+        onChange={(marquesCarrosserie) => onChange({ ...value, marquesCarrosserie })}
       />
 
       <div className="sm:col-span-2">

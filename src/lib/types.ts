@@ -613,6 +613,29 @@ export type VoitureEtatNiveau = 'bon' | 'usure_normale' | 'rayures' | 'chocs' | 
 
 export type VoitureCarburant = 'vide' | 'quart' | 'moitie' | 'trois_quarts' | 'plein'
 
+export type VoitureMarqueType = 'rayure' | 'bosse'
+
+export type VoitureZoneId =
+  | 'parechoc_av'
+  | 'capot'
+  | 'parebrise'
+  | 'toit'
+  | 'hayon'
+  | 'parechoc_ar'
+  | 'aile_av_g'
+  | 'porte_av_g'
+  | 'porte_ar_g'
+  | 'aile_ar_g'
+  | 'aile_av_d'
+  | 'porte_av_d'
+  | 'porte_ar_d'
+  | 'aile_ar_d'
+
+export type VoitureMarqueCarrosserie = {
+  zone: VoitureZoneId
+  type: VoitureMarqueType
+}
+
 export interface VoitureEtatLieux {
   date: string
   kilometrage?: number
@@ -625,6 +648,8 @@ export interface VoitureEtatLieux {
   documentsAutre?: string
   dommages?: string
   observations?: string
+  /** Marques sur le schéma (constat) : rayure ou bosse par zone */
+  marquesCarrosserie?: VoitureMarqueCarrosserie[]
 }
 
 export interface Voiture {
