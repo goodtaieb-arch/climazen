@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { voitureForUser } from '../lib/voitures'
 import { dossierForUser } from '../lib/rhDocuments'
+import { mergeTeamMembers } from '../lib/teamMembers'
 import { isAssuranceExpiree, isCtExpire, type Voiture } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
@@ -75,51 +76,28 @@ export function VoituresParc({ team: teamProp }: Props) {
     }
   }, [isOwner, loadTeam])
 
-  const team = useMemo(() => {
-    const retired = new Set(data.personnelRetiresUserIds || [])
-    const map = new Map<string, UserAccount>()
-    const add = (m: {
-      id?: string
-      email?: string
-      username?: string
-      fullName?: string
-      createdAt?: string
-      organizationId?: string
-      role?: UserAccount['role']
-      active?: boolean
-    }) => {
-      const id = String(m.id || '').trim()
-      if (!id || retired.has(id)) return
-      const prev = map.get(id)
-      map.set(id, {
-        id,
-        email: m.email || prev?.email || '',
-        username: m.username || prev?.username || m.email || prev?.email || '',
-        fullName: (m.fullName || prev?.fullName || '').trim() || 'Technicien',
-        createdAt: m.createdAt || prev?.createdAt || '',
-        organizationId: m.organizationId || prev?.organizationId || orgId,
-        role: m.role || prev?.role || 'operateur',
-        active: m.active ?? prev?.active ?? true,
-      })
-    }
-    if (user) add(user)
-    for (const d of data.personnelDossiers || []) {
-      add({ id: d.userId, fullName: d.userName, role: 'operateur', active: true })
-    }
-    for (const v of voitures) {
-      if (v.assigneeUserId) {
-        add({
-          id: v.assigneeUserId,
-          fullName: v.assigneeName,
-          role: 'operateur',
-          active: true,
-        })
-      }
-    }
-    for (const m of teamRemote) add(m)
-    for (const m of teamProp || []) add(m)
-    return [...map.values()].filter((m) => m.active !== false)
-  }, [teamProp, teamRemote, user, orgId, data.personnelDossiers, data.personnelRetiresUserIds, voitures])
+  const team = useMemo(
+    () =>
+      mergeTeamMembers({
+        user,
+        remote: [...(teamRemote || []), ...(teamProp || [])],
+        dossiers: data.personnelDossiers,
+        extraAssignees: voitures
+          .filter((v) => v.assigneeUserId)
+          .map((v) => ({ id: v.assigneeUserId, name: v.assigneeName })),
+        retiredIds: data.personnelRetiresUserIds,
+        orgId,
+      }),
+    [
+      teamProp,
+      teamRemote,
+      user,
+      orgId,
+      data.personnelDossiers,
+      data.personnelRetiresUserIds,
+      voitures,
+    ],
+  )
 
   const isSolo = teamLoaded && !teamError && team.length <= 1
 

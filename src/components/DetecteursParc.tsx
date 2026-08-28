@@ -7,6 +7,7 @@ import { detecteurForUser } from '../lib/detecteurs'
 import { isDetecteurControleExpire, type DetecteurManuel } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
+import { mergeTeamMembers } from '../lib/teamMembers'
 
 type Props = {
   /** Liste équipe (owner) pour le sélecteur d’attribution — sinon chargée ici */
@@ -70,51 +71,28 @@ export function DetecteursParc({ team: teamProp }: Props) {
     }
   }, [isOwner, loadTeam])
 
-  const team = useMemo(() => {
-    const retired = new Set(data.personnelRetiresUserIds || [])
-    const map = new Map<string, UserAccount>()
-    const add = (m: {
-      id?: string
-      email?: string
-      username?: string
-      fullName?: string
-      createdAt?: string
-      organizationId?: string
-      role?: UserAccount['role']
-      active?: boolean
-    }) => {
-      const id = String(m.id || '').trim()
-      if (!id || retired.has(id)) return
-      const prev = map.get(id)
-      map.set(id, {
-        id,
-        email: m.email || prev?.email || '',
-        username: m.username || prev?.username || m.email || prev?.email || '',
-        fullName: (m.fullName || prev?.fullName || '').trim() || 'Technicien',
-        createdAt: m.createdAt || prev?.createdAt || '',
-        organizationId: m.organizationId || prev?.organizationId || orgId,
-        role: m.role || prev?.role || 'operateur',
-        active: m.active ?? prev?.active ?? true,
-      })
-    }
-    if (user) add(user)
-    for (const d of data.personnelDossiers || []) {
-      add({ id: d.userId, fullName: d.userName, role: 'operateur', active: true })
-    }
-    for (const det of detecteurs) {
-      if (det.assigneeUserId) {
-        add({
-          id: det.assigneeUserId,
-          fullName: det.assigneeName,
-          role: 'operateur',
-          active: true,
-        })
-      }
-    }
-    for (const m of teamRemote) add(m)
-    for (const m of teamProp || []) add(m)
-    return [...map.values()].filter((m) => m.active !== false)
-  }, [teamProp, teamRemote, user, orgId, data.personnelDossiers, data.personnelRetiresUserIds, detecteurs])
+  const team = useMemo(
+    () =>
+      mergeTeamMembers({
+        user,
+        remote: [...(teamRemote || []), ...(teamProp || [])],
+        dossiers: data.personnelDossiers,
+        extraAssignees: detecteurs
+          .filter((d) => d.assigneeUserId)
+          .map((d) => ({ id: d.assigneeUserId, name: d.assigneeName })),
+        retiredIds: data.personnelRetiresUserIds,
+        orgId,
+      }),
+    [
+      teamProp,
+      teamRemote,
+      user,
+      orgId,
+      data.personnelDossiers,
+      data.personnelRetiresUserIds,
+      detecteurs,
+    ],
+  )
 
   /** Vrai seulement si l’équipe a bien été chargée et qu’il n’y a qu’un compte. */
   const isSolo = teamLoaded && !teamError && team.length <= 1

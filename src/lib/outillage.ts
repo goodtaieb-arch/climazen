@@ -2,6 +2,7 @@ import type { AppData, Outillage } from './types'
 import {
   OUTILLAGE_CATALOG,
   OUTILLAGE_OBLIGATOIRE_IDS,
+  OUTILLAGE_TYPE_OPTIONS,
   outillageTypeLabel,
   type OutillageTypeId,
 } from './outillageCatalog'
@@ -58,4 +59,29 @@ export function checklistOutillageObligatoire(data: AppData, userId?: string | n
 
 export function missingOutillageObligatoire(data: AppData, userId?: string | null) {
   return checklistOutillageObligatoire(data, userId).filter((x) => !x.ok)
+}
+
+/** Regroupe les pièces identiques (même type) pour une liste courte. */
+export function groupOutillagesByType(list: Outillage[]) {
+  const order = OUTILLAGE_TYPE_OPTIONS.map((t) => t.id)
+  const map = new Map<OutillageTypeId, Outillage[]>()
+  for (const o of list) {
+    const type = o.type
+    const arr = map.get(type) || []
+    arr.push(o)
+    map.set(type, arr)
+  }
+  return [...map.entries()]
+    .map(([type, items]) => ({
+      type,
+      def: OUTILLAGE_CATALOG[type],
+      items: [...items].sort((a, b) =>
+        (a.identification || '').localeCompare(b.identification || '', 'fr'),
+      ),
+    }))
+    .sort((a, b) => {
+      const ia = order.indexOf(a.type)
+      const ib = order.indexOf(b.type)
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+    })
 }

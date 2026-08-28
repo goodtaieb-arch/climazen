@@ -28,7 +28,7 @@ export type OutillageTypeDef = {
   /** Obligatoire réglementaire / CERFA pour intervention fluides */
   obligatoire?: boolean
   hint?: string
-  /** Afficher date contrôle / étalonnage */
+  /** Afficher / exiger la date d’étalonnage (détecteur, balance…) */
   needsControleDate?: boolean
 }
 
