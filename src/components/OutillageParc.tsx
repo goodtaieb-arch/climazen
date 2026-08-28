@@ -1,10 +1,11 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Mail, Phone, Plus, Trash2, UserPlus, Wrench } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Mail, Phone, Plus, Trash2, UserPlus, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import {
   checklistOutillageObligatoire,
+  groupOutillagesByType,
   outillageLabel,
   outillagesForUser,
 } from '../lib/outillage'
@@ -17,6 +18,7 @@ import { isDetecteurControleExpire, type Outillage } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
 import { dossierForUser } from '../lib/rhDocuments'
+import { mergeTeamMembers } from '../lib/teamMembers'
 
 type Props = {
   team?: UserAccount[]
@@ -45,11 +47,13 @@ export function OutillageParc({ team: teamProp }: Props) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
 
   const typeDef = OUTILLAGE_CATALOG[type]
 
   const loadTeam = useCallback(async () => {
-    if (!orgId) return
+    const id = orgId || user?.organizationId || organization?.id || ''
+    if (!id) return
     setTeamLoading(true)
     setTeamError('')
     try {
@@ -62,7 +66,7 @@ export function OutillageParc({ team: teamProp }: Props) {
     } finally {
       setTeamLoading(false)
     }
-  }, [orgId, listTeam])
+  }, [orgId, user?.organizationId, organization?.id, listTeam])
 
   useEffect(() => {
     if (!isOwner) return
@@ -78,46 +82,28 @@ export function OutillageParc({ team: teamProp }: Props) {
     }
   }, [isOwner, loadTeam])
 
-  const team = useMemo(() => {
-    const retired = new Set(data.personnelRetiresUserIds || [])
-    const map = new Map<string, UserAccount>()
-    const add = (m: {
-      id?: string
-      email?: string
-      username?: string
-      fullName?: string
-      createdAt?: string
-      organizationId?: string
-      role?: UserAccount['role']
-      active?: boolean
-    }) => {
-      const id = String(m.id || '').trim()
-      if (!id || retired.has(id)) return
-      const prev = map.get(id)
-      map.set(id, {
-        id,
-        email: m.email || prev?.email || '',
-        username: m.username || prev?.username || m.email || prev?.email || '',
-        fullName: (m.fullName || prev?.fullName || '').trim() || 'Technicien',
-        createdAt: m.createdAt || prev?.createdAt || '',
-        organizationId: m.organizationId || prev?.organizationId || orgId,
-        role: m.role || prev?.role || 'operateur',
-        active: m.active ?? prev?.active ?? true,
-      })
-    }
-    if (user) add(user)
-    for (const d of data.personnelDossiers || []) {
-      add({ id: d.userId, fullName: d.userName, role: 'operateur', active: true })
-    }
-    for (const o of outillages) {
-      if (o.assigneeUserId) {
-        add({ id: o.assigneeUserId, fullName: o.assigneeName, role: 'operateur', active: true })
-      }
-    }
-    for (const m of teamRemote) add(m)
-    for (const m of teamProp || []) add(m)
-    return [...map.values()].filter((m) => m.active !== false)
-  }, [teamProp, teamRemote, user, orgId, data.personnelDossiers, data.personnelRetiresUserIds, outillages])
+  const team = useMemo(
+    () =>
+      mergeTeamMembers({
+        user,
+        remote: [...(teamRemote || []), ...(teamProp || [])],
+        dossiers: data.personnelDossiers,
+        extraAssignees: outillages
+          .filter((o) => o.assigneeUserId)
+          .map((o) => ({ id: o.assigneeUserId, name: o.assigneeName })),
+        retiredIds: data.personnelRetiresUserIds,
+        orgId,
+      }),
+    [
+      teamProp,
+      teamRemote,
+      user,
+      orgId,
+      data.personnelDossiers,
+      data.personnelRetiresUserIds,
+      outillages,
+    ],
+  )
 
   const isSolo = teamLoaded && !teamError && team.length <= 1
 
@@ -200,7 +186,7 @@ export function OutillageParc({ team: teamProp }: Props) {
         identification: idTrim,
         marque: marque.trim() || undefined,
         modele: modele.trim() || undefined,
-        controleDate: controleDate.trim() || undefined,
+        controleDate: def.needsControleDate ? controleDate.trim() || undefined : undefined,
         assigneeUserId: finalAssigneeId || undefined,
         assigneeName: resolveAssigneeName(finalAssigneeId),
         notes: notes.trim() || undefined,
@@ -308,9 +294,9 @@ export function OutillageParc({ team: teamProp }: Props) {
                     {o.identification}
                     {o.marque || o.modele ? ` · ${[o.marque, o.modele].filter(Boolean).join(' ')}` : ''}
                   </div>
-                  {o.controleDate ? (
+                  {o.controleDate && def.needsControleDate ? (
                     <div className="text-xs text-muted">
-                      Contrôle / étalonnage : {o.controleDate}
+                      Étalonnage : {o.controleDate}
                       {expired ? <span className="ml-1 font-semibold text-danger">(expiré)</span> : null}
                     </div>
                   ) : null}
@@ -343,59 +329,107 @@ export function OutillageParc({ team: teamProp }: Props) {
         {outillages.length === 0 && (
           <li className="px-4 py-3 text-sm text-muted">Aucun outillage — ajoutez-en un ci-dessous.</li>
         )}
-        {outillages.map((o) => {
-          const def = OUTILLAGE_CATALOG[o.type]
-          const expired = o.controleDate && def.needsControleDate && isDetecteurControleExpire(o.controleDate)
+        {groupOutillagesByType(outillages).map((group) => {
+          const many = group.items.length > 1
+          const open = !many || Boolean(openGroups[group.type])
           return (
-            <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{def.label}</span>
-                  {def.obligatoire ? (
+            <li key={group.type} className="px-4 py-3">
+              {many ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenGroups((prev) => ({ ...prev, [group.type]: !open }))
+                  }
+                  className="flex w-full min-w-0 items-center gap-2 text-left"
+                >
+                  {open ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                  )}
+                  <span className="min-w-0 flex-1 font-medium">{group.def.label}</span>
+                  {group.def.obligatoire ? (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
                       Obligatoire
                     </span>
                   ) : null}
-                </div>
-                <div className="text-sm text-muted">{outillageLabel(o)}</div>
-                {o.controleDate ? (
-                  <div className="text-xs text-muted">
-                    Contrôle : {o.controleDate}
-                    {expired ? <span className="ml-1 font-semibold text-danger">(expiré)</span> : null}
-                  </div>
-                ) : null}
-                <div className="mt-1">
-                  {o.assigneeUserId ? (
-                    <>
-                      <span className="text-xs text-muted">Attribué à </span>
-                      <AssigneeDetails uid={o.assigneeUserId} />
-                    </>
-                  ) : (
-                    <span className="text-xs text-muted">Non attribué</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => startEdit(o)}
-                  className="min-h-10 rounded-full border border-line px-3 py-1 text-xs font-semibold hover:bg-mist"
-                >
-                  Modifier
+                  <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-[11px] font-semibold text-muted">
+                    {group.items.length}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!confirm(`Supprimer « ${def.label} » ${o.identification} ?`)) return
-                    void deleteOutillage(o.id).catch((err) =>
-                      setFormError(err instanceof Error ? err.message : 'Suppression impossible'),
+              ) : null}
+              {(open || !many) && (
+                <ul className={many ? 'mt-2 space-y-2' : 'space-y-2'}>
+                  {group.items.map((o) => {
+                    const expired =
+                      o.controleDate &&
+                      group.def.needsControleDate &&
+                      isDetecteurControleExpire(o.controleDate)
+                    return (
+                      <li
+                        key={o.id}
+                        className="flex flex-col gap-2 rounded-xl bg-mist/50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          {!many ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{group.def.label}</span>
+                              {group.def.obligatoire ? (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                                  Obligatoire
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="text-sm text-muted">{outillageLabel(o)}</div>
+                          {o.controleDate && group.def.needsControleDate ? (
+                            <div className="text-xs text-muted">
+                              Étalonnage : {o.controleDate}
+                              {expired ? (
+                                <span className="ml-1 font-semibold text-danger">(expiré)</span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="mt-1">
+                            {o.assigneeUserId ? (
+                              <>
+                                <span className="text-xs text-muted">Attribué à </span>
+                                <AssigneeDetails uid={o.assigneeUserId} />
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted">Non attribué</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(o)}
+                            className="min-h-10 rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold hover:bg-mist"
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!confirm(`Supprimer « ${group.def.label} » ${o.identification} ?`))
+                                return
+                              void deleteOutillage(o.id).catch((err) =>
+                                setFormError(
+                                  err instanceof Error ? err.message : 'Suppression impossible',
+                                ),
+                              )
+                            }}
+                            className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-danger hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </li>
                     )
-                  }}
-                  className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-danger hover:bg-red-50"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
+                  })}
+                </ul>
+              )}
             </li>
           )
         })}
@@ -415,7 +449,11 @@ export function OutillageParc({ team: teamProp }: Props) {
           <select
             className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
             value={type}
-            onChange={(e) => setType(e.target.value as OutillageTypeId)}
+            onChange={(e) => {
+              const next = e.target.value as OutillageTypeId
+              setType(next)
+              if (!OUTILLAGE_CATALOG[next].needsControleDate) setControleDate('')
+            }}
           >
             <optgroup label="Obligatoires frigoriste (5)">
               {OUTILLAGE_TYPE_OPTIONS.filter((t) => t.obligatoire).map((t) => (
@@ -446,20 +484,13 @@ export function OutillageParc({ team: teamProp }: Props) {
 
         {typeDef.needsControleDate ? (
           <Field
-            label="Date contrôle / étalonnage *"
+            label="Date d’étalonnage *"
             type="date"
             value={controleDate}
             onChange={setControleDate}
             required
           />
-        ) : (
-          <Field
-            label="Date contrôle / maintenance (optionnel)"
-            type="date"
-            value={controleDate}
-            onChange={setControleDate}
-          />
-        )}
+        ) : null}
 
         <label className="block text-sm sm:col-span-2">
           <span className="mb-1 block font-semibold text-ink">Attribué au technicien</span>
@@ -474,9 +505,13 @@ export function OutillageParc({ team: teamProp }: Props) {
                 {m.fullName || m.email}
                 {m.id === user?.id ? ' (moi)' : ''}
                 {m.role === 'owner' ? ' · gérant' : ' · opérateur'}
+                {m.active === false ? ' · désactivé' : ''}
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-muted">
+            {team.length} compte{team.length > 1 ? 's' : ''} Équipe (comme la page Équipe).
+          </p>
           {assigneeUserId ? (
             <div className="mt-2 rounded-xl bg-mist px-3 py-2">
               <AssigneeDetails uid={assigneeUserId} />
