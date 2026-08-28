@@ -381,7 +381,7 @@ export function EquipePage() {
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-semibold text-ink">Téléphone (portable)</span>
+          <span className="mb-1 block font-semibold text-ink">Téléphone perso (pour le joindre)</span>
           <input
             type="tel"
             inputMode="tel"
@@ -391,6 +391,9 @@ export function EquipePage() {
             placeholder="06 12 34 56 78"
             className="h-11 w-full rounded-xl border border-line px-3"
           />
+          <p className="mt-1 text-xs text-muted">
+            Pour l’appeler. Le téléphone de société se donne dans son dossier (Équipe → Dossier).
+          </p>
         </label>
         <PasswordField
           label="Mot de passe temporaire *"

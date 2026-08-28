@@ -61,5 +61,13 @@ export function grouperMaterielParFamille(lignes: MaterielLigne[]) {
     arr.push(l)
     map.set(l.famille, arr)
   }
-  return [...map.entries()].map(([famille, items]) => ({ famille, items }))
+  const priorite = ['Véhicule', 'Téléphone professionnel']
+  return [...map.entries()]
+    .map(([famille, items]) => ({ famille, items }))
+    .sort((a, b) => {
+      const ia = priorite.indexOf(a.famille)
+      const ib = priorite.indexOf(b.famille)
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+      return a.famille.localeCompare(b.famille, 'fr')
+    })
 }

@@ -128,3 +128,13 @@ export function formatDateFrCourt(iso?: string) {
   if (!y || !m || !day) return iso || ''
   return `${day}/${m}/${y}`
 }
+
+export function formatResumeEtatLieux(etat: VoitureEtatLieux) {
+  const bits: string[] = []
+  if (etat.kilometrage != null) bits.push(`${etat.kilometrage.toLocaleString('fr-FR')} km`)
+  if (etat.carburant) bits.push(`carburant ${VOITURE_CARBURANT_LABELS[etat.carburant]}`)
+  if (etat.carrosserie) bits.push(`carrosserie ${VOITURE_CARROSSERIE_LABELS[etat.carrosserie]}`)
+  if (etat.interieur) bits.push(`intérieur ${VOITURE_INTERIEUR_LABELS[etat.interieur]}`)
+  if (etat.pneus) bits.push(`pneus ${VOITURE_PNEUS_LABELS[etat.pneus]}`)
+  return bits.join(' · ')
+}

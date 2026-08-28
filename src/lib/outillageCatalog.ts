@@ -128,7 +128,7 @@ export const OUTILLAGE_CATALOG: Record<OutillageTypeId, OutillageTypeDef> = {
   telephone_pro: {
     id: 'telephone_pro',
     label: 'Téléphone professionnel',
-    hint: 'Portable / smartphone fourni par la société',
+    hint: 'Smartphone fourni par la société — n° de ligne, IMEI. L’opérateur valide la réception.',
   },
   bouteille_azote: {
     id: 'bouteille_azote',

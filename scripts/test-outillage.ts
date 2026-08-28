@@ -152,21 +152,30 @@ const data: AppData = {
       receptionAt: '2026-01-02T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
+    {
+      id: '4',
+      type: 'telephone_pro',
+      identification: '06 11 22 33 44',
+      assigneeUserId: 't1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
   ],
 }
 
 const confie = materielConfiePourUser(data, 't1')
-assert.equal(confie.length, 3)
+assert.equal(confie.length, 4)
 const familles = grouperMaterielParFamille(confie).map((g) => g.famille)
-assert.ok(familles.includes('Véhicule'))
+assert.equal(familles[0], 'Véhicule')
+assert.equal(familles[1], 'Téléphone professionnel')
 assert.ok(familles.includes('Détecteur de fuite électronique'))
 assert.ok(familles.includes('EPI (lunettes, gants, masque)'))
 assert.equal(familles.filter((f) => f === 'EPI (lunettes, gants, masque)').length, 1)
 
 const pending = materielEnAttenteReception(data, 't1')
-assert.equal(pending.length, 2)
+assert.equal(pending.length, 3)
 assert.ok(pending.some((p) => p.kind === 'voiture'))
 assert.ok(pending.some((p) => p.kind === 'outillage' && p.itemId === '1'))
+assert.ok(pending.some((p) => p.itemId === '4'))
 assert.equal(pending.some((p) => p.itemId === '3'), false)
 
 assert.ok(erreurEtatLieux(blankEtatLieux(['carte_grise'])))
