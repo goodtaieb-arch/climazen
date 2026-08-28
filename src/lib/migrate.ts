@@ -13,6 +13,7 @@ import type {
 } from './types'
 import type { OutillageTypeId } from './outillageCatalog'
 import { isOutillageTypeId } from './outillageCatalog'
+import { isVoitureDocumentId } from './voitures'
 import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { purgeOrphanCerfaStock } from './stockMouvements'
@@ -192,6 +193,12 @@ function migrateVoitures(data: AppData): Voiture[] {
     assuranceDate: v.assuranceDate || undefined,
     assigneeUserId: v.assigneeUserId || undefined,
     assigneeName: v.assigneeName || undefined,
+    receptionAt: v.receptionAt || undefined,
+    receptionParUserId: v.receptionParUserId || undefined,
+    documentsFournis: Array.isArray(v.documentsFournis)
+      ? v.documentsFournis.filter(isVoitureDocumentId)
+      : undefined,
+    etatReception: v.etatReception,
     notes: v.notes || undefined,
     updatedAt: v.updatedAt || new Date().toISOString(),
   }))
@@ -208,6 +215,8 @@ function migrateOutillages(data: AppData, detecteurs: DetecteurManuel[]): Outill
     controleDate: o.controleDate || undefined,
     assigneeUserId: o.assigneeUserId || undefined,
     assigneeName: o.assigneeName || undefined,
+    receptionAt: o.receptionAt || undefined,
+    receptionParUserId: o.receptionParUserId || undefined,
     notes: o.notes || undefined,
     updatedAt: o.updatedAt || new Date().toISOString(),
   }))
@@ -225,6 +234,8 @@ function migrateOutillages(data: AppData, detecteurs: DetecteurManuel[]): Outill
         controleDate: d.controleDate || undefined,
         assigneeUserId: d.assigneeUserId,
         assigneeName: d.assigneeName,
+        receptionAt: undefined,
+        receptionParUserId: undefined,
         notes: d.notes,
         updatedAt: d.updatedAt || new Date().toISOString(),
       })
@@ -270,6 +281,7 @@ export function migrateAppData(data: AppData): AppData {
     detecteurs,
     voitures,
     outillages,
+    bonsRemiseMateriel: data.bonsRemiseMateriel || [],
     stock: (data.stock || []).map(migrateStockItem),
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: data.fichesMaintenanceChaufferie || [],

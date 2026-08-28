@@ -16,6 +16,7 @@ export type OutillageTypeId =
   | 'flexibles_raccords'
   | 'clefs_outils_main'
   | 'epi_securite'
+  | 'telephone_pro'
   | 'bouteille_azote'
   | 'echelle_escabeau'
   | 'generateur_fumee'
@@ -123,6 +124,11 @@ export const OUTILLAGE_CATALOG: Record<OutillageTypeId, OutillageTypeDef> = {
     id: 'epi_securite',
     label: 'EPI (lunettes, gants, masque)',
     hint: 'Protection individuelle terrain',
+  },
+  telephone_pro: {
+    id: 'telephone_pro',
+    label: 'Téléphone professionnel',
+    hint: 'Portable / smartphone fourni par la société',
   },
   bouteille_azote: {
     id: 'bouteille_azote',

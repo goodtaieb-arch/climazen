@@ -10,6 +10,7 @@ import { Nav3dIcon } from '../components/Nav3dIcon'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import { telHref } from '../lib/agenda'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
+import { MaterielConfieDossier } from '../components/MaterielConfieDossier'
 import {
   addYearsIso,
   alertesPourDossier,
@@ -297,11 +298,19 @@ export function TechnicienDossierPage() {
                 {' · '}
               </>
             ) : null}
-            {member?.email || (userId === user.id ? user.email : '')} — dates limites et alertes
-            d’expiration. Les scans d’identité ne sont pas enregistrés.
+            {member?.email || (userId === user.id ? user.email : '')} — matériel confié, dates
+            limites et alertes d’expiration. Les scans d’identité ne sont pas enregistrés.
           </p>
         </div>
       </div>
+
+      {userId ? (
+        <MaterielConfieDossier
+          userId={userId}
+          displayName={displayName}
+          email={member?.email || (userId === user.id ? user.email : '') || undefined}
+        />
+      ) : null}
 
       <div className="rounded-2xl border border-line bg-mist/60 p-4 text-sm text-slate">
         <div className="font-display font-semibold text-ink">

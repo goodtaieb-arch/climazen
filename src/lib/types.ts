@@ -596,6 +596,37 @@ export interface DetecteurManuel {
 }
 
 /** Véhicule de la flotte société — attribué à un technicien */
+export type VoitureDocumentId =
+  | 'carte_grise'
+  | 'assurance_carte_verte'
+  | 'controle_technique'
+  | 'critair'
+  | 'livret_entretien'
+  | 'double_cles'
+  | 'carte_carburant'
+  | 'badge_peage'
+  | 'kit_securite'
+  | 'roue_secours'
+  | 'autre'
+
+export type VoitureEtatNiveau = 'bon' | 'usure_normale' | 'rayures' | 'chocs' | 'a_surveiller' | 'a_changer' | 'sale' | 'abime'
+
+export type VoitureCarburant = 'vide' | 'quart' | 'moitie' | 'trois_quarts' | 'plein'
+
+export interface VoitureEtatLieux {
+  date: string
+  kilometrage?: number
+  carburant?: VoitureCarburant
+  carrosserie?: 'bon' | 'usure_normale' | 'rayures' | 'chocs'
+  interieur?: 'bon' | 'usure_normale' | 'sale' | 'abime'
+  pneus?: 'bon' | 'a_surveiller' | 'a_changer'
+  /** Documents / pièces que l’opérateur déclare avoir pris avec le véhicule */
+  documentsRecus: VoitureDocumentId[]
+  documentsAutre?: string
+  dommages?: string
+  observations?: string
+}
+
 export interface Voiture {
   id: string
   /** Immatriculation (matricule) */
@@ -612,6 +643,13 @@ export interface Voiture {
   assigneeUserId?: string
   /** Nom affiché (copie au moment de l'attribution) */
   assigneeName?: string
+  /** Date ISO : l’opérateur a validé la réception */
+  receptionAt?: string
+  receptionParUserId?: string
+  /** Papiers / accessoires que la société remet avec le véhicule */
+  documentsFournis?: VoitureDocumentId[]
+  /** État des lieux saisi à la réception par l’opérateur */
+  etatReception?: VoitureEtatLieux
   notes?: string
   updatedAt: string
 }
@@ -629,8 +667,35 @@ export interface Outillage {
   controleDate?: string
   assigneeUserId?: string
   assigneeName?: string
+  /** Date ISO : l’opérateur a validé la réception */
+  receptionAt?: string
+  receptionParUserId?: string
   notes?: string
   updatedAt: string
+}
+
+export type MaterielKind = 'voiture' | 'outillage'
+
+export type MaterielLigne = {
+  kind: MaterielKind
+  itemId: string
+  famille: string
+  label: string
+}
+
+/** Bon de remise officiel (réception véhicule, téléphone, outillage…). */
+export interface BonRemiseMateriel {
+  id: string
+  userId: string
+  userName: string
+  createdAt: string
+  items: MaterielLigne[]
+  fileName: string
+  kind?: 'outillage' | 'vehicule'
+  voitureId?: string
+  etatVoiture?: VoitureEtatLieux
+  createdByUserId?: string
+  createdByName?: string
 }
 
 export interface AppData {
@@ -648,6 +713,8 @@ export interface AppData {
   voitures?: Voiture[]
   /** Parc outillage terrain — attribution par technicien */
   outillages?: Outillage[]
+  /** Bons de remise matériel (PDF chez le gérant) */
+  bonsRemiseMateriel?: BonRemiseMateriel[]
   /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
   fichesMaintenanceClim?: FicheMaintenanceClim[]
   /** Fiches maintenance chaufferie P2/P3 (registre périodique) */

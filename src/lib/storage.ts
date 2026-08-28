@@ -24,6 +24,7 @@ export function emptyData(): AppData {
     detecteurs: [],
     voitures: [],
     outillages: [],
+    bonsRemiseMateriel: [],
     fichesMaintenanceClim: [],
     fichesMaintenanceChaufferie: [],
     fichesMaintenanceCtaVmc: [],

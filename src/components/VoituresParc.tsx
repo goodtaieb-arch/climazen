@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom'
 import { Car, Mail, Phone, Plus, Trash2, UserPlus } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import { voitureForUser } from '../lib/voitures'
+import { voitureForUser, VOITURE_DOCUMENTS, formatDateFrCourt, voitureDocumentLabel } from '../lib/voitures'
 import { dossierForUser } from '../lib/rhDocuments'
 import { mergeTeamMembers } from '../lib/teamMembers'
-import { isAssuranceExpiree, isCtExpire, type Voiture } from '../lib/types'
+import { isAssuranceExpiree, isCtExpire, type Voiture, type VoitureDocumentId } from '../lib/types'
 import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
+import { ReceptionMaterielBlock } from './ReceptionMaterielBlock'
 
 type Props = {
   /** Liste équipe (owner) pour le sélecteur d'attribution — sinon chargée ici */
@@ -40,6 +41,7 @@ export function VoituresParc({ team: teamProp }: Props) {
   const [assuranceDate, setAssuranceDate] = useState('')
   const [assigneeUserId, setAssigneeUserId] = useState('')
   const [notes, setNotes] = useState('')
+  const [documentsFournis, setDocumentsFournis] = useState<VoitureDocumentId[]>([])
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -115,6 +117,7 @@ export function VoituresParc({ team: teamProp }: Props) {
     setAssuranceDate('')
     setAssigneeUserId(user?.id || '')
     setNotes('')
+    setDocumentsFournis([])
     setFormError('')
   }
 
@@ -127,6 +130,7 @@ export function VoituresParc({ team: teamProp }: Props) {
     setAssuranceDate(v.assuranceDate || '')
     setAssigneeUserId(v.assigneeUserId || '')
     setNotes(v.notes || '')
+    setDocumentsFournis(v.documentsFournis || [])
     setFormError('')
     window.setTimeout(() => {
       document.getElementById('voiture-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -179,6 +183,7 @@ export function VoituresParc({ team: teamProp }: Props) {
         assuranceDate: assuranceDate.trim() || undefined,
         assigneeUserId: finalAssigneeId || undefined,
         assigneeName: resolveAssigneeName(finalAssigneeId),
+        documentsFournis,
         notes: notes.trim() || undefined,
       })
       setSaved(true)
@@ -200,7 +205,12 @@ export function VoituresParc({ team: teamProp }: Props) {
     if (!contact) return <span className="text-muted">Non attribué</span>
     return (
       <div className="text-xs text-muted">
-        <span className="font-medium text-ink">{contact.name}</span>
+        <Link
+          to={`/app/equipe/${uid}`}
+          className="font-medium text-accent underline-offset-2 hover:underline"
+        >
+          {contact.name}
+        </Link>
         {contact.email ? (
           <span className="ml-1 inline-flex items-center gap-0.5">
             <Mail className="inline h-3 w-3" />
@@ -254,6 +264,22 @@ export function VoituresParc({ team: teamProp }: Props) {
                   'Assurance non renseignée'
                 )}
               </div>
+              {mine.documentsFournis?.length ? (
+                <div className="mt-2 text-xs text-muted">
+                  Documents prévus : {mine.documentsFournis.map(voitureDocumentLabel).join(', ')}
+                </div>
+              ) : null}
+              <div className="mt-2 text-xs">
+                {mine.receptionAt ? (
+                  <span className="font-semibold text-emerald-800">
+                    Réceptionné le {formatDateFrCourt(mine.receptionAt)}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-amber-800">
+                    À réceptionner — état des lieux + documents
+                  </span>
+                )}
+              </div>
             </div>
             {mine.notes ? (
               <p className="text-sm text-muted">
@@ -261,6 +287,7 @@ export function VoituresParc({ team: teamProp }: Props) {
                 {mine.notes}
               </p>
             ) : null}
+            {user?.id ? <ReceptionMaterielBlock userId={user.id} kinds={['voiture']} /> : null}
           </div>
         ) : (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -280,8 +307,9 @@ export function VoituresParc({ team: teamProp }: Props) {
           Flotte véhicules
         </h2>
         <p className="text-sm text-muted">
-          Ajoutez un véhicule (marque, matricule, CT, assurance), puis affectez-le à un technicien.
-          Les coordonnées du technicien (e-mail, téléphone) sont affichées à côté de l'attribution.
+          Ajoutez un véhicule (marque, matricule, CT, assurance), cochez les documents remis avec,
+          puis affectez-le à un technicien. L’opérateur valide la réception par un état des lieux
+          (PDF conservé). Cliquez le nom pour ouvrir le dossier.
         </p>
       </div>
 
@@ -322,6 +350,22 @@ export function VoituresParc({ team: teamProp }: Props) {
                     <>
                       <span className="text-xs text-muted">Attribué à </span>
                       <AssigneeDetails uid={v.assigneeUserId} />
+                      <div className="mt-0.5 text-xs">
+                        {v.receptionAt ? (
+                          <span className="font-semibold text-emerald-800">
+                            Réceptionné le {formatDateFrCourt(v.receptionAt)}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-amber-800">
+                            En attente d’état des lieux
+                          </span>
+                        )}
+                      </div>
+                      {v.documentsFournis?.length ? (
+                        <div className="mt-0.5 text-xs text-muted">
+                          Docs : {v.documentsFournis.map(voitureDocumentLabel).join(', ')}
+                        </div>
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-xs text-muted">Non attribué</span>
@@ -439,6 +483,37 @@ export function VoituresParc({ team: teamProp }: Props) {
               </button>
             </span>
           </div>
+        </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className="mb-1.5 block font-semibold text-ink">
+            Documents / accessoires remis avec le véhicule
+          </span>
+          <p className="mb-2 text-xs text-muted">
+            Cochez ce que l’opérateur emporte (carte grise, assurance, clés, badge…). Il confirmera
+            à la réception ce qu’il a réellement pris — le PDF d’état des lieux les liste.
+          </p>
+          <ul className="grid gap-1.5 sm:grid-cols-2">
+            {VOITURE_DOCUMENTS.map((d) => {
+              const checked = documentsFournis.includes(d.id)
+              return (
+                <li key={d.id}>
+                  <label className="flex min-h-10 cursor-pointer items-start gap-2 rounded-xl border border-line bg-white px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={checked}
+                      onChange={() =>
+                        setDocumentsFournis((prev) =>
+                          prev.includes(d.id) ? prev.filter((x) => x !== d.id) : [...prev, d.id],
+                        )
+                      }
+                    />
+                    <span>{d.label}</span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
         </label>
         <Field
           label="Notes (optionnel)"

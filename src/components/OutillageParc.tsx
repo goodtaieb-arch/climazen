@@ -6,7 +6,6 @@ import { useAuth } from '../lib/AuthContext'
 import {
   checklistOutillageObligatoire,
   groupOutillagesByType,
-  outillageLabel,
   outillagesForUser,
 } from '../lib/outillage'
 import {
@@ -19,6 +18,8 @@ import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
 import { dossierForUser } from '../lib/rhDocuments'
 import { mergeTeamMembers } from '../lib/teamMembers'
+import { formatDateFrCourt } from '../lib/voitures'
+import { ReceptionMaterielBlock } from './ReceptionMaterielBlock'
 
 type Props = {
   team?: UserAccount[]
@@ -210,7 +211,12 @@ export function OutillageParc({ team: teamProp }: Props) {
     if (!contact) return <span className="text-muted">Non attribué</span>
     return (
       <div className="text-xs text-muted">
-        <span className="font-medium text-ink">{contact.name}</span>
+        <Link
+          to={`/app/equipe/${uid}`}
+          className="font-medium text-accent underline-offset-2 hover:underline"
+        >
+          {contact.name}
+        </Link>
         {contact.email ? (
           <span className="ml-1 inline-flex items-center gap-0.5">
             <Mail className="inline h-3 w-3" />
@@ -283,29 +289,61 @@ export function OutillageParc({ team: teamProp }: Props) {
             Aucun outillage ne vous est affecté. Le gérant peut vous en attribuer dans Mon profil.
           </p>
         ) : (
-          <ul className="divide-y divide-line rounded-xl border border-line">
-            {mine.map((o) => {
-              const def = OUTILLAGE_CATALOG[o.type]
-              const expired = o.controleDate && def.needsControleDate && isDetecteurControleExpire(o.controleDate)
-              return (
-                <li key={o.id} className="px-4 py-3">
-                  <div className="font-medium">{def.label}</div>
-                  <div className="text-sm text-muted">
-                    {o.identification}
-                    {o.marque || o.modele ? ` · ${[o.marque, o.modele].filter(Boolean).join(' ')}` : ''}
-                  </div>
-                  {o.controleDate && def.needsControleDate ? (
-                    <div className="text-xs text-muted">
-                      Étalonnage : {o.controleDate}
-                      {expired ? <span className="ml-1 font-semibold text-danger">(expiré)</span> : null}
-                    </div>
+          <div className="space-y-3">
+            {groupOutillagesByType(mine).map((group) => (
+              <section key={group.type} className="overflow-hidden rounded-xl border border-line">
+                <header className="flex items-center gap-2 bg-mist/70 px-4 py-2">
+                  <span className="font-medium">{group.def.label}</span>
+                  {group.def.obligatoire ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                      Obligatoire
+                    </span>
                   ) : null}
-                  {o.notes ? <p className="mt-1 text-xs text-muted">{o.notes}</p> : null}
-                </li>
-              )
-            })}
-          </ul>
+                  <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
+                    {group.items.length}
+                  </span>
+                </header>
+                <ul className="divide-y divide-line">
+                  {group.items.map((o) => {
+                    const expired =
+                      o.controleDate &&
+                      group.def.needsControleDate &&
+                      isDetecteurControleExpire(o.controleDate)
+                    return (
+                      <li key={o.id} className="px-4 py-3">
+                        <div className="text-sm text-muted">
+                          {o.identification}
+                          {o.marque || o.modele
+                            ? ` · ${[o.marque, o.modele].filter(Boolean).join(' ')}`
+                            : ''}
+                        </div>
+                        {o.controleDate && group.def.needsControleDate ? (
+                          <div className="text-xs text-muted">
+                            Étalonnage : {o.controleDate}
+                            {expired ? (
+                              <span className="ml-1 font-semibold text-danger">(expiré)</span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        <div className="mt-1 text-xs">
+                          {o.receptionAt ? (
+                            <span className="font-semibold text-emerald-800">
+                              Réceptionné le {formatDateFrCourt(o.receptionAt)}
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-amber-800">À réceptionner</span>
+                          )}
+                        </div>
+                        {o.notes ? <p className="mt-1 text-xs text-muted">{o.notes}</p> : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
+        {user?.id ? <ReceptionMaterielBlock userId={user.id} kinds={['outillage']} /> : null}
       </div>
     )
   }
@@ -325,22 +363,27 @@ export function OutillageParc({ team: teamProp }: Props) {
 
       <ChecklistBlock userId={assigneeUserId || user?.id} />
 
-      <ul className="divide-y divide-line rounded-xl border border-line">
+      <div className="space-y-3">
         {outillages.length === 0 && (
-          <li className="px-4 py-3 text-sm text-muted">Aucun outillage — ajoutez-en un ci-dessous.</li>
+          <p className="rounded-xl border border-line px-4 py-3 text-sm text-muted">
+            Aucun outillage — ajoutez-en un ci-dessous.
+          </p>
         )}
         {groupOutillagesByType(outillages).map((group) => {
           const many = group.items.length > 1
-          const open = !many || Boolean(openGroups[group.type])
+          const open = !many || (openGroups[group.type] ?? true)
           return (
-            <li key={group.type} className="px-4 py-3">
+            <section key={group.type} className="overflow-hidden rounded-xl border border-line">
               {many ? (
                 <button
                   type="button"
                   onClick={() =>
-                    setOpenGroups((prev) => ({ ...prev, [group.type]: !open }))
+                    setOpenGroups((prev) => ({
+                      ...prev,
+                      [group.type]: !(prev[group.type] ?? true),
+                    }))
                   }
-                  className="flex w-full min-w-0 items-center gap-2 text-left"
+                  className="flex w-full min-w-0 items-center gap-2 bg-mist/70 px-4 py-2.5 text-left"
                 >
                   {open ? (
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
@@ -353,13 +396,26 @@ export function OutillageParc({ team: teamProp }: Props) {
                       Obligatoire
                     </span>
                   ) : null}
-                  <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-[11px] font-semibold text-muted">
+                  <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {group.items.length}
                   </span>
                 </button>
-              ) : null}
-              {(open || !many) && (
-                <ul className={many ? 'mt-2 space-y-2' : 'space-y-2'}>
+              ) : (
+                <header className="flex w-full min-w-0 items-center gap-2 bg-mist/70 px-4 py-2.5">
+                  <span className="w-4" />
+                  <span className="min-w-0 flex-1 font-medium">{group.def.label}</span>
+                  {group.def.obligatoire ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                      Obligatoire
+                    </span>
+                  ) : null}
+                  <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
+                    {group.items.length}
+                  </span>
+                </header>
+              )}
+              {open && (
+                <ul className="divide-y divide-line">
                   {group.items.map((o) => {
                     const expired =
                       o.controleDate &&
@@ -368,20 +424,15 @@ export function OutillageParc({ team: teamProp }: Props) {
                     return (
                       <li
                         key={o.id}
-                        className="flex flex-col gap-2 rounded-xl bg-mist/50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
-                          {!many ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{group.def.label}</span>
-                              {group.def.obligatoire ? (
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
-                                  Obligatoire
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null}
-                          <div className="text-sm text-muted">{outillageLabel(o)}</div>
+                          <div className="text-sm text-muted">
+                            {o.identification}
+                            {o.marque || o.modele
+                              ? ` · ${[o.marque, o.modele].filter(Boolean).join(' ')}`
+                              : ''}
+                          </div>
                           {o.controleDate && group.def.needsControleDate ? (
                             <div className="text-xs text-muted">
                               Étalonnage : {o.controleDate}
@@ -400,6 +451,19 @@ export function OutillageParc({ team: teamProp }: Props) {
                               <span className="text-xs text-muted">Non attribué</span>
                             )}
                           </div>
+                          {o.assigneeUserId ? (
+                            <div className="mt-0.5 text-xs">
+                              {o.receptionAt ? (
+                                <span className="font-semibold text-emerald-800">
+                                  Réceptionné le {formatDateFrCourt(o.receptionAt)}
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-amber-800">
+                                  En attente de réception
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-2">
                           <button
@@ -430,10 +494,10 @@ export function OutillageParc({ team: teamProp }: Props) {
                   })}
                 </ul>
               )}
-            </li>
+            </section>
           )
         })}
-      </ul>
+      </div>
 
       <form
         id="outillage-form"

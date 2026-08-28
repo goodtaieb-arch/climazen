@@ -11,6 +11,7 @@ import {
 import { v4 as uuid } from 'uuid'
 import type {
   AppData,
+  BonRemiseMateriel,
   CerfaDraft,
   Client,
   DetecteurManuel,
@@ -19,6 +20,7 @@ import type {
   Site,
   StockItem,
   Voiture,
+  VoitureEtatLieux,
   Outillage,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
@@ -29,7 +31,16 @@ import {
   updateOrganizationName,
 } from './auth'
 import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
-import { deleteCerfaPdf } from './pdfStore'
+import { deleteCerfaPdf, saveCerfaPdf } from './pdfStore'
+import { receptionPreserved, outillageLigne, voitureLigne } from './attributionMateriel'
+import {
+  buildBonRemiseMaterielPdf,
+  downloadBonRemisePdf,
+  fileNameBonRemise,
+  pdfIdBonRemise,
+  telechargerBonRemise as telechargerBonRemisePdf,
+} from './bonRemiseMaterielPdf'
+import { erreurEtatLieux, sanitizeEtatLieux } from './voitures'
 import { useAuth } from './AuthContext'
 import { applyStockFromIntervention, enregistrerDestruction, enregistrerPerteEmission, enregistrerRetourConsigne, enregistrerTransfertInterne, revertStockForIntervention } from './stockMouvements'
 import {
@@ -270,6 +281,17 @@ type Store = {
     o: Omit<Outillage, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
   deleteOutillage: (id: string) => Promise<void>
+  /**
+   * L’opérateur valide la réception : véhicule → état des lieux + documents pris ;
+   * outillage / téléphone → bon de remise. PDF officiel stocké pour le gérant.
+   */
+  validerReceptionMateriel: (opts: {
+    userId: string
+    voitureId?: string
+    etatVoiture?: VoitureEtatLieux
+    outillageIds?: string[]
+  }) => Promise<{ bonIds: string[] }>
+  telechargerBonRemise: (bonId: string) => Promise<void>
   /** Crée / met à jour le dossier RH d’un technicien (activité + notes). */
   upsertPersonnelDossier: (
     d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
@@ -2102,6 +2124,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const prev = dataRef.current
       const list = prev.voitures || []
       const existing = list.find((x) => x.id === id)
+      const rec = receptionPreserved(existing, v.assigneeUserId || undefined)
       let nextList: Voiture[]
       const nextV: Voiture = {
         id,
@@ -2112,13 +2135,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         assuranceDate: v.assuranceDate || undefined,
         assigneeUserId: v.assigneeUserId || undefined,
         assigneeName: v.assigneeName || undefined,
+        receptionAt: rec.receptionAt,
+        receptionParUserId: rec.receptionParUserId,
+        documentsFournis: Array.isArray(v.documentsFournis)
+          ? v.documentsFournis
+          : existing?.documentsFournis,
+        etatReception: rec.receptionAt
+          ? v.etatReception || existing?.etatReception
+          : undefined,
         notes: v.notes || undefined,
         updatedAt: now,
       }
       if (nextV.assigneeUserId) {
         nextList = list.map((x) =>
           x.assigneeUserId === nextV.assigneeUserId && x.id !== id
-            ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
+            ? {
+                ...x,
+                assigneeUserId: undefined,
+                assigneeName: undefined,
+                receptionAt: undefined,
+                receptionParUserId: undefined,
+                etatReception: undefined,
+                updatedAt: now,
+              }
             : x,
         )
       } else {
@@ -2190,6 +2229,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const prev = dataRef.current
       const list = prev.outillages || []
       const existing = list.find((x) => x.id === id)
+      const rec = receptionPreserved(existing, o.assigneeUserId || undefined)
       let nextList: Outillage[]
       const nextO: Outillage = {
         id,
@@ -2200,6 +2240,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         controleDate: o.controleDate || undefined,
         assigneeUserId: o.assigneeUserId || undefined,
         assigneeName: o.assigneeName || undefined,
+        receptionAt: rec.receptionAt,
+        receptionParUserId: rec.receptionParUserId,
         notes: o.notes || undefined,
         updatedAt: now,
       }
@@ -2208,7 +2250,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           x.assigneeUserId === nextO.assigneeUserId &&
           x.type === nextO.type &&
           x.id !== id
-            ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
+            ? {
+                ...x,
+                assigneeUserId: undefined,
+                assigneeName: undefined,
+                receptionAt: undefined,
+                receptionParUserId: undefined,
+                updatedAt: now,
+              }
             : x,
         )
       } else {
@@ -2271,6 +2320,142 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await persistNow(next)
     },
     [persistNow],
+  )
+
+  const validerReceptionMateriel = useCallback(
+    async (opts: {
+      userId: string
+      voitureId?: string
+      etatVoiture?: VoitureEtatLieux
+      outillageIds?: string[]
+    }) => {
+      if (!user?.id) throw new Error('Non connecté.')
+      if (user.id !== opts.userId) {
+        throw new Error('Seul l’opérateur destinataire peut valider la réception.')
+      }
+      if (!opts.voitureId && !opts.outillageIds?.length) {
+        throw new Error('Aucun matériel à réceptionner.')
+      }
+      const prev = dataRef.current
+      const now = new Date().toISOString()
+      const userName = user.fullName || user.email || 'Opérateur'
+      let voitures = [...(prev.voitures || [])]
+      let outillages = [...(prev.outillages || [])]
+      const bons = [...(prev.bonsRemiseMateriel || [])]
+      const created: BonRemiseMateriel[] = []
+
+      if (opts.voitureId) {
+        const v = voitures.find((x) => x.id === opts.voitureId)
+        if (!v) throw new Error('Véhicule introuvable.')
+        if (v.assigneeUserId !== opts.userId) {
+          throw new Error('Ce véhicule ne vous est pas attribué.')
+        }
+        if (v.receptionAt) throw new Error('Réception déjà validée pour ce véhicule.')
+        if (!opts.etatVoiture) {
+          throw new Error('Complétez l’état des lieux du véhicule (état + documents pris).')
+        }
+        const etat = sanitizeEtatLieux(opts.etatVoiture)
+        const err = erreurEtatLieux(etat)
+        if (err) throw new Error(err)
+        voitures = voitures.map((x) =>
+          x.id === v.id
+            ? {
+                ...x,
+                receptionAt: now,
+                receptionParUserId: user.id,
+                etatReception: etat,
+                updatedAt: now,
+              }
+            : x,
+        )
+        const bon: BonRemiseMateriel = {
+          id: uuid(),
+          userId: opts.userId,
+          userName,
+          createdAt: now,
+          items: [voitureLigne({ ...v, assigneeName: userName })],
+          kind: 'vehicule',
+          voitureId: v.id,
+          etatVoiture: etat,
+          createdByUserId: user.id,
+          createdByName: userName,
+          fileName: '',
+        }
+        bon.fileName = fileNameBonRemise(bon)
+        bons.push(bon)
+        created.push(bon)
+      }
+
+      if (opts.outillageIds?.length) {
+        const wanted = new Set(opts.outillageIds)
+        const pending = outillages.filter(
+          (o) => o.assigneeUserId === opts.userId && !o.receptionAt && wanted.has(o.id),
+        )
+        if (pending.length === 0) {
+          if (!opts.voitureId) throw new Error('Aucun outillage en attente de réception.')
+        } else {
+          const pendingIds = new Set(pending.map((o) => o.id))
+          outillages = outillages.map((o) =>
+            pendingIds.has(o.id)
+              ? { ...o, receptionAt: now, receptionParUserId: user.id, updatedAt: now }
+              : o,
+          )
+          const bon: BonRemiseMateriel = {
+            id: uuid(),
+            userId: opts.userId,
+            userName,
+            createdAt: now,
+            items: pending.map(outillageLigne),
+            kind: 'outillage',
+            createdByUserId: user.id,
+            createdByName: userName,
+            fileName: '',
+          }
+          bon.fileName = fileNameBonRemise(bon)
+          bons.push(bon)
+          created.push(bon)
+        }
+      }
+
+      const next: AppData = {
+        ...prev,
+        voitures,
+        outillages,
+        bonsRemiseMateriel: bons,
+      }
+      await persistNow(next)
+
+      for (const bon of created) {
+        try {
+          const blob = buildBonRemiseMaterielPdf({
+            bon,
+            data: next,
+            signatureImage: user.signatureImage,
+          })
+          await saveCerfaPdf(pdfIdBonRemise(bon.id), blob, bon.fileName, orgId)
+          downloadBonRemisePdf(blob, bon.fileName)
+        } catch (err) {
+          console.error('ClimaZEN: PDF bon de remise', err)
+        }
+      }
+      return { bonIds: created.map((b) => b.id) }
+    },
+    [user, persistNow, orgId],
+  )
+
+  const telechargerBonRemise = useCallback(
+    async (bonId: string) => {
+      const prev = dataRef.current
+      const bon = (prev.bonsRemiseMateriel || []).find((b) => b.id === bonId)
+      if (!bon) throw new Error('Bon de remise introuvable.')
+      await telechargerBonRemisePdf({
+        bon,
+        data: prev,
+        organizationId: orgId,
+        signatureImage: user?.signatureImage,
+      })
+    },
+    [orgId, user?.signatureImage],
   )
 
   const upsertPersonnelDossier = useCallback(
@@ -2569,6 +2754,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteVoiture,
       upsertOutillage,
       deleteOutillage,
+      validerReceptionMateriel,
+      telechargerBonRemise,
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
@@ -2635,6 +2822,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteVoiture,
       upsertOutillage,
       deleteOutillage,
+      validerReceptionMateriel,
+      telechargerBonRemise,
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,

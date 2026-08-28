@@ -557,6 +557,7 @@ export function normalizeAppData(raw: unknown): AppData {
     detecteurs: parsed.detecteurs,
     voitures: parsed.voitures,
     outillages: parsed.outillages,
+    bonsRemiseMateriel: parsed.bonsRemiseMateriel || [],
     fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: parsed.fichesMaintenanceChaufferie || [],
     fichesMaintenanceCtaVmc: parsed.fichesMaintenanceCtaVmc || [],
