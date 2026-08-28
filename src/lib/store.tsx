@@ -18,6 +18,7 @@ import type {
   Operateur,
   Site,
   StockItem,
+  Voiture,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
 import {
@@ -260,6 +261,10 @@ type Store = {
     d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
   deleteDetecteur: (id: string) => Promise<void>
+  upsertVoiture: (
+    v: Omit<Voiture, 'id' | 'updatedAt'> & { id?: string },
+  ) => Promise<string>
+  deleteVoiture: (id: string) => Promise<void>
   /** Crée / met à jour le dossier RH d’un technicien (activité + notes). */
   upsertPersonnelDossier: (
     d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
@@ -2085,6 +2090,63 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [persistNow],
   )
 
+  const upsertVoiture = useCallback(
+    async (v: Omit<Voiture, 'id' | 'updatedAt'> & { id?: string }) => {
+      const id = v.id ?? uuid()
+      const now = new Date().toISOString()
+      const prev = dataRef.current
+      const list = prev.voitures || []
+      const existing = list.find((x) => x.id === id)
+      let nextList: Voiture[]
+      const nextV: Voiture = {
+        id,
+        matricule: v.matricule.trim().toUpperCase(),
+        marque: v.marque.trim(),
+        modele: v.modele?.trim() || undefined,
+        controleTechniqueDate: v.controleTechniqueDate || undefined,
+        assuranceDate: v.assuranceDate || undefined,
+        assigneeUserId: v.assigneeUserId || undefined,
+        assigneeName: v.assigneeName || undefined,
+        notes: v.notes || undefined,
+        updatedAt: now,
+      }
+      if (nextV.assigneeUserId) {
+        nextList = list.map((x) =>
+          x.assigneeUserId === nextV.assigneeUserId && x.id !== id
+            ? { ...x, assigneeUserId: undefined, assigneeName: undefined, updatedAt: now }
+            : x,
+        )
+      } else {
+        nextList = [...list]
+      }
+      if (existing) {
+        nextList = nextList.map((x) => (x.id === id ? nextV : x))
+      } else {
+        nextList = [...nextList.filter((x) => x.id !== id), nextV]
+      }
+      const next: AppData = {
+        ...prev,
+        voitures: nextList,
+      }
+      await persistNow(next)
+      return id
+    },
+    [persistNow],
+  )
+
+  const deleteVoiture = useCallback(
+    async (id: string) => {
+      const prev = dataRef.current
+      const nextList = (prev.voitures || []).filter((x) => x.id !== id)
+      const next: AppData = {
+        ...prev,
+        voitures: nextList,
+      }
+      await persistNow(next)
+    },
+    [persistNow],
+  )
+
   const upsertPersonnelDossier = useCallback(
     (
       d: Omit<PersonnelDossier, 'id' | 'updatedAt' | 'documents'> & {
@@ -2377,6 +2439,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteIntervention,
       upsertDetecteur,
       deleteDetecteur,
+      upsertVoiture,
+      deleteVoiture,
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
@@ -2439,6 +2503,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteIntervention,
       upsertDetecteur,
       deleteDetecteur,
+      upsertVoiture,
+      deleteVoiture,
       upsertPersonnelDossier,
       upsertPersonnelDocument,
       deletePersonnelDocument,
