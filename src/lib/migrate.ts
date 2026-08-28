@@ -8,6 +8,7 @@ import type {
   Site,
   StockItem,
   TypeTravaux,
+  Voiture,
 } from './types'
 import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
@@ -177,6 +178,22 @@ function migrateDetecteurs(data: AppData): DetecteurManuel[] {
   ]
 }
 
+function migrateVoitures(data: AppData): Voiture[] {
+  const raw = Array.isArray(data.voitures) ? data.voitures : []
+  return raw.map((v) => ({
+    id: v.id || crypto.randomUUID(),
+    matricule: (v.matricule || '').trim().toUpperCase(),
+    marque: (v.marque || '').trim(),
+    modele: v.modele?.trim() || undefined,
+    controleTechniqueDate: v.controleTechniqueDate || undefined,
+    assuranceDate: v.assuranceDate || undefined,
+    assigneeUserId: v.assigneeUserId || undefined,
+    assigneeName: v.assigneeName || undefined,
+    notes: v.notes || undefined,
+    updatedAt: v.updatedAt || new Date().toISOString(),
+  }))
+}
+
 /**
  * Ancien type unique « regenere » = recyclé site OU régénéré usine.
  * Si origineClientId → recyclé site ; sinon → régénéré distributeur.
@@ -204,11 +221,13 @@ export function migrateAppData(data: AppData): AppData {
   const sites = (data.chantiers || []).map((c) => migrateSite(c as unknown as LegacyChantier))
   const interventions = (data.interventions || []).map((i) => migrateIntervention(i, sites))
   const detecteurs = migrateDetecteurs(data)
+  const voitures = migrateVoitures(data)
   return purgeOrphanCerfaStock({
     ...data,
     chantiers: sites,
     interventions,
     detecteurs,
+    voitures,
     stock: (data.stock || []).map(migrateStockItem),
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: data.fichesMaintenanceChaufferie || [],

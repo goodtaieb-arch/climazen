@@ -595,6 +595,27 @@ export interface DetecteurManuel {
   updatedAt: string
 }
 
+/** Véhicule de la flotte société — attribué à un technicien */
+export interface Voiture {
+  id: string
+  /** Immatriculation (matricule) */
+  matricule: string
+  /** Marque (Renault, Peugeot…) */
+  marque: string
+  /** Modèle (Kangoo, Partner…) */
+  modele?: string
+  /** Date du dernier contrôle technique */
+  controleTechniqueDate?: string
+  /** Date d'expiration de l'assurance */
+  assuranceDate?: string
+  /** Compte utilisateur (opérateur) qui conduit ce véhicule */
+  assigneeUserId?: string
+  /** Nom affiché (copie au moment de l'attribution) */
+  assigneeName?: string
+  notes?: string
+  updatedAt: string
+}
+
 export interface AppData {
   operateur: Operateur
   clients: Client[]
@@ -606,6 +627,8 @@ export interface AppData {
   interventions: CerfaDraft[]
   /** Parc détecteurs manuels — un par technicien si plusieurs */
   detecteurs?: DetecteurManuel[]
+  /** Flotte véhicules société — un par technicien si plusieurs */
+  voitures?: Voiture[]
   /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
   fichesMaintenanceClim?: FicheMaintenanceClim[]
   /** Fiches maintenance chaufferie P2/P3 (registre périodique) */
@@ -702,6 +725,24 @@ export function isDetecteurControleExpire(dateIso?: string, refDate = new Date()
   const limit = new Date(d)
   limit.setFullYear(limit.getFullYear() + 1)
   return refDate > limit
+}
+
+/** Contrôle technique valable 2 ans — true si dépassé ou manquant. */
+export function isCtExpire(dateIso?: string, refDate = new Date()): boolean {
+  if (!dateIso) return true
+  const d = new Date(dateIso)
+  if (Number.isNaN(d.getTime())) return true
+  const limit = new Date(d)
+  limit.setFullYear(limit.getFullYear() + 2)
+  return refDate > limit
+}
+
+/** Assurance expirée — true si date passée ou manquante. */
+export function isAssuranceExpiree(dateIso?: string, refDate = new Date()): boolean {
+  if (!dateIso) return true
+  const d = new Date(dateIso)
+  if (Number.isNaN(d.getTime())) return true
+  return refDate > d
 }
 
 /** Bouteille neuve vide, consignée, pas encore retournée au fournisseur. */

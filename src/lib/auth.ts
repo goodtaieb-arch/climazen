@@ -555,6 +555,7 @@ export function normalizeAppData(raw: unknown): AppData {
     clients: parsed.clients || [],
     chantiers: parsed.chantiers || [],
     detecteurs: parsed.detecteurs,
+    voitures: parsed.voitures,
     fichesMaintenanceClim: parsed.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: parsed.fichesMaintenanceChaufferie || [],
     fichesMaintenanceCtaVmc: parsed.fichesMaintenanceCtaVmc || [],
@@ -611,6 +612,7 @@ export function appDataWeight(data: AppData): number {
     (data.interventions?.length || 0) * 5 +
     (data.stock?.length || 0) * 2 +
     (data.detecteurs?.length || 0) * 15 +
+    (data.voitures?.length || 0) * 15 +
     (data.fichesMaintenanceClim?.length || 0) * 2 +
     (data.fichesMaintenanceChaufferie?.length || 0) * 2 +
     (data.fichesMaintenanceCtaVmc?.length || 0) * 2 +
@@ -780,6 +782,7 @@ export function resolveRemoteVsLocal(
   const preferOnTie: 'remote' | 'local' = remoteIsNewer ? 'remote' : 'local'
   const operateur = mergeOperateurPreferFilled(remote.operateur, local.operateur)
   const detecteurs = mergeByIdLatest(remote.detecteurs, local.detecteurs, preferOnTie)
+  const voitures = mergeByIdLatest(remote.voitures, local.voitures, preferOnTie)
   let clients = mergeByIdLatest(remote.clients, local.clients, preferOnTie)
   let chantiers = mergeByIdLatest(remote.chantiers, local.chantiers, preferOnTie)
   let interventions = mergeByIdLatest(remote.interventions, local.interventions, preferOnTie)
@@ -884,6 +887,7 @@ export function resolveRemoteVsLocal(
     ...base,
     operateur,
     detecteurs,
+    voitures,
     clients,
     chantiers,
     interventions,
@@ -910,6 +914,7 @@ export function resolveRemoteVsLocal(
     hasPending ||
     mergedW > remoteW ||
     (detecteurs?.length || 0) > (remote.detecteurs?.length || 0) ||
+    (voitures?.length || 0) > (remote.voitures?.length || 0) ||
     Boolean(operateur.raisonSociale?.trim() && !remote.operateur?.raisonSociale?.trim()) ||
     Boolean(operateur.siret?.trim() && !remote.operateur?.siret?.trim()) ||
     Boolean(operateur.attestationNumero?.trim() && !remote.operateur?.attestationNumero?.trim()) ||
