@@ -1,11 +1,25 @@
 import type { AppData, DetecteurManuel } from './types'
 import { isDetecteurControleExpire } from './types'
+import { outillageForUserByType } from './outillage'
 
 /** Détecteur attribué au technicien connecté (sinon fallback société). */
 export function detecteurForUser(
   data: AppData,
   userId?: string | null,
 ): DetecteurManuel | undefined {
+  const fromOutillage = outillageForUserByType(data, userId || undefined, 'detecteur_fuite')
+  if (fromOutillage?.identification?.trim()) {
+    return {
+      id: fromOutillage.id,
+      identification: fromOutillage.identification.trim(),
+      controleDate: fromOutillage.controleDate || '',
+      assigneeUserId: fromOutillage.assigneeUserId,
+      assigneeName: fromOutillage.assigneeName,
+      notes: fromOutillage.notes,
+      updatedAt: fromOutillage.updatedAt,
+    }
+  }
+
   const list = data.detecteurs || []
   if (userId) {
     const assigned = list.find((d) => d.assigneeUserId === userId)
@@ -48,7 +62,7 @@ export function assertDetecteurValidePourCerfa(
 
   if (!identification) {
     throw new Error(
-      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans Mon profil (parc détecteurs) et attribuez-le au technicien.',
+      'Détecteur de fuite obligatoire pour le CERFA. Enregistrez-le dans Mon profil (parc outillage) et attribuez-le au technicien.',
     )
   }
   if (!controleDate) {

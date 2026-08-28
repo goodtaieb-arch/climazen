@@ -9,7 +9,10 @@ import type {
   StockItem,
   TypeTravaux,
   Voiture,
+  Outillage,
 } from './types'
+import type { OutillageTypeId } from './outillageCatalog'
+import { isOutillageTypeId } from './outillageCatalog'
 import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { purgeOrphanCerfaStock } from './stockMouvements'
@@ -194,6 +197,43 @@ function migrateVoitures(data: AppData): Voiture[] {
   }))
 }
 
+function migrateOutillages(data: AppData, detecteurs: DetecteurManuel[]): Outillage[] {
+  const raw = Array.isArray(data.outillages) ? data.outillages : []
+  const migrated = raw.map((o) => ({
+    id: o.id || crypto.randomUUID(),
+    type: (isOutillageTypeId(o.type) ? o.type : 'autre') as OutillageTypeId,
+    identification: (o.identification || '').trim(),
+    marque: o.marque?.trim() || undefined,
+    modele: o.modele?.trim() || undefined,
+    controleDate: o.controleDate || undefined,
+    assigneeUserId: o.assigneeUserId || undefined,
+    assigneeName: o.assigneeName || undefined,
+    notes: o.notes || undefined,
+    updatedAt: o.updatedAt || new Date().toISOString(),
+  }))
+
+  const hasDetecteurOutillage = migrated.some((o) => o.type === 'detecteur_fuite')
+  if (!hasDetecteurOutillage) {
+    for (const d of detecteurs) {
+      if (!d.identification?.trim()) continue
+      migrated.push({
+        id: d.id || uuid(),
+        type: 'detecteur_fuite',
+        identification: d.identification.trim(),
+        marque: undefined,
+        modele: undefined,
+        controleDate: d.controleDate || undefined,
+        assigneeUserId: d.assigneeUserId,
+        assigneeName: d.assigneeName,
+        notes: d.notes,
+        updatedAt: d.updatedAt || new Date().toISOString(),
+      })
+    }
+  }
+
+  return migrated
+}
+
 /**
  * Ancien type unique « regenere » = recyclé site OU régénéré usine.
  * Si origineClientId → recyclé site ; sinon → régénéré distributeur.
@@ -222,12 +262,14 @@ export function migrateAppData(data: AppData): AppData {
   const interventions = (data.interventions || []).map((i) => migrateIntervention(i, sites))
   const detecteurs = migrateDetecteurs(data)
   const voitures = migrateVoitures(data)
+  const outillages = migrateOutillages(data, detecteurs)
   return purgeOrphanCerfaStock({
     ...data,
     chantiers: sites,
     interventions,
     detecteurs,
     voitures,
+    outillages,
     stock: (data.stock || []).map(migrateStockItem),
     fichesMaintenanceClim: data.fichesMaintenanceClim || [],
     fichesMaintenanceChaufferie: data.fichesMaintenanceChaufferie || [],

@@ -616,6 +616,23 @@ export interface Voiture {
   updatedAt: string
 }
 
+/** Outillage terrain — parc société, attribué à un technicien */
+export interface Outillage {
+  id: string
+  /** Type catalogue (menu déroulant) */
+  type: import('./outillageCatalog').OutillageTypeId
+  /** N° série, étiquette interne, réf. */
+  identification: string
+  marque?: string
+  modele?: string
+  /** Contrôle annuel (détecteur) ou étalonnage balance */
+  controleDate?: string
+  assigneeUserId?: string
+  assigneeName?: string
+  notes?: string
+  updatedAt: string
+}
+
 export interface AppData {
   operateur: Operateur
   clients: Client[]
@@ -629,6 +646,8 @@ export interface AppData {
   detecteurs?: DetecteurManuel[]
   /** Flotte véhicules société — un par technicien si plusieurs */
   voitures?: Voiture[]
+  /** Parc outillage terrain — attribution par technicien */
+  outillages?: Outillage[]
   /** Fiches maintenance clim / PAC (checklist terrain, hors CERFA) */
   fichesMaintenanceClim?: FicheMaintenanceClim[]
   /** Fiches maintenance chaufferie P2/P3 (registre périodique) */

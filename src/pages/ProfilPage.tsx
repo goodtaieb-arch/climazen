@@ -5,8 +5,8 @@ import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { SignaturePad } from '../components/SignaturePad'
 import { PasswordField } from '../components/PasswordField'
-import { DetecteursParc } from '../components/DetecteursParc'
 import { VoituresParc } from '../components/VoituresParc'
+import { OutillageParc } from '../components/OutillageParc'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_HINT, validatePasswordStrength } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
@@ -19,7 +19,7 @@ import {
 import { cloudPasteHint } from '../lib/cloudLinkGuard'
 
 /**
- * Espace perso : signature CERFA, détecteur, véhicule (plus tard outillage).
+ * Espace perso : signature CERFA, outillage, détecteur, véhicule.
  */
 export function ProfilPage() {
   const { data, peutVoirIdentitesRh } = useStore()
@@ -106,7 +106,8 @@ export function ProfilPage() {
           <h1 className="font-display text-3xl font-bold tracking-tight">Mon profil</h1>
           <p className="mt-1 text-muted">
             {organization?.name || data.operateur.raisonSociale || 'Société'} — signature CERFA,
-            détecteur de fuite, véhicule de service. Votre matériel perso, pas le cadre société.
+            outillage terrain, détecteur de fuite, véhicule de service. Votre matériel perso, pas le
+            cadre société.
           </p>
         </div>
       </div>
@@ -176,7 +177,7 @@ export function ProfilPage() {
         </div>
       )}
 
-      <DetecteursParc />
+      <OutillageParc />
 
       <VoituresParc />
 
