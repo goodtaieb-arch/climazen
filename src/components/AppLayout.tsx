@@ -590,7 +590,7 @@ export function AppLayout() {
                   <>
                     <span
                       className={[
-                        'grid h-11 w-11 place-items-center rounded-full border transition',
+                        'grid h-11 w-11 place-items-center overflow-hidden rounded-full border transition',
                         isActive ? 'border-current bg-white shadow-sm' : 'border-line bg-white',
                       ].join(' ')}
                       style={

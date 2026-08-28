@@ -28,7 +28,10 @@ export function RecupJaugeBannerFromInfo({
     ? 'border-red-400 bg-red-50 text-red-950'
     : 'border-amber-400 bg-amber-50 text-amber-950'
   return (
-    <div className={`rounded-xl border px-3 py-2 text-xs ${cls}`} role="status">
+    <div
+      className={`w-full min-w-0 rounded-xl border px-3 py-2 text-xs leading-snug break-words ${cls}`}
+      role="status"
+    >
       <strong>⚠ {info.message}</strong>
       <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/70">
         <div

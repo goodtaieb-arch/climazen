@@ -279,7 +279,7 @@ function BottleLevelBar({ current, initial }: { current: number; initial: number
   const tone =
     pct <= 15 ? 'bg-danger' : pct <= 40 ? 'bg-amber-500' : 'bg-emerald-500'
   return (
-    <div className="mt-1.5 w-full min-w-[7rem] max-w-[11rem]">
+    <div className="mt-1.5 w-full min-w-0 max-w-none sm:max-w-[11rem]">
       <div className="h-2 overflow-hidden rounded-full bg-mist">
         <div className={`h-full rounded-full transition-all ${tone}`} style={{ width: `${pct}%` }} />
       </div>
@@ -2006,25 +2006,25 @@ export function StockPage() {
                     s.contenantType === 'recuperation' && current > 0 && !isBouteilleRetournee(s)
                   const canTransfer = !isBouteilleRetournee(s)
                   return (
-                    <li key={s.id}>
-                      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
+                    <li key={s.id} className="min-w-0">
+                      <div className="flex min-w-0 flex-col gap-2 px-3 py-2.5 sm:px-4">
                         <button
                           type="button"
-                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          className="flex min-w-0 w-full items-start gap-2 text-left"
                           onClick={() => setExpandedId(openHist ? null : s.id)}
                         >
                           {openHist ? (
-                            <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+                            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                           ) : (
-                            <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                           )}
                           <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span className="min-w-0 truncate font-semibold text-ink">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="max-w-full break-words font-semibold text-ink">
                                 {titreBouteilleStock(s)}
                               </span>
                               {sousTitreNumeroSerie(s) && (
-                                <span className="truncate text-xs font-medium text-muted">
+                                <span className="max-w-full break-all text-xs font-medium text-muted">
                                   {sousTitreNumeroSerie(s)}
                                 </span>
                               )}
@@ -2040,17 +2040,17 @@ export function StockPage() {
                               )}
                               <span
                                 className={[
-                                  'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                  'whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
                                   badge.cls,
                                 ].join(' ')}
                               >
                                 {badge.label}
                               </span>
-                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
+                              <span className="whitespace-nowrap rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-sky-900">
                                 {labelEmplacement(s.emplacement || 'atelier', s.emplacementLabel)}
                               </span>
                               {s.assigneeName && (s.emplacement || 'atelier') === 'vehicule' && (
-                                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
+                                <span className="whitespace-nowrap rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
                                   {s.assigneeName}
                                 </span>
                               )}
@@ -2058,7 +2058,7 @@ export function StockPage() {
                                 const filiere = filiereRecupOf(s)
                                 if (!filiere) return null
                                 return (
-                                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-orange-950">
+                                  <span className="whitespace-nowrap rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-orange-950">
                                     {FILIERE_RECUP_LABELS[filiere]}
                                   </span>
                                 )
@@ -2078,7 +2078,7 @@ export function StockPage() {
                                 s.contenantType === 'recycle') &&
                                 s.origineClientId &&
                                 !s.origineDestructionDistributeur && (
-                                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
+                                  <span className="max-w-full break-words rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-violet-950">
                                     Réservé Site :{' '}
                                     {clientDisplayName(
                                       data.clients.find((c) => c.id === s.origineClientId) || {
@@ -2105,7 +2105,7 @@ export function StockPage() {
                                 return (
                                   <span
                                     className={[
-                                      'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                      'whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
                                       c.alerte
                                         ? 'bg-violet-700 text-white'
                                         : 'bg-violet-100 text-violet-900',
@@ -2122,7 +2122,7 @@ export function StockPage() {
                                 </span>
                               )}
                             </span>
-                            <span className="mt-0.5 block truncate text-xs text-muted">
+                            <span className="mt-0.5 block text-xs text-muted">
                               {awaitRetour
                                 ? 'Vide — retour consigne'
                                 : contenantSansRecharge(s.contenantType) && entreeKg > 0
@@ -2137,20 +2137,18 @@ export function StockPage() {
                                 : ''}
                             </span>
                             <BottleLevelBar current={current} initial={initial} />
-                            {jauge && (jauge.alerteBientotPleine || jauge.pleine) && (
-                              <div className="mt-1.5">
-                                <RecupJaugeBanner item={s} />
-                              </div>
-                            )}
                           </span>
-                          <span className="shrink-0 text-right">
+                          <span className="shrink-0 pt-0.5 text-right">
                             <span className="font-display text-base font-bold text-ink">
                               {roundKg(current)}{' '}
                               <span className="text-xs font-semibold text-muted">kg</span>
                             </span>
                           </span>
                         </button>
-                        <div className="flex shrink-0 flex-wrap items-center gap-0.5">
+                        {jauge && (jauge.alerteBientotPleine || jauge.pleine) && (
+                          <RecupJaugeBanner item={s} />
+                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
                           {awaitRetour && (
                             <button
                               type="button"
@@ -2216,7 +2214,7 @@ export function StockPage() {
                             title="Supprimer la bouteille"
                           >
                             <Trash2 className="h-4 w-4" />
-                            <span>Supprimer</span>
+                            <span className="hidden sm:inline">Supprimer</span>
                           </button>
                         </div>
                       </div>
@@ -2373,7 +2371,7 @@ export function StockPage() {
                       title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
-                      <span>Supprimer</span>
+                      <span className="hidden sm:inline">Supprimer</span>
                     </button>
                   </div>
                   {openHist && hist.length > 0 && (
