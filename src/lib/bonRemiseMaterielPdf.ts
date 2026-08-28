@@ -222,7 +222,20 @@ export function buildBonRemiseMaterielPdf(opts: {
   doc.text(bon.userName || '—', 18, y)
   y += 5
   doc.text(`Date de réception : ${formatDateFr(bon.createdAt)}`, 18, y)
-  y += 10
+  y += 5
+  if (bon.createdByUserId && bon.createdByUserId !== bon.userId && bon.createdByName) {
+    y = writeWrapped(
+      doc,
+      `Enregistré par le gérant (${bon.createdByName}) lors de la remise en main propre.`,
+      18,
+      y,
+      w - 36,
+      5,
+    )
+    y += 3
+  } else {
+    y += 5
+  }
 
   const voiture = bon.voitureId
     ? (data.voitures || []).find((v) => v.id === bon.voitureId)

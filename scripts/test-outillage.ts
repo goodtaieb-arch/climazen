@@ -6,6 +6,7 @@ import {
   grouperMaterielParFamille,
   materielConfiePourUser,
   materielEnAttenteReception,
+  operateursEnAttenteReception,
   receptionPreserved,
 } from '../src/lib/attributionMateriel'
 import { blankEtatLieux, documentsEcart, erreurEtatLieux } from '../src/lib/voitures'
@@ -177,6 +178,11 @@ assert.ok(pending.some((p) => p.kind === 'voiture'))
 assert.ok(pending.some((p) => p.kind === 'outillage' && p.itemId === '1'))
 assert.ok(pending.some((p) => p.itemId === '4'))
 assert.equal(pending.some((p) => p.itemId === '3'), false)
+
+const opsAttente = operateursEnAttenteReception(data)
+assert.equal(opsAttente.length, 1)
+assert.equal(opsAttente[0]?.userId, 't1')
+assert.equal(opsAttente[0]?.n, 3)
 
 assert.ok(erreurEtatLieux(blankEtatLieux(['carte_grise'])))
 assert.equal(

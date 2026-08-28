@@ -5,6 +5,6 @@
 export const APP_VERSION = 'v139'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-08-28-v139-dossier-inventaire-tel'
+export const APP_BUILD = '2026-08-28-v139-reception-gerant'
 
 export const APP_VERSION_LABEL = `${APP_VERSION} · ${APP_BUILD}`

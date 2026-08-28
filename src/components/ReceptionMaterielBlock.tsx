@@ -18,7 +18,7 @@ type Props = {
 
 export function ReceptionMaterielBlock({ userId, kinds }: Props) {
   const { data, validerReceptionMateriel } = useStore()
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
   const wantV = !kinds || kinds.includes('voiture')
   const wantO = !kinds || kinds.includes('outillage')
   const pendingAll = materielEnAttenteReception(data, userId)
@@ -35,6 +35,7 @@ export function ReceptionMaterielBlock({ userId, kinds }: Props) {
     pending.filter((l) => l.kind === 'outillage'),
   )
   const isDestinataire = user?.id === userId
+  const canValider = isDestinataire || isOwner
 
   const [etatByVoiture, setEtatByVoiture] = useState<Record<string, VoitureEtatLieux>>({})
   const [error, setError] = useState('')
@@ -96,7 +97,7 @@ export function ReceptionMaterielBlock({ userId, kinds }: Props) {
 
   if (!pending.length) return null
 
-  if (!isDestinataire) {
+  if (!canValider) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
@@ -104,8 +105,8 @@ export function ReceptionMaterielBlock({ userId, kinds }: Props) {
           Réception en attente
         </div>
         <p className="mt-1 text-sm text-amber-950">
-          L’opérateur doit encore valider {resume}. Pour un véhicule, un état des lieux et la
-          liste des documents pris seront générés en PDF (conservé ici).
+          L’opérateur ou le gérant doit encore enregistrer {resume}. Pour un véhicule, un état des
+          lieux et la liste des documents pris seront générés en PDF.
         </p>
         <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-amber-950">
           {pending.map((l) => (
@@ -123,11 +124,12 @@ export function ReceptionMaterielBlock({ userId, kinds }: Props) {
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
           <ClipboardCheck className="h-4 w-4 shrink-0" />
-          Valider la réception du matériel
+          {isDestinataire ? 'Valider la réception du matériel' : 'Enregistrer la réception (remise en main propre)'}
         </div>
         <p className="mt-1 text-sm text-amber-950">
-          La société vous a attribué {resume}. Confirmez la prise en main. Un PDF officiel est
-          conservé par le gérant (état des lieux + documents pour le véhicule).
+          {isDestinataire
+            ? `La société vous a attribué ${resume}. Confirmez la prise en main. Un PDF officiel est conservé par le gérant (état des lieux + documents pour le véhicule).`
+            : `Remise à l’opérateur : ${resume}. Remplissez l’état des lieux du véhicule et les documents pris, puis validez ici — pas besoin que l’opérateur se connecte. Le PDF est conservé dans ce dossier.`}
         </p>
       </div>
 
@@ -149,7 +151,11 @@ export function ReceptionMaterielBlock({ userId, kinds }: Props) {
             className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
           >
             <CheckCircle2 className="h-4 w-4" />
-            {busy === v.id ? 'Enregistrement…' : 'Valider l’état des lieux et les documents'}
+            {busy === v.id
+              ? 'Enregistrement…'
+              : isDestinataire
+                ? 'Valider l’état des lieux et les documents'
+                : 'Enregistrer l’état des lieux et les documents pris'}
           </button>
         </div>
       ))}
@@ -179,7 +185,11 @@ export function ReceptionMaterielBlock({ userId, kinds }: Props) {
             className="inline-flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
           >
             <CheckCircle2 className="h-4 w-4" />
-            {busy === 'outils' ? 'Enregistrement…' : 'Je confirme avoir reçu cet outillage'}
+            {busy === 'outils'
+              ? 'Enregistrement…'
+              : isDestinataire
+                ? 'Je confirme avoir reçu cet outillage'
+                : 'Enregistrer la remise de l’outillage / téléphone'}
           </button>
         </div>
       ) : null}

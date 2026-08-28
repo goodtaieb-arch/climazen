@@ -2330,15 +2330,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       outillageIds?: string[]
     }) => {
       if (!user?.id) throw new Error('Non connecté.')
-      if (user.id !== opts.userId) {
-        throw new Error('Seul l’opérateur destinataire peut valider la réception.')
+      const gerantPeutValider = Boolean(isOwner || user.role === 'owner')
+      if (user.id !== opts.userId && !gerantPeutValider) {
+        throw new Error('Seul l’opérateur ou le gérant peut enregistrer la réception.')
       }
       if (!opts.voitureId && !opts.outillageIds?.length) {
         throw new Error('Aucun matériel à réceptionner.')
       }
       const prev = dataRef.current
       const now = new Date().toISOString()
-      const userName = user.fullName || user.email || 'Opérateur'
+      const destNom =
+        (opts.userId === user.id ? user.fullName || user.email : undefined) ||
+        (prev.voitures || []).find((v) => v.assigneeUserId === opts.userId)?.assigneeName ||
+        (prev.outillages || []).find((o) => o.assigneeUserId === opts.userId)?.assigneeName ||
+        (prev.personnelDossiers || []).find((d) => d.userId === opts.userId)?.userName ||
+        'Opérateur'
+      const createdByName = user.fullName || user.email || 'Gérant'
       let voitures = [...(prev.voitures || [])]
       let outillages = [...(prev.outillages || [])]
       const bons = [...(prev.bonsRemiseMateriel || [])]
@@ -2371,14 +2378,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const bon: BonRemiseMateriel = {
           id: uuid(),
           userId: opts.userId,
-          userName,
+          userName: destNom,
           createdAt: now,
-          items: [voitureLigne({ ...v, assigneeName: userName })],
+          items: [voitureLigne({ ...v, assigneeName: destNom })],
           kind: 'vehicule',
           voitureId: v.id,
           etatVoiture: etat,
           createdByUserId: user.id,
-          createdByName: userName,
+          createdByName,
           fileName: '',
         }
         bon.fileName = fileNameBonRemise(bon)
@@ -2403,12 +2410,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const bon: BonRemiseMateriel = {
             id: uuid(),
             userId: opts.userId,
-            userName,
+            userName: destNom,
             createdAt: now,
             items: pending.map(outillageLigne),
             kind: 'outillage',
             createdByUserId: user.id,
-            createdByName: userName,
+            createdByName,
             fileName: '',
           }
           bon.fileName = fileNameBonRemise(bon)
@@ -2440,7 +2447,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       return { bonIds: created.map((b) => b.id) }
     },
-    [user, persistNow, orgId],
+    [user, isOwner, persistNow, orgId],
   )
 
   const telechargerBonRemise = useCallback(
