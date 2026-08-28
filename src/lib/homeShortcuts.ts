@@ -1,0 +1,197 @@
+import { ICON3D } from './icons3d'
+
+/** Identifiants des raccourcis Accueil mobile (grille de cercles). */
+export type HomeShortcutId =
+  | 'sites'
+  | 'scan_qr'
+  | 'agenda'
+  | 'cerfa'
+  | 'stock'
+  | 'clients'
+  | 'ot'
+  | 'appel'
+  | 'profil'
+  | 'contrats'
+  | 'equipe'
+  | 'operateur'
+
+export type HomeShortcutDef = {
+  id: HomeShortcutId
+  title: string
+  img: string
+  /** Route React Router (si pas d’action spéciale). */
+  to?: string
+  /** Action gérée par Dashboard (ex. goTravaux). */
+  action?: 'goTravaux'
+  ownerOnly?: boolean
+  /** Visible si gérant ou accès RH équipe. */
+  rhTeamOnly?: boolean
+}
+
+export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
+  sites: {
+    id: 'sites',
+    title: 'Sites & Parc',
+    img: ICON3D.sites,
+    action: 'goTravaux',
+  },
+  scan_qr: {
+    id: 'scan_qr',
+    title: 'Scanner QR',
+    img: ICON3D.search,
+    to: '/app/scan-equip?camera=1',
+  },
+  agenda: {
+    id: 'agenda',
+    title: 'Agenda',
+    img: ICON3D.search,
+    to: '/app/agenda',
+  },
+  cerfa: {
+    id: 'cerfa',
+    title: 'CERFA',
+    img: ICON3D.cerfa,
+    to: '/app/interventions',
+  },
+  stock: {
+    id: 'stock',
+    title: 'Stock fluides',
+    img: ICON3D.bottle,
+    to: '/app/stock',
+  },
+  clients: {
+    id: 'clients',
+    title: 'Clients',
+    img: ICON3D.clients,
+    to: '/app/clients',
+  },
+  ot: {
+    id: 'ot',
+    title: 'OT / Demandes',
+    img: ICON3D.maintenance,
+    to: '/app/ot',
+  },
+  appel: {
+    id: 'appel',
+    title: 'Client appelle',
+    img: ICON3D.accueil,
+    to: '/app/appel',
+  },
+  profil: {
+    id: 'profil',
+    title: 'Mon profil',
+    img: ICON3D.signaturePad,
+    to: '/app/profil',
+  },
+  contrats: {
+    id: 'contrats',
+    title: 'Contrats',
+    img: ICON3D.maintenance,
+    to: '/app/contrats',
+  },
+  equipe: {
+    id: 'equipe',
+    title: 'Équipe',
+    img: ICON3D.equipe,
+    to: '/app/equipe',
+    rhTeamOnly: true,
+  },
+  operateur: {
+    id: 'operateur',
+    title: 'Mon entreprise',
+    img: ICON3D.entreprise,
+    to: '/app/operateur',
+    ownerOnly: true,
+  },
+}
+
+/** Disposition par défaut (v134 stock mobile layout). */
+export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
+  'sites',
+  'scan_qr',
+  'agenda',
+  'cerfa',
+  'stock',
+  'clients',
+  'ot',
+  'appel',
+  'profil',
+]
+
+export const MIN_HOME_SHORTCUTS = 1
+export const MAX_HOME_SHORTCUTS = 12
+
+const STORAGE_PREFIX = 'climazen_home_icons_'
+
+export function homeShortcutsStorageKey(userId: string) {
+  return `${STORAGE_PREFIX}${userId}`
+}
+
+function isHomeShortcutId(v: unknown): v is HomeShortcutId {
+  return typeof v === 'string' && v in HOME_SHORTCUT_CATALOG
+}
+
+export type HomeShortcutAccess = {
+  isOwner: boolean
+  peutVoirIdentitesRh: boolean
+  equipePath?: string
+}
+
+/** Filtre le catalogue selon le rôle / droits. */
+export function availableHomeShortcutIds(access: HomeShortcutAccess): HomeShortcutId[] {
+  return (Object.keys(HOME_SHORTCUT_CATALOG) as HomeShortcutId[]).filter((id) => {
+    const def = HOME_SHORTCUT_CATALOG[id]
+    if (def.ownerOnly && !access.isOwner) return false
+    if (def.rhTeamOnly && !access.isOwner && !access.peutVoirIdentitesRh) return false
+    return true
+  })
+}
+
+/** Charge les préférences utilisateur (localStorage, par appareil). */
+export function loadHomeShortcutIds(userId: string): HomeShortcutId[] | null {
+  try {
+    const raw = localStorage.getItem(homeShortcutsStorageKey(userId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const ids = parsed.filter(isHomeShortcutId)
+    if (ids.length < MIN_HOME_SHORTCUTS) return null
+    return ids.slice(0, MAX_HOME_SHORTCUTS)
+  } catch {
+    return null
+  }
+}
+
+export function saveHomeShortcutIds(userId: string, ids: HomeShortcutId[]) {
+  localStorage.setItem(homeShortcutsStorageKey(userId), JSON.stringify(ids))
+}
+
+export function resetHomeShortcutIds(userId: string) {
+  localStorage.removeItem(homeShortcutsStorageKey(userId))
+}
+
+/**
+ * Résout la liste affichée : prefs utilisateur filtrées + défaut si absent.
+ * Retire les raccourcis devenus inaccessibles (changement de rôle).
+ */
+export function resolveHomeShortcutIds(
+  userId: string | undefined,
+  access: HomeShortcutAccess,
+): HomeShortcutId[] {
+  const allowed = new Set(availableHomeShortcutIds(access))
+  const saved = userId ? loadHomeShortcutIds(userId) : null
+  const base = saved ?? DEFAULT_HOME_SHORTCUT_IDS
+  const filtered = base.filter((id) => allowed.has(id))
+  if (filtered.length >= MIN_HOME_SHORTCUTS) return filtered.slice(0, MAX_HOME_SHORTCUTS)
+  const fallback = DEFAULT_HOME_SHORTCUT_IDS.filter((id) => allowed.has(id))
+  return fallback.length ? fallback : [...allowed].slice(0, MAX_HOME_SHORTCUTS)
+}
+
+/** Raccourcis du catalogue non affichés (pour « Ajouter »). */
+export function hiddenHomeShortcutIds(
+  visible: HomeShortcutId[],
+  access: HomeShortcutAccess,
+): HomeShortcutId[] {
+  const visibleSet = new Set(visible)
+  return availableHomeShortcutIds(access).filter((id) => !visibleSet.has(id))
+}

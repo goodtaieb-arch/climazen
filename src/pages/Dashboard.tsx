@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   Building2,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   FolderOpen,
   Mail,
@@ -10,8 +12,11 @@ import {
   Package,
   PenLine,
   Phone,
+  Plus,
   QrCode,
+  RotateCcw,
   Search,
+  Settings2,
   X,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -34,6 +39,17 @@ import {
   formatDateFr,
   labelStatutDocumentRh,
 } from '../lib/rhDocuments'
+import {
+  HOME_SHORTCUT_CATALOG,
+  MAX_HOME_SHORTCUTS,
+  MIN_HOME_SHORTCUTS,
+  hiddenHomeShortcutIds,
+  resetHomeShortcutIds,
+  resolveHomeShortcutIds,
+  saveHomeShortcutIds,
+  type HomeShortcutAccess,
+  type HomeShortcutId,
+} from '../lib/homeShortcuts'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -69,10 +85,37 @@ const QUICK_START = [
 
 export function Dashboard() {
   const { data, peutVoirIdentitesRh } = useStore()
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [editShortcuts, setEditShortcuts] = useState(false)
+
+  const shortcutAccess = useMemo<HomeShortcutAccess>(
+    () => ({
+      isOwner,
+      peutVoirIdentitesRh,
+    }),
+    [isOwner, peutVoirIdentitesRh],
+  )
+
+  const [shortcutIds, setShortcutIds] = useState<HomeShortcutId[]>(() =>
+    resolveHomeShortcutIds(user?.id, shortcutAccess),
+  )
+
+  useEffect(() => {
+    setShortcutIds(resolveHomeShortcutIds(user?.id, shortcutAccess))
+  }, [user?.id, shortcutAccess])
+
+  const persistShortcutIds = (ids: HomeShortcutId[]) => {
+    setShortcutIds(ids)
+    if (user?.id) saveHomeShortcutIds(user.id, ids)
+  }
+
+  const addableShortcutIds = useMemo(
+    () => hiddenHomeShortcutIds(shortcutIds, shortcutAccess),
+    [shortcutIds, shortcutAccess],
+  )
 
   const brouillons = data.interventions.filter((i) => i.status === 'brouillon')
   const signes = data.interventions.filter((i) => i.status === 'signe' || i.status === 'envoye')
@@ -342,68 +385,157 @@ export function Dashboard() {
         {/* Menu portable — cercles (mobile) / liste (desktop) */}
         {!q.trim() && (
           <>
-            <nav
-              className="grid grid-cols-2 gap-x-4 gap-y-6 px-2 py-2 md:hidden"
-              aria-label="Actions terrain"
-            >
-              <CircleHomeTile
-                title="Sites & Parc"
-                img={ICON3D.sites}
-                onClick={() => goTravaux()}
-                delay="0s"
-              />
-              <CircleHomeTile
-                title="Scanner QR"
-                img={ICON3D.search}
-                to="/app/scan-equip?camera=1"
-                delay="0.08s"
-              />
-              <CircleHomeTile
-                title="Agenda"
-                img={ICON3D.search}
-                to="/app/agenda"
-                badge={agendaAContacter.length || undefined}
-                delay="0.15s"
-              />
-              <CircleHomeTile
-                title="CERFA"
-                img={ICON3D.cerfa}
-                to="/app/interventions"
-                badge={brouillons.length || undefined}
-                delay="0.3s"
-              />
-              <CircleHomeTile
-                title="Stock fluides"
-                img={ICON3D.bottle}
-                to="/app/stock"
-                delay="0.45s"
-              />
-              <CircleHomeTile
-                title="Clients"
-                img={ICON3D.clients}
-                to="/app/clients"
-                delay="0.6s"
-              />
-              <CircleHomeTile
-                title="OT / Demandes"
-                img={ICON3D.maintenance}
-                to="/app/ot"
-                badge={otAReprendre.length || undefined}
-                delay="0.75s"
-              />
-              <CircleHomeTile
-                title="Client appelle"
-                img={ICON3D.accueil}
-                to="/app/appel"
-                delay="0.9s"
-              />
-              <CircleHomeTile
-                title="Mon profil"
-                img={ICON3D.signaturePad}
-                to="/app/profil"
-                delay="1.05s"
-              />
-            </nav>
+            <div className="md:hidden">
+              <div className="mb-2 flex items-center justify-between gap-2 px-2">
+                <p className="text-xs font-semibold text-muted">
+                  {editShortcuts
+                    ? 'Appuyez sur − pour retirer, ↑↓ pour réordonner'
+                    : 'Raccourcis terrain'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEditShortcuts((v) => !v)}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${
+                    editShortcuts
+                      ? 'bg-accent text-white'
+                      : 'border border-line bg-white text-ink active:bg-mist'
+                  }`}
+                >
+                  <Settings2 className="h-3.5 w-3.5" aria-hidden />
+                  {editShortcuts ? 'Terminer' : 'Personnaliser'}
+                </button>
+              </div>
+
+              {editShortcuts ? (
+                <div className="mb-3 space-y-2 px-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!user?.id) return
+                      resetHomeShortcutIds(user.id)
+                      setShortcutIds(
+                        resolveHomeShortcutIds(user.id, shortcutAccess),
+                      )
+                    }}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-muted active:bg-mist"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                    Réinitialiser la disposition
+                  </button>
+                </div>
+              ) : null}
+
+              <nav
+                className="grid grid-cols-2 gap-x-4 gap-y-6 px-2 py-2"
+                aria-label="Actions terrain"
+              >
+                {shortcutIds.map((id, index) => {
+                  const def = HOME_SHORTCUT_CATALOG[id]
+                  const badge =
+                    id === 'agenda'
+                      ? agendaAContacter.length || undefined
+                      : id === 'cerfa'
+                        ? brouillons.length || undefined
+                        : id === 'ot'
+                          ? otAReprendre.length || undefined
+                          : undefined
+                  const delay = `${(index * 0.08).toFixed(2)}s`
+
+                  if (editShortcuts) {
+                    return (
+                      <div key={id} className="relative flex flex-col items-center">
+                        <div className="absolute -right-0.5 top-0 z-10 flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            aria-label={`Monter ${def.title}`}
+                            disabled={index === 0}
+                            onClick={() => {
+                              if (index === 0) return
+                              const next = [...shortcutIds]
+                              ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+                              persistShortcutIds(next)
+                            }}
+                            className="grid h-7 w-7 place-items-center rounded-full border border-line bg-white text-ink shadow-sm disabled:opacity-30"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Descendre ${def.title}`}
+                            disabled={index === shortcutIds.length - 1}
+                            onClick={() => {
+                              if (index >= shortcutIds.length - 1) return
+                              const next = [...shortcutIds]
+                              ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+                              persistShortcutIds(next)
+                            }}
+                            className="grid h-7 w-7 place-items-center rounded-full border border-line bg-white text-ink shadow-sm disabled:opacity-30"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label={`Retirer ${def.title}`}
+                          disabled={shortcutIds.length <= MIN_HOME_SHORTCUTS}
+                          onClick={() => {
+                            if (shortcutIds.length <= MIN_HOME_SHORTCUTS) return
+                            persistShortcutIds(shortcutIds.filter((x) => x !== id))
+                          }}
+                          className="absolute left-1 top-0 z-10 grid h-7 w-7 place-items-center rounded-full bg-red-500 text-white shadow-sm disabled:opacity-30"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <CircleHomeTile
+                          title={def.title}
+                          img={def.img}
+                          delay={delay}
+                          disabled
+                        />
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <CircleHomeTile
+                      key={id}
+                      title={def.title}
+                      img={def.img}
+                      to={def.to}
+                      onClick={def.action === 'goTravaux' ? () => goTravaux() : undefined}
+                      badge={badge}
+                      delay={delay}
+                    />
+                  )
+                })}
+              </nav>
+
+              {editShortcuts && addableShortcutIds.length > 0 ? (
+                <div className="mt-2 space-y-2 px-2 pb-2">
+                  <p className="text-xs font-semibold text-muted">Ajouter un raccourci</p>
+                  <div className="flex flex-wrap gap-2">
+                    {addableShortcutIds.map((id) => {
+                      const def = HOME_SHORTCUT_CATALOG[id]
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          disabled={shortcutIds.length >= MAX_HOME_SHORTCUTS}
+                          onClick={() => {
+                            if (shortcutIds.length >= MAX_HOME_SHORTCUTS) return
+                            persistShortcutIds([...shortcutIds, id])
+                          }}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist disabled:opacity-40"
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden />
+                          {def.title}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             <nav className="hidden space-y-3 md:block" aria-label="Actions terrain">
               <TerrainAction
@@ -835,6 +967,7 @@ function CircleHomeTile({
   onClick,
   badge,
   delay = '0s',
+  disabled = false,
 }: {
   title: string
   img: string
@@ -842,6 +975,7 @@ function CircleHomeTile({
   onClick?: () => void
   badge?: number
   delay?: string
+  disabled?: boolean
 }) {
   const inner = (
     <>
@@ -871,7 +1005,12 @@ function CircleHomeTile({
   )
 
   const className =
-    'flex flex-col items-center justify-start outline-none focus-visible:ring-2 focus-visible:ring-accent/40'
+    'flex flex-col items-center justify-start outline-none focus-visible:ring-2 focus-visible:ring-accent/40' +
+    (disabled ? ' pointer-events-none opacity-90' : '')
+
+  if (disabled) {
+    return <div className={className}>{inner}</div>
+  }
 
   if (to) {
     return (
