@@ -10,6 +10,7 @@ Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne p
 
 Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
 **Point 7** (recherche type d’outillage) : **prochainement**, dès que 5 et 6 sont faits (ou si Issam dit de le glisser).
+**Point 8** (portail client / grand site) : **prochainement** — faisable, vrai bout produit, **pas** un compte opérateur.
 
 ---
 
@@ -187,6 +188,56 @@ Gagner du temps à l’ajout d’outillage, sans perdre le menu complet.
 - Clic / tap sur les 2 flèches = tout le catalogue
 - Uniquement les types du catalogue ClimaZEN
 - Doigt-friendly (téléphone)
+
+---
+
+## 8. Portail client grand site — identifiant, tickets, docs / OT du site *(prochainement)*
+
+Demandé le 30/08/2026. **Faisable.** Ne pas coder tant qu’Issam n’a pas dit de lancer. Discussion seulement jusqu’ici.
+
+### Ce qu’Issam veut
+
+Sur un **grand site**, la société de maintenance **installe l’app pour le client** (syndic, gardien, facility) :
+
+- **Identifiant + mot de passe**
+- **Pas** pour faire la maintenance
+- **Surveiller** ce qui a été fait sur **son** site
+- **Lancer une demande de panne** (ex. « bureau 17, plus de clim »)
+- La société **reçoit** la demande
+- Le client **accède aux documents de maintenance et aux OT de son site uniquement**
+
+### Règle dure (sécurité)
+
+Aujourd’hui seuls **gérant** et **opérateur** existent (`src/lib/auth.ts`). Les clients sont des **fiches**, pas des comptes.
+
+**Interdit** de lui donner un compte opérateur dans la société : il verrait tous les autres clients, le stock, l’équipe, les CERFA.
+
+Il faut un rôle du type **`client_site`** (ou équivalent) + **filtre dur** : uniquement le(s) chantier(s) liés. Rien d’autre.
+
+### Lien avec le point 1 (QR site)
+
+- **QR collé au local** = ticket rapide **sans** compte
+- **Login client** = suivi + documents + historique
+
+Les deux se complètent.
+
+### À construire (quand Issam lance)
+
+| Client site | Société de maintenance |
+|---|---|
+| Accueil simple : son site, tickets, historique | Accueil tech actuel |
+| « Signaler une panne » → ticket | Arrive en OT (comme « Client appelle ») |
+| Lecture OT, rapports, fiches (et CERFA du parc **s’il est calé**) | Travail + clôture |
+| Pas de stock, pas d’autres clients, pas d’équipe, pas d’outillage | Coffre société intact |
+
+### À caler avant de coder
+
+1. Un login par syndic / gardien / plusieurs personnes du même site ?
+2. Un site ou tous les sites du même client ?
+3. Il **voit** CERFA / photos, ou seulement le rapport « ce qu’on a fait » ?
+4. Lecture seule + création de ticket, ou aussi commenter / valider une présence ?
+
+Chantier **plus gros** que 5–7 : comptes, droits, écran dédié. Ne pas le mélanger avec le tableau de bord Accueil (point 6).
 
 ---
 
