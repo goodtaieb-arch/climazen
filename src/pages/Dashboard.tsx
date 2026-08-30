@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Search,
   Settings2,
+  Wrench,
   X,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -40,6 +41,7 @@ import {
   formatDateFr,
   labelStatutDocumentRh,
 } from '../lib/rhDocuments'
+import { alertesEtalonnage, labelStatutEtalonnage } from '../lib/outillageEtalonnage'
 import {
   HOME_SHORTCUT_CATALOG,
   MAX_HOME_SHORTCUTS,
@@ -151,6 +153,12 @@ export function Dashboard() {
       .sort((a, b) => agendaSortDate(a).localeCompare(agendaSortDate(b)))
       .slice(0, 5)
   }, [data.agendaEvents])
+
+  const etalonnageAlertes = useMemo(() => {
+    return alertesEtalonnage(data.outillages, {
+      userId: isOwner || peutVoirIdentitesRh ? undefined : user?.id,
+    }).slice(0, 8)
+  }, [data.outillages, isOwner, peutVoirIdentitesRh, user?.id])
 
   const rhAlertes = useMemo(() => {
     const retired = new Set(data.personnelRetiresUserIds || [])
@@ -693,6 +701,52 @@ export function Dashboard() {
                   <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-900">
                     <FolderOpen className="h-4 w-4" />
                     {labelStatutDocumentRh(a.statut)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {!q.trim() && etalonnageAlertes.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">Étalonnage outillage</h2>
+            <Link to="/app/profil" className="text-sm font-semibold text-accent hover:underline">
+              Parc outillage
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {etalonnageAlertes.map((a) => (
+              <li key={a.outillageId}>
+                <Link
+                  to="/app/profil"
+                  className={[
+                    'flex flex-col gap-1 rounded-2xl border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between',
+                    a.statut === 'expire' || a.statut === 'sans_date'
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-amber-300 bg-amber-50',
+                  ].join(' ')}
+                >
+                  <div className="min-w-0">
+                    <p className="font-display text-base font-bold text-ink">
+                      {a.label}
+                      {a.identification ? ` · ${a.identification}` : ''}
+                    </p>
+                    <p className="text-sm text-muted">
+                      {a.assigneeName || 'Non attribué'}
+                      {a.dateFin ? ` · échéance ${formatDateFr(a.dateFin)}` : ''}
+                      {a.daysUntil != null && a.daysUntil < 0
+                        ? ` · expiré depuis ${Math.abs(a.daysUntil)} j`
+                        : a.daysUntil != null
+                          ? ` · dans ${a.daysUntil} j`
+                          : ''}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+                    <Wrench className="h-4 w-4" />
+                    {labelStatutEtalonnage(a.statut)}
                   </span>
                 </Link>
               </li>

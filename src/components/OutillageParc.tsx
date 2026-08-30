@@ -10,19 +10,48 @@ import {
 } from '../lib/outillage'
 import {
   OUTILLAGE_CATALOG,
-  OUTILLAGE_TYPE_OPTIONS,
+  outillageCatalogParGroupe,
   type OutillageTypeId,
 } from '../lib/outillageCatalog'
-import { isDetecteurControleExpire, type Outillage } from '../lib/types'
+import type { Outillage } from '../lib/types'
+import {
+  dateFinEtalonnage,
+  labelStatutEtalonnage,
+  statutEtalonnage,
+} from '../lib/outillageEtalonnage'
 import type { UserAccount } from '../lib/auth'
 import { Field } from '../pages/ClientsPage'
-import { dossierForUser } from '../lib/rhDocuments'
+import { dossierForUser, formatDateFr } from '../lib/rhDocuments'
 import { mergeTeamMembers } from '../lib/teamMembers'
 import { formatDateFrCourt } from '../lib/voitures'
 import { ReceptionMaterielBlock } from './ReceptionMaterielBlock'
 
 type Props = {
   team?: UserAccount[]
+}
+
+function etalonnageClass(statut: ReturnType<typeof statutEtalonnage>) {
+  if (statut === 'expire' || statut === 'sans_date') return 'font-semibold text-danger'
+  if (statut === 'bientot') return 'font-semibold text-amber-800'
+  return 'text-muted'
+}
+
+function EtalonnageLigne({ o, needs }: { o: Outillage; needs?: boolean }) {
+  if (!needs) return null
+  const statut = statutEtalonnage(o.controleDate)
+  const fin = dateFinEtalonnage(o.controleDate)
+  return (
+    <div className={`text-xs ${etalonnageClass(statut)}`}>
+      {statut === 'sans_date'
+        ? 'Date d’étalonnage manquante'
+        : `Étalonnage : ${formatDateFr(o.controleDate || '')}${
+            fin ? ` → fin ${formatDateFr(fin)}` : ''
+          }`}
+      {statut !== 'ok' && statut !== 'sans_date' ? (
+        <span className="ml-1">({labelStatutEtalonnage(statut)})</span>
+      ) : null}
+    </div>
+  )
 }
 
 export function OutillageParc({ team: teamProp }: Props) {
@@ -174,8 +203,8 @@ export function OutillageParc({ team: teamProp }: Props) {
       setFormError(`Date de contrôle / étalonnage obligatoire pour « ${def.label} ».`)
       return
     }
-    if (controleDate.trim() && isDetecteurControleExpire(controleDate) && def.needsControleDate) {
-      setFormError(`Contrôle expiré (> 1 an). Mettez à jour avant d'enregistrer.`)
+    if (def.needsControleDate && statutEtalonnage(controleDate) === 'expire') {
+      setFormError(`Étalonnage expiré (> 1 an). Mettez à jour la date après le nouveau contrôle.`)
       return
     }
     setSaving(true)
@@ -263,7 +292,11 @@ export function OutillageParc({ team: teamProp }: Props) {
                   <span className="block text-xs text-muted">{r.item.identification}</span>
                 ) : null}
                 {r.controleExpire ? (
-                  <span className="ml-1 text-xs font-semibold text-danger">(contrôle expiré)</span>
+                  <span className="ml-1 text-xs font-semibold text-danger">(étalonnage expiré)</span>
+                ) : r.etalonnageBientot ? (
+                  <span className="ml-1 text-xs font-semibold text-amber-800">(étalonnage bientôt)</span>
+                ) : r.etalonnageSansDate ? (
+                  <span className="ml-1 text-xs font-semibold text-danger">(date manquante)</span>
                 ) : null}
               </span>
             </li>
@@ -299,16 +332,17 @@ export function OutillageParc({ team: teamProp }: Props) {
                       Obligatoire
                     </span>
                   ) : null}
+                  {group.def.needsControleDate ? (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                      Étalonnage
+                    </span>
+                  ) : null}
                   <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {group.items.length}
                   </span>
                 </header>
                 <ul className="divide-y divide-line">
                   {group.items.map((o) => {
-                    const expired =
-                      o.controleDate &&
-                      group.def.needsControleDate &&
-                      isDetecteurControleExpire(o.controleDate)
                     return (
                       <li key={o.id} className="px-4 py-3">
                         <div className="text-sm text-muted">
@@ -317,14 +351,7 @@ export function OutillageParc({ team: teamProp }: Props) {
                             ? ` · ${[o.marque, o.modele].filter(Boolean).join(' ')}`
                             : ''}
                         </div>
-                        {o.controleDate && group.def.needsControleDate ? (
-                          <div className="text-xs text-muted">
-                            Étalonnage : {o.controleDate}
-                            {expired ? (
-                              <span className="ml-1 font-semibold text-danger">(expiré)</span>
-                            ) : null}
-                          </div>
-                        ) : null}
+                        <EtalonnageLigne o={o} needs={group.def.needsControleDate} />
                         <div className="mt-1 text-xs">
                           {o.receptionAt ? (
                             <span className="font-semibold text-emerald-800">
@@ -356,8 +383,8 @@ export function OutillageParc({ team: teamProp }: Props) {
           Parc outillage
         </h2>
         <p className="text-sm text-muted">
-          Attribuez le matériel terrain à chaque technicien. Menu déroulant par type — inclut les 5
-          outils obligatoires frigoriste et le détecteur de fuite (CERFA).
+          Menu complet frigoriste + CVC. Les appareils de mesure demandent une date d’étalonnage
+          (alerte à l’accueil 45 jours avant l’échéance, puis expiré).
         </p>
       </div>
 
@@ -396,6 +423,11 @@ export function OutillageParc({ team: teamProp }: Props) {
                       Obligatoire
                     </span>
                   ) : null}
+                  {group.def.needsControleDate ? (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                      Étalonnage
+                    </span>
+                  ) : null}
                   <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {group.items.length}
                   </span>
@@ -409,6 +441,11 @@ export function OutillageParc({ team: teamProp }: Props) {
                       Obligatoire
                     </span>
                   ) : null}
+                  {group.def.needsControleDate ? (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                      Étalonnage
+                    </span>
+                  ) : null}
                   <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {group.items.length}
                   </span>
@@ -417,10 +454,6 @@ export function OutillageParc({ team: teamProp }: Props) {
               {open && (
                 <ul className="divide-y divide-line">
                   {group.items.map((o) => {
-                    const expired =
-                      o.controleDate &&
-                      group.def.needsControleDate &&
-                      isDetecteurControleExpire(o.controleDate)
                     return (
                       <li
                         key={o.id}
@@ -433,14 +466,7 @@ export function OutillageParc({ team: teamProp }: Props) {
                               ? ` · ${[o.marque, o.modele].filter(Boolean).join(' ')}`
                               : ''}
                           </div>
-                          {o.controleDate && group.def.needsControleDate ? (
-                            <div className="text-xs text-muted">
-                              Étalonnage : {o.controleDate}
-                              {expired ? (
-                                <span className="ml-1 font-semibold text-danger">(expiré)</span>
-                              ) : null}
-                            </div>
-                          ) : null}
+                          <EtalonnageLigne o={o} needs={group.def.needsControleDate} />
                           <div className="mt-1">
                             {o.assigneeUserId ? (
                               <>
@@ -519,25 +545,16 @@ export function OutillageParc({ team: teamProp }: Props) {
               if (!OUTILLAGE_CATALOG[next].needsControleDate) setControleDate('')
             }}
           >
-            <optgroup label="Obligatoires frigoriste (5)">
-              {OUTILLAGE_TYPE_OPTIONS.filter((t) => t.obligatoire).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Remis à l’opérateur">
-              <option value="telephone_pro">{OUTILLAGE_CATALOG.telephone_pro.label}</option>
-            </optgroup>
-            <optgroup label="Autre matériel terrain">
-              {OUTILLAGE_TYPE_OPTIONS.filter((t) => !t.obligatoire && t.id !== 'telephone_pro').map(
-                (t) => (
+            {outillageCatalogParGroupe().map((g) => (
+              <optgroup key={g.id} label={g.label}>
+                {g.items.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
+                    {t.needsControleDate ? ' · étalonnage' : ''}
                   </option>
-                ),
-              )}
-            </optgroup>
+                ))}
+              </optgroup>
+            ))}
           </select>
           {typeDef.hint ? <p className="mt-1 text-xs text-muted">{typeDef.hint}</p> : null}
         </label>
@@ -556,13 +573,22 @@ export function OutillageParc({ team: teamProp }: Props) {
         <Field label="Modèle" value={modele} onChange={setModele} />
 
         {typeDef.needsControleDate ? (
-          <Field
-            label="Date d’étalonnage *"
-            type="date"
-            value={controleDate}
-            onChange={setControleDate}
-            required
-          />
+          <div>
+            <Field
+              label="Date du dernier étalonnage *"
+              type="date"
+              value={controleDate}
+              onChange={setControleDate}
+              required
+            />
+            <p className="mt-1 text-xs text-muted">
+              Valable 1 an. Alerte à l’accueil 45 jours avant la fin
+              {dateFinEtalonnage(controleDate)
+                ? ` (échéance ${formatDateFr(dateFinEtalonnage(controleDate))})`
+                : ''}
+              .
+            </p>
+          </div>
         ) : null}
 
         <label className="block text-sm sm:col-span-2">

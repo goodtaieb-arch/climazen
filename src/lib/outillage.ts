@@ -6,7 +6,7 @@ import {
   outillageTypeLabel,
   type OutillageTypeId,
 } from './outillageCatalog'
-import { isDetecteurControleExpire } from './types'
+import { statutEtalonnage } from './outillageEtalonnage'
 
 export function outillagesForUser(data: AppData, userId?: string | null): Outillage[] {
   const list = data.outillages || []
@@ -41,17 +41,18 @@ export function checklistOutillageObligatoire(data: AppData, userId?: string | n
     const def = OUTILLAGE_CATALOG[typeId]
     const item = userId ? outillageForUserByType(data, userId, typeId) : undefined
     const anyInParc = (data.outillages || []).some((o) => o.type === typeId)
-    const controleExpire =
-      item?.controleDate && def.needsControleDate
-        ? isDetecteurControleExpire(item.controleDate)
-        : false
+    const etalonnage = def.needsControleDate && item
+      ? statutEtalonnage(item.controleDate)
+      : 'ok'
     return {
       typeId,
       label: def.label,
       ok: Boolean(item?.identification?.trim()),
       anyInParc,
       item,
-      controleExpire,
+      controleExpire: etalonnage === 'expire',
+      etalonnageBientot: etalonnage === 'bientot',
+      etalonnageSansDate: etalonnage === 'sans_date',
       needsControleDate: Boolean(def.needsControleDate),
     }
   })
