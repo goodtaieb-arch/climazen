@@ -432,13 +432,17 @@ export function TechnicienDossierPage() {
         </p>
         <div className="mt-3 max-w-sm">
           <Field
-            label="Téléphone portable"
+            label="Téléphone perso (pour le joindre)"
             type="tel"
             inputMode="tel"
             autoComplete="tel"
             value={telephone}
             onChange={setTelephone}
           />
+          <p className="mt-1 text-xs text-muted">
+            Numéro personnel / RH. Le téléphone de société se donne plus haut, dans « Matériel donné
+            par la société ».
+          </p>
         </div>
         <div className="mt-3 grid gap-2 text-sm">
           <label className="flex items-start gap-2">

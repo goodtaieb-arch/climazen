@@ -526,19 +526,28 @@ export function OutillageParc({ team: teamProp }: Props) {
                 </option>
               ))}
             </optgroup>
+            <optgroup label="Remis à l’opérateur">
+              <option value="telephone_pro">{OUTILLAGE_CATALOG.telephone_pro.label}</option>
+            </optgroup>
             <optgroup label="Autre matériel terrain">
-              {OUTILLAGE_TYPE_OPTIONS.filter((t) => !t.obligatoire).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
+              {OUTILLAGE_TYPE_OPTIONS.filter((t) => !t.obligatoire && t.id !== 'telephone_pro').map(
+                (t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ),
+              )}
             </optgroup>
           </select>
           {typeDef.hint ? <p className="mt-1 text-xs text-muted">{typeDef.hint}</p> : null}
         </label>
 
         <Field
-          label="Identification (n° série / étiquette) *"
+          label={
+            type === 'telephone_pro'
+              ? 'N° de ligne / IMEI *'
+              : 'Identification (n° série / étiquette) *'
+          }
           value={identification}
           onChange={setIdentification}
           required

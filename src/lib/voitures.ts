@@ -1,4 +1,5 @@
 import type { AppData, Voiture, VoitureCarburant, VoitureDocumentId, VoitureEtatLieux } from './types'
+import { resumeMarquesCarrosserie, sanitizeMarquesCarrosserie } from './voitureConstat'
 
 export const VOITURE_DOCUMENTS: { id: VoitureDocumentId; label: string }[] = [
   { id: 'carte_grise', label: 'Carte grise (certificat d’immatriculation)' },
@@ -95,6 +96,7 @@ export function sanitizeEtatLieux(e: VoitureEtatLieux): VoitureEtatLieux {
     documentsAutre: e.documentsAutre?.trim() || undefined,
     dommages: e.dommages?.trim() || undefined,
     observations: e.observations?.trim() || undefined,
+    marquesCarrosserie: sanitizeMarquesCarrosserie(e.marquesCarrosserie),
   }
 }
 
@@ -127,4 +129,16 @@ export function formatDateFrCourt(iso?: string) {
   const [y, m, day] = d.split('-')
   if (!y || !m || !day) return iso || ''
   return `${day}/${m}/${y}`
+}
+
+export function formatResumeEtatLieux(etat: VoitureEtatLieux) {
+  const bits: string[] = []
+  if (etat.kilometrage != null) bits.push(`${etat.kilometrage.toLocaleString('fr-FR')} km`)
+  if (etat.carburant) bits.push(`carburant ${VOITURE_CARBURANT_LABELS[etat.carburant]}`)
+  if (etat.carrosserie) bits.push(`carrosserie ${VOITURE_CARROSSERIE_LABELS[etat.carrosserie]}`)
+  if (etat.interieur) bits.push(`intérieur ${VOITURE_INTERIEUR_LABELS[etat.interieur]}`)
+  if (etat.pneus) bits.push(`pneus ${VOITURE_PNEUS_LABELS[etat.pneus]}`)
+  const marques = resumeMarquesCarrosserie(etat.marquesCarrosserie)
+  if (marques) bits.push(marques)
+  return bits.join(' · ')
 }

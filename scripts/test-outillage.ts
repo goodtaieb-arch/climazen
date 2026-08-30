@@ -6,9 +6,11 @@ import {
   grouperMaterielParFamille,
   materielConfiePourUser,
   materielEnAttenteReception,
+  operateursEnAttenteReception,
   receptionPreserved,
 } from '../src/lib/attributionMateriel'
 import { blankEtatLieux, documentsEcart, erreurEtatLieux } from '../src/lib/voitures'
+import { cycleMarqueZone, resumeMarquesCarrosserie } from '../src/lib/voitureConstat'
 import type { AppData, Outillage, Voiture } from '../src/lib/types'
 
 const items: Outillage[] = [
@@ -152,22 +154,36 @@ const data: AppData = {
       receptionAt: '2026-01-02T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
+    {
+      id: '4',
+      type: 'telephone_pro',
+      identification: '06 11 22 33 44',
+      assigneeUserId: 't1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
   ],
 }
 
 const confie = materielConfiePourUser(data, 't1')
-assert.equal(confie.length, 3)
+assert.equal(confie.length, 4)
 const familles = grouperMaterielParFamille(confie).map((g) => g.famille)
-assert.ok(familles.includes('Véhicule'))
+assert.equal(familles[0], 'Véhicule')
+assert.equal(familles[1], 'Téléphone professionnel')
 assert.ok(familles.includes('Détecteur de fuite électronique'))
 assert.ok(familles.includes('EPI (lunettes, gants, masque)'))
 assert.equal(familles.filter((f) => f === 'EPI (lunettes, gants, masque)').length, 1)
 
 const pending = materielEnAttenteReception(data, 't1')
-assert.equal(pending.length, 2)
+assert.equal(pending.length, 3)
 assert.ok(pending.some((p) => p.kind === 'voiture'))
 assert.ok(pending.some((p) => p.kind === 'outillage' && p.itemId === '1'))
+assert.ok(pending.some((p) => p.itemId === '4'))
 assert.equal(pending.some((p) => p.itemId === '3'), false)
+
+const opsAttente = operateursEnAttenteReception(data)
+assert.equal(opsAttente.length, 1)
+assert.equal(opsAttente[0]?.userId, 't1')
+assert.equal(opsAttente[0]?.n, 3)
 
 assert.ok(erreurEtatLieux(blankEtatLieux(['carte_grise'])))
 assert.equal(
@@ -189,5 +205,15 @@ assert.deepEqual(ecart.extra, [])
 
 const v = data.voitures?.[0] as Voiture
 assert.equal(v.documentsFournis?.includes('carte_grise'), true)
+
+let marques = cycleMarqueZone([], 'capot')
+assert.equal(marques[0]?.type, 'rayure')
+marques = cycleMarqueZone(marques, 'capot')
+assert.equal(marques[0]?.type, 'bosse')
+marques = cycleMarqueZone(marques, 'capot')
+assert.equal(marques.length, 0)
+marques = cycleMarqueZone([{ zone: 'toit', type: 'bosse' }], 'parechoc_av')
+assert.equal(marques.length, 2)
+assert.equal(resumeMarquesCarrosserie(marques), '1 bosse, 1 rayure')
 
 console.log('test-outillage: ok')

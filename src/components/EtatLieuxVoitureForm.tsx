@@ -7,6 +7,7 @@ import {
   VOITURE_PNEUS_LABELS,
   voitureTitreCourt,
 } from '../lib/voitures'
+import { VoitureConstatSchema } from './VoitureConstatSchema'
 import { Field } from '../pages/ClientsPage'
 
 type Props = {
@@ -73,7 +74,7 @@ export function EtatLieuxVoitureForm({ voiture, value, onChange, error }: Props)
     <div className="grid gap-3 sm:grid-cols-2">
       <p className="text-sm text-muted sm:col-span-2">
         État des lieux de <span className="font-semibold text-ink">{voitureTitreCourt(voiture)}</span>
-        {' — '}cochez les documents que vous prenez avec le véhicule.
+        {' — '}cochez les documents pris avec le véhicule (carte grise, clés, badge…).
       </p>
       <Field
         label="Date de l’état des lieux *"
@@ -132,6 +133,11 @@ export function EtatLieuxVoitureForm({ voiture, value, onChange, error }: Props)
           label: VOITURE_PNEUS_LABELS[id],
         }))}
         onChange={(pneus) => onChange({ ...value, pneus })}
+      />
+
+      <VoitureConstatSchema
+        marques={value.marquesCarrosserie}
+        onChange={(marquesCarrosserie) => onChange({ ...value, marquesCarrosserie })}
       />
 
       <div className="sm:col-span-2">

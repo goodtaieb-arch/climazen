@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { downloadBlob } from './cerfaPdf'
 import { loadCerfaPdf } from './pdfStore'
-import type { AppData, BonRemiseMateriel, VoitureEtatLieux } from './types'
+import type { AppData, BonRemiseMateriel, VoitureEtatLieux, VoitureMarqueCarrosserie } from './types'
 import {
   VOITURE_CARBURANT_LABELS,
   VOITURE_CARROSSERIE_LABELS,
@@ -12,6 +12,13 @@ import {
   voitureDocumentLabel,
   voitureTitreCourt,
 } from './voitures'
+import {
+  CONSTAT_VB,
+  VOITURE_ZONES,
+  resumeMarquesCarrosserie,
+  voitureZoneLabel,
+} from './voitureConstat'
+
 
 function formatDateFr(iso: string) {
   return formatDateFrCourt(iso) || iso || ''
@@ -53,6 +60,75 @@ function writeWrapped(doc: jsPDF, text: string, x: number, y: number, maxWidth: 
   return y
 }
 
+function drawConstatSchema(
+  doc: jsPDF,
+  marques: VoitureMarqueCarrosserie[] | undefined,
+  originX: number,
+  originY: number,
+  widthMm: number,
+) {
+  const s = widthMm / CONSTAT_VB.w
+  const heightMm = CONSTAT_VB.h * s
+  const X = (n: number) => originX + n * s
+  const Y = (n: number) => originY + n * s
+  const S = (n: number) => n * s
+
+  doc.setFillColor(248, 250, 252)
+  doc.roundedRect(originX, originY, widthMm, heightMm, 2, 2, 'F')
+
+  doc.setFillColor(51, 65, 85)
+  for (const [cx, cy] of [
+    [48, 96],
+    [192, 96],
+    [48, 292],
+    [192, 292],
+  ] as const) {
+    doc.ellipse(X(cx), Y(cy), S(13), S(26), 'F')
+  }
+
+  doc.setFillColor(226, 232, 240)
+  doc.setDrawColor(71, 85, 105)
+  doc.setLineWidth(0.4)
+  doc.roundedRect(X(62), Y(32), S(116), S(308), S(18), S(18), 'FD')
+
+  for (const z of VOITURE_ZONES) {
+    const kind = marques?.find((m) => m.zone === z.id)?.type
+    if (kind === 'bosse') {
+      doc.setFillColor(254, 202, 202)
+      doc.setDrawColor(185, 28, 28)
+    } else if (kind === 'rayure') {
+      doc.setFillColor(254, 215, 170)
+      doc.setDrawColor(194, 65, 12)
+    } else {
+      doc.setFillColor(248, 250, 252)
+      doc.setDrawColor(100, 116, 139)
+    }
+    doc.setLineWidth(kind ? 0.55 : 0.3)
+    doc.roundedRect(X(z.x), Y(z.y), S(z.w), S(z.h), 1, 1, 'FD')
+    const cx = X(z.x + z.w / 2)
+    const cy = Y(z.y + z.h / 2)
+    if (kind === 'rayure') {
+      doc.setDrawColor(194, 65, 12)
+      doc.setLineWidth(0.7)
+      doc.line(cx - 2.2, cy - 2.2, cx + 2.2, cy + 2.2)
+      doc.line(cx + 2.2, cy - 2.2, cx - 2.2, cy + 2.2)
+    } else if (kind === 'bosse') {
+      doc.setFillColor(220, 38, 38)
+      doc.setDrawColor(127, 29, 29)
+      doc.setLineWidth(0.3)
+      doc.circle(cx, cy, 1.8, 'FD')
+    }
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(100, 116, 139)
+  doc.text('AVANT', X(120), Y(18), { align: 'center' })
+  doc.text('ARRIERE', X(120), Y(408), { align: 'center' })
+  doc.setTextColor(0, 0, 0)
+  return heightMm
+}
+
 function writeEtatVoiture(doc: jsPDF, opts: {
   etat: VoitureEtatLieux
   fournis?: string[]
@@ -90,6 +166,43 @@ function writeEtatVoiture(doc: jsPDF, opts: {
     doc.text(v, 52, y)
     y += 6
   }
+
+  y += 4
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  const schemaW = 52
+  const schemaH = schemaW * (CONSTAT_VB.h / CONSTAT_VB.w)
+  y = ensureY(doc, y, schemaH + 14)
+  doc.text('Schéma carrosserie (constat — vue de dessus)', 18, y)
+  y += 5
+  const schemaTop = y
+  const drawnH = drawConstatSchema(doc, etat.marquesCarrosserie, 18, schemaTop, schemaW)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const legendX = 18 + schemaW + 8
+  let ly = schemaTop + 4
+  doc.text('✕  Rayure', legendX, ly)
+  ly += 5
+  doc.text('●  Bosse / choc', legendX, ly)
+  ly += 7
+  const marques = etat.marquesCarrosserie || []
+  if (marques.length === 0) {
+    doc.text('Aucune marque.', legendX, ly)
+  } else {
+    doc.text(resumeMarquesCarrosserie(marques) || '', legendX, ly)
+    ly += 5
+    for (const m of marques) {
+      if (ly > schemaTop + drawnH - 4) break
+      doc.text(
+        `• ${m.type === 'bosse' ? 'Bosse' : 'Rayure'} — ${voitureZoneLabel(m.zone)}`,
+        legendX,
+        ly,
+        { maxWidth: w - legendX - 18 },
+      )
+      ly += 4.5
+    }
+  }
+  y = schemaTop + drawnH + 6
 
   y += 3
   doc.setFont('helvetica', 'bold')
@@ -222,7 +335,20 @@ export function buildBonRemiseMaterielPdf(opts: {
   doc.text(bon.userName || '—', 18, y)
   y += 5
   doc.text(`Date de réception : ${formatDateFr(bon.createdAt)}`, 18, y)
-  y += 10
+  y += 5
+  if (bon.createdByUserId && bon.createdByUserId !== bon.userId && bon.createdByName) {
+    y = writeWrapped(
+      doc,
+      `Enregistré par le gérant (${bon.createdByName}) lors de la remise en main propre.`,
+      18,
+      y,
+      w - 36,
+      5,
+    )
+    y += 3
+  } else {
+    y += 5
+  }
 
   const voiture = bon.voitureId
     ? (data.voitures || []).find((v) => v.id === bon.voitureId)

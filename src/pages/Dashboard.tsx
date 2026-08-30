@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ClipboardCheck,
   ClipboardList,
   FolderOpen,
   Mail,
@@ -50,6 +51,7 @@ import {
   type HomeShortcutAccess,
   type HomeShortcutId,
 } from '../lib/homeShortcuts'
+import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -122,6 +124,9 @@ export function Dashboard() {
   const actifs = data.chantiers.filter((c) => c.statut === 'actif')
   const stockKg = data.stock.reduce((s, i) => s + i.quantiteKg, 0)
   const stockCount = data.stock.filter((s) => !isBouteilleRetournee(s)).length
+
+  const receptionPerso = user?.id ? materielEnAttenteReception(data, user.id) : []
+  const receptionEquipe = isOwner ? operateursEnAttenteReception(data) : []
 
   const aReprendre = useMemo(() => {
     return [...brouillons]
@@ -286,6 +291,48 @@ export function Dashboard() {
             />
           </label>
         </div>
+
+        {!q.trim() && isOwner && receptionEquipe.length > 0 ? (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+              <ClipboardCheck className="h-4 w-4 shrink-0" />
+              Matériel à réceptionner
+            </div>
+            <p className="mt-1 text-sm text-amber-950">
+              Dans le dossier de l’opérateur : état des lieux du véhicule, documents pris, puis
+              bouton valider. Vous pouvez le faire vous-même à la remise des clés.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {receptionEquipe.map((op) => (
+                <li key={op.userId}>
+                  <Link to={`/app/equipe/${op.userId}`} className="font-semibold text-accent underline">
+                    {op.name}
+                  </Link>
+                  <span className="text-sm text-amber-950">
+                    {' '}
+                    — {op.n} pièce{op.n > 1 ? 's' : ''} en attente
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {!q.trim() && !isOwner && user?.id && receptionPerso.length > 0 ? (
+          <Link
+            to={`/app/equipe/${user.id}`}
+            className="block rounded-2xl border border-amber-300 bg-amber-50 p-4"
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+              <ClipboardCheck className="h-4 w-4 shrink-0" />
+              Matériel à réceptionner
+            </div>
+            <p className="mt-1 text-sm text-amber-950">
+              {receptionPerso.length} pièce{receptionPerso.length > 1 ? 's' : ''} à confirmer (véhicule,
+              téléphone, outillage). Ouvrir mon dossier →
+            </p>
+          </Link>
+        ) : null}
 
         {/* Bandeau guide 3D — Quick Start */}
         {!q.trim() && (

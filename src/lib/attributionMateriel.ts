@@ -54,6 +54,24 @@ export function materielEnAttenteReception(data: AppData, userId?: string | null
   return [...voitures, ...outils]
 }
 
+export function operateursEnAttenteReception(data: AppData) {
+  const map = new Map<string, { userId: string; name: string; n: number }>()
+  const add = (userId?: string, name?: string) => {
+    if (!userId) return
+    const cur = map.get(userId) || { userId, name: name || 'Opérateur', n: 0 }
+    if (name?.trim()) cur.name = name.trim()
+    cur.n += 1
+    map.set(userId, cur)
+  }
+  for (const v of data.voitures || []) {
+    if (v.assigneeUserId && !v.receptionAt) add(v.assigneeUserId, v.assigneeName)
+  }
+  for (const o of data.outillages || []) {
+    if (o.assigneeUserId && !o.receptionAt) add(o.assigneeUserId, o.assigneeName)
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+}
+
 export function grouperMaterielParFamille(lignes: MaterielLigne[]) {
   const map = new Map<string, MaterielLigne[]>()
   for (const l of lignes) {
@@ -61,5 +79,13 @@ export function grouperMaterielParFamille(lignes: MaterielLigne[]) {
     arr.push(l)
     map.set(l.famille, arr)
   }
-  return [...map.entries()].map(([famille, items]) => ({ famille, items }))
+  const priorite = ['Véhicule', 'Téléphone professionnel']
+  return [...map.entries()]
+    .map(([famille, items]) => ({ famille, items }))
+    .sort((a, b) => {
+      const ia = priorite.indexOf(a.famille)
+      const ib = priorite.indexOf(b.famille)
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+      return a.famille.localeCompare(b.famille, 'fr')
+    })
 }
