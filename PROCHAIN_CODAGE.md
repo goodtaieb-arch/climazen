@@ -11,6 +11,7 @@ Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne p
 Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
 **Point 7** (recherche type d’outillage) : **prochainement**, dès que 5 et 6 sont faits (ou si Issam dit de le glisser).
 **Point 8** (compte client du bâtiment) : **prochainement** — faisable, vrai bout produit, **pas** un compte opérateur.
+**Point 9** (plusieurs techs sur le même OT) : **prochainement** — un tech saisit tout ; le rapport OT liste les noms pour la traçabilité.
 
 ---
 
@@ -26,6 +27,7 @@ Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam 
 | **6** | Accueil gérant : **graphiques** préventif vs dépannage et chiffres de la société. |
 | **7** | Dans « type d’outillage », **taper** « cam » au lieu de scroller toute la liste. |
 | **8** | Le **client du site** a un login : il voit ses OT / docs et envoie « bureau 17 plus de clim ». |
+| **9** | **2 techs** (ou plus) sur le **même OT** : un seul remplit rapport + signatures ; le PDF OT **nomme tous les intervenants**. |
 
 ---
 
@@ -253,6 +255,32 @@ Les deux se complètent.
 4. Lecture seule + création de ticket, ou aussi commenter / valider une présence ?
 
 Chantier **plus gros** que 5–7 : comptes, droits, écran dédié. Ne pas le mélanger avec le tableau de bord Accueil (point 6).
+
+---
+
+## 9. Plusieurs techs sur le même OT — un saisit tout, le rapport nomme les intervenants *(prochainement)*
+
+Demandé le 30/08/2026. **Faisable.** Ne pas coder tant qu’Issam n’a pas dit de lancer.
+
+### Ce qu’Issam veut
+
+On peut **envoyer un ou plusieurs techs** sur le **même** OT (binôme, renfort).
+
+- **Un seul** tech peut tout **valider** : saisie du **rapport**, **signatures**, **tous les docs** (CERFA, fiches, clôture).
+- Le 2ᵉ **n’a pas** à retaper ni à re-signer le dossier.
+- Sur le **rapport OT**, on **indique le nom de chaque tech présent** sur l’intervention → **traçabilité des intervenants** (qui était là), pas deux dossiers.
+
+### État actuel
+
+Un OT = **un** `technicien` + **un** `technicienUserId`. L’autre tech **ne voit pas** l’OT dans sa liste. Un rapport, une signature tech.
+
+### À construire
+
+1. Liste d’intervenants sur l’OT (Tech A, Tech B, …) — pas un seul menu.
+2. Les **deux** voient le même n° OT.
+3. **N’importe lequel** (en pratique le chef de binôme) remplit rapport + docs + signatures + clôture.
+4. Le **PDF / rapport OT** affiche clairement : « Intervenants : … / … » (traçabilité).
+5. Ce n’est **pas** un 2ᵉ CERFA ni un 2ᵉ pointage automatique (le pointage heures = point 2, autre sujet).
 
 ---
 
