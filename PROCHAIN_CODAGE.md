@@ -1,8 +1,10 @@
 # Prochain codage ClimaZEN (Issam)
 
-**Ne pas coder tant que les unités Cursor n’ont pas été réinitialisées, et tant qu’Issam n’a pas dit de lancer.**
+**Ne pas tout coder d’un coup.** Points 1–4 : attendre qu’Issam dise de lancer. **Point 5 : demain 31/08/2026.**
 
-Sauvegardé le 29/08/2026 pour ne pas oublier. C’est la feuille de route **après** renouvellement des unités — pas un chantier à ouvrir tout de suite.
+Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne pas tout coder d’un coup**.
+
+**Demain (31/08/2026) en priorité :** point **5** (tâches sous-traitant / réglementaires + registre de sécurité). Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
 
 ---
 
@@ -78,6 +80,40 @@ Aujourd’hui :
 - Aujourd’hui : rappel agenda « prendre RDV » ~14 jours, **pas d’OT auto**
 
 Fichiers actuels : `src/lib/contratMaintenance.ts`, `src/pages/ContratsMaintenancePage.tsx`, `src/lib/agenda.ts`.
+
+---
+
+## 5. Contrats — tâches sous-traitant & réglementaires + registre de sécurité *(demain 31/08)*
+
+Demandé le 30/08/2026 : à coder **prochainement (demain)**.
+
+### Ce qu’Issam veut
+
+Sur les **contrats de maintenance**, une **configuration propre** des tâches souvent faites par un **sous-traitant** (pas le tech ClimaZEN) :
+
+- Contrôle **disconnecteur** (eau potable)
+- **Ramonage** (corps de chauffe, carneaux — ramoneur)
+- Et le reste du même type : attestations réglementaires (gaz, électriques, analyses d’eau / légionelle, extincteurs, etc. — catalogue configurable, pas une liste figée dans le contrat texte)
+
+Ces tâches **réglementaires** doivent s’afficher **proprement sur le dossier maintenance** (site / contrat) : qui les fait (nous / sous-traitant), périodicité, dernière date, prochaine échéance, pièce jointe (attestation).
+
+Pour **ces tâches-là**, **avertir le tech** qu’il doit **remplir le registre de sécurité** (ERP / copro) — pas seulement cocher la fiche visite.
+
+### État actuel (ne pas confondre)
+
+- Fiche chaufferie : points **disconnecteur** (inspection visuelle semestrielle) et **ramonage** (annuel) = checklist **faite par le tech** sur la visite P2/P3. Ce n’est **pas** une config contrat « sous-traitant + attestation + registre ».
+- Contrats : liste de **prestations en texte libre**, pas de type de tâche, pas de sous-traitant, pas de registre.
+- OT : origine « sous-traitance » = **donneur d’ordre / client payeur**, pas un ramoneur / contrôleur disconnecteur.
+- **Aucun** écran « registre de sécurité » ni alerte dédiée au tech.
+
+### À construire (demain)
+
+1. **Catalogue de tâches réglementaires** (config gérant) : disconnecteur, ramonage, + autres (extensible). Pour chaque : périodicité, **exécutant = nous | sous-traitant**, obligatoire registre de sécurité oui/non.
+2. **Lier au contrat / dossier maintenance du site** : affichage clair (pas noyé dans le texte du contrat).
+3. **Alerte tech** quand une de ces tâches est due ou vient d’être faite : « Pensez à remplir le **registre de sécurité** du site » (bandeau + sur l’OT / fiche).
+4. Pouvoir noter le sous-traitant (nom, date, n° attestation) sans inventer un module facture.
+
+Ne pas mélanger avec P1–P4 / PDF contrat (point 4) : ici c’est le **suivi d’obligations** et le **registre**, pas le niveau de prestation.
 
 ---
 
