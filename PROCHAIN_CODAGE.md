@@ -10,11 +10,26 @@ Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne p
 
 Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
 **Point 7** (recherche type d’outillage) : **prochainement**, dès que 5 et 6 sont faits (ou si Issam dit de le glisser).
-**Point 8** (portail client / grand site) : **prochainement** — faisable, vrai bout produit, **pas** un compte opérateur.
+**Point 8** (compte client du bâtiment) : **prochainement** — faisable, vrai bout produit, **pas** un compte opérateur.
 
 ---
 
-## 1. QR Code Site & Équipement
+## Titres clairs (anti-flou)
+
+| # | En une phrase |
+|---|---|
+| **1** | Coller un QR **du bâtiment** (pas de la machine) pour ouvrir le parc du site ou un ticket panne. |
+| **2** | Le tech **pointe** sa journée (départ, trajet, site, pause, retour) + GPS au clic → heures pour la paie. |
+| **3** | Si le tech **tombe** ou ne bouge plus (toit, local), l’app alerte l’astreinte (PTI). |
+| **4** | Contrat **P1 à P4** avec le client, PDF signé, et visites qui se créent toutes seules 30 j avant. |
+| **5** | Sur le contrat : ramonage, disconnecteur, etc. (souvent **sous-traitant**) + rappel **registre de sécurité**. |
+| **6** | Accueil gérant : **graphiques** préventif vs dépannage et chiffres de la société. |
+| **7** | Dans « type d’outillage », **taper** « cam » au lieu de scroller toute la liste. |
+| **8** | Le **client du site** a un login : il voit ses OT / docs et envoie « bureau 17 plus de clim ». |
+
+---
+
+## 1. QR du bâtiment (en plus du QR déjà collé sur chaque machine)
 
 ### QR équipement — existe déjà
 
@@ -38,7 +53,7 @@ Pas encore dans le code (aujourd’hui le QR ne pointe que vers un `eq=`).
 
 ---
 
-## 2. Pointage temps réel, GPS & trajets
+## 2. Pointage des heures (trajets / chantier / pauses) pour la pré-paie
 
 De la **prise du véhicule** au **retour chez soi**.
 
@@ -50,7 +65,7 @@ De la **prise du véhicule** au **retour chez soi**.
 
 ---
 
-## 3. Sécurité PTI / DATI (travailleur isolé)
+## 3. Alerte si le tech est seul et ne répond plus (chute / malaise)
 
 - Détection perte de verticalité ou immobilité prolongée (chute, malaise en local technique ou toiture-terrasse)
 - Alarme sonore locale
@@ -61,7 +76,7 @@ Pas encore dans le code.
 
 ---
 
-## 4. Contrats de maintenance P1–P4 & 3ᵉ PDF *(ne pas oublier)*
+## 4. Contrat d’entretien P1–P4 : cocher avec le client, PDF, visites auto
 
 C’est le chantier annoncé avec le tableau « tous types de contrats / grands établissements ».
 
@@ -89,7 +104,7 @@ Fichiers actuels : `src/lib/contratMaintenance.ts`, `src/pages/ContratsMaintenan
 
 ---
 
-## 5. Contrats — tâches sous-traitant & réglementaires + registre de sécurité *(demain 31/08)*
+## 5. Ramonage, disconnecteur, etc. : qui le fait + rappel registre de sécurité
 
 Demandé le 30/08/2026 : à coder **prochainement (demain)**.
 
@@ -123,7 +138,7 @@ Ne pas mélanger avec P1–P4 / PDF contrat (point 4) : ici c’est le **suivi d
 
 ---
 
-## 6. Accueil — courbes, graphiques et indicateurs société *(demain 31/08)*
+## 6. Accueil gérant : graphiques préventif / dépannage et chiffres de la boîte
 
 Demandé le 30/08/2026 : améliorer la **page Accueil** pour une **vue globale** qui facilite le pilotage de la société — **pas seulement des raccourcis**.
 
@@ -165,7 +180,7 @@ Ne pas attendre le point 4 (OT auto J-30) pour afficher le préventif : s’appu
 
 ---
 
-## 7. Type d’outillage — écrire pour filtrer, ou 2 flèches = liste complète *(prochainement)*
+## 7. Trouver un type d’outillage en tapant le début du nom
 
 Demandé le 30/08/2026. La liste du menu **Type d’outillage** est devenue **longue** (frigoriste + CVC + étalonnage). Le `<select>` actuel oblige à scroller.
 
@@ -191,7 +206,7 @@ Gagner du temps à l’ajout d’outillage, sans perdre le menu complet.
 
 ---
 
-## 8. Portail client grand site — identifiant, tickets, docs / OT du site *(prochainement)*
+## 8. Compte client du bâtiment : tickets panne + voir les docs de SON site
 
 Demandé le 30/08/2026. **Faisable.** Ne pas coder tant qu’Issam n’a pas dit de lancer. Discussion seulement jusqu’ici.
 
