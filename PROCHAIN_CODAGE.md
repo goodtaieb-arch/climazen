@@ -9,6 +9,7 @@ Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne p
 - **6** — Accueil : courbes et indicateurs (préventif / curatif + vue société)
 
 Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
+**Point 7** (recherche type d’outillage) : **prochainement**, dès que 5 et 6 sont faits (ou si Issam dit de le glisser).
 
 ---
 
@@ -160,6 +161,32 @@ Tableau de bord gérant sur l’Accueil (ou bloc dédié au-dessus des icônes) 
 5. Reste lisible au téléphone (pas un écran Excel).
 
 Ne pas attendre le point 4 (OT auto J-30) pour afficher le préventif : s’appuyer sur les contrats signés + OT existants.
+
+---
+
+## 7. Type d’outillage — écrire pour filtrer, ou 2 flèches = liste complète *(prochainement)*
+
+Demandé le 30/08/2026. La liste du menu **Type d’outillage** est devenue **longue** (frigoriste + CVC + étalonnage). Le `<select>` actuel oblige à scroller.
+
+### Ce qu’Issam veut
+
+Champ unique, comme maintenant visuellement, mais en **combobox** :
+
+1. L’utilisateur **écrit le début** du nom (ex. « cam », « combu », « pompe ») → l’app **propose** uniquement les types de **notre catalogue** qui correspondent (pas d’invention, pas Google).
+2. S’il appuie sur les **2 flèches** (comme aujourd’hui) → la **liste s’ouvre en entier**, groupée comme maintenant (obligatoires / mesure / CVC / terrain).
+
+Gagner du temps à l’ajout d’outillage, sans perdre le menu complet.
+
+### État actuel
+
+`src/components/OutillageParc.tsx` : `<select>` natif + `outillageCatalogParGroupe()`. Pas de filtre au clavier (sauf la recherche native du navigateur, peu fiable sur mobile).
+
+### À construire
+
+- Input + liste filtrée (accents FR : « etalon » trouve « étalonnage », « anem » trouve « anémomètre »)
+- Clic / tap sur les 2 flèches = tout le catalogue
+- Uniquement les types du catalogue ClimaZEN
+- Doigt-friendly (téléphone)
 
 ---
 
