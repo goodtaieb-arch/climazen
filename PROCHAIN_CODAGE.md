@@ -1,10 +1,14 @@
 # Prochain codage ClimaZEN (Issam)
 
-**Ne pas tout coder d’un coup.** Points 1–4 : attendre qu’Issam dise de lancer. **Point 5 : demain 31/08/2026.**
+**Ne pas tout coder d’un coup.** Points 1–4 : attendre qu’Issam dise de lancer. **Demain 31/08/2026 : points 5 et 6.**
 
 Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne pas tout coder d’un coup**.
 
-**Demain (31/08/2026) en priorité :** point **5** (tâches sous-traitant / réglementaires + registre de sécurité). Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
+**Demain (31/08/2026) :**
+- **5** — tâches sous-traitant / réglementaires + registre de sécurité
+- **6** — Accueil : courbes et indicateurs (préventif / curatif + vue société)
+
+Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
 
 ---
 
@@ -114,6 +118,48 @@ Pour **ces tâches-là**, **avertir le tech** qu’il doit **remplir le registre
 4. Pouvoir noter le sous-traitant (nom, date, n° attestation) sans inventer un module facture.
 
 Ne pas mélanger avec P1–P4 / PDF contrat (point 4) : ici c’est le **suivi d’obligations** et le **registre**, pas le niveau de prestation.
+
+---
+
+## 6. Accueil — courbes, graphiques et indicateurs société *(demain 31/08)*
+
+Demandé le 30/08/2026 : améliorer la **page Accueil** pour une **vue globale** qui facilite le pilotage de la société — **pas seulement des raccourcis**.
+
+### Ce qu’Issam veut
+
+- **Courbes et graphiques** lisibles (mobile + bureau)
+- Avancement du travail **préventif** vs **curatif** (dépannage)
+- Tous les **indicateurs utiles** pour le gérant : charge, retards, contrats, stock, équipe — une photo de l’activité, pas une liste d’OT à reprendre
+
+### État actuel (v140)
+
+L’accueil (`src/pages/Dashboard.tsx`) est opérationnel terrain :
+- icônes / raccourcis
+- bandeaux alertes (RH, étalonnage, matériel à réceptionner, agenda)
+- OT / CERFA à reprendre
+
+**Aucun graphique.** Pas de split préventif / curatif. L’avancement existe **par OT** (`avancementPct`), pas en courbe société. Les OT ont une origine commerciale (`depannage_urgence`, contrat, etc. dans `chaineCommerciale.ts`) — on pourra s’en servir pour classer curatif vs préventif, mais ce n’est pas agrégé aujourd’hui.
+
+Pas de librairie de charts dans le projet (pas de Recharts / Chart.js).
+
+### À construire (demain)
+
+Tableau de bord gérant sur l’Accueil (ou bloc dédié au-dessus des icônes) :
+
+1. **Préventif vs curatif** — part des OT / visites (camembert ou barres), et **avancement** des maintenances sous contrat (fait / dû / en retard).
+2. **Courbe dans le temps** — volume d’interventions sur 4–12 semaines (préventif / curatif empilé).
+3. **Indicateurs utiles** (cartes chiffrées, cliquables) :
+   - OT ouverts / en retard / clôturés (semaine / mois)
+   - visites contrat à venir (J-30) vs déjà faites
+   - CERFA brouillons
+   - stock fluide (kg, consignes, alertes)
+   - étalonnage outillage bientôt / expiré
+   - docs RH bientôt / expirés
+   - charge par tech (si simple à dériver des OT)
+4. Vue **gérant = toute la société** ; tech = **ses** chiffres seulement.
+5. Reste lisible au téléphone (pas un écran Excel).
+
+Ne pas attendre le point 4 (OT auto J-30) pour afficher le préventif : s’appuyer sur les contrats signés + OT existants.
 
 ---
 
