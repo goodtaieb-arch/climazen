@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { groupOutillagesByType } from '../src/lib/outillage'
 import { OUTILLAGE_CATALOG } from '../src/lib/outillageCatalog'
+import {
+  ALERTE_ETALONNAGE_JOURS,
+  alertesEtalonnage,
+  dateFinEtalonnage,
+  statutEtalonnage,
+} from '../src/lib/outillageEtalonnage'
 import { mergeTeamMembers } from '../src/lib/teamMembers'
 import {
   grouperMaterielParFamille,
@@ -37,8 +43,15 @@ assert.equal(groups[0]?.type, 'detecteur_fuite')
 assert.equal(groups[0]?.items.length, 2)
 assert.equal(groups[1]?.type, 'epi_securite')
 assert.equal(Boolean(OUTILLAGE_CATALOG.detecteur_fuite.needsControleDate), true)
+assert.equal(Boolean(OUTILLAGE_CATALOG.balance_pesee.needsControleDate), true)
+assert.equal(Boolean(OUTILLAGE_CATALOG.groupe_manometrique.needsControleDate), true)
+assert.equal(Boolean(OUTILLAGE_CATALOG.camera_thermique.needsControleDate), true)
+assert.equal(Boolean(OUTILLAGE_CATALOG.analyseur_combustion.needsControleDate), true)
+assert.equal(Boolean(OUTILLAGE_CATALOG.anemometre.needsControleDate), true)
 assert.equal(Boolean(OUTILLAGE_CATALOG.pompe_vide.needsControleDate), false)
 assert.equal(Boolean(OUTILLAGE_CATALOG.epi_securite.needsControleDate), false)
+assert.ok(OUTILLAGE_CATALOG.analyseur_combustion.label.toLowerCase().includes('combustion'))
+assert.ok(OUTILLAGE_CATALOG.camera_thermique.label.toLowerCase().includes('thermique'))
 
 const team = mergeTeamMembers({
   user: {
@@ -189,5 +202,36 @@ assert.deepEqual(ecart.extra, [])
 
 const v = data.voitures?.[0] as Voiture
 assert.equal(v.documentsFournis?.includes('carte_grise'), true)
+
+assert.equal(dateFinEtalonnage('2025-08-30'), '2026-08-30')
+assert.equal(statutEtalonnage('2024-01-01', new Date('2026-08-30T12:00:00')), 'expire')
+assert.equal(statutEtalonnage('', new Date('2026-08-30T12:00:00')), 'sans_date')
+assert.equal(statutEtalonnage('2025-09-15', new Date('2026-08-20T12:00:00')), 'bientot')
+assert.equal(statutEtalonnage('2026-01-01', new Date('2026-08-20T12:00:00')), 'ok')
+assert.ok(ALERTE_ETALONNAGE_JOURS === 45)
+
+const etalAlerts = alertesEtalonnage(
+  [
+    {
+      id: 'cam1',
+      type: 'camera_thermique',
+      identification: 'FLIR-1',
+      controleDate: '2024-01-01',
+      assigneeUserId: 't1',
+      assigneeName: 'Tech 1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'pompe1',
+      type: 'pompe_vide',
+      identification: 'PV-1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+  ],
+  { now: new Date('2026-08-30T12:00:00') },
+)
+assert.equal(etalAlerts.length, 1)
+assert.equal(etalAlerts[0]?.outillageId, 'cam1')
+assert.equal(etalAlerts[0]?.statut, 'expire')
 
 console.log('test-outillage: ok')

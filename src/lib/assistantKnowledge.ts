@@ -224,11 +224,12 @@ Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
   {
     id: 'profil',
     title: 'Mon profil',
-    keywords: ['profil', 'signature', 'detecteur', 'détecteur', 'ma signature'],
+    keywords: ['profil', 'signature', 'detecteur', 'détecteur', 'ma signature', 'étalonnage', 'outillage'],
     paths: ['/app/profil'],
     answer: `Mon profil (/app/profil) :
 - Signature CERFA personnelle (reprise auto sur les fiches).
-- Détecteur de fuite : le gérant crée un détecteur et l’affecte à un tech ; le tech voit le sien.
+- Outillage : menu frigoriste + CVC. Les appareils à étalonner (détecteur, balance, caméra thermique, analyseur de combustion, anémomètre…) exigent une date. L’accueil alerte 45 jours avant l’échéance, puis à expiration.
+- Détecteur de fuite : le gérant crée l’outil et l’affecte ; contrôle < 1 an obligatoire pour le CERFA.
 Équipe reste pour les comptes techniciens, pas pour le matériel.`,
   },
   {
