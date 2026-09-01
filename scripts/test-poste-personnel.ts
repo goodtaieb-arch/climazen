@@ -39,6 +39,7 @@ assert.equal(defPostePersonnel('tech_multitechnique')?.label, 'Tech multitechniq
 
 assert.equal(ligneNomPoste({ nom: 'Jean', poste: 'tech_cvc' }), 'Jean · Tech CVC')
 assert.equal(ligneNomPoste({ nom: 'Issam', roleOwner: true }), 'Issam · Gérant')
+assert.equal(ligneNomPoste({ nom: 'Jean' }), 'Jean · poste à définir')
 assert.ok(optionLabelAvecPoste({ nom: 'Léa', poste: 'responsable' }).includes('toute l’équipe'))
 assert.ok(optionLabelAvecPoste({ nom: 'Léa', poste: 'responsable', inactif: true }).includes('inactif'))
 

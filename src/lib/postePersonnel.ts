@@ -84,7 +84,7 @@ export function ligneNomPoste(opts: {
   const poste = labelPostePersonnel(opts.poste)
   if (poste) return `${nom} · ${poste}`
   if (opts.roleOwner) return `${nom} · Gérant`
-  return nom
+  return `${nom} · poste à définir`
 }
 
 /** Libellé d’option d’affectation OT. */
