@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { groupOutillagesByType } from '../src/lib/outillage'
-import { OUTILLAGE_CATALOG } from '../src/lib/outillageCatalog'
+import { OUTILLAGE_CATALOG, filterOutillageCatalog, foldOutillageSearch } from '../src/lib/outillageCatalog'
 import {
   ALERTE_ETALONNAGE_JOURS,
   alertesEtalonnage,
@@ -54,6 +54,11 @@ assert.equal(Boolean(OUTILLAGE_CATALOG.pompe_vide.needsControleDate), false)
 assert.equal(Boolean(OUTILLAGE_CATALOG.epi_securite.needsControleDate), false)
 assert.ok(OUTILLAGE_CATALOG.analyseur_combustion.label.toLowerCase().includes('combustion'))
 assert.ok(OUTILLAGE_CATALOG.camera_thermique.label.toLowerCase().includes('thermique'))
+assert.equal(foldOutillageSearch('Étalonnage'), 'etalonnage')
+assert.ok(filterOutillageCatalog('cam').some((t) => t.id === 'camera_thermique'))
+assert.ok(filterOutillageCatalog('combu').some((t) => t.id === 'analyseur_combustion'))
+assert.ok(filterOutillageCatalog('pompe').some((t) => t.id === 'pompe_vide'))
+assert.equal(filterOutillageCatalog('zzzzinexistant').length, 0)
 
 const team = mergeTeamMembers({
   user: {
