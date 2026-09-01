@@ -8,11 +8,8 @@ import {
   groupOutillagesByType,
   outillagesForUser,
 } from '../lib/outillage'
-import {
-  OUTILLAGE_CATALOG,
-  outillageCatalogParGroupe,
-  type OutillageTypeId,
-} from '../lib/outillageCatalog'
+import { OUTILLAGE_CATALOG, type OutillageTypeId } from '../lib/outillageCatalog'
+import { OutillageTypeCombobox } from './OutillageTypeCombobox'
 import type { Outillage } from '../lib/types'
 import {
   dateFinEtalonnage,
@@ -536,27 +533,17 @@ export function OutillageParc({ team: teamProp }: Props) {
 
         <label className="block text-sm sm:col-span-2">
           <span className="mb-1 block font-semibold text-ink">Type d’outillage *</span>
-          <select
-            className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
+          <OutillageTypeCombobox
             value={type}
-            onChange={(e) => {
-              const next = e.target.value as OutillageTypeId
+            onChange={(next) => {
               setType(next)
               if (!OUTILLAGE_CATALOG[next].needsControleDate) setControleDate('')
             }}
-          >
-            {outillageCatalogParGroupe().map((g) => (
-              <optgroup key={g.id} label={g.label}>
-                {g.items.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                    {t.needsControleDate ? ' · étalonnage' : ''}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          {typeDef.hint ? <p className="mt-1 text-xs text-muted">{typeDef.hint}</p> : null}
+          />
+          <p className="mt-1 text-xs text-muted">
+            Écrivez le début du nom (ex. cam, pompe), ou les 2 flèches pour toute la liste.
+          </p>
+          {typeDef.hint ? <p className="mt-0.5 text-xs text-muted">{typeDef.hint}</p> : null}
         </label>
 
         <Field

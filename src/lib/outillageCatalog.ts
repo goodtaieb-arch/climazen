@@ -363,3 +363,38 @@ export function outillageNeedsControleDate(type: OutillageTypeId | string): bool
   if (!isOutillageTypeId(type)) return false
   return Boolean(OUTILLAGE_CATALOG[type].needsControleDate)
 }
+
+/** Recherche FR : « etalon » trouve « étalonnage », « anem » trouve « anémomètre ». */
+export function foldOutillageSearch(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+export function outillageTypeMatchesQuery(def: OutillageTypeDef, query: string): boolean {
+  const q = foldOutillageSearch(query)
+  if (!q) return true
+  const hay = foldOutillageSearch(
+    [def.label, def.hint || '', def.id, def.needsControleDate ? 'etalonnage' : ''].join(' '),
+  )
+  return q.split(/\s+/).every((part) => hay.includes(part))
+}
+
+export function filterOutillageCatalog(query: string): OutillageTypeDef[] {
+  return OUTILLAGE_TYPE_OPTIONS.filter((t) => outillageTypeMatchesQuery(t, query))
+}
+
+export function outillageCatalogParGroupeFiltre(query: string): {
+  id: OutillageGroupeId
+  label: string
+  items: OutillageTypeDef[]
+}[] {
+  const wanted = new Set(filterOutillageCatalog(query).map((t) => t.id))
+  if (!foldOutillageSearch(query)) return outillageCatalogParGroupe()
+  return outillageCatalogParGroupe()
+    .map((g) => ({ ...g, items: g.items.filter((t) => wanted.has(t.id)) }))
+    .filter((g) => g.items.length > 0)
+}
