@@ -225,6 +225,17 @@ export interface OrdreTravail {
   clientPayeurId?: string
   /** MO de base incluse dans le contrat (0 €) */
   mainOeuvreIncluseContrat?: boolean
+  /**
+   * Fiches que le bureau a cochées pour le tech (maintenance).
+   * CERFA s’ajoute tout seul si le tech touche au gaz — voir `toucheGaz`.
+   */
+  docsRequis?: Array<'cerfa' | 'fiche_clim' | 'fiche_chaufferie' | 'fiche_cta_vmc'>
+  /**
+   * Le tech a-t-il touché au gaz / fluide ?
+   * undefined = on s’aligne sur les équipements fluide.
+   * false = pas de gaz (CERFA accessible, pas exigé).
+   */
+  toucheGaz?: boolean
   signatureTechnicienImage?: string
   signatureClientImage?: string
   statut: StatutOt
@@ -271,6 +282,8 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     interventionPartielle: false,
     avancementPct: 0,
     visitesPresence: [],
+    docsRequis: [],
+    toucheGaz: undefined,
   }
 }
 

@@ -37,10 +37,10 @@ import {
   blankOrdreTravail,
   nextNumeroOt,
   naturesCerfaPourTypeOt,
-  inferParcoursStep,
   isOtCloture,
   formatOtNumero,
   otBaseNumero,
+  sameOtNumero,
   clampAvancementPct,
   otAvancementPct,
   lastVisitePresence,
@@ -60,6 +60,18 @@ import {
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { OtAvancementFields } from '../components/OtAvancementFields'
+import {
+  DOC_OT_LABELS,
+  docsEffectifsRequis,
+  docsManquantsPourCloture,
+  inferParcoursStepPourRole,
+  parseDocsOtRequis,
+  roleParcoursOt,
+  techDoitRemplirCerfa,
+  toggleDocOtRequis,
+  type DocOtRequis,
+  type DocsOtRemplis,
+} from '../lib/otParcours'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -133,7 +145,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh } =
     useStore()
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
@@ -152,7 +164,16 @@ export function AppelOtPage() {
 
   const [otId, setOtId] = useState(existing?.id || '')
   const [step, setStep] = useState<ParcoursAppelStepId>(() => {
-    if (existing) return inferParcoursStep(existing)
+    if (existing) {
+      return inferParcoursStepPourRole(
+        existing,
+        roleParcoursOt(
+          { isOwner: Boolean(isOwner), peutVoirIdentitesRh },
+          existing,
+          user?.id,
+        ),
+      )
+    }
     if (clientFromQuery && chantierFromQuery && equipFromQuery) return 'docs'
     if (clientFromQuery && chantierFromQuery) return 'equipement'
     if (clientFromQuery) return 'site'
@@ -182,6 +203,8 @@ export function AppelOtPage() {
       date: today(),
       technicien: user?.signataireNom || user?.fullName || user?.email || '',
       technicienUserId: user?.id,
+      createdByUserId: user?.id,
+      createdByName: user?.fullName || user?.email,
       signatureTechnicienImage: user?.signatureImage || '',
       typeOt: 'depanage' as TypeOt,
       action: fromScan || equipFromQuery ? `Intervention — ${label}` : '',
@@ -220,7 +243,16 @@ export function AppelOtPage() {
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = existing
     setOtForm(rest)
     setOtId(existing.id)
-    setStep(inferParcoursStep(existing))
+    setStep(
+      inferParcoursStepPourRole(
+        existing,
+        roleParcoursOt(
+          { isOwner: Boolean(isOwner), peutVoirIdentitesRh },
+          existing,
+          user?.id,
+        ),
+      ),
+    )
   }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scan QR terrain : créer / persister l’OT tout de suite (client + site, équipement si présent)
@@ -330,10 +362,16 @@ export function AppelOtPage() {
     [data.chantiers, otForm.clientId],
   )
 
+  const uiAccess = { isOwner: Boolean(isOwner), peutVoirIdentitesRh }
+  const role = roleParcoursOt(uiAccess, otForm, user?.id)
+
   const persistOt = (
     patch: Partial<OrdreTravail> & { parcoursStep?: ParcoursAppelStepId },
     idOverride?: string,
   ) => {
+    const createdByUserId = otForm.createdByUserId || existing?.createdByUserId || user?.id
+    const createdByName =
+      otForm.createdByName || existing?.createdByName || user?.fullName || user?.email
     const id = upsertOrdreTravail({
       ...otForm,
       ...patch,
@@ -343,11 +381,11 @@ export function AppelOtPage() {
         otForm.signatureTechnicienImage ??
         user?.signatureImage ??
         '',
-      createdByUserId: user?.id,
-      createdByName: user?.fullName || user?.email,
+      createdByUserId,
+      createdByName,
     })
     setOtId(id)
-    setOtForm((f) => ({ ...f, ...patch }))
+    setOtForm((f) => ({ ...f, ...patch, createdByUserId, createdByName }))
     if (!otIdParam || otIdParam !== id) {
       navigate(`/app/appel?ot=${encodeURIComponent(id)}`, { replace: true })
     }
@@ -355,6 +393,12 @@ export function AppelOtPage() {
   }
 
   const goStep = (next: ParcoursAppelStepId) => {
+    if (next === 'docs' && role === 'bureau_depanage') {
+      setMsg(
+        'Dépannage : l’étape Intervention est pour le tech qui se déplace. Affectez-le, il remplira sur place.',
+      )
+      return
+    }
     setStep(next)
     if (otId || existing?.id) {
       persistOt({ parcoursStep: next })
@@ -485,19 +529,39 @@ export function AppelOtPage() {
       {
         equipementIds,
         equipementId: equipementIds[0] || '',
-        parcoursStep: 'docs',
+        parcoursStep: role === 'bureau_depanage' ? 'equipement' : 'docs',
+        statut: 'en_cours',
       },
       otId,
     )
+    if (role === 'bureau_depanage') {
+      setStep('equipement')
+      setMsg(
+        otForm.technicien
+          ? `OT prêt pour ${otForm.technicien} — il ouvrira l’intervention (étape 5) sur place.`
+          : 'OT prêt. Affectez un technicien (étape 1) : c’est lui qui remplira l’intervention.',
+      )
+      return
+    }
     setStep('docs')
     setMsg(
-      equipementIds.length > 1
-        ? `${equipementIds.length} équipements liés — CERFA si fluide, sinon rapport OT.`
-        : 'Équipement lié — CERFA si fluide, sinon rapport OT. Fiche checklist optionnelle.',
+      role === 'bureau_maintenance'
+        ? 'Cochez les fiches que le tech devra remplir (checklist clim, chaufferie….).'
+        : equipementIds.length > 1
+          ? `${equipementIds.length} équipements liés — CERFA si fluide, sinon rapport OT.`
+          : 'Équipement lié — CERFA si fluide, sinon rapport OT.',
     )
   }
 
   const skipEquipForNow = () => {
+    if (role === 'bureau_depanage') {
+      persistOt({ parcoursStep: 'equipement', statut: 'en_cours' }, otId)
+      setStep('equipement')
+      setMsg(
+        'Équipement à compléter plus tard. En dépannage, c’est le tech qui remplit l’intervention.',
+      )
+      return
+    }
     persistOt({ parcoursStep: 'docs' }, otId)
     setStep('docs')
     setMsg('Équipement à compléter plus tard.')
@@ -919,6 +983,67 @@ export function AppelOtPage() {
   }
 
   const finishWithSignatures = () => {
+    if (role !== 'intervenant') {
+      alert('C’est le technicien affecté qui remplit et clôture l’intervention.')
+      return
+    }
+    const hasF =
+      selectedEqs.length > 0
+        ? selectedEqs.some((eq) => equipAvecFluideFrigorigene(eq))
+        : site
+          ? allEquipements(site).some((eq) => equipAvecFluideFrigorigene(eq))
+          : Boolean(otForm.toucheGaz)
+    const oid = otId || existing?.id || ''
+    const num = otForm.numero
+    const cerfaLinked = (i: {
+      ordreTravailId?: string
+      numeroIntervention?: string
+      numero?: string
+    }) =>
+      Boolean(
+        (oid && i.ordreTravailId === oid) ||
+          (num && sameOtNumero(i.numeroIntervention || i.numero, num)),
+      )
+    const ficheOk = (
+      list: Array<{
+        id: string
+        numero?: string
+        signatureTechnicienImage?: string
+        hasPdf?: boolean
+      }>,
+      linkedId?: string,
+    ) =>
+      list.some(
+        (f) =>
+          ((linkedId && f.id === linkedId) || (num && sameOtNumero(f.numero, num))) &&
+          Boolean(f.signatureTechnicienImage || f.hasPdf),
+      )
+    const remplis: DocsOtRemplis = {
+      cerfa: (data.interventions || []).some(
+        (i) =>
+          cerfaLinked(i) &&
+          (Boolean(i.signatureOperateurImage) ||
+            i.status === 'signe' ||
+            i.status === 'envoye' ||
+            Boolean(i.hasCerfaPdf)),
+      ),
+      fiche_clim: ficheOk(data.fichesMaintenanceClim || [], otForm.ficheMaintenanceId),
+      fiche_chaufferie: ficheOk(data.fichesMaintenanceChaufferie || [], otForm.ficheChaufferieId),
+      fiche_cta_vmc: ficheOk(data.fichesMaintenanceCtaVmc || [], otForm.ficheCtaVmcId),
+    }
+    const manquants = docsManquantsPourCloture({
+      docsRequis: otForm.docsRequis,
+      hasFluide: hasF,
+      toucheGaz: otForm.toucheGaz,
+      remplis,
+    })
+    if (manquants.length) {
+      alert(
+        'À remplir avant de clôturer :\n\n' +
+          manquants.map((d) => `• ${DOC_OT_LABELS[d]}`).join('\n'),
+      )
+      return
+    }
     if (!otForm.signatureTechnicienImage) {
       alert('Signature technicien requise.')
       return
@@ -1016,10 +1141,11 @@ export function AppelOtPage() {
   const fluideSansType = (
     selectedEqs.length > 0 ? selectedEqs : site ? allEquipements(site) : []
   ).filter((eq) => equipAvecFluideFrigorigene(eq) && !(eq.fluideType || '').trim()).length
-  const isMaint =
-    otForm.typeOt === 'maintenance' ||
-    otForm.typeOt === 'entretien' ||
-    otForm.typeOt === 'controle_etancheite'
+  const docsEff = docsEffectifsRequis({
+    docsRequis: otForm.docsRequis,
+    hasFluide,
+    toucheGaz: otForm.toucheGaz,
+  })
   const otCloture = isOtCloture(otForm.statut)
 
   return (
@@ -1047,13 +1173,24 @@ export function AppelOtPage() {
 
       {!isOwner ? (
         <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950">
-          Week-end / hors horaires bureau : créez l’OT ici. Le gérant et toute l’équipe le voient
-          automatiquement (sync PC ↔ téléphone).
+          Week-end / hors horaires bureau : créez l’OT ici — il vous est affecté. Le gérant et
+          toute l’équipe le voient automatiquement (sync PC ↔ téléphone).
+        </p>
+      ) : role === 'bureau_depanage' ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          Dépannage préparé au bureau : vous allez jusqu’à l’équipement. L’étape 5 Intervention
+          est pour le tech affecté — c’est lui qui la remplit sur place.
+        </p>
+      ) : role === 'bureau_maintenance' ? (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          Maintenance : à l’étape 5, cochez les fiches que le tech devra remplir (ex. checklist
+          clim). Le CERFA reste toujours accessible ; s’il touche au gaz, il est obligatoire.
         </p>
       ) : (
         <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted">
           Les techniciens peuvent aussi créer un OT en astreinte — tout arrive dans le coffre
-          société.
+          société. Si vous vous affectez l’OT, vous remplissez l’intervention (auto-entrepreneur
+          / gérant sur site).
         </p>
       )}
 
@@ -1066,8 +1203,9 @@ export function AppelOtPage() {
             <li key={s.id} className="min-w-0 flex-1">
               <button
                 type="button"
-                disabled={!otId && i > 0}
+                disabled={(!otId && i > 0) || (s.id === 'docs' && role === 'bureau_depanage')}
                 onClick={() => {
+                  if (s.id === 'docs' && role === 'bureau_depanage') return
                   if (otId || i === 0) goStep(s.id)
                 }}
                 className={[
@@ -1211,6 +1349,13 @@ export function AppelOtPage() {
             technicienUserId={otForm.technicienUserId}
             onChange={(next) => setOtForm({ ...otForm, ...next })}
           />
+          {isOwner || peutVoirIdentitesRh ? (
+            <p className="text-[11px] text-muted">
+              Si vous vous affectez (auto-entrepreneur / vous sortez), vous remplissez l’intervention.
+              Sinon, en dépannage le tech l’ouvre à l’étape 5 ; en maintenance vous cochez ses
+              fiches.
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={saveOtStep}
@@ -1553,6 +1698,17 @@ export function AppelOtPage() {
       {/* ——— Étape Équipement ——— */}
       {step === 'equipement' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
+          {role === 'bureau_depanage' &&
+          (otForm.equipementId || (otForm.equipementIds && otForm.equipementIds.length > 0)) ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+              <p className="font-semibold">OT prêt pour le terrain</p>
+              <p className="mt-0.5 text-xs">
+                {otForm.technicien
+                  ? `${otForm.technicien} ouvrira l’étape 5 Intervention (rapport, CERFA, signatures).`
+                  : 'Affectez un technicien à l’étape 1 — c’est lui qui remplit l’intervention.'}
+              </p>
+            </div>
+          ) : null}
           <p className="text-sm text-muted">
             Sur site : cochez un ou plusieurs équipements concernés ({site?.nom || '—'}).
           </p>
@@ -1796,7 +1952,12 @@ export function AppelOtPage() {
               onClick={saveEquipStep}
               className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
             >
-              Continuer <ArrowRight className="h-4 w-4" />
+              {role === 'bureau_depanage'
+                ? 'Transmettre au tech'
+                : role === 'bureau_maintenance'
+                  ? 'Cocher les fiches'
+                  : 'Continuer'}{' '}
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
@@ -1818,6 +1979,7 @@ export function AppelOtPage() {
                 selectedEqs.length > 1
                   ? `${selectedEqs.length} équipements`
                   : selectedEq?.nom || selectedEq?.type,
+                otForm.technicien ? `Tech : ${otForm.technicien}` : '',
               ]
                 .filter(Boolean)
                 .join(' · ') || 'Compléter client / site / équipement si besoin'}
@@ -1834,6 +1996,73 @@ export function AppelOtPage() {
             )}
           </div>
 
+          {role === 'bureau_maintenance' ? (
+            <div className="space-y-3">
+              <p className="text-sm text-slate">
+                Cochez ce que <strong>{otForm.technicien || 'le technicien'}</strong> devra remplir
+                sur place. Ex. maintenance clim → fiche checklist clim. Le CERFA s’impose tout
+                seul s’il touche au gaz.
+              </p>
+              {(['fiche_clim', 'fiche_chaufferie', 'fiche_cta_vmc'] as DocOtRequis[]).map((id) => {
+                const on = parseDocsOtRequis(otForm.docsRequis).includes(id)
+                return (
+                  <label
+                    key={id}
+                    className="flex items-start gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={on}
+                      onChange={() => {
+                        const next = toggleDocOtRequis(otForm.docsRequis, id)
+                        setOtForm({ ...otForm, docsRequis: next })
+                        persistOt({ docsRequis: next, parcoursStep: 'docs' })
+                      }}
+                    />
+                    <span>
+                      <span className="font-semibold text-ink">{DOC_OT_LABELS[id]}</span>
+                      {id === 'fiche_clim' ? (
+                        <span className="mt-0.5 block text-xs text-muted">
+                          À cocher pour une maintenance clim — le tech ne pourra pas clôturer sans.
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                )
+              })}
+              <p className="text-xs text-muted">
+                CERFA : toujours accessible au tech. Obligatoire s’il touche au fluide / gaz.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => goStep('equipement')}
+                  className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
+                >
+                  Retour
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    persistOt({
+                      docsRequis: parseDocsOtRequis(otForm.docsRequis),
+                      parcoursStep: 'docs',
+                      statut: 'en_cours',
+                    })
+                    setMsg(
+                      `Fiches demandées à ${otForm.technicien || 'l’intervenant'}. Il les remplit à l’étape Intervention.`,
+                    )
+                    navigate('/app/ot')
+                  }}
+                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
+                >
+                  <Check className="h-4 w-4" /> Transmettre au tech
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">Date d’intervention (modifiable)</span>
             <input
@@ -1846,6 +2075,26 @@ export function AppelOtPage() {
               }}
               className="h-11 w-full max-w-xs rounded-xl border border-line px-3"
             />
+          </label>
+
+          <label className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={techDoitRemplirCerfa({ hasFluide, toucheGaz: otForm.toucheGaz })}
+              onChange={(e) => {
+                const toucheGaz = e.target.checked
+                setOtForm({ ...otForm, toucheGaz })
+                persistOt({ toucheGaz })
+              }}
+            />
+            <span>
+              <span className="font-semibold text-ink">J’ai touché au gaz / fluide</span>
+              <span className="mt-0.5 block text-xs text-muted">
+                Si oui, le CERFA est obligatoire. Décochez seulement si vous n’avez pas ouvert le
+                circuit. Le bouton CERFA reste toujours accessible.
+              </span>
+            </span>
           </label>
 
           <label className="block text-sm">
@@ -1875,38 +2124,48 @@ export function AppelOtPage() {
 
           <div className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-wide text-muted">Documents</p>
-            {hasFluide ? (
-              <button
-                type="button"
-                onClick={openCerfa}
-                className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-left font-bold active:bg-emerald-100"
-              >
-                <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
-                <span>
-                  <span className="block">CERFA (fluide / gaz) — remplir</span>
-                  <span className="block text-sm font-medium text-muted">
-                    {fluideCount > 1
-                      ? `${fluideCount} équipements → 1 CERFA chacun`
-                      : fluideSansType > 0
-                        ? 'Ouvrir la fiche — complétez fluide / charge dedans'
-                        : `Document utile — ${formatOtNumero(otForm.numero)}, date reprise`}
-                  </span>
+            <button
+              type="button"
+              onClick={openCerfa}
+              className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-left font-bold active:bg-emerald-100"
+            >
+              <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
+              <span>
+                <span className="block">
+                  CERFA (fluide / gaz) — {docsEff.includes('cerfa') ? 'obligatoire' : 'accessible'}
                 </span>
-              </button>
-            ) : null}
+                <span className="block text-sm font-medium text-muted">
+                  {fluideCount > 1
+                    ? `${fluideCount} équipements → 1 CERFA chacun`
+                    : fluideSansType > 0
+                      ? 'Ouvrir la fiche — complétez fluide / charge dedans'
+                      : hasFluide
+                        ? `Toujours accessible — ${formatOtNumero(otForm.numero)}`
+                        : 'Accessible même sans fluide déclaré — à remplir si vous touchez au gaz'}
+                </span>
+              </span>
+            </button>
             <button
               type="button"
               onClick={openFicheMaint}
-              className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-line bg-white px-4 py-3 text-left font-semibold active:bg-mist"
+              className={[
+                'flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold active:bg-mist',
+                docsEff.includes('fiche_clim')
+                  ? 'border-2 border-amber-400 bg-amber-50'
+                  : 'border border-dashed border-line bg-white',
+              ].join(' ')}
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
               <span>
-                <span className="block text-sm">Fiche checklist clim (optionnel)</span>
+                <span className="block text-sm">
+                  Fiche checklist clim
+                  {docsEff.includes('fiche_clim') ? ' — obligatoire' : ' (optionnel)'}
+                </span>
                 <span className="block text-xs font-medium text-muted">
                   {selectedEquipIds.length > 1
                     ? `${selectedEquipIds.length} équipements → 1 fiche chacun`
-                    : isMaint
-                      ? 'Pas obligatoire en maintenance — le CERFA ou le rapport OT suffisent'
+                    : docsEff.includes('fiche_clim')
+                      ? 'Demandée par le bureau — à remplir avant clôture'
                       : 'Si vous voulez un PDF détaillé hors CERFA'}
                 </span>
               </span>
@@ -1914,11 +2173,19 @@ export function AppelOtPage() {
             <button
               type="button"
               onClick={openFicheChaufferie}
-              className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 px-4 py-3 text-left font-semibold active:bg-amber-50"
+              className={[
+                'flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold active:bg-amber-50',
+                docsEff.includes('fiche_chaufferie')
+                  ? 'border-2 border-amber-400 bg-amber-50'
+                  : 'border border-dashed border-amber-200 bg-amber-50/60',
+              ].join(' ')}
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-amber-800" />
               <span>
-                <span className="block text-sm">Fiche chaufferie P2/P3</span>
+                <span className="block text-sm">
+                  Fiche chaufferie P2/P3
+                  {docsEff.includes('fiche_chaufferie') ? ' — obligatoire' : ''}
+                </span>
                 <span className="block text-xs font-medium text-muted">
                   Mensuel · trimestriel · semestriel · annuel (registre complet)
                 </span>
@@ -1927,22 +2194,24 @@ export function AppelOtPage() {
             <button
               type="button"
               onClick={openFicheCtaVmc}
-              className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-dashed border-sky-200 bg-sky-50/60 px-4 py-3 text-left font-semibold active:bg-sky-50"
+              className={[
+                'flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold active:bg-sky-50',
+                docsEff.includes('fiche_cta_vmc')
+                  ? 'border-2 border-sky-400 bg-sky-50'
+                  : 'border border-dashed border-sky-200 bg-sky-50/60',
+              ].join(' ')}
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-sky-700" />
               <span>
-                <span className="block text-sm">Fiche CTA / VMC</span>
+                <span className="block text-sm">
+                  Fiche CTA / VMC
+                  {docsEff.includes('fiche_cta_vmc') ? ' — obligatoire' : ''}
+                </span>
                 <span className="block text-xs font-medium text-muted">
                   1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire
                 </span>
               </span>
             </button>
-            {!hasFluide ? (
-              <p className="text-xs text-muted">
-                Pas de fluide : notez l’intervention dans le rapport d’action ci-dessus, puis
-                clôturez l’OT. La fiche checklist n’est pas exigée.
-              </p>
-            ) : null}
           </div>
 
           {otId ? (
@@ -2020,6 +2289,7 @@ export function AppelOtPage() {
                   interventionPartielle: otForm.interventionPartielle,
                   avancementPct: clampAvancementPct(otForm.avancementPct),
                   visitesPresence: otForm.visitesPresence,
+                  toucheGaz: otForm.toucheGaz,
                   statut: 'en_cours',
                 })
               }
@@ -2059,6 +2329,8 @@ export function AppelOtPage() {
                 ? 'OT déjà clôturé — modification exceptionnelle en cas d’erreur.'
                 : 'Présence du jour : signatures + « Valider la présence » (OT reste ouvert). Clôturer signé = chantier terminé.'}
           </p>
+            </>
+          )}
         </section>
       )}
 
