@@ -4,6 +4,8 @@
  * Stocké dans le coffre société (AppData), pas sur le profil Auth.
  */
 
+import { parsePostePersonnel, type PostePersonnelId } from './postePersonnel'
+
 export const ALERTE_EXPIRATION_JOURS = 45
 
 export type TypeDocumentRh =
@@ -209,6 +211,8 @@ export interface PersonnelDossier {
   id: string
   userId: string
   userName: string
+  /** Poste métier (tech CVC, secrétaire, directeur…) — catalogue `postePersonnel`. */
+  poste?: PostePersonnelId
   /** Portable pro — visible dans Équipe à côté du nom / e-mail */
   telephone?: string
   /** Manipulation fluides — aptitude F-Gas obligatoire */
@@ -237,6 +241,7 @@ export function defaultPersonnelDossier(
   return {
     userId,
     userName,
+    poste: undefined,
     telephone: undefined,
     toucheFroid: true,
     toucheElectricite: true,
@@ -388,6 +393,7 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       id: raw.id || userId,
       userId,
       userName: String(raw.userName || '').trim() || 'Technicien',
+      poste: parsePostePersonnel(raw.poste),
       telephone: String(raw.telephone || '').trim() || undefined,
       toucheFroid: raw.toucheFroid !== false,
       toucheElectricite: raw.toucheElectricite !== false,

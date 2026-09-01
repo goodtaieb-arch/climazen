@@ -8,6 +8,7 @@ import { Field } from './ClientsPage'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
+import { PostePersonnelSelect } from '../components/PostePersonnelSelect'
 import { telHref } from '../lib/agenda'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { MaterielConfieDossier } from '../components/MaterielConfieDossier'
@@ -35,6 +36,7 @@ import {
   type StatutDocumentRh,
   type TypeDocumentRh,
 } from '../lib/rhDocuments'
+import { labelPostePersonnel, posteCouvreTouteLEquipe, type PostePersonnelId } from '../lib/postePersonnel'
 
 type DocForm = {
   id?: string
@@ -112,6 +114,7 @@ export function TechnicienDossierPage() {
   const [conduitVehicule, setConduitVehicule] = useState(dossier.conduitVehicule)
   const [notes, setNotes] = useState(dossier.notes || '')
   const [telephone, setTelephone] = useState(dossier.telephone || '')
+  const [poste, setPoste] = useState<PostePersonnelId | ''>(dossier.poste || '')
   const [lienCloudDossier, setLienCloudDossier] = useState(dossier.lienCloudDossier || '')
 
   useEffect(() => {
@@ -120,6 +123,7 @@ export function TechnicienDossierPage() {
     setConduitVehicule(dossier.conduitVehicule)
     setNotes(dossier.notes || '')
     setTelephone(dossier.telephone || '')
+    setPoste(dossier.poste || '')
     setLienCloudDossier(dossier.lienCloudDossier || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored?.id, stored?.updatedAt, displayName])
@@ -178,6 +182,7 @@ export function TechnicienDossierPage() {
       userId,
       userName: displayName,
       telephone,
+      poste: poste || undefined,
       lienCloudDossier: (() => {
         const t = lienCloudDossier.trim()
         if (!t) return ''
@@ -257,6 +262,7 @@ export function TechnicienDossierPage() {
         userId,
         userName: displayName,
         telephone,
+        poste: poste || undefined,
         toucheFroid,
         toucheElectricite,
         conduitVehicule,
@@ -286,6 +292,13 @@ export function TechnicienDossierPage() {
           </Link>
           <h1 className="font-display text-3xl font-bold tracking-tight">Dossier {displayName}</h1>
           <p className="mt-1 text-sm text-muted">
+            {labelPostePersonnel(poste || dossier.poste) ? (
+              <>
+                <span className="font-semibold text-ink">{labelPostePersonnel(poste || dossier.poste)}</span>
+                {posteCouvreTouteLEquipe(poste || dossier.poste) ? ' · toute l’équipe' : ''}
+                {' · '}
+              </>
+            ) : null}
             {telephone.trim() ? (
               <>
                 {telHref(telephone) ? (
@@ -430,6 +443,15 @@ export function TechnicienDossierPage() {
           Ça aide à proposer des pièces. Décochez si le collègue ne fait jamais ça. Rien n’est
           obligatoire : masquez une pièce avec la croix rouge.
         </p>
+        <label className="mt-3 block max-w-sm text-sm">
+          <span className="mb-1 block font-semibold text-ink">Poste</span>
+          <PostePersonnelSelect value={poste} onChange={setPoste} />
+          {posteCouvreTouteLEquipe(poste) ? (
+            <p className="mt-1 text-xs text-muted">
+              Ce poste s’occupe de toute l’équipe (pas d’un seul métier terrain).
+            </p>
+          ) : null}
+        </label>
         <div className="mt-3 max-w-sm">
           <Field
             label="Téléphone perso (pour le joindre)"
