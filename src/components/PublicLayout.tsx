@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { BrandLogo } from './BrandLogo'
+import { BetaBadge, BetaSiteBanner } from './BetaBadge'
 import { SocialLinksRow } from './SocialLinksRow'
 import { GoogleIcon } from './SocialBrandIcons'
 import { GOOGLE_REVIEW_URL } from '../lib/socialLinks'
@@ -11,8 +12,9 @@ export function PublicLayout() {
     <div className="flex min-h-screen flex-col bg-foam text-ink">
       <header className="sticky top-0 z-20 border-b border-line/70 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
-          <Link to="/" aria-label="ClimaZEN — accueil">
+          <Link to="/" aria-label="ClimaZEN — accueil" className="flex min-w-0 items-center gap-2">
             <BrandLogo size="sm" />
+            <BetaBadge size="sm" />
           </Link>
           <nav className="hidden items-center gap-1 text-sm md:flex">
             <a
@@ -77,6 +79,7 @@ export function PublicLayout() {
             </Link>
           </div>
         </div>
+        <BetaSiteBanner />
       </header>
 
       <main className="flex-1">
@@ -86,7 +89,10 @@ export function PublicLayout() {
       <footer className="border-t border-line bg-white px-4 py-10 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <BrandLogo size="sm" />
+            <div className="flex flex-wrap items-center gap-2">
+              <BrandLogo size="sm" />
+              <BetaBadge size="sm" />
+            </div>
             <p className="mt-3 max-w-sm text-sm text-muted">
               CERFA 15497-04, clients, travaux et stock fluides — pour les frigoristes.
             </p>
@@ -129,7 +135,7 @@ export function PublicLayout() {
           </div>
         </div>
         <p className="mx-auto mt-8 max-w-6xl text-center text-xs text-muted/80 sm:text-left">
-          ClimaZEN by TAIEB · Référence fiche CERFA FI 15497-04 · Usage métier
+          ClimaZEN by TAIEB · Version bêta · Référence fiche CERFA FI 15497-04 · Usage métier
         </p>
       </footer>
     </div>

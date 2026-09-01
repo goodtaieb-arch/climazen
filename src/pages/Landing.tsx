@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { CONTACT_EMAIL } from '../components/PublicLayout'
+import { BetaBadge } from '../components/BetaBadge'
 import { GoogleIcon, GoogleReviewBadge } from '../components/SocialBrandIcons'
 import { SocialLinksRow } from '../components/SocialLinksRow'
 import { ICON3D } from '../lib/icons3d'
@@ -150,10 +151,16 @@ export function Landing() {
           <div className="relative z-10 min-w-0 animate-[fadeUp_0.7s_ease-out] lg:pr-2">
             <div className="flex flex-col items-start gap-5">
               <div className="overflow-visible rounded-2xl border border-line/70 bg-white/90 px-5 py-4 shadow-lg shadow-accent/15 backdrop-blur">
-                <BrandLogo size="lg" />
+                <div className="flex flex-wrap items-end gap-3">
+                  <BrandLogo size="lg" />
+                  <BetaBadge />
+                </div>
               </div>
 
               <div className="flex flex-col items-start gap-2.5">
+                <p className="inline-flex items-center gap-2 rounded-full bg-amber-400 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink">
+                  Version bêta
+                </p>
                 <p className="inline-flex items-center gap-2 rounded-full bg-ink px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
                   <ShieldCheck className="h-3.5 w-3.5 text-accent" />
                   100 % conforme F-Gas
@@ -197,8 +204,8 @@ export function Landing() {
               </Link>
             </div>
             <p className="mt-3 text-xs text-muted">
-              Pendant la finalisation du site, l’accès reste ouvert. La facturation des structures
-              hors AE / micro s’activera ensuite —{' '}
+              Version bêta : pendant la finalisation, l’accès reste ouvert. La facturation des
+              structures hors AE / micro s’activera ensuite —{' '}
               <a href="/#tarifs" className="font-semibold text-accent hover:underline">
                 voir les tarifs
               </a>
@@ -864,14 +871,15 @@ export function Landing() {
           }}
         />
         <div className="relative mx-auto max-w-3xl rounded-3xl border border-line bg-white px-6 py-10 text-center shadow-lg shadow-accent/10 sm:px-12 sm:py-14">
-          <div className="flex justify-center">
+          <div className="flex items-center justify-center gap-2">
             <BrandLogo size="md" />
+            <BetaBadge />
           </div>
           <h2 className="font-display mt-6 text-2xl font-bold tracking-tight sm:text-3xl">
             Auto-entrepreneur ? C’est gratuit. Essayez sur un chantier.
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-sm text-muted sm:text-base">
-            AE &amp; micro-sociétés : 0 €. SARL / équipes : payant après finalisation du site.
+            AE &amp; micro-sociétés : 0 €. SARL / équipes : payant après la version bêta.
             CERFA conforme F-Gas, mode hors ligne inclus.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

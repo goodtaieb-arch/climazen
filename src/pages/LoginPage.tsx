@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
 import { VersionBadge, VersionUpdateBar } from '../components/AppVersion'
+import { BetaBadge, BetaSiteBanner } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 import { APP_VERSION } from '../lib/buildStamp'
 
@@ -55,8 +56,12 @@ export function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
           <BrandLogo onDark size="md" />
-          <VersionBadge />
+          <div className="flex items-center gap-2">
+            <BetaBadge />
+            <VersionBadge />
+          </div>
         </div>
+        <BetaSiteBanner dark />
         <VersionUpdateBar dark />
         <form
           onSubmit={onSubmit}

@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
+import { BetaBadge } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 
 export function ForgotPasswordPage() {
@@ -31,8 +32,9 @@ export function ForgotPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10 text-white">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-8 flex flex-col items-center gap-3">
           <BrandLogo onDark size="md" />
+          <BetaBadge />
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate p-6 shadow-xl sm:p-8">
           <h1 className="font-display text-2xl font-bold">Mot de passe oublié</h1>

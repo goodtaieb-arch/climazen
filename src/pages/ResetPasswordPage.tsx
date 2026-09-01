@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
+import { BetaBadge } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
@@ -97,8 +98,9 @@ export function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10 text-white">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-8 flex flex-col items-center gap-3">
           <BrandLogo onDark size="md" />
+          <BetaBadge />
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate p-6 shadow-xl sm:p-8">
           <h1 className="font-display text-2xl font-bold">Nouveau mot de passe</h1>

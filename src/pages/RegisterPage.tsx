@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { PasswordField } from '../components/PasswordField'
+import { BetaBadge } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 
@@ -51,7 +52,10 @@ export function RegisterPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10 text-white">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate p-6 sm:p-8">
-          <BrandLogo onDark size="sm" />
+          <div className="flex flex-wrap items-center gap-2">
+            <BrandLogo onDark size="sm" />
+            <BetaBadge />
+          </div>
           <h1 className="mt-6 font-display text-2xl font-bold">Vérifiez votre e-mail</h1>
           <p className="mt-2 text-sm text-white/65">
             Un lien de confirmation a été envoyé à <strong>{email}</strong>. Ouvrez-le, puis
@@ -72,8 +76,9 @@ export function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-10 text-white">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-8 flex flex-col items-center gap-3">
           <BrandLogo onDark size="md" />
+          <BetaBadge />
         </div>
         <form
           onSubmit={onSubmit}
