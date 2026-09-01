@@ -192,6 +192,8 @@ export interface OrdreTravail {
   technicien: string
   /** Compte ClimaZEN du technicien affecté (équipe) — le patron assigne l’OT */
   technicienUserId?: string
+  /** Heure de passage prévue (HH:mm) — planning agenda. Sans heure = pas encore calé. */
+  heure?: string
   /** Lien CERFA si généré avec fluide */
   interventionId?: string
   /** Lien fiche maintenance clim / rapport sans CERFA */
@@ -284,6 +286,7 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     visitesPresence: [],
     docsRequis: [],
     toucheGaz: undefined,
+    heure: undefined,
   }
 }
 

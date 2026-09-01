@@ -10,6 +10,13 @@ export type AgendaEventType =
   | 'rdv'
   | 'rappel_appel'
   | 'autre'
+  | 'deplacement_hors_ot'
+  | 'bureau_atelier'
+  | 'fournisseur'
+  | 'pause_repas'
+  | 'formation'
+  | 'rdv_garage'
+  | 'hors_ot_libre'
 
 export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   maintenance: 'Maintenance',
@@ -17,6 +24,13 @@ export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   rdv: 'Intervention / RDV',
   rappel_appel: 'Rappel appel client',
   autre: 'Autre',
+  deplacement_hors_ot: 'Déplacement hors OT',
+  bureau_atelier: 'Bureau / atelier',
+  fournisseur: 'Fournisseur',
+  pause_repas: 'Pause repas',
+  formation: 'Formation',
+  rdv_garage: 'RDV garage',
+  hors_ot_libre: 'Hors OT (libre)',
 }
 
 export type AgendaStatut = 'a_faire' | 'contacte' | 'rdv_pris' | 'fait' | 'annule'
@@ -47,6 +61,10 @@ export interface AgendaEvent {
   contratId?: string
   notes?: string
   statut: AgendaStatut
+  /** Compte du tech concerné (planning équipe). */
+  technicienUserId?: string
+  technicien?: string
+  createdByUserId?: string
   /** Généré auto depuis contrat / site (ne pas dupliquer) */
   autoKey?: string
   createdAt: string

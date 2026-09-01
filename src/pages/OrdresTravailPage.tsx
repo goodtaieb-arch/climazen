@@ -248,7 +248,7 @@ export function OrdresTravailPage() {
         </div>
 
         <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-line bg-white p-4 sm:p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">N° OT</span>
               <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
@@ -272,6 +272,15 @@ export function OrdresTravailPage() {
                 required
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
+                className="h-11 w-full rounded-xl border border-line px-3"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Heure planning</span>
+              <input
+                type="time"
+                value={(form.heure || '').slice(0, 5)}
+                onChange={(e) => setForm({ ...form, heure: e.target.value || undefined })}
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
             </label>
@@ -672,6 +681,7 @@ export function OrdresTravailPage() {
                 ) : null}
                 <p className="mt-0.5 text-xs text-muted">
                   {siteRow?.nom || '—'} · {client?.raisonSociale || '—'} · {o.date}
+                  {o.heure ? ` ${o.heure.slice(0, 5)}` : ''}
                   {o.technicien ? ` · ${o.technicien}` : ''}
                 </p>
               </Link>

@@ -1164,6 +1164,7 @@ export function AppelOtPage() {
           </h1>
           <p className="truncate text-xs text-muted">
             {otForm.numero ? formatOtNumero(otForm.numero) : 'Nouvel OT'} · date {otForm.date || '—'}
+            {otForm.heure ? ` · ${otForm.heure.slice(0, 5)}` : ''}
             {!isOwner
               ? ' · OT & CERFA synchronisés sur le compte société'
               : ''}
@@ -1251,7 +1252,7 @@ export function AppelOtPage() {
             Au téléphone ou en astreinte : créez l’OT tout de suite, même avant d’être sur site.
             Tout est enregistré sur le compte société.
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">N° OT</span>
               <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
@@ -1277,6 +1278,17 @@ export function AppelOtPage() {
                 type="date"
                 value={otForm.date}
                 onChange={(e) => setOtForm({ ...otForm, date: e.target.value })}
+                className="h-11 w-full rounded-xl border border-line px-3"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Heure planning</span>
+              <input
+                type="time"
+                value={(otForm.heure || '').slice(0, 5)}
+                onChange={(e) =>
+                  setOtForm({ ...otForm, heure: e.target.value || undefined })
+                }
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
             </label>
@@ -2063,19 +2075,34 @@ export function AppelOtPage() {
             </div>
           ) : (
             <>
-          <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Date d’intervention (modifiable)</span>
-            <input
-              type="date"
-              value={otForm.date}
-              onChange={(e) => {
-                const date = e.target.value
-                setOtForm({ ...otForm, date })
-                persistOt({ date })
-              }}
-              className="h-11 w-full max-w-xs rounded-xl border border-line px-3"
-            />
-          </label>
+          <div className="grid max-w-lg gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Date d’intervention</span>
+              <input
+                type="date"
+                value={otForm.date}
+                onChange={(e) => {
+                  const date = e.target.value
+                  setOtForm({ ...otForm, date })
+                  persistOt({ date })
+                }}
+                className="h-11 w-full rounded-xl border border-line px-3"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Heure planning</span>
+              <input
+                type="time"
+                value={(otForm.heure || '').slice(0, 5)}
+                onChange={(e) => {
+                  const heure = e.target.value || undefined
+                  setOtForm({ ...otForm, heure })
+                  persistOt({ heure })
+                }}
+                className="h-11 w-full rounded-xl border border-line px-3"
+              />
+            </label>
+          </div>
 
           <label className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-sm">
             <input

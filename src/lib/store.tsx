@@ -1440,8 +1440,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const next: AgendaEvent = {
           ...e,
           id: existing?.id ?? id,
-          // Ne pas écraser un statut déjà traité lors d’une sync auto
-          statut: existing && e.autoKey ? existing.statut : e.statut,
           notes: e.notes ?? existing?.notes,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
@@ -1449,7 +1447,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return {
           ...d,
           agendaEvents: existing
-            ? list.map((x) => (x.id === next.id ? { ...existing, ...next, statut: existing.statut } : x))
+            ? list.map((x) => (x.id === next.id ? { ...existing, ...next } : x))
             : [...list, next],
         }
       })

@@ -72,6 +72,12 @@ export function parseAgendaHeure(text: string): string | undefined {
 }
 
 function detectAgendaType(n: string): AgendaEventType {
+  if (/pause\s*(repas|dej|dejeuner)|pause\s*midi/.test(n)) return 'pause_repas'
+  if (/\bformation\b/.test(n)) return 'formation'
+  if (/rdv\s*garage|controle\s*technique/.test(n)) return 'rdv_garage'
+  if (/\bfournisseur\b/.test(n)) return 'fournisseur'
+  if (/bureau\s*\/?\s*atelier|\batelier\b/.test(n)) return 'bureau_atelier'
+  if (/deplacement\s+hors/.test(n)) return 'deplacement_hors_ot'
   if (/rappel\s+appel|appeler\s+le\s+client|rappel\s+client/.test(n)) return 'rappel_appel'
   if (/controle\s+d?[' ]?etancheite|etancheite/.test(n)) return 'controle_etancheite'
   if (/\bmaintenance\b|\bentretien\b/.test(n)) return 'maintenance'
