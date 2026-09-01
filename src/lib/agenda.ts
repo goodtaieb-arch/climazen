@@ -3,6 +3,7 @@
 import type { PeriodiciteContrat, ContratMaintenance } from './contratMaintenance'
 import { isContratActif } from './contratMaintenance'
 import { addMonthsIso } from './siteParc'
+import { NIVEAU_VISITE_LABELS, visitesDepuisContrat } from './contratOtAuto'
 
 export type AgendaEventType =
   | 'maintenance'
@@ -136,38 +137,28 @@ export function buildAutoAgendaEvents(input: AgendaGenInput): Omit<
 
   for (const c of input.contrats) {
     if (!isContratActif(c)) continue
-    const step = monthsForPeriodicite(c.periodicite)
-    const dates = occurrenceDates(c.dateDebut || todayIso(), step)
-    const siteIds =
-      c.chantierIds && c.chantierIds.length > 0
-        ? c.chantierIds
-        : input.sites.filter((s) => s.clientId === c.clientId).map((s) => s.id)
-
-    for (const date of dates) {
-      const dateRappel = addDaysIso(date, -jours)
-      const siteId = siteIds[0]
-      const siteNom = siteId
-        ? input.sites.find((s) => s.id === siteId)?.nom
-        : undefined
+    const visites = visitesDepuisContrat(c, input.sites)
+    for (const v of visites) {
+      const dateRappel = addDaysIso(v.date, -jours)
       events.push({
-        title: `Maintenance ${c.periodicite} — prendre RDV`,
-        date,
+        title: `Maint. ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} — prendre RDV`,
+        date: v.date,
         dateRappel,
         type: 'rappel_appel',
         clientId: c.clientId,
-        chantierId: siteId,
+        chantierId: v.siteId,
         contratId: c.id,
         notes: [
           c.titre,
           c.numero,
-          siteNom ? `Site : ${siteNom}` : siteIds.length > 1 ? `${siteIds.length} sites` : '',
-          `Échéance visite : ${date}`,
-          `Appeler ~${jours} j avant pour caler le RDV.`,
+          `Site : ${v.siteNom}`,
+          `Visite ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} · échéance ${v.date}`,
+          `OT déjà créé — affecter le tech dans l’agenda. Appeler ~${jours} j avant si besoin.`,
         ]
           .filter(Boolean)
           .join('\n'),
         statut: 'a_faire',
-        autoKey: `contrat:${c.id}:${date}`,
+        autoKey: `contrat:${c.id}:${v.siteId}:${v.slotKey}`,
       })
     }
   }

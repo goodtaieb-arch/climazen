@@ -1,4 +1,7 @@
-/** Contrats de maintenance clim — modèles types auto-remplis, modifiables, signables. */
+/** Contrats de maintenance — modèles types auto-remplis, modifiables, signables. */
+
+import type { PostePersonnelId } from './postePersonnel'
+import { isSecteurOt, parsePostePersonnel } from './postePersonnel'
 
 export type StatutContrat = 'brouillon' | 'propose' | 'signe' | 'resilie' | 'expire'
 
@@ -22,14 +25,69 @@ export const PERIODICITE_LABELS: Record<PeriodiciteContrat, string> = {
 export type ModeleContratId =
   | 'annuelle_clim'
   | 'semestrielle_clim'
+  | 'chaufferie_12'
+  | 'cta_4'
   | 'controle_etancheite'
   | 'multi_sites'
+
+/** Famille d’équipements → fiche terrain (couleurs métier à part, via `secteur`). */
+export type FamilleContrat = 'clim' | 'chaufferie' | 'cta' | 'mixte' | 'etancheite'
+
+export const FAMILLE_CONTRAT_LABELS: Record<FamilleContrat, string> = {
+  clim: 'Clim / PAC',
+  chaufferie: 'Chaufferie',
+  cta: 'CTA / VMC',
+  mixte: 'Mixte (plusieurs équipements)',
+  etancheite: 'Contrôle d’étanchéité',
+}
+
+/** Nombre de passages / an — l’utilisateur choisit, on génère les OT. */
+export type VisitesParAn = 1 | 2 | 4 | 6 | 12
+
+export const VISITES_PAR_AN_OPTIONS: {
+  n: VisitesParAn
+  label: string
+  hint: string
+}[] = [
+  {
+    n: 12,
+    label: '12 / an',
+    hint: 'Chaque mois — chaufferie : 1-2 M, 3 T, 6 S, 12 A',
+  },
+  { n: 6, label: '6 / an', hint: 'Tous les 2 mois (S et A inclus)' },
+  { n: 4, label: '4 / an', hint: 'CTA type — trimestrielle, S, T, annuelle' },
+  { n: 2, label: '2 / an', hint: 'Clim type — semestrielle + annuelle' },
+  { n: 1, label: '1 / an', hint: 'Visite annuelle seule' },
+]
+
+export function parseVisitesParAn(raw: unknown): VisitesParAn | undefined {
+  const n = Number(raw)
+  if (n === 1 || n === 2 || n === 4 || n === 6 || n === 12) return n
+  return undefined
+}
+
+export function parseFamilleContrat(raw: unknown): FamilleContrat | undefined {
+  const v = String(raw || '').trim()
+  if (
+    v === 'clim' ||
+    v === 'chaufferie' ||
+    v === 'cta' ||
+    v === 'mixte' ||
+    v === 'etancheite'
+  ) {
+    return v
+  }
+  return undefined
+}
 
 export interface ModeleContratDef {
   id: ModeleContratId
   titre: string
   resume: string
   periodicite: PeriodiciteContrat
+  famille: FamilleContrat
+  visitesParAn: VisitesParAn
+  secteur: PostePersonnelId
   /** Corps type — placeholders {{operateur}}, {{client}}, {{sites}}, {{periodicite}}, {{duree}} */
   corpsType: string
   prestations: string[]
@@ -38,9 +96,12 @@ export interface ModeleContratDef {
 export const MODELES_CONTRAT: ModeleContratDef[] = [
   {
     id: 'annuelle_clim',
-    titre: 'Contrat maintenance annuelle clim / PAC',
-    resume: '1 visite / an · entretien + contrôle d’étanchéité',
-    periodicite: 'annuelle',
+    titre: 'Contrat maintenance clim / PAC',
+    resume: '2 visites / an · semestrielle + annuelle (fiche clim)',
+    periodicite: 'semestrielle',
+    famille: 'clim',
+    visitesParAn: 2,
+    secteur: 'tech_cvc',
     prestations: [
       'Visite d’entretien préventive des équipements sous contrat',
       'Contrôle d’étanchéité périodique (F-Gas) selon périodicité réglementaire',
@@ -87,9 +148,12 @@ Fait en deux exemplaires.
   },
   {
     id: 'semestrielle_clim',
-    titre: 'Contrat maintenance semestrielle',
+    titre: 'Contrat maintenance semestrielle clim',
     resume: '2 visites / an · sites exigeants (resto, froid alimentaire…)',
     periodicite: 'semestrielle',
+    famille: 'clim',
+    visitesParAn: 2,
+    secteur: 'tech_cvc',
     prestations: [
       'Deux visites d’entretien préventif par an',
       'Contrôle d’étanchéité selon périodicité réglementaire',
@@ -115,10 +179,86 @@ Les interventions donnent lieu à un ordre de travail (OT) et, le cas échéant,
 `,
   },
   {
+    id: 'chaufferie_12',
+    titre: 'Contrat chaufferie (12 visites / an)',
+    resume: '1 / mois · mensuelle ⊂ trimestrielle ⊂ semestrielle ⊂ annuelle',
+    periodicite: 'mensuelle',
+    famille: 'chaufferie',
+    visitesParAn: 12,
+    secteur: 'tech_cvc',
+    prestations: [
+      'Visite mensuelle d’exploitation (relevés, sécurité, propreté)',
+      'Visite trimestrielle : manœuvres et entretien courant',
+      'Visite semestrielle : mi-saison / basculement',
+      'Visite annuelle : grand entretien et conformité',
+      'Fiche registre P2/P3 selon le niveau du mois',
+      'Compte-rendu à chaque passage',
+    ],
+    corpsType: `CONTRAT D’ENTRETIEN CHAUFFERIE
+
+Entre :
+
+L’opérateur : {{operateur}}
+Et le client : {{client}}
+
+Sites : {{sites}}
+
+Le Prestataire assure une maintenance préventive à raison de 12 visites par an.
+Le niveau de la visite suit le registre : mensuelle, trimestrielle (3e et 9e mois),
+semestrielle (6e mois) et annuelle (12e mois). La fiche terrain s’ouvre
+automatiquement sur le bon niveau.
+
+Prestations :
+{{prestations}}
+
+Durée : {{duree}} — Prix : {{prix}} HT.
+
+Chaque visite fait l’objet d’un OT ClimaZEN, affectable à un technicien
+dans l’agenda. La date peut être déplacée en cas d’urgence ou de reprise
+d’une intervention partielle.
+`,
+  },
+  {
+    id: 'cta_4',
+    titre: 'Contrat CTA / VMC',
+    resume: '4 visites / an · trimestrielle, semestrielle, T, annuelle — fréquence modifiable',
+    periodicite: 'trimestrielle',
+    famille: 'cta',
+    visitesParAn: 4,
+    secteur: 'tech_cvc',
+    prestations: [
+      'Visites préventives CTA / VMC selon la fréquence choisie',
+      'Contrôle des bouches, filtres, turbine et organes de sécurité',
+      'Fiche registre 1M / 3M / 6M / 1Y selon le niveau du passage',
+      'Rapport d’intervention à chaque visite',
+    ],
+    corpsType: `CONTRAT D’ENTRETIEN CTA / VMC
+
+Entre :
+
+L’opérateur : {{operateur}}
+Et le client : {{client}}
+
+Sites : {{sites}}
+
+Le Prestataire assure la maintenance préventive des CTA / VMC à périodicité
+{{periodicite}} (fréquence choisie par le Client). Chaque visite ouvre la
+fiche du niveau correspondant (mensuelle ⊂ trimestrielle ⊂ semestrielle ⊂ annuelle).
+
+Prestations :
+{{prestations}}
+
+Durée : {{duree}} — Prix : {{prix}} HT.
+`,
+  },
+  {
     id: 'controle_etancheite',
     titre: 'Contrat contrôle d’étanchéité périodique',
     resume: 'Focus F-Gas · contrôles réglementaires planifiés',
     periodicite: 'annuelle',
+    famille: 'etancheite',
+    visitesParAn: 1,
+    secteur: 'tech_frigoriste',
     prestations: [
       'Contrôle d’étanchéité périodique réglementaire',
       'Détection de fuites (détecteur contrôlé)',
@@ -142,8 +282,11 @@ Durée : {{duree}} — Prix : {{prix}} HT.
   {
     id: 'multi_sites',
     titre: 'Contrat multi-sites',
-    resume: 'Un client, plusieurs sites — même cadre contractuel',
+    resume: 'Un client, plusieurs sites — même cadre, fréquence au choix',
     periodicite: 'annuelle',
+    famille: 'mixte',
+    visitesParAn: 1,
+    secteur: 'tech_multitechnique',
     prestations: [
       'Maintenance préventive sur chaque site listé',
       'Planning de passages coordonné',
@@ -179,6 +322,14 @@ export interface ContratMaintenance {
   /** Sites couverts — vide = tous les sites du client au moment de la signature */
   chantierIds: string[]
   periodicite: PeriodiciteContrat
+  /** clim / chaufferie / CTA… — détermine la fiche terrain */
+  famille?: FamilleContrat
+  /** 1, 2, 4, 6 ou 12 passages / an — choix utilisateur */
+  visitesParAn?: VisitesParAn
+  /** Métier / couleur agenda (CVC, frigo…) */
+  secteur?: PostePersonnelId
+  /** false = contrat signé sans générer les OT (cas rare) */
+  genererOtAuto?: boolean
   dateDebut: string
   dateFin: string
   dureeLabel: string
@@ -289,6 +440,10 @@ export function createContratFromModele(
     clientId: ctx.clientId,
     chantierIds: ctx.chantierIds,
     periodicite: modele.periodicite,
+    famille: modele.famille,
+    visitesParAn: modele.visitesParAn,
+    secteur: modele.secteur,
+    genererOtAuto: true,
     dateDebut,
     dateFin: addYears(dateDebut, 1),
     dureeLabel,
@@ -325,6 +480,51 @@ export function contratsActifsForClient(
   clientId: string,
 ): ContratMaintenance[] {
   return contratsForClient(list, clientId).filter(isContratActif)
+}
+
+export function resolveFamilleContrat(
+  c: Pick<ContratMaintenance, 'famille' | 'modeleId'>,
+): FamilleContrat {
+  const parsed = parseFamilleContrat(c.famille)
+  if (parsed) return parsed
+  if (c.modeleId === 'chaufferie_12') return 'chaufferie'
+  if (c.modeleId === 'cta_4') return 'cta'
+  if (c.modeleId === 'controle_etancheite') return 'etancheite'
+  if (c.modeleId === 'multi_sites') return 'mixte'
+  return 'clim'
+}
+
+export function resolveVisitesParAn(
+  c: Pick<ContratMaintenance, 'visitesParAn' | 'periodicite' | 'modeleId' | 'famille'>,
+): VisitesParAn {
+  const parsed = parseVisitesParAn(c.visitesParAn)
+  if (parsed) return parsed
+  if (c.modeleId === 'chaufferie_12') return 12
+  if (c.modeleId === 'cta_4') return 4
+  if (c.modeleId === 'annuelle_clim' || c.modeleId === 'semestrielle_clim') {
+    return c.periodicite === 'annuelle' ? 1 : 2
+  }
+  if (c.periodicite === 'mensuelle') return 12
+  if (c.periodicite === 'trimestrielle') return 4
+  if (c.periodicite === 'semestrielle') return 2
+  return 1
+}
+
+export function resolveSecteurContrat(
+  c: Pick<ContratMaintenance, 'secteur' | 'famille' | 'modeleId'>,
+): PostePersonnelId {
+  const parsed = parsePostePersonnel(c.secteur)
+  if (parsed && isSecteurOt(parsed)) return parsed
+  const famille = resolveFamilleContrat(c)
+  if (famille === 'etancheite') return 'tech_frigoriste'
+  if (famille === 'mixte') return 'tech_multitechnique'
+  return 'tech_cvc'
+}
+
+export function resolveGenererOtAuto(
+  c: Pick<ContratMaintenance, 'genererOtAuto'>,
+): boolean {
+  return c.genererOtAuto !== false
 }
 
 /** Contrats signés couvrant ce site (ou tous les sites du client si chantierIds vide). */

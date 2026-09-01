@@ -140,7 +140,7 @@ export function AgendaPage() {
 
   useEffect(() => {
     const n = syncAgendaFromSources()
-    if (n > 0) setSyncMsg(`${n} rappel(s) généré(s) depuis les contrats / contrôles.`)
+    if (n > 0) setSyncMsg(`${n} OT / rappel(s) généré(s) depuis les contrats.`)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -288,8 +288,8 @@ export function AgendaPage() {
     const n = syncAgendaFromSources()
     setSyncMsg(
       n > 0
-        ? `${n} nouveau(x) rappel(s) ajouté(s).`
-        : 'Agenda à jour (contrats & contrôles déjà synchronisés).',
+        ? `${n} OT / rappel(s) ajouté(s) depuis les contrats.`
+        : 'Agenda à jour (OT de maintenance et rappels déjà synchronisés).',
     )
   }
 

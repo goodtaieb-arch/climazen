@@ -1,0 +1,209 @@
+import assert from 'node:assert/strict'
+import {
+  MODELES_CONTRAT,
+  createContratFromModele,
+  resolveFamilleContrat,
+  resolveSecteurContrat,
+  resolveVisitesParAn,
+  type ContratMaintenance,
+} from '../src/lib/contratMaintenance'
+import {
+  NIVEAU_VISITE_LABELS,
+  buildOtDraftsDepuisContrats,
+  docsRequisPourFamille,
+  mergeOtsDepuisContrats,
+  moisCyclePourFrequence,
+  niveauVisitePourMoisCycle,
+  periodiciteDepuisVisites,
+  visitesDepuisContrat,
+} from '../src/lib/contratOtAuto'
+
+assert.equal(niveauVisitePourMoisCycle(1), 'mensuel')
+assert.equal(niveauVisitePourMoisCycle(2), 'mensuel')
+assert.equal(niveauVisitePourMoisCycle(3), 'trimestriel')
+assert.equal(niveauVisitePourMoisCycle(6), 'semestriel')
+assert.equal(niveauVisitePourMoisCycle(9), 'trimestriel')
+assert.equal(niveauVisitePourMoisCycle(12), 'annuel')
+assert.equal(NIVEAU_VISITE_LABELS.semestriel, 'Semestrielle')
+
+assert.deepEqual(moisCyclePourFrequence(12), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+assert.deepEqual(moisCyclePourFrequence(4), [3, 6, 9, 12])
+assert.deepEqual(moisCyclePourFrequence(2), [6, 12])
+assert.deepEqual(moisCyclePourFrequence(1), [12])
+assert.equal(periodiciteDepuisVisites(12), 'mensuelle')
+assert.equal(periodiciteDepuisVisites(2), 'semestrielle')
+
+assert.deepEqual(docsRequisPourFamille('chaufferie'), ['fiche_chaufferie'])
+assert.deepEqual(docsRequisPourFamille('clim'), ['fiche_clim'])
+assert.deepEqual(docsRequisPourFamille('cta'), ['fiche_cta_vmc'])
+assert.deepEqual(docsRequisPourFamille('etancheite'), ['cerfa'])
+
+const chaufferie = MODELES_CONTRAT.find((m) => m.id === 'chaufferie_12')
+assert.ok(chaufferie)
+assert.equal(chaufferie.visitesParAn, 12)
+assert.equal(chaufferie.famille, 'chaufferie')
+assert.equal(chaufferie.secteur, 'tech_cvc')
+
+const clim = MODELES_CONTRAT.find((m) => m.id === 'annuelle_clim')
+assert.ok(clim)
+assert.equal(clim.visitesParAn, 2)
+assert.equal(clim.famille, 'clim')
+
+const cta = MODELES_CONTRAT.find((m) => m.id === 'cta_4')
+assert.ok(cta)
+assert.equal(cta.visitesParAn, 4)
+
+const sites = [
+  { id: 's1', clientId: 'c1', nom: 'Siège', agenceCode: '75' },
+  { id: 's2', clientId: 'c1', nom: 'Annexe', agenceCode: '92' },
+]
+
+function contrat(partial: Partial<ContratMaintenance> & Pick<ContratMaintenance, 'id'>): ContratMaintenance {
+  return {
+    numero: 'CM20260001',
+    modeleId: 'chaufferie_12',
+    titre: 'Chaufferie',
+    clientId: 'c1',
+    chantierIds: ['s1'],
+    periodicite: 'mensuelle',
+    famille: 'chaufferie',
+    visitesParAn: 12,
+    secteur: 'tech_cvc',
+    genererOtAuto: true,
+    dateDebut: '2026-01-15',
+    dateFin: '2027-01-15',
+    dureeLabel: '1 an',
+    prixLabel: 'à convenir',
+    prestations: [],
+    corps: '',
+    statut: 'signe',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...partial,
+  }
+}
+
+const chauffVisites = visitesDepuisContrat(contrat({ id: 'cm1' }), sites, {
+  today: '2026-01-20',
+  horizonMonths: 14,
+  pastMonths: 1,
+})
+assert.equal(chauffVisites.length, 12, 'chaufferie 12 visites sur 1 an / 1 site')
+assert.equal(chauffVisites[0].date, '2026-01-15')
+assert.equal(chauffVisites[0].niveau, 'mensuel')
+assert.equal(chauffVisites[2].niveau, 'trimestriel')
+assert.equal(chauffVisites[5].date, '2026-06-15')
+assert.equal(chauffVisites[5].niveau, 'semestriel')
+assert.equal(chauffVisites[11].date, '2026-12-15')
+assert.equal(chauffVisites[11].niveau, 'annuel')
+assert.ok(chauffVisites.every((v) => v.contratOtKey.startsWith('cm-ot:cm1:s1:')))
+
+const climVisites = visitesDepuisContrat(
+  contrat({
+    id: 'cm2',
+    modeleId: 'annuelle_clim',
+    famille: 'clim',
+    visitesParAn: 2,
+    periodicite: 'semestrielle',
+    titre: 'Clim',
+  }),
+  sites,
+  { today: '2026-01-20', horizonMonths: 14, pastMonths: 1 },
+)
+assert.equal(climVisites.length, 2)
+assert.equal(climVisites[0].date, '2026-06-15')
+assert.equal(climVisites[0].niveau, 'semestriel')
+assert.equal(climVisites[1].date, '2026-12-15')
+assert.equal(climVisites[1].niveau, 'annuel')
+
+const ctaVisites = visitesDepuisContrat(
+  contrat({
+    id: 'cm3',
+    modeleId: 'cta_4',
+    famille: 'cta',
+    visitesParAn: 4,
+    periodicite: 'trimestrielle',
+    titre: 'CTA',
+  }),
+  sites,
+  { today: '2026-01-20' },
+)
+assert.equal(ctaVisites.length, 4)
+assert.deepEqual(
+  ctaVisites.map((v) => v.niveau),
+  ['trimestriel', 'semestriel', 'trimestriel', 'annuel'],
+)
+
+const multiSites = visitesDepuisContrat(
+  contrat({ id: 'cm4', chantierIds: [] }),
+  sites,
+  { today: '2026-01-20' },
+)
+assert.equal(multiSites.length, 24, 'tous les sites du client si chantierIds vide')
+
+const drafts = buildOtDraftsDepuisContrats({
+  contrats: [
+    contrat({ id: 'cm1' }),
+    contrat({
+      id: 'cm-off',
+      genererOtAuto: false,
+    }),
+    contrat({
+      id: 'cm-draft',
+      statut: 'brouillon',
+    }),
+  ],
+  sites,
+  today: '2026-01-20',
+})
+assert.equal(drafts.length, 12)
+assert.equal(drafts[0].secteur, 'tech_cvc')
+assert.equal(drafts[0].statut, 'pret_a_planifier')
+assert.deepEqual(drafts[0].docsRequis, ['fiche_chaufferie'])
+assert.equal(drafts[5].visiteNiveau, 'semestriel')
+assert.match(drafts[5].action, /semestrielle/i)
+
+const { toAdd, skipped } = mergeOtsDepuisContrats(
+  [{ contratOtKey: drafts[0].contratOtKey, date: '2026-02-01' }],
+  drafts,
+)
+assert.equal(skipped, 1)
+assert.equal(toAdd.length, 11, 'créneau déjà présent (date déplacée) → pas de doublon')
+
+assert.equal(
+  resolveVisitesParAn({
+    modeleId: 'annuelle_clim',
+    periodicite: 'annuelle',
+  }),
+  1,
+  'anciens contrats annuels clim → 1 visite, pas 2 surprises',
+)
+assert.equal(
+  resolveVisitesParAn({
+    modeleId: 'annuelle_clim',
+    periodicite: 'semestrielle',
+    visitesParAn: 2,
+  }),
+  2,
+)
+assert.equal(resolveFamilleContrat({ modeleId: 'cta_4' }), 'cta')
+assert.equal(resolveSecteurContrat({ modeleId: 'controle_etancheite' }), 'tech_frigoriste')
+assert.equal(resolveSecteurContrat({ modeleId: 'chaufferie_12', secteur: 'plombier' }), 'plombier')
+
+const created = createContratFromModele(
+  'cta_4',
+  {
+    clientId: 'c1',
+    chantierIds: ['s1'],
+    operateur: { raisonSociale: 'ClimaZEN' },
+    client: { raisonSociale: 'Client' },
+    sites: [{ nom: 'Siège' }],
+  },
+  [],
+)
+assert.equal(created.famille, 'cta')
+assert.equal(created.visitesParAn, 4)
+assert.equal(created.secteur, 'tech_cvc')
+assert.equal(created.genererOtAuto, true)
+
+console.log('ok test-contrat-ot-auto')

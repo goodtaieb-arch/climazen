@@ -29,6 +29,7 @@ import {
 } from '../lib/ordreTravail'
 import { formatOtCommercialBadge } from '../lib/chaineCommerciale'
 import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
+import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { SecteurOtSelect } from '../components/PostePersonnelSelect'
@@ -138,6 +139,7 @@ export function OrdresTravailPage() {
             o.lienCommandeRef,
             o.lienCommandeType,
             labelSecteurCourt(o.secteur),
+            o.visiteNiveau,
             labelAgence(o.agenceCode || site?.agenceCode || client?.agenceCode),
           ]
             .filter(Boolean)
@@ -770,6 +772,11 @@ export function OrdresTravailPage() {
                   {formatOtAvancement(o) ? (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
                       Partiel {formatOtAvancement(o)}
+                    </span>
+                  ) : null}
+                  {parseNiveauVisite(o.visiteNiveau) ? (
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase text-ink">
+                      {NIVEAU_VISITE_LABELS[parseNiveauVisite(o.visiteNiveau)!]}
                     </span>
                   ) : null}
                 </div>

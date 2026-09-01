@@ -63,6 +63,7 @@ import {
 } from './chaineCommerciale'
 import type { AgendaEvent } from './agenda'
 import { buildAutoAgendaEvents } from './agenda'
+import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats } from './contratOtAuto'
 import {
   applyPersonnelRhScopeToAppData,
   defaultPersonnelDossier,
@@ -175,8 +176,10 @@ type Store = {
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deleteAgendaEvent: (id: string) => void
-  /** Synchronise les rappels depuis contrats signés + contrôles sites. */
+  /** Synchronise les rappels + OT de maintenance depuis les contrats signés. */
   syncAgendaFromSources: () => number
+  /** Crée les OT manquants des contrats signés (sans dupliquer un créneau déjà déplacé). */
+  syncOtsDepuisContrats: () => number
   /** Crée un OT pour une action terrain — retourne { id, numero }. */
   createOtForAction: (opts: {
     typeOt: import('./ordreTravail').TypeOt
@@ -1464,6 +1467,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const applyOtsDepuisContrats = useCallback((prev: AppData) => {
+    const drafts = buildOtDraftsDepuisContrats({
+      contrats: prev.contratsMaintenance || [],
+      sites: prev.chantiers,
+    })
+    const existing = prev.ordresTravail || []
+    const { toAdd } = mergeOtsDepuisContrats(existing, drafts)
+    if (toAdd.length === 0) return { next: prev, added: 0 }
+    const now = new Date().toISOString()
+    const grown = [...existing]
+    for (const draft of toAdd) {
+      const numero = nextNumeroOt({ ...prev, ordresTravail: grown })
+      grown.push({
+        ...draft,
+        id: uuid(),
+        numero,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+    return { next: { ...prev, ordresTravail: grown }, added: toAdd.length }
+  }, [])
+
+  const syncOtsDepuisContrats = useCallback(() => {
+    let added = 0
+    setData((prev) => {
+      const result = applyOtsDepuisContrats(prev)
+      added = result.added
+      return result.next
+    })
+    return added
+  }, [applyOtsDepuisContrats])
+
   const syncAgendaFromSources = useCallback(() => {
     const d = dataRef.current
     const generated = buildAutoAgendaEvents({
@@ -1472,7 +1508,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
     let added = 0
     setData((prev) => {
-      const list = [...(prev.agendaEvents || [])]
+      const withOts = applyOtsDepuisContrats(prev)
+      added += withOts.added
+      const list = [...(withOts.next.agendaEvents || [])]
       const byKey = new Map(list.filter((e) => e.autoKey).map((e) => [e.autoKey!, e]))
       const now = new Date().toISOString()
       for (const g of generated) {
@@ -1507,10 +1545,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           added += 1
         }
       }
-      return { ...prev, agendaEvents: list }
+      return { ...withOts.next, agendaEvents: list }
     })
     return added
-  }, [])
+  }, [applyOtsDepuisContrats])
 
   const createOtForAction = useCallback(
     (opts: {
@@ -2787,6 +2825,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertAgendaEvent,
       deleteAgendaEvent,
       syncAgendaFromSources,
+      syncOtsDepuisContrats,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
@@ -2856,6 +2895,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertAgendaEvent,
       deleteAgendaEvent,
       syncAgendaFromSources,
+      syncOtsDepuisContrats,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,

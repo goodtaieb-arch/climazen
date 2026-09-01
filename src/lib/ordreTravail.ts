@@ -218,6 +218,13 @@ export interface OrdreTravail {
   lienCommandeRef?: string
   /** Contrat maintenance (visite préventive) */
   contratId?: string
+  /**
+   * Créneau auto (contrat + site + année de cycle + mois).
+   * Stable si on déplace la date (urgence / reprise partielle).
+   */
+  contratOtKey?: string
+  /** Niveau de fiche du passage : mensuel ⊂ trimestriel ⊂ semestriel ⊂ annuel */
+  visiteNiveau?: 'mensuel' | 'trimestriel' | 'semestriel' | 'annuel'
   /** Devis d’origine (accepté) ou devis de régule — 1 devis → N OT */
   devisId?: string
   /** Commande fournisseur (pièce en attente) */

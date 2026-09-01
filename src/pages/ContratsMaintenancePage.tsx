@@ -8,21 +8,43 @@ import { MobileFab } from '../components/MobileFab'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
 import {
+  FAMILLE_CONTRAT_LABELS,
   MODELES_CONTRAT,
   PERIODICITE_LABELS,
   STATUT_CONTRAT_LABELS,
+  VISITES_PAR_AN_OPTIONS,
   createContratFromModele,
   fillCorpsContrat,
   isContratActif,
+  parseFamilleContrat,
+  parseVisitesParAn,
+  resolveFamilleContrat,
+  resolveGenererOtAuto,
+  resolveSecteurContrat,
+  resolveVisitesParAn,
   type ContratMaintenance,
+  type FamilleContrat,
   type ModeleContratId,
-  type PeriodiciteContrat,
   type StatutContrat,
 } from '../lib/contratMaintenance'
+import {
+  NIVEAU_VISITE_LABELS,
+  periodiciteDepuisVisites,
+  visitesDepuisContrat,
+} from '../lib/contratOtAuto'
+import { SecteurOtSelect } from '../components/PostePersonnelSelect'
+import { labelSecteurCourt } from '../lib/postePersonnel'
+import { couleurMetier, COULEUR_NON_AFFECTE } from '../lib/agendaPlanning'
+import { formatOtNumero, isOtCloture } from '../lib/ordreTravail'
 
 export function ContratsMaintenancePage() {
-  const { data, upsertContratMaintenance, deleteContratMaintenance, syncAgendaFromSources } =
-    useStore()
+  const {
+    data,
+    upsertContratMaintenance,
+    deleteContratMaintenance,
+    syncAgendaFromSources,
+    syncOtsDepuisContrats,
+  } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -63,7 +85,16 @@ export function ContratsMaintenancePage() {
       .filter((c) => {
         const client = data.clients.find((x) => x.id === c.clientId)
         return matchesQuery(
-          [c.numero, c.titre, client?.raisonSociale, c.statut].filter(Boolean).join(' '),
+          [
+            c.numero,
+            c.titre,
+            client?.raisonSociale,
+            c.statut,
+            FAMILLE_CONTRAT_LABELS[resolveFamilleContrat(c)],
+            labelSecteurCourt(resolveSecteurContrat(c)),
+          ]
+            .filter(Boolean)
+            .join(' '),
           q,
         )
       })
@@ -140,6 +171,15 @@ export function ContratsMaintenancePage() {
         form.signatureOperateurImage || user?.signatureImage || '',
     })
     navigate(`/app/contrats?id=${encodeURIComponent(id)}`, { replace: true })
+    if (form.statut === 'signe' && resolveGenererOtAuto(form)) {
+      const n = syncAgendaFromSources()
+      alert(
+        `Contrat ${form.numero} enregistré.${
+          n > 0 ? ` ${n} OT / rappel(s) de maintenance généré(s).` : ''
+        }`,
+      )
+      return
+    }
     alert(`Contrat ${form.numero} enregistré.`)
   }
 
@@ -165,9 +205,9 @@ export function ContratsMaintenancePage() {
     navigate(`/app/contrats?id=${encodeURIComponent(id)}`, { replace: true })
     const n = syncAgendaFromSources()
     alert(
-      `Contrat ${form.numero} signé — visible sur le client / les sites.${
-        n > 0 ? `\n${n} rappel(s) agenda créé(s).` : ''
-      }`,
+      `Contrat ${form.numero} signé — les OT de maintenance sont créés pour l’agenda.${
+        n > 0 ? `\n${n} OT / rappel(s) généré(s).` : ''
+      }\nAffectez un tech et décalez la date si besoin (urgence ou visite partielle).`,
     )
   }
 
@@ -200,8 +240,20 @@ export function ContratsMaintenancePage() {
             >
               <p className="font-display text-base font-semibold text-ink">{m.titre}</p>
               <p className="mt-1 text-sm text-muted">{m.resume}</p>
-              <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-emerald-800">
-                {PERIODICITE_LABELS[m.periodicite]}
+              <p className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold uppercase tracking-wide">
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-800">
+                  {m.visitesParAn} visites / an
+                </span>
+                <span className="rounded-full bg-mist px-2 py-0.5 text-muted">
+                  {FAMILLE_CONTRAT_LABELS[m.famille]}
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 ${
+                    (couleurMetier(m.secteur) || COULEUR_NON_AFFECTE).badge
+                  }`}
+                >
+                  {labelSecteurCourt(m.secteur)}
+                </span>
               </p>
             </button>
           ))}
@@ -302,22 +354,73 @@ export function ContratsMaintenancePage() {
                   </select>
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Périodicité</span>
+                  <span className="mb-1 block font-semibold text-ink">Famille / fiche</span>
                   <select
-                    value={form.periodicite}
-                    onChange={(e) =>
-                      setForm({ ...form, periodicite: e.target.value as PeriodiciteContrat })
-                    }
+                    value={resolveFamilleContrat(form)}
+                    onChange={(e) => {
+                      const famille = parseFamilleContrat(e.target.value) || 'clim'
+                      setForm({ ...form, famille })
+                    }}
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
                   >
-                    {(Object.keys(PERIODICITE_LABELS) as PeriodiciteContrat[]).map((p) => (
-                      <option key={p} value={p}>
-                        {PERIODICITE_LABELS[p]}
+                    {(Object.keys(FAMILLE_CONTRAT_LABELS) as FamilleContrat[]).map((f) => (
+                      <option key={f} value={f}>
+                        {FAMILLE_CONTRAT_LABELS[f]}
                       </option>
                     ))}
                   </select>
                 </label>
               </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Fréquence des visites</span>
+                  <select
+                    value={resolveVisitesParAn(form)}
+                    onChange={(e) => {
+                      const visitesParAn = parseVisitesParAn(e.target.value) || 1
+                      setForm({
+                        ...form,
+                        visitesParAn,
+                        periodicite: periodiciteDepuisVisites(visitesParAn),
+                      })
+                    }}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  >
+                    {VISITES_PAR_AN_OPTIONS.map((opt) => (
+                      <option key={opt.n} value={opt.n}>
+                        {opt.label} — {opt.hint}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-xs text-muted">
+                    Chaufferie = 12 / an · clim = 2 (S + A) · CTA = 4 (T, S, T, A). Les OT
+                    partent chaque mois du cycle pour que vous les affectiez dans l’agenda.
+                  </span>
+                </label>
+                <SecteurOtSelect
+                  value={resolveSecteurContrat(form)}
+                  onChange={(secteur) => setForm({ ...form, secteur })}
+                  label="Couleur / métier (CVC, frigo…)"
+                />
+              </div>
+
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={resolveGenererOtAuto(form)}
+                  onChange={(e) => setForm({ ...form, genererOtAuto: e.target.checked })}
+                />
+                <span>
+                  <span className="font-semibold text-ink">Créer les OT automatiquement</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Dès la signature : un OT par visite / site, sans heure (à caler dans
+                    l’agenda). La date se décale si le tech n’a pas pu passer ou si la visite
+                    est partielle.
+                  </span>
+                </span>
+              </label>
 
               {sitesForClient.length > 0 ? (
                 <fieldset className="space-y-2">
@@ -399,6 +502,28 @@ export function ContratsMaintenancePage() {
                   />
                 </label>
               </div>
+
+              <CalendrierVisitesPreview
+                form={form}
+                contratId={existing?.id || 'draft'}
+                sites={sitesForClient}
+                ots={(data.ordresTravail || []).filter(
+                  (o) => existing?.id && o.contratId === existing.id,
+                )}
+                onSync={() => {
+                  if (!existing?.id) {
+                    alert('Enregistrez le contrat avant de générer les OT.')
+                    return
+                  }
+                  upsertContratMaintenance({ ...form, id: existing.id })
+                  const n = syncOtsDepuisContrats()
+                  alert(
+                    n > 0
+                      ? `${n} OT de maintenance créé(s) — à affecter dans l’agenda.`
+                      : 'Tous les créneaux ont déjà un OT (y compris si la date a été déplacée).',
+                  )
+                }}
+              />
 
               <label className="block text-sm">
                 <span className="mb-1 block font-semibold text-ink">Prix (libellé)</span>
@@ -580,7 +705,8 @@ export function ContratsMaintenancePage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Contrats maintenance</h1>
           <p className="mt-1 text-muted">
-            Modèles types préremplis — visibles à côté du client / des sites une fois signés.
+            Modèles types — une fois signé, les OT de maintenance se créent tout seuls (bonne
+            fiche / période). Affectez le tech dans l’agenda.
           </p>
         </div>
         <button
@@ -611,11 +737,18 @@ export function ContratsMaintenancePage() {
               s.clientId === c.clientId &&
               (c.chantierIds.length === 0 || c.chantierIds.includes(s.id)),
           )
+          const secteur = resolveSecteurContrat(c)
+          const col = couleurMetier(secteur) || COULEUR_NON_AFFECTE
+          const visites = resolveVisitesParAn(c)
+          const otsContrat = (data.ordresTravail || []).filter((o) => o.contratId === c.id)
           return (
-            <article key={c.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+            <article
+              key={c.id}
+              className={`rounded-2xl border p-4 shadow-sm ${col.border} ${col.bg}`}
+            >
               <Link to={`/app/contrats?id=${encodeURIComponent(c.id)}`} className="block min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${col.badge}`}>
                     {c.numero}
                   </span>
                   {isContratActif(c) ? (
@@ -627,6 +760,9 @@ export function ContratsMaintenancePage() {
                       {STATUT_CONTRAT_LABELS[c.statut]}
                     </span>
                   )}
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${col.badge}`}>
+                    {labelSecteurCourt(secteur)}
+                  </span>
                 </div>
                 <p className="mt-1 font-display text-base font-semibold">{c.titre}</p>
                 <p className="text-sm text-muted">
@@ -636,7 +772,9 @@ export function ContratsMaintenancePage() {
                     : sites.length > 1
                       ? ` · ${sites.length} sites`
                       : ''}
-                  {` · ${PERIODICITE_LABELS[c.periodicite]}`}
+                  {` · ${FAMILLE_CONTRAT_LABELS[resolveFamilleContrat(c)]}`}
+                  {` · ${visites} visites / an`}
+                  {otsContrat.length > 0 ? ` · ${otsContrat.length} OT` : ''}
                 </p>
               </Link>
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
@@ -674,6 +812,85 @@ export function ContratsMaintenancePage() {
           navigate('/app/contrats?new=1')
         }}
       />
+    </div>
+  )
+}
+
+function CalendrierVisitesPreview({
+  form,
+  contratId,
+  sites,
+  ots,
+  onSync,
+}: {
+  form: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'>
+  contratId: string
+  sites: { id: string; clientId: string; nom: string; agenceCode?: string }[]
+  ots: { id: string; numero: string; date: string; contratOtKey?: string; statut: string; visiteNiveau?: string }[]
+  onSync: () => void
+}) {
+  const visites = visitesDepuisContrat(
+    { ...form, id: contratId, createdAt: '', updatedAt: '' },
+    sites,
+  )
+  const byKey = new Map(ots.filter((o) => o.contratOtKey).map((o) => [o.contratOtKey!, o]))
+  return (
+    <div className="rounded-2xl border border-line bg-mist/40 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ink">Calendrier des visites</p>
+          <p className="text-xs text-muted">
+            {resolveVisitesParAn(form)} passage(s) / an · fiche{' '}
+            {FAMILLE_CONTRAT_LABELS[resolveFamilleContrat(form)]} ·{' '}
+            {PERIODICITE_LABELS[form.periodicite].toLowerCase()}
+          </p>
+        </div>
+        {form.statut === 'signe' ? (
+          <button
+            type="button"
+            onClick={onSync}
+            className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold"
+          >
+            Générer / sync les OT
+          </button>
+        ) : (
+          <p className="text-[11px] text-muted">Les OT se créent à la signature.</p>
+        )}
+      </div>
+      {visites.length === 0 ? (
+        <p className="mt-2 text-xs text-amber-800">
+          Aucune visite dans la fenêtre (ajoutez un site et une date de début).
+        </p>
+      ) : (
+        <ul className="mt-2 max-h-56 space-y-1 overflow-auto text-xs">
+          {visites.slice(0, 24).map((v) => {
+            const ot = byKey.get(v.contratOtKey)
+            return (
+              <li
+                key={v.contratOtKey}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2 py-1.5"
+              >
+                <span>
+                  <span className="font-bold">{v.date}</span>
+                  {` · ${NIVEAU_VISITE_LABELS[v.niveau]}`}
+                  {sites.length > 1 ? ` · ${v.siteNom}` : ''}
+                </span>
+                {ot ? (
+                  <Link
+                    to={`/app/appel?ot=${encodeURIComponent(ot.id)}`}
+                    className="font-semibold text-emerald-800 underline"
+                  >
+                    {formatOtNumero(ot.numero)}
+                    {isOtCloture(ot.statut) ? ' · clôturé' : ''}
+                  </Link>
+                ) : (
+                  <span className="text-muted">OT à générer</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

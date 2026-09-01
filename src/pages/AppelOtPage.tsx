@@ -27,8 +27,14 @@ import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
-import { blankFicheMaintenanceChaufferie } from '../lib/ficheMaintenanceChaufferie'
-import { blankFicheMaintenanceCtaVmc } from '../lib/ficheMaintenanceCtaVmc'
+import {
+  blankFicheMaintenanceChaufferie,
+  mergeChecksForPeriode,
+} from '../lib/ficheMaintenanceChaufferie'
+import {
+  blankFicheMaintenanceCtaVmc,
+  mergeChecksForPeriodeCtaVmc,
+} from '../lib/ficheMaintenanceCtaVmc'
 import type { Client, Equipement, Site } from '../lib/types'
 import { clientDisplayName, equipAvecFluideFrigorigene, syncClientRaisonSociale } from '../lib/types'
 import {
@@ -56,7 +62,9 @@ import {
 import {
   contratsActifsForClient,
   contratsActifsForSite,
+  resolveSecteurContrat,
 } from '../lib/contratMaintenance'
+import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { SecteurOtSelect } from '../components/PostePersonnelSelect'
@@ -226,6 +234,7 @@ export function AppelOtPage() {
       lienCommandeType: (contratPrefill ? 'contrat' : 'aucun') as LienCommandeType,
       lienCommandeRef: contratPrefill?.numero || '',
       contratId: contratPrefill?.id,
+      secteur: contratPrefill ? resolveSecteurContrat(contratPrefill) : undefined,
     }
   })
 
@@ -838,14 +847,24 @@ export function AppelOtPage() {
 
     let ficheId = existingFiche?.id
     if (existingFiche) {
+      const periodeFiche = parseNiveauVisite(otForm.visiteNiveau)
+      const patch: Partial<typeof existingFiche> = {}
       if (otForm.numero && existingFiche.numero !== otForm.numero) {
+        patch.numero = otForm.numero
+      }
+      if (periodeFiche && !existingFiche.hasPdf && existingFiche.periode !== periodeFiche) {
+        patch.periode = periodeFiche
+        patch.checks = mergeChecksForPeriode(existingFiche.checks, periodeFiche)
+      }
+      if (Object.keys(patch).length > 0) {
         upsertFicheMaintenanceChaufferie({
           ...existingFiche,
-          numero: otForm.numero,
+          ...patch,
         })
       }
     } else {
-      const base = blankFicheMaintenanceChaufferie('mensuel')
+      const periodeFiche = parseNiveauVisite(otForm.visiteNiveau) || 'mensuel'
+      const base = blankFicheMaintenanceChaufferie(periodeFiche)
       ficheId = upsertFicheMaintenanceChaufferie({
         ...base,
         numero: otForm.numero,
@@ -867,8 +886,9 @@ export function AppelOtPage() {
     }
     if (!ficheId) return
     persistOt({ ficheChaufferieId: ficheId, parcoursStep: 'docs' }, id)
+    const periodeNav = parseNiveauVisite(otForm.visiteNiveau) || 'mensuel'
     navigate(
-      `/app/fiche-maintenance-chaufferie?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}`,
+      `/app/fiche-maintenance-chaufferie?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}&periode=${periodeNav}`,
     )
   }
 
@@ -904,10 +924,19 @@ export function AppelOtPage() {
 
     let ficheId = existingFiche?.id
     if (existingFiche) {
+      const periodeFiche = parseNiveauVisite(otForm.visiteNiveau)
+      const patch: Partial<typeof existingFiche> = {}
       if (otForm.numero && existingFiche.numero !== otForm.numero) {
+        patch.numero = otForm.numero
+      }
+      if (periodeFiche && !existingFiche.hasPdf && existingFiche.periode !== periodeFiche) {
+        patch.periode = periodeFiche
+        patch.checks = mergeChecksForPeriodeCtaVmc(existingFiche.checks, periodeFiche)
+      }
+      if (Object.keys(patch).length > 0) {
         upsertFicheMaintenanceCtaVmc({
           ...existingFiche,
-          numero: otForm.numero,
+          ...patch,
         })
       }
     } else {
@@ -916,7 +945,8 @@ export function AppelOtPage() {
       const hasVmc = /vmc|ventilation/.test(raw)
       const typeEquipement =
         hasCta && hasVmc ? 'cta_vmc' : hasCta ? 'cta' : hasVmc ? 'vmc' : 'cta_vmc'
-      const base = blankFicheMaintenanceCtaVmc('mensuel')
+      const periodeFiche = parseNiveauVisite(otForm.visiteNiveau) || 'mensuel'
+      const base = blankFicheMaintenanceCtaVmc(periodeFiche)
       ficheId = upsertFicheMaintenanceCtaVmc({
         ...base,
         numero: otForm.numero,
@@ -939,8 +969,9 @@ export function AppelOtPage() {
     }
     if (!ficheId) return
     persistOt({ ficheCtaVmcId: ficheId, parcoursStep: 'docs' }, id)
+    const periodeNav = parseNiveauVisite(otForm.visiteNiveau) || 'mensuel'
     navigate(
-      `/app/fiche-maintenance-cta-vmc?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}`,
+      `/app/fiche-maintenance-cta-vmc?id=${encodeURIComponent(ficheId)}&ot=${encodeURIComponent(id)}&periode=${periodeNav}`,
     )
   }
 
@@ -1265,6 +1296,17 @@ export function AppelOtPage() {
         </p>
       ) : null}
 
+      {parseNiveauVisite(otForm.visiteNiveau) ? (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+          Visite de contrat{' '}
+          <strong>
+            {NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}
+          </strong>
+          {' — '}
+          la fiche s’ouvre sur ce niveau. Date déplaçable (urgence ou reprise partielle).
+        </p>
+      ) : null}
+
       {/* ——— Étape OT ——— */}
       {step === 'ot' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
@@ -1300,6 +1342,12 @@ export function AppelOtPage() {
                 onChange={(e) => setOtForm({ ...otForm, date: e.target.value })}
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
+              {parseNiveauVisite(otForm.visiteNiveau) ? (
+                <span className="mt-1 block text-xs text-muted">
+                  Visite contrat {NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}{' '}
+                  — décalez si urgence ou reprise d’une visite partielle.
+                </span>
+              ) : null}
             </label>
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">Heure planning</span>
@@ -2271,7 +2319,9 @@ export function AppelOtPage() {
                   {docsEff.includes('fiche_chaufferie') ? ' — obligatoire' : ''}
                 </span>
                 <span className="block text-xs font-medium text-muted">
-                  Mensuel · trimestriel · semestriel · annuel (registre complet)
+                  {parseNiveauVisite(otForm.visiteNiveau)
+                    ? `Fiche ${NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()} automatique`
+                    : 'Mensuel · trimestriel · semestriel · annuel (registre complet)'}
                 </span>
               </span>
             </button>
@@ -2292,7 +2342,9 @@ export function AppelOtPage() {
                   {docsEff.includes('fiche_cta_vmc') ? ' — obligatoire' : ''}
                 </span>
                 <span className="block text-xs font-medium text-muted">
-                  1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire
+                  {parseNiveauVisite(otForm.visiteNiveau)
+                    ? `Fiche ${NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()} automatique`
+                    : '1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire'}
                 </span>
               </span>
             </button>
