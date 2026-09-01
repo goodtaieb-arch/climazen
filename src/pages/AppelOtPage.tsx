@@ -223,6 +223,11 @@ export function AppelOtPage() {
       date: today(),
       technicien: user?.signataireNom || user?.fullName || user?.email || '',
       technicienUserId: user?.id,
+      technicienUserIds: user?.id ? [user.id] : [],
+      agenceCode: agenceEffective({
+        agenceCode: site?.agenceCode,
+        codePostal: site?.codePostal,
+      }),
       createdByUserId: user?.id,
       createdByName: user?.fullName || user?.email,
       signatureTechnicienImage: user?.signatureImage || '',
@@ -1467,14 +1472,23 @@ export function AppelOtPage() {
               placeholder="Urgence, accès, contact sur place…"
             />
           </label>
+          <AgenceSelect
+            label="Agence / région de l’OT"
+            value={otForm.agenceCode}
+            onChange={(agenceCode) => setOtForm({ ...otForm, agenceCode })}
+          />
           <SecteurOtSelect
             required
             value={otForm.secteur || ''}
             onChange={(secteur) => setOtForm({ ...otForm, secteur })}
           />
           <TechnicienAssignField
+            multi
+            highlightAgence={otForm.agenceCode}
+            label="Techniciens (plusieurs possibles)"
             technicien={otForm.technicien}
             technicienUserId={otForm.technicienUserId}
+            technicienUserIds={otForm.technicienUserIds}
             onChange={(next) => {
               const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
               const auto = secteurOtDepuisPoste(poste)
@@ -1766,7 +1780,17 @@ export function AppelOtPage() {
                   <li key={s.id}>
                     <button
                       type="button"
-                      onClick={() => setOtForm({ ...otForm, chantierId: s.id })}
+                      onClick={() =>
+                        setOtForm({
+                          ...otForm,
+                          chantierId: s.id,
+                          agenceCode:
+                            agenceEffective({
+                              agenceCode: s.agenceCode || client?.agenceCode,
+                              codePostal: s.codePostal || client?.codePostal,
+                            }) || otForm.agenceCode,
+                        })
+                      }
                       className={[
                         'flex min-h-12 w-full items-center gap-2 rounded-xl border px-3 text-left text-sm',
                         otForm.chantierId === s.id

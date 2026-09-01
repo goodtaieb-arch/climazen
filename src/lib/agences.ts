@@ -164,3 +164,36 @@ export function agenceEffective(opts: {
     parseAgenceCode(opts.fallbackCode)
   )
 }
+
+export function parseAgencesCouvertes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const code = parseAgenceCode(item)
+    if (!code || seen.has(code)) continue
+    seen.add(code)
+    out.push(code)
+  }
+  return out
+}
+
+/** Agences d’un membre : liste multi-régions, sinon son agence unique. */
+export function agencesDuMembre(opts: {
+  agenceCode?: unknown
+  agencesCouvertes?: unknown
+}): string[] {
+  const multi = parseAgencesCouvertes(opts.agencesCouvertes)
+  if (multi.length) return multi
+  const one = parseAgenceCode(opts.agenceCode)
+  return one ? [one] : []
+}
+
+export function matchAgenceFilter(
+  agence: string | undefined,
+  filterAgences: string[] | undefined,
+): boolean {
+  if (!filterAgences || filterAgences.length === 0) return true
+  if (!agence) return false
+  return filterAgences.includes(agence)
+}

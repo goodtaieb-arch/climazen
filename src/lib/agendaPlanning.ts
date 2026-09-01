@@ -5,7 +5,7 @@
 import type { AgendaEvent, AgendaEventType } from './agenda'
 import { AGENDA_TYPE_LABELS } from './agenda'
 import type { OrdreTravail } from './ordreTravail'
-import { isOtCloture } from './ordreTravail'
+import { isOtCloture, techIdsOt } from './ordreTravail'
 import { isPosteBureau, isPosteTerrain, parsePostePersonnel } from './postePersonnel'
 
 export const HORS_OT_TECH: AgendaEventType[] = [
@@ -54,12 +54,17 @@ export function otSansCreneau(ot: Pick<OrdreTravail, 'statut' | 'heure'>): boole
 }
 
 export function estPourTech(
-  item: { technicienUserId?: string; createdByUserId?: string },
+  item: {
+    technicienUserId?: string
+    technicienUserIds?: string[]
+    createdByUserId?: string
+  },
   userId?: string | null,
 ): boolean {
   const uid = String(userId || '').trim()
   if (!uid) return false
-  return item.technicienUserId === uid || item.createdByUserId === uid
+  if (item.createdByUserId === uid) return true
+  return techIdsOt(item).includes(uid)
 }
 
 export type CouleurSecteur = {
@@ -317,13 +322,23 @@ export function techsLignesJour(opts: {
   taskTechIds: string[]
   filterTechId?: string | null
   filterSecteur?: string | null
+  /** Si renseigné : techs de ces agences + ceux qui ont déjà une tâche (autre région). */
+  filterAgenceCodes?: string[]
+  agenceOf?: (id: string) => string | undefined
 }): string[] {
   const order = new Map(opts.team.map((t, i) => [t.id, i]))
   const always: string[] = []
+  const agences = (opts.filterAgenceCodes || []).filter(Boolean)
   for (const t of opts.team) {
     const poste = opts.posteOf(t.id)
-    if (isPosteTerrain(poste)) always.push(t.id)
-    else if (!poste && t.role === 'operateur' && !isPosteBureau(poste)) always.push(t.id)
+    const isTerrain =
+      isPosteTerrain(poste) || (!poste && t.role === 'operateur' && !isPosteBureau(poste))
+    if (!isTerrain) continue
+    if (agences.length) {
+      const ag = opts.agenceOf?.(t.id)
+      if (ag && !agences.includes(ag)) continue
+    }
+    always.push(t.id)
   }
   const extra = (opts.taskTechIds || []).filter((id) => id && !always.includes(id))
   let ids = [...always, ...extra]
@@ -347,12 +362,16 @@ export function visibleAgendaPour(
     userId?: string | null
     filterTechId?: string | null
   },
-  item: { technicienUserId?: string; createdByUserId?: string },
+  item: {
+    technicienUserId?: string
+    technicienUserIds?: string[]
+    createdByUserId?: string
+  },
 ): boolean {
   if (opts.bureau) {
     const f = String(opts.filterTechId || '').trim()
     if (!f || f === 'tous') return true
-    return item.technicienUserId === f || item.createdByUserId === f
+    return estPourTech(item, f)
   }
   return estPourTech(item, opts.userId)
 }

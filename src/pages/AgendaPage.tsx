@@ -17,6 +17,7 @@ import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
+import { AgenceFilterChips } from '../components/AgenceSelect'
 import {
   AGENDA_STATUT_LABELS,
   AGENDA_TYPE_LABELS,
@@ -42,8 +43,17 @@ import {
   formatOtAvancement,
   formatOtNumero,
   isOtCloture,
+  labelTechsOt,
+  syncTechsOt,
+  techIdsOt,
   type OrdreTravail,
 } from '../lib/ordreTravail'
+import {
+  agenceEffective,
+  agencesDuMembre,
+  labelAgence,
+  matchAgenceFilter,
+} from '../lib/agences'
 import { isBureauUi } from '../lib/uiMode'
 import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import type { UserAccount } from '../lib/auth'
@@ -97,8 +107,10 @@ type ProgrammeItem =
       numero: string
       avancement?: string
       technicienUserId?: string
+      technicienUserIds?: string[]
       technicien?: string
       secteur?: PostePersonnelId
+      agenceCode?: string
     }
 
 export function AgendaPage() {
@@ -122,6 +134,8 @@ export function AgendaPage() {
   const [syncMsg, setSyncMsg] = useState('')
   const [filterTechId, setFilterTechId] = useState('tous')
   const [filterSecteur, setFilterSecteur] = useState<PostePersonnelId | 'tous'>('tous')
+  const [filterAgences, setFilterAgences] = useState<string[]>([])
+  const [agenceFilterReady, setAgenceFilterReady] = useState(false)
   const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
 
   const existing = useMemo(
@@ -173,7 +187,62 @@ export function AgendaPage() {
   const posteOf = (userId?: string) =>
     dossierForUser(data.personnelDossiers, userId)?.poste
 
+  const agenceOfTech = (userId?: string) =>
+    dossierForUser(data.personnelDossiers, userId)?.agenceCode
+
+  const mesAgences = useMemo(
+    () =>
+      agencesDuMembre({
+        agenceCode: dossierForUser(data.personnelDossiers, user?.id)?.agenceCode,
+        agencesCouvertes: dossierForUser(data.personnelDossiers, user?.id)
+          ?.agencesCouvertes,
+      }),
+    [data.personnelDossiers, user?.id],
+  )
+
+  useEffect(() => {
+    if (agenceFilterReady) return
+    if (!bureau) {
+      setAgenceFilterReady(true)
+      return
+    }
+    if (mesAgences.length) setFilterAgences(mesAgences)
+    setAgenceFilterReady(true)
+  }, [bureau, mesAgences, agenceFilterReady])
+
+  const agenceOfOt = (o: {
+    agenceCode?: string
+    clientId?: string
+    chantierId?: string
+  }) => {
+    const client = data.clients.find((c) => c.id === o.clientId)
+    const site = data.chantiers.find((c) => c.id === o.chantierId)
+    return agenceEffective({
+      agenceCode: o.agenceCode || site?.agenceCode || client?.agenceCode,
+      codePostal: site?.codePostal || client?.codePostal,
+    })
+  }
+
+  const matchAgence = (agence?: string) => matchAgenceFilter(agence, filterAgences)
+
   const weekDates = useMemo(() => weekDatesFrom(cursorDate), [cursorDate])
+
+  const agencesDispo = useMemo(() => {
+    const set = new Set<string>(mesAgences)
+    for (const o of data.ordresTravail || []) {
+      const a = agenceOfOt(o)
+      if (a) set.add(a)
+    }
+    for (const d of data.personnelDossiers || []) {
+      for (const a of agencesDuMembre({
+        agenceCode: d.agenceCode,
+        agencesCouvertes: d.agencesCouvertes,
+      })) {
+        set.add(a)
+      }
+    }
+    return [...set].sort()
+  }, [data.ordresTravail, data.personnelDossiers, data.clients, data.chantiers, mesAgences]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Programme = hors OT + rappels + OT calés (avec heure). */
   const visOpts = {
@@ -186,6 +255,12 @@ export function AgendaPage() {
     const events: ProgrammeItem[] = (data.agendaEvents || [])
       .filter((e) => e.statut !== 'annule')
       .filter((e) => visibleAgendaPour(visOpts, e))
+      .filter((e) =>
+        matchAgence(
+          agenceOfOt({ clientId: e.clientId, chantierId: e.chantierId }) ||
+            agenceOfTech(e.technicienUserId),
+        ),
+      )
       .map((e) => ({
         kind: 'agenda' as const,
         id: `ag-${e.id}`,
@@ -199,6 +274,7 @@ export function AgendaPage() {
       .filter((o) => !isOtCloture(o.statut))
       .filter((o) => Boolean((o.heure || '').trim()))
       .filter((o) => visibleAgendaPour(visOpts, o))
+      .filter((o) => matchAgence(agenceOfOt(o)))
       .map((o) => ({
         kind: 'ot' as const,
         id: `ot-${o.id}`,
@@ -213,8 +289,10 @@ export function AgendaPage() {
         numero: o.numero,
         avancement: formatOtAvancement(o) || undefined,
         technicienUserId: o.technicienUserId,
+        technicienUserIds: o.technicienUserIds,
         technicien: o.technicien,
         secteur: o.secteur,
+        agenceCode: o.agenceCode,
       }))
 
     return [...events, ...ots].sort((a, b) => {
@@ -222,7 +300,7 @@ export function AgendaPage() {
       if (d !== 0) return d
       return compareProgrammeHeure(a, b)
     })
-  }, [data.agendaEvents, data.ordresTravail, bureau, user?.id, filterTechId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data.agendaEvents, data.ordresTravail, bureau, user?.id, filterTechId, filterAgences]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const matchSecteur = (item: { secteur?: string; technicienUserId?: string }) => {
     if (!bureau || filterSecteur === 'tous') return true
@@ -246,11 +324,12 @@ export function AgendaPage() {
     const focusTech = bureau && filterTechId !== 'tous'
     return (data.ordresTravail || []).filter((o) => {
       if (!otSansCreneau(o) || !visibleAgendaPour(visOpts, o)) return false
+      if (!matchAgence(agenceOfOt(o))) return false
       if (!matchSecteur({ secteur: o.secteur, technicienUserId: o.technicienUserId })) return false
       if (focusTech && !dateDansSemaine(o.date, weekDates)) return false
       return true
     })
-  }, [data.ordresTravail, bureau, user?.id, filterTechId, filterSecteur, weekDates]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data.ordresTravail, bureau, user?.id, filterTechId, filterSecteur, filterAgences, weekDates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const programmeForDate = (iso: string) =>
     programmeVisible.filter((p) => p.date === iso.slice(0, 10))
@@ -275,6 +354,14 @@ export function AgendaPage() {
         ) {
           return false
         }
+        if (
+          !matchAgence(
+            agenceOfOt({ clientId: e.clientId, chantierId: e.chantierId }) ||
+              agenceOfTech(e.technicienUserId),
+          )
+        ) {
+          return false
+        }
         if (view === 'tous') return e.statut !== 'annule'
         return (
           (e.statut === 'a_faire' || e.statut === 'contacte') &&
@@ -282,7 +369,7 @@ export function AgendaPage() {
         )
       })
       .sort((a, b) => agendaSortDate(a).localeCompare(agendaSortDate(b)))
-  }, [data.agendaEvents, data.clients, data.chantiers, q, view, bureau, user?.id, filterTechId])
+  }, [data.agendaEvents, data.clients, data.chantiers, q, view, bureau, user?.id, filterTechId, filterAgences])
 
   const onSync = () => {
     const n = syncAgendaFromSources()
@@ -354,18 +441,38 @@ export function AgendaPage() {
 
   const planifierOt = (
     ot: OrdreTravail,
-    patch: { date?: string; heure?: string; technicien?: string; technicienUserId?: string },
+    patch: {
+      date?: string
+      heure?: string
+      technicien?: string
+      technicienUserId?: string
+      technicienUserIds?: string[]
+    },
   ) => {
+    const noms: Record<string, string> = {}
+    for (const t of team) {
+      noms[t.id] = t.fullName || t.email || ''
+    }
+    const ids =
+      patch.technicienUserIds !== undefined
+        ? patch.technicienUserIds
+        : techIdsOt({
+            technicienUserId: patch.technicienUserId ?? ot.technicienUserId,
+            technicienUserIds: ot.technicienUserIds,
+          })
+    const synced = syncTechsOt({
+      technicienUserIds: ids,
+      noms,
+      technicien: patch.technicien ?? ot.technicien,
+    })
     upsertOrdreTravail({
       ...ot,
       id: ot.id,
       date: patch.date ?? ot.date,
       heure: patch.heure !== undefined ? patch.heure : ot.heure,
-      technicien: patch.technicien ?? ot.technicien,
-      technicienUserId: patch.technicienUserId ?? ot.technicienUserId,
+      ...synced,
       secteur:
-        ot.secteur ||
-        secteurOtDepuisPoste(posteOf(patch.technicienUserId ?? ot.technicienUserId)),
+        ot.secteur || secteurOtDepuisPoste(posteOf(synced.technicienUserId)),
     })
     setSyncMsg(
       patch.heure
@@ -595,8 +702,13 @@ export function AgendaPage() {
             ) : null}
             <span className="text-[10px] font-bold uppercase text-muted">{item.typeLabel}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
-              {nomTech(item.technicienUserId, item.technicien)}
+              {labelTechsOt(item, nomTech(item.technicienUserId, item.technicien))}
             </span>
+            {labelAgence(agenceOfOt(item)) ? (
+              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-ink">
+                {labelAgence(agenceOfOt(item))}
+              </span>
+            ) : null}
             {labelSecteurCourt(item.secteur || posteOf(item.technicienUserId)) ? (
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
                 {labelSecteurCourt(item.secteur || posteOf(item.technicienUserId))}
@@ -614,7 +726,11 @@ export function AgendaPage() {
             {site ? ` · ${site.nom}` : ''}
           </p>
           {bureau && otFull ? (
-            <OtPlanifierInline ot={otFull} onPlan={(patch) => planifierOt(otFull, patch)} />
+            <OtPlanifierInline
+              ot={otFull}
+              highlightAgence={agenceOfOt(otFull)}
+              onPlan={(patch) => planifierOt(otFull, patch)}
+            />
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
@@ -744,19 +860,28 @@ export function AgendaPage() {
     )
   }
 
-  const itemTechId = (it: ProgrammeItem) =>
-    it.kind === 'ot' ? it.technicienUserId : it.event.technicienUserId
+  const itemTechIds = (it: ProgrammeItem) =>
+    it.kind === 'ot'
+      ? techIdsOt({
+          technicienUserId: it.technicienUserId,
+          technicienUserIds: it.technicienUserIds,
+        })
+      : it.event.technicienUserId
+        ? [it.event.technicienUserId]
+        : []
 
   const renderLignesTechJour = (iso: string) => {
     const items = programmeForDate(iso)
     const ids = techsLignesJour({
       team,
       posteOf,
-      taskTechIds: items.map((it) => itemTechId(it) || '').filter(Boolean),
+      taskTechIds: items.flatMap((it) => itemTechIds(it)),
       filterTechId: bureau ? filterTechId : user?.id,
       filterSecteur: bureau ? filterSecteur : undefined,
+      filterAgenceCodes: bureau ? filterAgences : undefined,
+      agenceOf: agenceOfTech,
     })
-    const unassigned = items.filter((it) => !itemTechId(it))
+    const unassigned = items.filter((it) => itemTechIds(it).length === 0)
     if (ids.length === 0 && unassigned.length === 0) {
       return (
         <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
@@ -771,7 +896,7 @@ export function AgendaPage() {
           const t = team.find((x) => x.id === id)
           const poste = posteOf(id)
           const col = couleurPlanning({ secteur: poste, technicienUserId: id })
-          const mine = items.filter((it) => itemTechId(it) === id)
+          const mine = items.filter((it) => itemTechIds(it).includes(id))
           return (
             <div key={id} className={`rounded-2xl border p-2.5 ${col.border} ${col.bg}`}>
               <button
@@ -786,6 +911,11 @@ export function AgendaPage() {
                 {labelSecteurCourt(poste) ? (
                   <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${col.badge}`}>
                     {labelSecteurCourt(poste)}
+                  </span>
+                ) : null}
+                {labelAgence(agenceOfTech(id)) ? (
+                  <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                    {labelAgence(agenceOfTech(id))}
                   </span>
                 ) : null}
                 <span className="ml-auto text-[10px] font-bold uppercase text-muted">
@@ -827,6 +957,11 @@ export function AgendaPage() {
                           {it.kind === 'ot' ? `${formatOtNumero(it.numero)} · ` : ''}
                           {it.title}
                         </span>
+                        {itemTechIds(it).length > 1 ? (
+                          <span className="block text-[9px] font-bold uppercase text-muted">
+                            {itemTechIds(it).length} techs
+                          </span>
+                        ) : null}
                       </button>
                     )
                   })}
@@ -856,7 +991,7 @@ export function AgendaPage() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Agenda</h1>
             <p className="mt-0.5 text-sm text-muted">
               {bureau
-                ? 'Une ligne par tech. Couleur = métier (CVC, frigo…). Tapez un nom pour voir sa semaine sans créneau.'
+                ? 'Filtrez par région (06, 13…). Plusieurs techs sur la même OT. Un renfort d’une autre région reste visible.'
                 : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
             </p>
           </div>
@@ -957,9 +1092,16 @@ export function AgendaPage() {
               <option key={t.id} value={t.id}>
                 {t.fullName || t.email}
                 {labelSecteurCourt(posteOf(t.id)) ? ` · ${labelSecteurCourt(posteOf(t.id))}` : ''}
+                {labelAgence(agenceOfTech(t.id)) ? ` · ${labelAgence(agenceOfTech(t.id))}` : ''}
               </option>
             ))}
           </select>
+          <AgenceFilterChips
+            className="w-full"
+            selected={filterAgences}
+            onChange={setFilterAgences}
+            codes={agencesDispo}
+          />
         </div>
       ) : (
         <div className="flex flex-wrap gap-1.5">
@@ -1037,11 +1179,16 @@ export function AgendaPage() {
                     <span className="text-sm font-bold">{formatOtNumero(ot.numero)}</span>
                     <span className="min-w-0 flex-1 truncate text-sm">{ot.action || TYPE_OT_LABELS[ot.typeOt]}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
-                      {nomTech(ot.technicienUserId, ot.technicien)}
+                      {labelTechsOt(ot, nomTech(ot.technicienUserId, ot.technicien))}
                     </span>
                     {labelSecteurCourt(ot.secteur) ? (
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
                         {labelSecteurCourt(ot.secteur)}
+                      </span>
+                    ) : null}
+                    {labelAgence(agenceOfOt(ot)) ? (
+                      <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-ink">
+                        {labelAgence(agenceOfOt(ot))}
                       </span>
                     ) : null}
                   </div>
@@ -1050,7 +1197,11 @@ export function AgendaPage() {
                     {ot.date ? ` · date ${formatFr(ot.date)}` : ' · pas de date'}
                   </p>
                   {bureau ? (
-                    <OtPlanifierInline ot={ot} onPlan={(patch) => planifierOt(ot, patch)} />
+                    <OtPlanifierInline
+                      ot={ot}
+                      highlightAgence={agenceOfOt(ot)}
+                      onPlan={(patch) => planifierOt(ot, patch)}
+                    />
                   ) : (
                     <Link
                       to={`/app/appel?ot=${encodeURIComponent(ot.id)}`}
@@ -1287,23 +1438,27 @@ export function AgendaPage() {
 function OtPlanifierInline({
   ot,
   onPlan,
+  highlightAgence,
 }: {
   ot: OrdreTravail
+  highlightAgence?: string
   onPlan: (patch: {
     date?: string
     heure?: string
     technicien?: string
     technicienUserId?: string
+    technicienUserIds?: string[]
   }) => void
 }) {
   const [date, setDate] = useState(ot.date || todayIsoLocal())
   const [heure, setHeure] = useState(formatHeure(ot.heure))
   const [tech, setTech] = useState(ot.technicien || '')
   const [techId, setTechId] = useState(ot.technicienUserId)
+  const [techIds, setTechIds] = useState(() => techIdsOt(ot))
 
   return (
     <form
-      className="mt-2 grid gap-2 sm:grid-cols-[1fr_7rem_minmax(10rem,1fr)_auto] sm:items-end"
+      className="mt-2 grid gap-2"
       onSubmit={(e: FormEvent) => {
         e.preventDefault()
         if (!heure.trim()) {
@@ -1315,9 +1470,11 @@ function OtPlanifierInline({
           heure: heure.trim(),
           technicien: tech,
           technicienUserId: techId,
+          technicienUserIds: techIds,
         })
       }}
     >
+      <div className="grid gap-2 sm:grid-cols-[1fr_7rem]">
       <label className="block text-xs">
         <span className="mb-0.5 block font-bold uppercase text-muted">Date</span>
         <input
@@ -1337,13 +1494,18 @@ function OtPlanifierInline({
           className="h-10 w-full rounded-lg border border-line bg-white px-2 text-sm"
         />
       </label>
+      </div>
       <TechnicienAssignField
-        label="Affecter à"
+        multi
+        highlightAgence={highlightAgence || ot.agenceCode}
+        label="Affecter (plusieurs techs)"
         technicien={tech}
         technicienUserId={techId}
+        technicienUserIds={techIds}
         onChange={(next) => {
           setTech(next.technicien)
           setTechId(next.technicienUserId)
+          setTechIds(next.technicienUserIds || [])
         }}
       />
       <button

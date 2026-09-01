@@ -9,6 +9,7 @@
  */
 
 import {
+  techIdsOt,
   type OrdreTravail,
   type ParcoursAppelStepId,
   type TypeOt,
@@ -54,13 +55,12 @@ export function otEstMaintenancePreparee(typeOt: TypeOt | string | undefined): b
 }
 
 export function estTechIntervenant(
-  ot: Pick<OrdreTravail, 'technicienUserId'>,
+  ot: Pick<OrdreTravail, 'technicienUserId' | 'technicienUserIds'>,
   userId?: string | null,
 ): boolean {
   const uid = String(userId || '').trim()
-  const tech = String(ot.technicienUserId || '').trim()
-  if (!uid || !tech) return false
-  return uid === tech
+  if (!uid) return false
+  return techIdsOt(ot).includes(uid)
 }
 
 /**
@@ -69,7 +69,7 @@ export function estTechIntervenant(
  */
 export function estBureauQuiPreparePourUnTech(
   access: UiAccess,
-  ot: Pick<OrdreTravail, 'technicienUserId'>,
+  ot: Pick<OrdreTravail, 'technicienUserId' | 'technicienUserIds'>,
   userId?: string | null,
 ): boolean {
   if (!isBureauUi(access)) return false
@@ -80,7 +80,7 @@ export type RoleParcoursOt = 'intervenant' | 'bureau_depanage' | 'bureau_mainten
 
 export function roleParcoursOt(
   access: UiAccess,
-  ot: Pick<OrdreTravail, 'technicienUserId' | 'typeOt'>,
+  ot: Pick<OrdreTravail, 'technicienUserId' | 'technicienUserIds' | 'typeOt'>,
   userId?: string | null,
 ): RoleParcoursOt {
   if (!estBureauQuiPreparePourUnTech(access, ot, userId)) return 'intervenant'
@@ -89,7 +89,7 @@ export function roleParcoursOt(
 
 export function peutAccederEtapeIntervention(
   access: UiAccess,
-  ot: Pick<OrdreTravail, 'technicienUserId' | 'typeOt'>,
+  ot: Pick<OrdreTravail, 'technicienUserId' | 'technicienUserIds' | 'typeOt'>,
   userId?: string | null,
 ): boolean {
   return roleParcoursOt(access, ot, userId) !== 'bureau_depanage'
@@ -149,7 +149,10 @@ export function motifClotureOt(
   access: UiAccess,
   ot: Pick<
     OrdreTravail,
-    'technicienUserId' | 'maintenanceParSousTraitant' | 'techAccompagneSousTraitant'
+    | 'technicienUserId'
+    | 'technicienUserIds'
+    | 'maintenanceParSousTraitant'
+    | 'techAccompagneSousTraitant'
   >,
   userId?: string | null,
 ): MotifClotureOt {
@@ -168,7 +171,10 @@ export function peutCloturerOt(
   access: UiAccess,
   ot: Pick<
     OrdreTravail,
-    'technicienUserId' | 'maintenanceParSousTraitant' | 'techAccompagneSousTraitant'
+    | 'technicienUserId'
+    | 'technicienUserIds'
+    | 'maintenanceParSousTraitant'
+    | 'techAccompagneSousTraitant'
   >,
   userId?: string | null,
 ): boolean {

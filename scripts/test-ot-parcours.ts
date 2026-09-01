@@ -30,6 +30,18 @@ assert.equal(otEstMaintenancePreparee('installation'), false)
 assert.equal(estTechIntervenant({ technicienUserId: 'tech-1' }, 'tech-1'), true)
 assert.equal(estTechIntervenant({ technicienUserId: 'tech-1' }, 'bureau-1'), false)
 assert.equal(estTechIntervenant({ technicienUserId: undefined }, 'tech-1'), false)
+assert.equal(
+  estTechIntervenant({ technicienUserIds: ['tech-1', 'tech-2'] }, 'tech-2'),
+  true,
+)
+assert.equal(
+  roleParcoursOt(
+    terrain,
+    { technicienUserIds: ['tech-1', 'tech-2'], typeOt: 'depanage' },
+    'tech-2',
+  ),
+  'intervenant',
+)
 
 // Auto-entrepreneur / gérant qui s’affecte : pas « bureau qui prépare »
 assert.equal(

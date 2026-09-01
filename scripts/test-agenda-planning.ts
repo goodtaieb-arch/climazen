@@ -15,6 +15,7 @@ import {
   visibleAgendaPour,
 } from '../src/lib/agendaPlanning'
 import { AGENDA_TYPE_LABELS } from '../src/lib/agenda'
+import { syncTechsOt, techIdsOt } from '../src/lib/ordreTravail'
 
 assert.equal(isHorsOtType('pause_repas'), true)
 assert.equal(isHorsOtType('rdv'), false)
@@ -32,6 +33,24 @@ assert.equal(otSansCreneau({ statut: 'signe', heure: undefined }), false)
 assert.equal(estPourTech({ technicienUserId: 't1' }, 't1'), true)
 assert.equal(estPourTech({ createdByUserId: 't1' }, 't1'), true)
 assert.equal(estPourTech({ technicienUserId: 't2' }, 't1'), false)
+assert.equal(
+  estPourTech({ technicienUserId: 't1', technicienUserIds: ['t1', 't2'] }, 't2'),
+  true,
+)
+assert.equal(
+  visibleAgendaPour(
+    { bureau: false, userId: 't2' },
+    { technicienUserIds: ['t1', 't2'] },
+  ),
+  true,
+)
+assert.equal(
+  visibleAgendaPour(
+    { bureau: true, filterTechId: 't2' },
+    { technicienUserId: 't1', technicienUserIds: ['t1', 't2'] },
+  ),
+  true,
+)
 
 assert.equal(
   visibleAgendaPour({ bureau: false, userId: 't1' }, { technicienUserId: 't1' }),
@@ -118,6 +137,47 @@ assert.deepEqual(
     filterTechId: 't2',
   }),
   ['t2'],
+)
+
+const agences: Record<string, string | undefined> = { t1: '06', t2: '13' }
+assert.deepEqual(
+  techsLignesJour({
+    team: [
+      { id: 't1', role: 'operateur' },
+      { id: 't2', role: 'operateur' },
+    ],
+    posteOf: (id) => postes[id],
+    taskTechIds: [],
+    filterAgenceCodes: ['06'],
+    agenceOf: (id) => agences[id],
+  }),
+  ['t1'],
+)
+assert.deepEqual(
+  techsLignesJour({
+    team: [
+      { id: 't1', role: 'operateur' },
+      { id: 't2', role: 'operateur' },
+    ],
+    posteOf: (id) => postes[id],
+    taskTechIds: ['t2'],
+    filterAgenceCodes: ['06'],
+    agenceOf: (id) => agences[id],
+  }),
+  ['t1', 't2'],
+)
+
+assert.deepEqual(techIdsOt({ technicienUserId: 't1' }), ['t1'])
+assert.deepEqual(techIdsOt({ technicienUserIds: ['t2', 't1'], technicienUserId: 't1' }), [
+  't2',
+  't1',
+])
+assert.deepEqual(
+  syncTechsOt({
+    technicienUserIds: ['t1', 't2'],
+    noms: { t1: 'Jean', t2: 'Marc' },
+  }),
+  { technicienUserIds: ['t1', 't2'], technicienUserId: 't1', technicien: 'Jean + Marc' },
 )
 
 const typesTech = typesAgendaPourSaisie({ bureau: false })

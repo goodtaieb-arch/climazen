@@ -53,6 +53,56 @@ export function isOtCloture(statut: StatutOt | string | undefined): boolean {
   return statut === 'signe' || statut === 'termine'
 }
 
+/** Tous les comptes tech de l’OT (principal + co-intervenants). */
+export function techIdsOt(ot: {
+  technicienUserId?: string
+  technicienUserIds?: string[]
+}): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const raw of [...(ot.technicienUserIds || []), ot.technicienUserId]) {
+    const id = String(raw || '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+export function syncTechsOt(opts: {
+  technicienUserIds: string[]
+  noms?: Record<string, string>
+  technicien?: string
+}): { technicienUserIds: string[]; technicienUserId?: string; technicien: string } {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const raw of opts.technicienUserIds) {
+    const id = String(raw || '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  const names = ids
+    .map((id) => (opts.noms && opts.noms[id]) || '')
+    .filter(Boolean)
+  return {
+    technicienUserIds: ids,
+    technicienUserId: ids[0],
+    technicien: names.join(' + ') || (opts.technicien || '').trim(),
+  }
+}
+
+export function labelTechsOt(
+  ot: { technicien?: string; technicienUserIds?: string[] },
+  fallback = '',
+): string {
+  const n = (ot.technicien || '').trim()
+  if (n) return n
+  const count = (ot.technicienUserIds || []).filter(Boolean).length
+  if (count > 1) return `${count} techs`
+  return fallback
+}
+
 /** Passage terrain (un jour) — signature client = preuve de présence, même si le chantier n’est pas fini. */
 export type VisitePresenceOt = {
   id: string
@@ -188,10 +238,12 @@ export interface OrdreTravail {
   equipementId?: string
   /** Plusieurs équipements traités sur le même OT */
   equipementIds?: string[]
-  /** Nom affiché du technicien affecté */
+  /** Nom affiché du / des techniciens (ex. « Jean + Marc ») */
   technicien: string
-  /** Compte ClimaZEN du technicien affecté (équipe) — le patron assigne l’OT */
+  /** Compte principal (1er de la liste) — rétrocompat */
   technicienUserId?: string
+  /** Tous les techs sur l’OT en même temps */
+  technicienUserIds?: string[]
   /**
    * Métier / équipe de l’OT (CVC, frigoriste, plombier…) — couleur agenda.
    * Indépendant du tech affecté : on voit la spécialité demandée.
@@ -290,6 +342,7 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     observations: '',
     technicien: '',
     technicienUserId: undefined,
+    technicienUserIds: [],
     secteur: undefined,
     agenceCode: undefined,
     statut: 'brouillon',

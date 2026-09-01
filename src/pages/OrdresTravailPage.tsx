@@ -21,6 +21,7 @@ import {
   OT_LABEL,
   formatLienCommande,
   formatOtAvancement,
+  techIdsOt,
   clampAvancementPct,
   lastVisitePresence,
   upsertVisitePresence,
@@ -38,8 +39,9 @@ import { allEquipements } from '../lib/cerfaBatch'
 import { dossierForUser } from '../lib/rhDocuments'
 import { labelSecteurCourt, secteurOtDepuisPoste, secteursOt, secteurCouleurMembre } from '../lib/postePersonnel'
 import { couleurPlanning } from '../lib/agendaPlanning'
-import { AgenceSelect } from '../components/AgenceSelect'
-import { agenceEffective, labelAgence } from '../lib/agences'
+import { AgenceFilterChips, AgenceSelect } from '../components/AgenceSelect'
+import { agenceEffective, agencesDuMembre, labelAgence, matchAgenceFilter } from '../lib/agences'
+import { isBureauUi } from '../lib/uiMode'
 
 export function OrdresTravailPage() {
   const {
@@ -49,8 +51,10 @@ export function OrdresTravailPage() {
     genererDevisReguleDepuisOt,
     genererFactureDepuisOt,
     upsertCommandeFournisseur,
+    peutVoirIdentitesRh,
   } = useStore()
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
+  const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const editId = params.get('id') || ''
@@ -59,7 +63,8 @@ export function OrdresTravailPage() {
   const [statutFilter, setStatutFilter] = useState<'ouverts' | 'clotures' | 'tous'>('ouverts')
   const [assigneeFilter, setAssigneeFilter] = useState<'tous' | 'moi'>('tous')
   const [secteurFilter, setSecteurFilter] = useState<string>('tous')
-  const [agenceFilter, setAgenceFilter] = useState<string>('tous')
+  const [agenceFilter, setAgenceFilter] = useState<string[]>([])
+  const [agenceFilterReady, setAgenceFilterReady] = useState(false)
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === editId) || null,
@@ -76,6 +81,7 @@ export function OrdresTravailPage() {
       numero: nextNumeroOt(data),
       technicien: user?.signataireNom || user?.fullName || user?.email || '',
       technicienUserId: user?.id,
+      technicienUserIds: user?.id ? [user.id] : [],
       clientId: params.get('client') || '',
       chantierId: params.get('chantier') || '',
       equipementId: params.get('equipement') || '',
@@ -96,6 +102,36 @@ export function OrdresTravailPage() {
     if (existing && isOtCloture(existing.statut)) setStatutFilter('clotures')
   }, [existing?.id, existing?.statut])
 
+  const mesAgences = useMemo(
+    () =>
+      agencesDuMembre({
+        agenceCode: dossierForUser(data.personnelDossiers, user?.id)?.agenceCode,
+        agencesCouvertes: dossierForUser(data.personnelDossiers, user?.id)
+          ?.agencesCouvertes,
+      }),
+    [data.personnelDossiers, user?.id],
+  )
+
+  useEffect(() => {
+    if (agenceFilterReady) return
+    if (bureau && mesAgences.length) setAgenceFilter(mesAgences)
+    setAgenceFilterReady(true)
+  }, [bureau, mesAgences, agenceFilterReady])
+
+  const agencesDispo = useMemo(() => {
+    const set = new Set<string>(mesAgences)
+    for (const o of data.ordresTravail || []) {
+      const client = data.clients.find((c) => c.id === o.clientId)
+      const site = data.chantiers.find((c) => c.id === o.chantierId)
+      const ag = agenceEffective({
+        agenceCode: o.agenceCode || site?.agenceCode || client?.agenceCode,
+        codePostal: site?.codePostal || client?.codePostal,
+      })
+      if (ag) set.add(ag)
+    }
+    return [...set].sort()
+  }, [data.ordresTravail, data.clients, data.chantiers, mesAgences])
+
   const list = useMemo(() => {
     return [...(data.ordresTravail || [])]
       .filter((o) => (typeFilter === 'tous' ? true : o.typeOt === typeFilter))
@@ -106,7 +142,7 @@ export function OrdresTravailPage() {
       })
       .filter((o) => {
         if (assigneeFilter !== 'moi' || !user?.id) return true
-        return o.technicienUserId === user.id
+        return techIdsOt(o).includes(user.id)
       })
       .filter((o) => {
         if (secteurFilter === 'tous') return true
@@ -115,14 +151,13 @@ export function OrdresTravailPage() {
         return secteur === secteurFilter
       })
       .filter((o) => {
-        if (agenceFilter === 'tous') return true
         const client = data.clients.find((c) => c.id === o.clientId)
         const site = data.chantiers.find((c) => c.id === o.chantierId)
         const ag = agenceEffective({
           agenceCode: o.agenceCode || site?.agenceCode || client?.agenceCode,
           codePostal: site?.codePostal || client?.codePostal,
         })
-        return ag === agenceFilter
+        return matchAgenceFilter(ag, agenceFilter)
       })
       .filter((o) => {
         const client = data.clients.find((c) => c.id === o.clientId)
@@ -391,8 +426,12 @@ export function OrdresTravailPage() {
             onChange={(agenceCode) => setForm({ ...form, agenceCode })}
           />
           <TechnicienAssignField
+            multi
+            highlightAgence={form.agenceCode}
+            label="Techniciens (plusieurs possibles)"
             technicien={form.technicien}
             technicienUserId={form.technicienUserId}
+            technicienUserIds={form.technicienUserIds}
             onChange={(next) => {
               const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
               const auto = secteurOtDepuisPoste(poste)
@@ -701,33 +740,11 @@ export function OrdresTravailPage() {
             </option>
           ))}
         </select>
-        <select
-          value={agenceFilter}
-          onChange={(e) => setAgenceFilter(e.target.value)}
-          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
-        >
-          <option value="tous">Toutes les agences</option>
-          {Array.from(
-            new Set(
-              (data.ordresTravail || [])
-                .map((o) => {
-                  const client = data.clients.find((c) => c.id === o.clientId)
-                  const site = data.chantiers.find((c) => c.id === o.chantierId)
-                  return agenceEffective({
-                    agenceCode: o.agenceCode || site?.agenceCode || client?.agenceCode,
-                    codePostal: site?.codePostal || client?.codePostal,
-                  })
-                })
-                .filter(Boolean) as string[],
-            ),
-          )
-            .sort()
-            .map((code) => (
-              <option key={code} value={code}>
-                {labelAgence(code)}
-              </option>
-            ))}
-        </select>
+        <AgenceFilterChips
+          selected={agenceFilter}
+          onChange={setAgenceFilter}
+          codes={agencesDispo}
+        />
       </div>
 
       <div className="grid gap-3">

@@ -79,7 +79,7 @@ import {
   type RhAccessActor,
 } from './rhDocuments'
 import { parsePostePersonnel, parseActiviteBureau, parseMetiersCouverts, type PostePersonnelId } from './postePersonnel'
-import { parseAgenceCode } from './agences'
+import { parseAgenceCode, parseAgencesCouvertes } from './agences'
 import {
   getCloudUpdatedAt,
   getPendingSync,
@@ -2536,6 +2536,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         agenceCode: Object.prototype.hasOwnProperty.call(d, 'agenceCode')
           ? parseAgenceCode(d.agenceCode)
           : existing?.agenceCode,
+        agencesCouvertes: Object.prototype.hasOwnProperty.call(d, 'agencesCouvertes')
+          ? parseAgencesCouvertes(d.agencesCouvertes)
+          : existing?.agencesCouvertes,
         activiteBureau: Object.prototype.hasOwnProperty.call(d, 'activiteBureau')
           ? parseActiviteBureau(d.activiteBureau)
           : existing?.activiteBureau,

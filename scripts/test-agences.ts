@@ -2,8 +2,11 @@ import assert from 'node:assert/strict'
 import {
   agenceDepuisCodePostal,
   agenceEffective,
+  agencesDuMembre,
   labelAgence,
+  matchAgenceFilter,
   parseAgenceCode,
+  parseAgencesCouvertes,
 } from '../src/lib/agences'
 
 assert.equal(parseAgenceCode('75'), '75')
@@ -30,5 +33,18 @@ assert.equal(
   agenceEffective({ agenceCode: '75', codePostal: '06000' }),
   '75',
 )
+
+assert.deepEqual(parseAgencesCouvertes(['06', '13', '06', 'xx']), ['06', '13'])
+assert.deepEqual(parseAgencesCouvertes('06'), [])
+assert.deepEqual(
+  agencesDuMembre({ agenceCode: '06', agencesCouvertes: ['13', '83'] }),
+  ['13', '83'],
+)
+assert.deepEqual(agencesDuMembre({ agenceCode: '6' }), ['06'])
+assert.deepEqual(agencesDuMembre({}), [])
+assert.equal(matchAgenceFilter('06', []), true)
+assert.equal(matchAgenceFilter('06', ['06', '13']), true)
+assert.equal(matchAgenceFilter('75', ['06', '13']), false)
+assert.equal(matchAgenceFilter(undefined, ['06']), false)
 
 console.log('test-agences: ok')

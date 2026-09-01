@@ -21,7 +21,7 @@ import { Nav3dIcon } from '../components/Nav3dIcon'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import { PostePersonnelSelect, BureauActiviteFields } from '../components/PostePersonnelSelect'
-import { AgenceSelect } from '../components/AgenceSelect'
+import { AgenceSelect, AgencesCouvertesFields } from '../components/AgenceSelect'
 import { useStore } from '../lib/store'
 import {
   dossierForUser,
@@ -34,6 +34,7 @@ import {
 import {
   labelPostePersonnel,
   ligneNomPoste,
+  isPosteBureau,
   parsePostePersonnel,
   posteCouvreTouteLEquipe,
   ACTIVITE_BUREAU_LABELS,
@@ -313,6 +314,7 @@ export function EquipePage() {
     patch: {
       poste?: PostePersonnelId | ''
       agenceCode?: string | undefined
+      agencesCouvertes?: string[]
       activiteBureau?: ActiviteBureau | undefined
       metiersCouverts?: PostePersonnelId[]
     },
@@ -335,6 +337,8 @@ export function EquipePage() {
         ? patch.activiteBureau
         : d?.activiteBureau,
       metiersCouverts: patch.metiersCouverts !== undefined ? patch.metiersCouverts : d?.metiersCouverts,
+      agencesCouvertes:
+        patch.agencesCouvertes !== undefined ? patch.agencesCouvertes : d?.agencesCouvertes,
     })
   }
 
@@ -670,6 +674,16 @@ export function EquipePage() {
                     value={dossier?.agenceCode}
                     onChange={(next) => saveMemberDossier(m, { agenceCode: next })}
                   />
+                  {isPosteBureau(dossier?.poste) ||
+                  posteCouvreTouteLEquipe(dossier?.poste) ||
+                  m.role === 'owner' ? (
+                    <AgencesCouvertesFields
+                      compact
+                      className="max-w-xs"
+                      value={dossier?.agencesCouvertes}
+                      onChange={(agencesCouvertes) => saveMemberDossier(m, { agencesCouvertes })}
+                    />
+                  ) : null}
                   <BureauActiviteFields
                     compact
                     poste={dossier?.poste}

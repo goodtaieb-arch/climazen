@@ -5,7 +5,7 @@
  */
 
 import { parsePostePersonnel, parseActiviteBureau, parseMetiersCouverts, type PostePersonnelId } from './postePersonnel'
-import { parseAgenceCode } from './agences'
+import { parseAgenceCode, parseAgencesCouvertes } from './agences'
 
 export const ALERTE_EXPIRATION_JOURS = 45
 
@@ -222,6 +222,8 @@ export interface PersonnelDossier {
   metiersCouverts?: PostePersonnelId[]
   /** Agence / département (75, 06, 13…). */
   agenceCode?: string
+  /** Responsable : plusieurs régions (06 + 13…). */
+  agencesCouvertes?: string[]
   /** Portable pro — visible dans Équipe à côté du nom / e-mail */
   telephone?: string
   /** Manipulation fluides — aptitude F-Gas obligatoire */
@@ -254,6 +256,7 @@ export function defaultPersonnelDossier(
     activiteBureau: undefined,
     metiersCouverts: undefined,
     agenceCode: undefined,
+    agencesCouvertes: undefined,
     telephone: undefined,
     toucheFroid: true,
     toucheElectricite: true,
@@ -409,6 +412,7 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       activiteBureau: parseActiviteBureau(raw.activiteBureau),
       metiersCouverts: parseMetiersCouverts(raw.metiersCouverts),
       agenceCode: parseAgenceCode(raw.agenceCode),
+      agencesCouvertes: parseAgencesCouvertes(raw.agencesCouvertes),
       telephone: String(raw.telephone || '').trim() || undefined,
       toucheFroid: raw.toucheFroid !== false,
       toucheElectricite: raw.toucheElectricite !== false,
