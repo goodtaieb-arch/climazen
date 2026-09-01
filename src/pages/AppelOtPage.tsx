@@ -74,13 +74,18 @@ import {
   docsEffectifsRequis,
   docsManquantsPourCloture,
   inferParcoursStepPourRole,
+  motifClotureOt,
+  otEstMaintenancePreparee,
   parseDocsOtRequis,
+  rapportOtSuffit,
+  rapportSousTraitantOk,
   roleParcoursOt,
   techDoitRemplirCerfa,
   toggleDocOtRequis,
   type DocOtRequis,
   type DocsOtRemplis,
 } from '../lib/otParcours'
+import { RegistreSecuriteBanner } from '../components/RegistreSecuriteBanner'
 import { dossierForUser } from '../lib/rhDocuments'
 import { secteurOtDepuisPoste } from '../lib/postePersonnel'
 import { AgenceSelect } from '../components/AgenceSelect'
@@ -1034,8 +1039,33 @@ export function AppelOtPage() {
   }
 
   const finishWithSignatures = () => {
-    if (role !== 'intervenant') {
-      alert('C’est le technicien affecté qui remplit et clôture l’intervention.')
+    const motif = motifClotureOt(
+      { isOwner: Boolean(isOwner), peutVoirIdentitesRh },
+      otForm,
+      user?.id,
+    )
+    if (motif === 'interdit') {
+      alert(
+        otForm.maintenanceParSousTraitant && !otForm.techAccompagneSousTraitant
+          ? 'Sans accompagnement, c’est le bureau qui clôture avec le rapport du sous-traitant.'
+          : 'C’est le technicien affecté qui remplit et clôture l’intervention.',
+      )
+      return
+    }
+    if (motif === 'bureau_sous_traitant') {
+      if (!rapportSousTraitantOk(otForm)) {
+        alert('Joignez le rapport du sous-traitant pour clôturer cet OT.')
+        return
+      }
+      persistOt({
+        statut: 'signe',
+        parcoursStep: 'docs',
+        rapportAction:
+          otForm.rapportAction || otForm.rapportSousTraitant || otForm.action,
+        interventionPartielle: false,
+        avancementPct: 100,
+      })
+      setMsg('OT clôturé par le bureau — rapport sous-traitant reçu.')
       return
     }
     const hasF =
@@ -1088,6 +1118,12 @@ export function AppelOtPage() {
       toucheGaz: otForm.toucheGaz,
       remplis,
     })
+    if (rapportOtSuffit(otForm.docsRequis) && !(otForm.rapportAction || '').trim()) {
+      alert(
+        'Pas de fiche type pour cet équipement — remplissez le rapport d’action sur l’OT.',
+      )
+      return
+    }
     if (manquants.length) {
       alert(
         'À remplir avant de clôturer :\n\n' +
@@ -1303,8 +1339,15 @@ export function AppelOtPage() {
             {NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}
           </strong>
           {' — '}
-          la fiche s’ouvre sur ce niveau. Date déplaçable (urgence ou reprise partielle).
+          {rapportOtSuffit(otForm.docsRequis)
+            ? 'pas de fiche type : le rapport d’OT suffit.'
+            : 'la fiche s’ouvre sur ce niveau.'}{' '}
+          Date déplaçable (urgence ou reprise partielle).
         </p>
+      ) : null}
+
+      {otEstMaintenancePreparee(otForm.typeOt) || otForm.contratId ? (
+        <RegistreSecuriteBanner />
       ) : null}
 
       {/* ——— Étape OT ——— */}
@@ -2150,7 +2193,24 @@ export function AppelOtPage() {
               })}
               <p className="text-xs text-muted">
                 CERFA : toujours accessible au tech. Obligatoire s’il touche au fluide / gaz.
+                Pas de fiche type → le rapport d’OT suffit.
               </p>
+              <SousTraitantOtFields
+                form={otForm}
+                onChange={(patch) => {
+                  setOtForm({ ...otForm, ...patch })
+                  persistOt(patch)
+                }}
+              />
+              {otForm.maintenanceParSousTraitant && !otForm.techAccompagneSousTraitant ? (
+                <button
+                  type="button"
+                  onClick={finishWithSignatures}
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white"
+                >
+                  <Check className="h-4 w-4" /> Clôturer — rapport sous-traitant
+                </button>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -2208,6 +2268,21 @@ export function AppelOtPage() {
               />
             </label>
           </div>
+
+          <SousTraitantOtFields
+            form={otForm}
+            onChange={(patch) => {
+              setOtForm({ ...otForm, ...patch })
+              persistOt(patch)
+            }}
+          />
+
+          {rapportOtSuffit(otForm.docsRequis) ? (
+            <p className="rounded-xl border border-line bg-mist/50 px-3 py-2 text-sm text-ink">
+              Pas de fiche type pour cet équipement — le <strong>rapport d’action</strong> de
+              l’OT suffit.
+            </p>
+          ) : null}
 
           <label className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-sm">
             <input
@@ -2361,6 +2436,25 @@ export function AppelOtPage() {
             />
           ) : null}
 
+          <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={Boolean(otForm.registreSecuriteConfirme)}
+              onChange={(e) => {
+                const registreSecuriteConfirme = e.target.checked
+                setOtForm({ ...otForm, registreSecuriteConfirme })
+                persistOt({ registreSecuriteConfirme })
+              }}
+            />
+            <span>
+              <span className="font-semibold text-ink">Registre de sécurité mis à jour</span>
+              <span className="mt-0.5 block text-xs text-muted">
+                Cochez après avoir porté le passage sur le registre du site (norme).
+              </span>
+            </span>
+          </label>
+
           <div className="space-y-4">
             <IntervenantSignature
               label="Signature technicien (auto)"
@@ -2488,6 +2582,81 @@ export function AppelOtPage() {
           </span>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function SousTraitantOtFields({
+  form,
+  onChange,
+}: {
+  form: Pick<
+    OrdreTravail,
+    | 'maintenanceParSousTraitant'
+    | 'techAccompagneSousTraitant'
+    | 'rapportSousTraitant'
+  >
+  onChange: (
+    patch: Partial<
+      Pick<
+        OrdreTravail,
+        | 'maintenanceParSousTraitant'
+        | 'techAccompagneSousTraitant'
+        | 'rapportSousTraitant'
+        | 'origineOt'
+      >
+    >,
+  ) => void
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border border-line bg-mist/40 p-3">
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={Boolean(form.maintenanceParSousTraitant)}
+          onChange={(e) =>
+            onChange({
+              maintenanceParSousTraitant: e.target.checked,
+              origineOt: e.target.checked ? 'sous_traitance' : undefined,
+              techAccompagneSousTraitant: e.target.checked
+                ? form.techAccompagneSousTraitant
+                : false,
+            })
+          }
+        />
+        <span>
+          <span className="font-semibold text-ink">Sous-traitant sur cet équipement</span>
+          <span className="mt-0.5 block text-xs text-muted">
+            Le tech clôture s’il accompagne. Sinon le bureau clôture avec le rapport livré.
+          </span>
+        </span>
+      </label>
+      {form.maintenanceParSousTraitant ? (
+        <>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={Boolean(form.techAccompagneSousTraitant)}
+              onChange={(e) =>
+                onChange({ techAccompagneSousTraitant: e.target.checked })
+              }
+            />
+            <span className="font-semibold text-ink">Le tech accompagne le sous-traitant</span>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold text-ink">Rapport sous-traitant</span>
+            <textarea
+              rows={3}
+              value={form.rapportSousTraitant || ''}
+              onChange={(e) => onChange({ rapportSousTraitant: e.target.value })}
+              className="w-full rounded-xl border border-line px-3 py-2"
+              placeholder="Compte-rendu livré par le sous-traitant…"
+            />
+          </label>
+        </>
+      ) : null}
     </div>
   )
 }

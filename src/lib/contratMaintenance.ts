@@ -66,6 +66,39 @@ export function parseVisitesParAn(raw: unknown): VisitesParAn | undefined {
   return undefined
 }
 
+/** Une ligne du dossier : un équipement, sa fréquence, éventuellement sous-traité. */
+export type LigneContratEquipement = {
+  siteId: string
+  equipementId: string
+  /** Surcharge la fréquence du contrat */
+  visitesParAn?: VisitesParAn
+  /** La société se fait aider par un sous-traitant sur cet équipement */
+  sousTraitant?: boolean
+}
+
+export function parseLignesEquipements(raw: unknown): LigneContratEquipement[] {
+  if (!Array.isArray(raw)) return []
+  const out: LigneContratEquipement[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const siteId = String(rec.siteId || '').trim()
+    const equipementId = String(rec.equipementId || '').trim()
+    if (!siteId || !equipementId) continue
+    const key = `${siteId}::${equipementId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({
+      siteId,
+      equipementId,
+      visitesParAn: parseVisitesParAn(rec.visitesParAn),
+      sousTraitant: rec.sousTraitant === true,
+    })
+  }
+  return out
+}
+
 export function parseFamilleContrat(raw: unknown): FamilleContrat | undefined {
   const v = String(raw || '').trim()
   if (
@@ -330,6 +363,12 @@ export interface ContratMaintenance {
   secteur?: PostePersonnelId
   /** false = contrat signé sans générer les OT (cas rare) */
   genererOtAuto?: boolean
+  /**
+   * Lignes client → équipement → fréquence.
+   * Chaufferie / clim / CTA ne sont que des exemples de fiches.
+   * Vide = tous les équipements des sites couverts, même fréquence.
+   */
+  lignesEquipements?: LigneContratEquipement[]
   dateDebut: string
   dateFin: string
   dureeLabel: string
@@ -444,6 +483,7 @@ export function createContratFromModele(
     visitesParAn: modele.visitesParAn,
     secteur: modele.secteur,
     genererOtAuto: true,
+    lignesEquipements: [],
     dateDebut,
     dateFin: addYears(dateDebut, 1),
     dureeLabel,

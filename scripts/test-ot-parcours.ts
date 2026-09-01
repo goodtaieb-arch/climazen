@@ -5,6 +5,10 @@ import {
   docsManquantsPourCloture,
   estBureauQuiPreparePourUnTech,
   estTechIntervenant,
+  motifClotureOt,
+  rapportOtSuffit,
+  rapportSousTraitantOk,
+  REGISTRE_SECURITE_AVERTISSEMENT,
   inferParcoursStepPourRole,
   parseDocsOtRequis,
   roleParcoursOt,
@@ -108,5 +112,62 @@ assert.equal(inferParcoursStep(otDepanage), 'docs')
 assert.equal(inferParcoursStepPourRole(otDepanage, 'bureau_depanage'), 'equipement')
 assert.equal(inferParcoursStepPourRole(otDepanage, 'intervenant'), 'docs')
 assert.equal(inferParcoursStepPourRole(otDepanage, 'bureau_maintenance'), 'docs')
+
+assert.equal(rapportOtSuffit([]), true)
+assert.equal(rapportOtSuffit(['fiche_clim']), false)
+assert.equal(rapportOtSuffit(['cerfa']), true)
+assert.equal(rapportSousTraitantOk({ rapportSousTraitant: 'PDF reçu' }), true)
+assert.equal(rapportSousTraitantOk({ rapportAction: '' }), false)
+assert.ok(REGISTRE_SECURITE_AVERTISSEMENT.includes('registre de sécurité'))
+
+assert.equal(
+  motifClotureOt(terrain, { technicienUserId: 'tech-1' }, 'tech-1'),
+  'tech',
+)
+assert.equal(
+  motifClotureOt(bureau, { technicienUserId: 'tech-1' }, 'sec-1'),
+  'interdit',
+)
+assert.equal(
+  motifClotureOt(
+    bureau,
+    { technicienUserId: 'tech-1', maintenanceParSousTraitant: true },
+    'sec-1',
+  ),
+  'bureau_sous_traitant',
+)
+assert.equal(
+  motifClotureOt(
+    bureau,
+    {
+      technicienUserId: 'tech-1',
+      maintenanceParSousTraitant: true,
+      techAccompagneSousTraitant: true,
+    },
+    'sec-1',
+  ),
+  'interdit',
+)
+assert.equal(
+  motifClotureOt(
+    terrain,
+    {
+      technicienUserId: 'tech-1',
+      maintenanceParSousTraitant: true,
+      techAccompagneSousTraitant: true,
+    },
+    'tech-1',
+  ),
+  'tech',
+)
+assert.deepEqual(
+  docsManquantsPourCloture({
+    docsRequis: ['fiche_clim'],
+    hasFluide: false,
+    remplis: {},
+    rapportSousTraitantSuffit: true,
+  }),
+  [],
+)
 
 console.log('test-ot-parcours: ok')

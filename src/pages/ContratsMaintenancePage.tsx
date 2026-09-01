@@ -16,22 +16,28 @@ import {
   createContratFromModele,
   fillCorpsContrat,
   isContratActif,
-  parseFamilleContrat,
+  parseLignesEquipements,
   parseVisitesParAn,
   resolveFamilleContrat,
   resolveGenererOtAuto,
   resolveSecteurContrat,
   resolveVisitesParAn,
   type ContratMaintenance,
-  type FamilleContrat,
+  type LigneContratEquipement,
   type ModeleContratId,
   type StatutContrat,
+  type VisitesParAn,
 } from '../lib/contratMaintenance'
 import {
   NIVEAU_VISITE_LABELS,
   periodiciteDepuisVisites,
   visitesDepuisContrat,
 } from '../lib/contratOtAuto'
+import { allEquipements } from '../lib/cerfaBatch'
+import {
+  CATEGORIE_FICHE_LABELS,
+  inferCategorieFicheEquipement,
+} from '../lib/equipementFiche'
 import { SecteurOtSelect } from '../components/PostePersonnelSelect'
 import { labelSecteurCourt } from '../lib/postePersonnel'
 import { couleurMetier, COULEUR_NON_AFFECTE } from '../lib/agendaPlanning'
@@ -227,8 +233,8 @@ export function ContratsMaintenancePage() {
           <h1 className="font-display text-xl font-bold">Choisir un modèle</h1>
         </div>
         <p className="text-sm text-muted">
-          Le contrat est prérempli (opérateur, client, sites). Vous pouvez tout modifier avant
-          signature.
+          Exemples de fréquences (chaufferie 12, clim 2, CTA 4…). Ensuite vous choisissez le
+          client, les équipements et la fréquence réelle.
         </p>
         <div className="grid gap-3">
           {MODELES_CONTRAT.map((m) => (
@@ -315,7 +321,8 @@ export function ContratsMaintenancePage() {
               <div>
                 <h2 className="font-display text-lg font-semibold text-ink">Fiche de remplissage</h2>
                 <p className="mt-0.5 text-sm text-muted">
-                  Client, sites, dates et prix — ensuite le texte, puis les signatures.
+                  Client, équipements, fréquence de contrôle — les OT et la fiche (si elle
+                  existe) se génèrent à la signature.
                 </p>
               </div>
 
@@ -337,10 +344,20 @@ export function ContratsMaintenancePage() {
                     onChange={(e) => {
                       const clientId = e.target.value
                       const sites = data.chantiers.filter((s) => s.clientId === clientId)
+                      const freq = resolveVisitesParAn(form)
+                      const lignes: LigneContratEquipement[] = sites.flatMap((s) =>
+                        allEquipements(s).map((eq) => ({
+                          siteId: s.id,
+                          equipementId: eq.id,
+                          visitesParAn: freq,
+                          sousTraitant: false,
+                        })),
+                      )
                       setForm({
                         ...form,
                         clientId,
                         chantierIds: sites.map((s) => s.id),
+                        lignesEquipements: lignes,
                       })
                     }}
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
@@ -354,27 +371,7 @@ export function ContratsMaintenancePage() {
                   </select>
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Famille / fiche</span>
-                  <select
-                    value={resolveFamilleContrat(form)}
-                    onChange={(e) => {
-                      const famille = parseFamilleContrat(e.target.value) || 'clim'
-                      setForm({ ...form, famille })
-                    }}
-                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
-                  >
-                    {(Object.keys(FAMILLE_CONTRAT_LABELS) as FamilleContrat[]).map((f) => (
-                      <option key={f} value={f}>
-                        {FAMILLE_CONTRAT_LABELS[f]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-sm">
-                  <span className="mb-1 block font-semibold text-ink">Fréquence des visites</span>
+                  <span className="mb-1 block font-semibold text-ink">Fréquence par défaut</span>
                   <select
                     value={resolveVisitesParAn(form)}
                     onChange={(e) => {
@@ -383,6 +380,9 @@ export function ContratsMaintenancePage() {
                         ...form,
                         visitesParAn,
                         periodicite: periodiciteDepuisVisites(visitesParAn),
+                        lignesEquipements: parseLignesEquipements(form.lignesEquipements).map(
+                          (l) => ({ ...l, visitesParAn }),
+                        ),
                       })
                     }}
                     className="h-11 w-full rounded-xl border border-line bg-white px-3"
@@ -393,17 +393,19 @@ export function ContratsMaintenancePage() {
                       </option>
                     ))}
                   </select>
-                  <span className="mt-1 block text-xs text-muted">
-                    Chaufferie = 12 / an · clim = 2 (S + A) · CTA = 4 (T, S, T, A). Les OT
-                    partent chaque mois du cycle pour que vous les affectiez dans l’agenda.
-                  </span>
                 </label>
-                <SecteurOtSelect
-                  value={resolveSecteurContrat(form)}
-                  onChange={(secteur) => setForm({ ...form, secteur })}
-                  label="Couleur / métier (CVC, frigo…)"
-                />
               </div>
+
+              <SecteurOtSelect
+                value={resolveSecteurContrat(form)}
+                onChange={(secteur) => setForm({ ...form, secteur })}
+                label="Couleur / métier (CVC, frigo…)"
+              />
+              <p className="text-xs text-muted">
+                Chaufferie 12, clim 2, CTA 4 = exemples. Chaque équipement a sa fréquence.
+                S’il existe une fiche (clim, chaufferie, CTA), elle s’ouvre au bon niveau ;
+                sinon le rapport d’OT suffit.
+              </p>
 
               <label className="flex items-start gap-2 text-sm">
                 <input
@@ -415,9 +417,8 @@ export function ContratsMaintenancePage() {
                 <span>
                   <span className="font-semibold text-ink">Créer les OT automatiquement</span>
                   <span className="mt-0.5 block text-xs text-muted">
-                    Dès la signature : un OT par visite / site, sans heure (à caler dans
-                    l’agenda). La date se décale si le tech n’a pas pu passer ou si la visite
-                    est partielle.
+                    Dès la signature : un OT par visite / équipement, sans heure (à caler
+                    dans l’agenda). Date déplaçable (urgence ou visite partielle).
                   </span>
                 </span>
               </label>
@@ -432,9 +433,17 @@ export function ContratsMaintenancePage() {
                       type="checkbox"
                       checked={form.chantierIds.length === sitesForClient.length}
                       onChange={(e) => {
+                        const chantierIds = e.target.checked
+                          ? sitesForClient.map((s) => s.id)
+                          : []
                         setForm({
                           ...form,
-                          chantierIds: e.target.checked ? sitesForClient.map((s) => s.id) : [],
+                          chantierIds,
+                          lignesEquipements: syncLignesSites(
+                            form,
+                            sitesForClient,
+                            chantierIds,
+                          ),
                         })
                       }}
                     />
@@ -451,7 +460,11 @@ export function ContratsMaintenancePage() {
                             const next = on
                               ? form.chantierIds.filter((id) => id !== s.id)
                               : [...form.chantierIds, s.id]
-                            setForm({ ...form, chantierIds: next })
+                            setForm({
+                              ...form,
+                              chantierIds: next,
+                              lignesEquipements: syncLignesSites(form, sitesForClient, next),
+                            })
                           }}
                           className={[
                             'rounded-full px-3 py-1.5 text-xs font-semibold',
@@ -472,6 +485,14 @@ export function ContratsMaintenancePage() {
                   </Link>
                 </p>
               )}
+
+              <EquipementsContratFields
+                form={form}
+                sites={sitesForClient.filter(
+                  (s) => form.chantierIds.length === 0 || form.chantierIds.includes(s.id),
+                )}
+                onChange={(lignesEquipements) => setForm({ ...form, lignesEquipements })}
+              />
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="block text-sm">
@@ -840,8 +861,8 @@ function CalendrierVisitesPreview({
         <div>
           <p className="text-sm font-semibold text-ink">Calendrier des visites</p>
           <p className="text-xs text-muted">
-            {resolveVisitesParAn(form)} passage(s) / an · fiche{' '}
-            {FAMILLE_CONTRAT_LABELS[resolveFamilleContrat(form)]} ·{' '}
+            {parseLignesEquipements(form.lignesEquipements).length || 'parc'} équipement(s)
+            {' · '}
             {PERIODICITE_LABELS[form.periodicite].toLowerCase()}
           </p>
         </div>
@@ -873,7 +894,9 @@ function CalendrierVisitesPreview({
                 <span>
                   <span className="font-bold">{v.date}</span>
                   {` · ${NIVEAU_VISITE_LABELS[v.niveau]}`}
+                  {v.equipementNom ? ` · ${v.equipementNom}` : ''}
                   {sites.length > 1 ? ` · ${v.siteNom}` : ''}
+                  {v.sousTraitant ? ' · sous-traitant' : ''}
                 </span>
                 {ot ? (
                   <Link
@@ -892,5 +915,155 @@ function CalendrierVisitesPreview({
         </ul>
       )}
     </div>
+  )
+}
+
+function syncLignesSites(
+  form: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'>,
+  sites: { id: string; clientId: string; nom: string; equipements?: import('../lib/types').Equipement[] }[],
+  chantierIds: string[],
+): LigneContratEquipement[] {
+  const freq = resolveVisitesParAn(form)
+  const covered = sites.filter((s) => chantierIds.length === 0 || chantierIds.includes(s.id))
+  const prev = parseLignesEquipements(form.lignesEquipements)
+  const next: LigneContratEquipement[] = []
+  for (const site of covered) {
+    for (const eq of allEquipements(site as import('../lib/types').Site)) {
+      const existing = prev.find((l) => l.siteId === site.id && l.equipementId === eq.id)
+      next.push(
+        existing || {
+          siteId: site.id,
+          equipementId: eq.id,
+          visitesParAn: freq,
+          sousTraitant: false,
+        },
+      )
+    }
+  }
+  return next
+}
+
+function EquipementsContratFields({
+  form,
+  sites,
+  onChange,
+}: {
+  form: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'>
+  sites: { id: string; clientId: string; nom: string; equipements?: import('../lib/types').Equipement[] }[]
+  onChange: (lignes: LigneContratEquipement[]) => void
+}) {
+  const lignes = parseLignesEquipements(form.lignesEquipements)
+  const freqDefaut = resolveVisitesParAn(form)
+  const rows = sites.flatMap((s) =>
+    allEquipements(s as import('../lib/types').Site).map((eq) => ({
+      site: s,
+      eq,
+      ligne: lignes.find((l) => l.siteId === s.id && l.equipementId === eq.id),
+    })),
+  )
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+        Aucun équipement sur ces sites.{' '}
+        <Link className="font-semibold underline" to="/app/chantiers">
+          Ajouter le parc
+        </Link>
+        {' — '}sinon un OT par site (rapport d’OT).
+      </p>
+    )
+  }
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-semibold text-ink">Équipements sous contrat</legend>
+      <p className="text-xs text-muted">
+        Cochez l’équipement, sa fréquence, et si un sous-traitant intervient.
+      </p>
+      <div className="space-y-2">
+        {rows.map(({ site, eq, ligne }) => {
+          const on = Boolean(ligne)
+          const cat = inferCategorieFicheEquipement(eq)
+          return (
+            <div
+              key={`${site.id}::${eq.id}`}
+              className={[
+                'rounded-xl border px-3 py-2 text-sm',
+                on ? 'border-emerald-200 bg-emerald-50/50' : 'border-line bg-white',
+              ].join(' ')}
+            >
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={on}
+                  onChange={() => {
+                    if (on) {
+                      onChange(lignes.filter((l) => !(l.siteId === site.id && l.equipementId === eq.id)))
+                    } else {
+                      onChange([
+                        ...lignes,
+                        {
+                          siteId: site.id,
+                          equipementId: eq.id,
+                          visitesParAn: freqDefaut,
+                          sousTraitant: false,
+                        },
+                      ])
+                    }
+                  }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold text-ink">{eq.nom || eq.type || 'Équipement'}</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {site.nom}
+                    {eq.type ? ` · ${eq.type}` : ''}
+                    {` · ${CATEGORIE_FICHE_LABELS[cat]}`}
+                  </span>
+                </span>
+              </label>
+              {on && ligne ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
+                  <select
+                    value={ligne.visitesParAn || freqDefaut}
+                    onChange={(e) => {
+                      const visitesParAn = (Number(e.target.value) || freqDefaut) as VisitesParAn
+                      onChange(
+                        lignes.map((l) =>
+                          l.siteId === site.id && l.equipementId === eq.id
+                            ? { ...l, visitesParAn }
+                            : l,
+                        ),
+                      )
+                    }}
+                    className="h-9 rounded-lg border border-line bg-white px-2 text-xs"
+                  >
+                    {VISITES_PAR_AN_OPTIONS.map((opt) => (
+                      <option key={opt.n} value={opt.n}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={ligne.sousTraitant === true}
+                      onChange={(e) =>
+                        onChange(
+                          lignes.map((l) =>
+                            l.siteId === site.id && l.equipementId === eq.id
+                              ? { ...l, sousTraitant: e.target.checked }
+                              : l,
+                          ),
+                        )
+                      }
+                    />
+                    Sous-traitant
+                  </label>
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </fieldset>
   )
 }

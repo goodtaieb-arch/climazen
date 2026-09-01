@@ -17,6 +17,10 @@ import {
   periodiciteDepuisVisites,
   visitesDepuisContrat,
 } from '../src/lib/contratOtAuto'
+import {
+  docsRequisPourEquipement,
+  inferCategorieFicheEquipement,
+} from '../src/lib/equipementFiche'
 
 assert.equal(niveauVisitePourMoisCycle(1), 'mensuel')
 assert.equal(niveauVisitePourMoisCycle(2), 'mensuel')
@@ -205,5 +209,88 @@ assert.equal(created.famille, 'cta')
 assert.equal(created.visitesParAn, 4)
 assert.equal(created.secteur, 'tech_cvc')
 assert.equal(created.genererOtAuto, true)
+
+assert.equal(inferCategorieFicheEquipement({ type: 'Chaudière P3', nom: '' }), 'chaufferie')
+assert.equal(inferCategorieFicheEquipement({ type: 'CTA toiture', nom: '' }), 'cta_vmc')
+assert.equal(inferCategorieFicheEquipement({ type: 'Split bureau', nom: 'Clim R32' }), 'clim')
+assert.equal(inferCategorieFicheEquipement({ type: 'VMC sanitaires', nom: '' }), 'cta_vmc')
+assert.equal(inferCategorieFicheEquipement({ type: 'Tableau électrique', nom: '' }), 'aucune')
+assert.deepEqual(docsRequisPourEquipement({ type: 'Chaudière', nom: '' }), ['fiche_chaufferie'])
+assert.deepEqual(docsRequisPourEquipement({ type: 'Tableau', nom: '' }), [])
+
+const eqSites = [
+  {
+    id: 's1',
+    clientId: 'c1',
+    nom: 'Siège',
+    equipements: [
+      {
+        id: 'eq-ch',
+        nom: 'Chaudière P3',
+        type: 'Chaudière',
+        marque: '',
+        modele: '',
+        numeroSerie: '',
+        fluideType: '',
+        chargeNominaleKg: 0,
+        detectionPermanente: false,
+      },
+      {
+        id: 'eq-tab',
+        nom: 'TGBT',
+        type: 'Tableau électrique',
+        marque: '',
+        modele: '',
+        numeroSerie: '',
+        fluideType: '',
+        chargeNominaleKg: 0,
+        detectionPermanente: false,
+      },
+    ],
+  },
+]
+
+const visitesEq = visitesDepuisContrat(
+  contrat({
+    id: 'cm-eq',
+    chantierIds: ['s1'],
+    visitesParAn: 2,
+    periodicite: 'semestrielle',
+    lignesEquipements: [
+      { siteId: 's1', equipementId: 'eq-ch', visitesParAn: 12 },
+      { siteId: 's1', equipementId: 'eq-tab', visitesParAn: 2, sousTraitant: true },
+    ],
+  }),
+  eqSites,
+  { today: '2026-01-20' },
+)
+assert.equal(visitesEq.filter((v) => v.equipementId === 'eq-ch').length, 12)
+assert.equal(visitesEq.filter((v) => v.equipementId === 'eq-tab').length, 2)
+assert.ok(visitesEq.some((v) => v.equipementId === 'eq-tab' && v.sousTraitant))
+assert.ok(visitesEq.every((v) => v.contratOtKey.includes(v.equipementId || '')))
+
+const draftsEq = buildOtDraftsDepuisContrats({
+  contrats: [
+    contrat({
+      id: 'cm-eq',
+      chantierIds: ['s1'],
+      visitesParAn: 2,
+      periodicite: 'semestrielle',
+      lignesEquipements: [
+        { siteId: 's1', equipementId: 'eq-ch', visitesParAn: 1 },
+        { siteId: 's1', equipementId: 'eq-tab', visitesParAn: 1, sousTraitant: true },
+      ],
+    }),
+  ],
+  sites: eqSites,
+  today: '2026-01-20',
+})
+const dCh = draftsEq.find((d) => d.equipementId === 'eq-ch')
+const dTab = draftsEq.find((d) => d.equipementId === 'eq-tab')
+assert.ok(dCh && dTab)
+assert.deepEqual(dCh.docsRequis, ['fiche_chaufferie'])
+assert.deepEqual(dTab.docsRequis, [], 'pas de fiche type → rapport OT')
+assert.equal(dTab.maintenanceParSousTraitant, true)
+assert.equal(dTab.origineOt, 'sous_traitance')
 
 console.log('ok test-contrat-ot-auto')

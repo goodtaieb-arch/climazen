@@ -122,8 +122,66 @@ export function docsManquantsPourCloture(opts: {
   hasFluide: boolean
   toucheGaz?: boolean
   remplis: DocsOtRemplis
+  /** Sous-traitant sans accompagnement : le rapport externe remplace les fiches. */
+  rapportSousTraitantSuffit?: boolean
 }): DocOtRequis[] {
+  if (opts.rapportSousTraitantSuffit) return []
   return docsEffectifsRequis(opts).filter((d) => !opts.remplis[d])
+}
+
+/** Aucune fiche type → le rapport d’action sur l’OT suffit. */
+export function rapportOtSuffit(docsRequis?: unknown): boolean {
+  return parseDocsOtRequis(docsRequis).filter((d) => d !== 'cerfa').length === 0
+}
+
+export const REGISTRE_SECURITE_AVERTISSEMENT =
+  'Obligation : remplir / mettre à jour le registre de sécurité du site à chaque passage (contrôles, anomalies, interventions) conformément à la norme en vigueur.'
+
+export type MotifClotureOt = 'interdit' | 'tech' | 'bureau_sous_traitant'
+
+/**
+ * Qui peut clôturer :
+ * - tech affecté (y compris s’il accompagne le sous-traitant)
+ * - bureau si l’équipement est sous-traité et que le tech n’accompagne pas
+ *   (le sous-traitant livre le rapport)
+ */
+export function motifClotureOt(
+  access: UiAccess,
+  ot: Pick<
+    OrdreTravail,
+    'technicienUserId' | 'maintenanceParSousTraitant' | 'techAccompagneSousTraitant'
+  >,
+  userId?: string | null,
+): MotifClotureOt {
+  if (estTechIntervenant(ot, userId)) return 'tech'
+  if (
+    isBureauUi(access) &&
+    ot.maintenanceParSousTraitant &&
+    !ot.techAccompagneSousTraitant
+  ) {
+    return 'bureau_sous_traitant'
+  }
+  return 'interdit'
+}
+
+export function peutCloturerOt(
+  access: UiAccess,
+  ot: Pick<
+    OrdreTravail,
+    'technicienUserId' | 'maintenanceParSousTraitant' | 'techAccompagneSousTraitant'
+  >,
+  userId?: string | null,
+): boolean {
+  return motifClotureOt(access, ot, userId) !== 'interdit'
+}
+
+export function rapportSousTraitantOk(ot: {
+  rapportSousTraitant?: string
+  rapportAction?: string
+}): boolean {
+  return Boolean(
+    (ot.rapportSousTraitant || '').trim() || (ot.rapportAction || '').trim(),
+  )
 }
 
 export function inferParcoursStepPourRole(

@@ -1,35 +1,40 @@
 /**
  * Génération automatique des OT de maintenance depuis un contrat signé.
  *
+ * Le dossier = client + équipements + fréquence de contrôle.
+ * Chaufferie / clim / CTA ne sont que des exemples de fiches existantes :
+ * s’il y a une fiche pour l’équipement on l’attache, sinon le rapport d’OT suffit.
+ *
  * Calendrier imbriqué sur 12 mois (registre) :
  *  1–2, 4–5, 7–8, 10–11 → mensuelle
  *  3, 9                 → trimestrielle
  *  6                    → semestrielle
  *  12                   → annuelle
  *
- * L’utilisateur choisit seulement le nombre de passages / an
- * (12 chaufferie, 4 CTA, 2 clim, 1 annuelle…). On ne crée que
- * les mois correspondants, avec le bon niveau de fiche.
- *
- * Clé stable `contratOtKey` = un créneau (contrat + site + année de cycle + mois).
- * Changer la date (urgence, partiel à reprendre) ne recrée pas l’OT.
+ * Clé stable `contratOtKey` = contrat + site + équipement + créneau.
+ * Changer la date (urgence, partiel) ne recrée pas l’OT.
  */
 
 import { addMonthsIso } from './siteParc'
+import { allEquipements } from './cerfaBatch'
 import {
   isContratActif,
+  parseLignesEquipements,
   resolveFamilleContrat,
   resolveGenererOtAuto,
   resolveSecteurContrat,
   resolveVisitesParAn,
   type ContratMaintenance,
   type FamilleContrat,
+  type LigneContratEquipement,
   type VisitesParAn,
 } from './contratMaintenance'
+import { docsRequisPourEquipement, inferCategorieFicheEquipement } from './equipementFiche'
 import type { DocOtRequis } from './otParcours'
 import type { TypeOt } from './ordreTravail'
 import type { PostePersonnelId } from './postePersonnel'
 import type { OrigineOt, StatutFacturationOt } from './chaineCommerciale'
+import type { Equipement, Site } from './types'
 
 export type NiveauVisite = 'mensuel' | 'trimestriel' | 'semestriel' | 'annuel'
 
@@ -84,7 +89,7 @@ export function docsRequisPourFamille(famille: FamilleContrat): DocOtRequis[] {
   if (famille === 'chaufferie') return ['fiche_chaufferie']
   if (famille === 'cta') return ['fiche_cta_vmc']
   if (famille === 'etancheite') return ['cerfa']
-  return ['fiche_clim', 'fiche_chaufferie', 'fiche_cta_vmc']
+  return []
 }
 
 export function typeOtPourFamille(famille: FamilleContrat): TypeOt {
@@ -94,12 +99,15 @@ export function typeOtPourFamille(famille: FamilleContrat): TypeOt {
 export type VisiteContratPlanifiee = {
   date: string
   niveau: NiveauVisite
-  /** Année du cycle (dateDebut + N ans) + mois 1–12 */
   slotKey: string
   cycleYear: number
   moisCycle: number
   siteId: string
   siteNom: string
+  equipementId?: string
+  equipementNom?: string
+  visitesParAn: VisitesParAn
+  sousTraitant?: boolean
   contratOtKey: string
 }
 
@@ -109,6 +117,15 @@ export type SiteContratRef = {
   nom: string
   agenceCode?: string
   codePostal?: string
+  equipements?: Equipement[]
+  equipementType?: string
+  fluideType?: string
+  equipementMarque?: string
+  equipementModele?: string
+  equipementNumeroSerie?: string
+  chargeNominaleKg?: number
+  teqCO2?: number
+  detectionPermanente?: boolean
 }
 
 function todayIso() {
@@ -119,7 +136,7 @@ function addYearsIso(iso: string, years: number): string {
   return addMonthsIso(iso, years * 12) || iso
 }
 
-function sitesCouverts(
+export function sitesCouverts(
   contrat: Pick<ContratMaintenance, 'clientId' | 'chantierIds'>,
   sites: SiteContratRef[],
 ): SiteContratRef[] {
@@ -133,8 +150,119 @@ export function contratOtKey(opts: {
   contratId: string
   siteId: string
   slotKey: string
+  equipementId?: string
 }): string {
-  return `cm-ot:${opts.contratId}:${opts.siteId}:${opts.slotKey}`
+  const eq = (opts.equipementId || '').trim()
+  return eq
+    ? `cm-ot:${opts.contratId}:${opts.siteId}:${eq}:${opts.slotKey}`
+    : `cm-ot:${opts.contratId}:${opts.siteId}:${opts.slotKey}`
+}
+
+export type LigneContratResolue = {
+  site: SiteContratRef
+  equipement?: Equipement
+  equipementId: string
+  equipementNom: string
+  visitesParAn: VisitesParAn
+  sousTraitant: boolean
+}
+
+/** Lignes du dossier : équipements cochés, sinon tout le parc des sites couverts. */
+export function resolveLignesContrat(
+  contrat: ContratMaintenance,
+  sites: SiteContratRef[],
+): LigneContratResolue[] {
+  const covered = sitesCouverts(contrat, sites)
+  const defaultFreq = resolveVisitesParAn(contrat)
+  const explicit = parseLignesEquipements(contrat.lignesEquipements)
+  if (explicit.length > 0) {
+    const out: LigneContratResolue[] = []
+    for (const ligne of explicit) {
+      const site = covered.find((s) => s.id === ligne.siteId)
+      if (!site) continue
+      const eqs = allEquipements(site as Site)
+      const eq = eqs.find((e) => e.id === ligne.equipementId)
+      out.push({
+        site,
+        equipement: eq,
+        equipementId: ligne.equipementId,
+        equipementNom: eq?.nom || eq?.type || 'Équipement',
+        visitesParAn: ligne.visitesParAn || defaultFreq,
+        sousTraitant: ligne.sousTraitant === true,
+      })
+    }
+    return out
+  }
+  const out: LigneContratResolue[] = []
+  for (const site of covered) {
+    const eqs = allEquipements(site as Site)
+    if (eqs.length === 0) {
+      out.push({
+        site,
+        equipementId: '',
+        equipementNom: site.nom,
+        visitesParAn: defaultFreq,
+        sousTraitant: false,
+      })
+      continue
+    }
+    for (const eq of eqs) {
+      out.push({
+        site,
+        equipement: eq,
+        equipementId: eq.id,
+        equipementNom: eq.nom || eq.type || 'Équipement',
+        visitesParAn: defaultFreq,
+        sousTraitant: false,
+      })
+    }
+  }
+  return out
+}
+
+function visitesPourLigne(
+  contrat: ContratMaintenance,
+  ligne: LigneContratResolue,
+  opts: { today: string; horizon: string; pastFloor: string; endExclusive: string },
+): VisiteContratPlanifiee[] {
+  const start = (contrat.dateDebut || opts.today).slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return []
+  const mois = moisCyclePourFrequence(ligne.visitesParAn)
+  const out: VisiteContratPlanifiee[] = []
+  for (let yearOffset = 0; yearOffset < 25; yearOffset++) {
+    const cycleStart = addYearsIso(start, yearOffset)
+    if (cycleStart >= opts.endExclusive) break
+    const cycleYear = Number(cycleStart.slice(0, 4))
+    for (const moisCycle of mois) {
+      const date = addMonthsIso(cycleStart, moisCycle - 1)
+      if (!date) continue
+      if (date < start) continue
+      if (date >= opts.endExclusive) continue
+      if (date < opts.pastFloor || date > opts.horizon) continue
+      const niveau = niveauVisitePourMoisCycle(moisCycle)
+      const slotKey = `${cycleYear}-${String(moisCycle).padStart(2, '0')}`
+      out.push({
+        date,
+        niveau,
+        slotKey,
+        cycleYear,
+        moisCycle,
+        siteId: ligne.site.id,
+        siteNom: ligne.site.nom,
+        equipementId: ligne.equipementId || undefined,
+        equipementNom: ligne.equipementNom,
+        visitesParAn: ligne.visitesParAn,
+        sousTraitant: ligne.sousTraitant,
+        contratOtKey: contratOtKey({
+          contratId: contrat.id,
+          siteId: ligne.site.id,
+          slotKey,
+          equipementId: ligne.equipementId,
+        }),
+      })
+    }
+  }
+  return out
 }
 
 /**
@@ -149,51 +277,28 @@ export function visitesDepuisContrat(
   const today = (opts?.today || todayIso()).slice(0, 10)
   const horizonMonths = opts?.horizonMonths ?? 14
   const pastMonths = opts?.pastMonths ?? 1
-  const start = (contrat.dateDebut || today).slice(0, 10)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return []
-
-  const freq = resolveVisitesParAn(contrat)
-  const mois = moisCyclePourFrequence(freq)
-  const covered = sitesCouverts(contrat, sites)
-  if (covered.length === 0) return []
-
   const horizon = addMonthsIso(today, horizonMonths) || today
   const pastFloor = addMonthsIso(today, -pastMonths) || today
   const fin = (contrat.dateFin || '').slice(0, 10)
   const endExclusive = fin && fin < horizon ? fin : horizon
-
+  const lignes = resolveLignesContrat(contrat, sites)
   const out: VisiteContratPlanifiee[] = []
-  for (let yearOffset = 0; yearOffset < 25; yearOffset++) {
-    const cycleStart = addYearsIso(start, yearOffset)
-    if (cycleStart >= endExclusive) break
-    const cycleYear = Number(cycleStart.slice(0, 4))
-    for (const moisCycle of mois) {
-      const date = addMonthsIso(cycleStart, moisCycle - 1)
-      if (!date) continue
-      if (date < start) continue
-      if (date >= endExclusive) continue
-      if (date < pastFloor || date > horizon) continue
-      const niveau = niveauVisitePourMoisCycle(moisCycle)
-      const slotKey = `${cycleYear}-${String(moisCycle).padStart(2, '0')}`
-      for (const site of covered) {
-        out.push({
-          date,
-          niveau,
-          slotKey,
-          cycleYear,
-          moisCycle,
-          siteId: site.id,
-          siteNom: site.nom,
-          contratOtKey: contratOtKey({
-            contratId: contrat.id,
-            siteId: site.id,
-            slotKey,
-          }),
-        })
-      }
-    }
+  for (const ligne of lignes) {
+    out.push(
+      ...visitesPourLigne(contrat, ligne, {
+        today,
+        horizon,
+        pastFloor,
+        endExclusive,
+      }),
+    )
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date) || a.siteNom.localeCompare(b.siteNom))
+  return out.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.siteNom.localeCompare(b.siteNom) ||
+      (a.equipementNom || '').localeCompare(b.equipementNom || ''),
+  )
 }
 
 export type OtDraftDepuisContrat = {
@@ -204,6 +309,8 @@ export type OtDraftDepuisContrat = {
   observations: string
   clientId: string
   chantierId: string
+  equipementId?: string
+  equipementIds?: string[]
   technicien: string
   secteur: PostePersonnelId
   agenceCode?: string
@@ -217,10 +324,23 @@ export type OtDraftDepuisContrat = {
   statutFacturation: StatutFacturationOt
   mainOeuvreIncluseContrat: true
   docsRequis: DocOtRequis[]
+  maintenanceParSousTraitant?: boolean
   statut: 'pret_a_planifier'
   parcoursStep: 'ot'
   interventionPartielle: false
   avancementPct: 0
+}
+
+function docsPourLigne(
+  ligne: LigneContratResolue,
+  contrat: ContratMaintenance,
+): DocOtRequis[] {
+  if (ligne.equipement) return docsRequisPourEquipement(ligne.equipement)
+  if (ligne.equipementNom) {
+    const fromNom = docsRequisPourEquipement({ type: '', nom: ligne.equipementNom })
+    if (fromNom.length) return fromNom
+  }
+  return docsRequisPourFamille(resolveFamilleContrat(contrat))
 }
 
 export function buildOtDraftsDepuisContrats(input: {
@@ -236,30 +356,46 @@ export function buildOtDraftsDepuisContrats(input: {
     if (!resolveGenererOtAuto(contrat)) continue
     const famille = resolveFamilleContrat(contrat)
     const secteur = resolveSecteurContrat(contrat)
-    const docs = docsRequisPourFamille(famille)
     const typeOt = typeOtPourFamille(famille)
+    const lignes = resolveLignesContrat(contrat, input.sites)
     const visites = visitesDepuisContrat(contrat, input.sites, {
       today: input.today,
       horizonMonths: input.horizonMonths,
       pastMonths: input.pastMonths,
     })
+    const ligneByKey = new Map(
+      lignes.map((l) => [`${l.site.id}::${l.equipementId}`, l]),
+    )
     for (const v of visites) {
+      const ligne = ligneByKey.get(`${v.siteId}::${v.equipementId || ''}`)
+      const docs = ligne ? docsPourLigne(ligne, contrat) : docsRequisPourFamille(famille)
+      const ficheLabel = ligne?.equipement
+        ? inferCategorieFicheEquipement(ligne.equipement)
+        : 'aucune'
       const site = input.sites.find((s) => s.id === v.siteId)
+      const cible = [v.equipementNom, v.siteNom].filter(Boolean).join(' · ')
       drafts.push({
         date: v.date,
         typeOt,
-        action: `Maintenance ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} — ${v.siteNom}`,
+        action: `Maintenance ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} — ${cible}`,
         rapportAction: '',
         observations: [
           `Contrat ${contrat.numero}`,
           contrat.titre,
-          `Fiche ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} (registre imbriqué).`,
-          'Date déplaçable si urgence ou reprise d’une visite partielle.',
+          v.equipementNom ? `Équipement : ${v.equipementNom}` : '',
+          docs.length
+            ? `Fiche ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} (${ficheLabel}).`
+            : 'Pas de fiche type — le rapport d’OT suffit.',
+          v.sousTraitant
+            ? 'Équipement sous-traité : le tech clôture s’il accompagne, sinon le bureau + rapport sous-traitant.'
+            : 'Date déplaçable si urgence ou reprise d’une visite partielle.',
         ]
           .filter(Boolean)
           .join('\n'),
         clientId: contrat.clientId,
         chantierId: v.siteId,
+        equipementId: v.equipementId,
+        equipementIds: v.equipementId ? [v.equipementId] : undefined,
         technicien: '',
         secteur,
         agenceCode: site?.agenceCode,
@@ -269,10 +405,11 @@ export function buildOtDraftsDepuisContrats(input: {
         contratId: contrat.id,
         contratOtKey: v.contratOtKey,
         visiteNiveau: v.niveau,
-        origineOt: 'maintenance_contrat',
+        origineOt: v.sousTraitant ? 'sous_traitance' : 'maintenance_contrat',
         statutFacturation: 'sous_contrat',
         mainOeuvreIncluseContrat: true,
         docsRequis: docs,
+        maintenanceParSousTraitant: v.sousTraitant || undefined,
         statut: 'pret_a_planifier',
         parcoursStep: 'ot',
         interventionPartielle: false,
@@ -302,4 +439,12 @@ export function mergeOtsDepuisContrats<T extends { contratOtKey?: string }>(
     toAdd.push(d)
   }
   return { toAdd, skipped }
+}
+
+export function ligneContratVide(
+  siteId: string,
+  equipementId: string,
+  visitesParAn?: VisitesParAn,
+): LigneContratEquipement {
+  return { siteId, equipementId, visitesParAn, sousTraitant: false }
 }

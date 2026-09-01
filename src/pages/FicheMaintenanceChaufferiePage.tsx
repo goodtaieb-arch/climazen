@@ -22,6 +22,7 @@ import { ClientSiteSignature } from '../components/ClientSiteSignature'
 import { IntervenantSignature } from '../components/IntervenantSignature'
 import { VoiceDictationButton } from '../components/VoiceDictationButton'
 import { PdfViewerModal } from '../components/PdfViewerModal'
+import { RegistreSecuriteBanner } from '../components/RegistreSecuriteBanner'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -264,6 +265,7 @@ export function FicheMaintenanceChaufferiePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
+      <RegistreSecuriteBanner />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           {otReturnHref ? (

@@ -241,6 +241,14 @@ export interface OrdreTravail {
   clientPayeurId?: string
   /** MO de base incluse dans le contrat (0 €) */
   mainOeuvreIncluseContrat?: boolean
+  /** Équipement suivi avec un sous-traitant */
+  maintenanceParSousTraitant?: boolean
+  /** Le tech ClimaZEN accompagne le sous-traitant sur site */
+  techAccompagneSousTraitant?: boolean
+  /** Rapport livré par le sous-traitant (clôture bureau) */
+  rapportSousTraitant?: string
+  /** Le tech a mis à jour le registre de sécurité */
+  registreSecuriteConfirme?: boolean
   /**
    * Fiches que le bureau a cochées pour le tech (maintenance).
    * CERFA s’ajoute tout seul si le tech touche au gaz — voir `toucheGaz`.
@@ -302,6 +310,10 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     visitesPresence: [],
     docsRequis: [],
     toucheGaz: undefined,
+    maintenanceParSousTraitant: false,
+    techAccompagneSousTraitant: false,
+    rapportSousTraitant: '',
+    registreSecuriteConfirme: false,
     heure: undefined,
   }
 }
