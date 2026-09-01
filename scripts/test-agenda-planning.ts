@@ -5,9 +5,11 @@ import {
   HORS_OT_TECH,
   couleurPlanning,
   couleurSecteurTech,
+  dateDansSemaine,
   estPourTech,
   isHorsOtType,
   otSansCreneau,
+  techsLignesJour,
   titreDefautHorsOt,
   typesAgendaPourSaisie,
   visibleAgendaPour,
@@ -61,6 +63,62 @@ assert.ok(a.key)
 assert.notEqual(couleurPlanning({ horsOtType: 'pause_repas' }).key, a.key)
 assert.equal(couleurPlanning({ horsOtType: 'formation' }).key, 'form')
 assert.equal(couleurPlanning({ technicienUserId: 'tech-alpha' }).key, a.key)
+assert.equal(couleurPlanning({ secteur: 'tech_cvc' }).key, 'cvc')
+assert.equal(couleurPlanning({ secteur: 'tech_frigoriste' }).key, 'frigo')
+assert.equal(couleurPlanning({ secteur: 'plombier' }).key, 'plomb')
+assert.equal(couleurPlanning({ secteur: 'electricien' }).key, 'elec')
+assert.notEqual(
+  couleurPlanning({ secteur: 'tech_cvc' }).key,
+  couleurPlanning({ secteur: 'tech_frigoriste' }).key,
+)
+assert.equal(
+  couleurPlanning({ secteur: 'tech_cvc', technicienUserId: 'tech-alpha' }).key,
+  'cvc',
+)
+
+assert.equal(dateDansSemaine('2026-09-01', ['2026-08-31', '2026-09-01']), true)
+assert.equal(dateDansSemaine(undefined, ['2026-09-01']), true)
+assert.equal(dateDansSemaine('2026-09-10', ['2026-09-01']), false)
+
+const postes: Record<string, string | undefined> = {
+  t1: 'tech_cvc',
+  t2: 'tech_frigoriste',
+  sec: 'secretaire',
+}
+const lignes = techsLignesJour({
+  team: [
+    { id: 't1', role: 'operateur' },
+    { id: 't2', role: 'operateur' },
+    { id: 'sec', role: 'operateur' },
+  ],
+  posteOf: (id) => postes[id],
+  taskTechIds: ['t1'],
+})
+assert.deepEqual(lignes, ['t1', 't2'])
+assert.deepEqual(
+  techsLignesJour({
+    team: [
+      { id: 't1', role: 'operateur' },
+      { id: 't2', role: 'operateur' },
+    ],
+    posteOf: (id) => postes[id],
+    taskTechIds: [],
+    filterSecteur: 'tech_cvc',
+  }),
+  ['t1'],
+)
+assert.deepEqual(
+  techsLignesJour({
+    team: [
+      { id: 't1', role: 'operateur' },
+      { id: 't2', role: 'operateur' },
+    ],
+    posteOf: (id) => postes[id],
+    taskTechIds: ['t2'],
+    filterTechId: 't2',
+  }),
+  ['t2'],
+)
 
 const typesTech = typesAgendaPourSaisie({ bureau: false })
 assert.equal(typesTech.includes('pause_repas'), true)

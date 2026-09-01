@@ -31,8 +31,11 @@ import { formatOtCommercialBadge } from '../lib/chaineCommerciale'
 import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
+import { SecteurOtSelect } from '../components/PostePersonnelSelect'
 import { OtAvancementFields } from '../components/OtAvancementFields'
 import { allEquipements } from '../lib/cerfaBatch'
+import { dossierForUser } from '../lib/rhDocuments'
+import { labelSecteurCourt, secteurOtDepuisPoste } from '../lib/postePersonnel'
 
 export function OrdresTravailPage() {
   const {
@@ -345,10 +348,23 @@ export function OrdresTravailPage() {
             </label>
           </div>
 
+          <SecteurOtSelect
+            required
+            value={form.secteur || ''}
+            onChange={(secteur) => setForm({ ...form, secteur })}
+          />
           <TechnicienAssignField
             technicien={form.technicien}
             technicienUserId={form.technicienUserId}
-            onChange={(next) => setForm({ ...form, ...next })}
+            onChange={(next) => {
+              const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
+              const auto = secteurOtDepuisPoste(poste)
+              setForm({
+                ...form,
+                ...next,
+                secteur: form.secteur || auto,
+              })
+            }}
           />
 
           <label className="block text-sm">
@@ -682,6 +698,7 @@ export function OrdresTravailPage() {
                 <p className="mt-0.5 text-xs text-muted">
                   {siteRow?.nom || '—'} · {client?.raisonSociale || '—'} · {o.date}
                   {o.heure ? ` ${o.heure.slice(0, 5)}` : ''}
+                  {labelSecteurCourt(o.secteur) ? ` · ${labelSecteurCourt(o.secteur)}` : ''}
                   {o.technicien ? ` · ${o.technicien}` : ''}
                 </p>
               </Link>

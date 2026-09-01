@@ -74,6 +74,31 @@ export function postesParFamille(famille: PosteFamille): PostePersonnelDef[] {
   return POSTES_PERSONNEL.filter((p) => p.famille === famille)
 }
 
+/** Métiers terrain utilisés pour classer un OT (CVC, frigoriste…). */
+export function secteursOt(): PostePersonnelDef[] {
+  return postesParFamille('terrain')
+}
+
+export function isSecteurOt(id: unknown): boolean {
+  return isPosteTerrain(id)
+}
+
+/** Badge court : CVC, Frigo, Multi… */
+export function labelSecteurCourt(id: unknown): string {
+  const parsed = parsePostePersonnel(id)
+  if (parsed === 'tech_cvc') return 'CVC'
+  if (parsed === 'tech_frigoriste') return 'Frigo'
+  if (parsed === 'tech_multitechnique') return 'Multi'
+  if (parsed === 'plombier') return 'Plombier'
+  if (parsed === 'electricien') return 'Élec'
+  return labelPostePersonnel(id)
+}
+
+/** Si le tech a un poste terrain, on peut préremplir le secteur de l’OT. */
+export function secteurOtDepuisPoste(poste: unknown): PostePersonnelId | undefined {
+  return isPosteTerrain(poste) ? parsePostePersonnel(poste) : undefined
+}
+
 /** Ligne compacte Équipe : « Jean Dupont · Tech CVC ». */
 export function ligneNomPoste(opts: {
   nom: string

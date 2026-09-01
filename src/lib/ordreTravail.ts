@@ -192,6 +192,11 @@ export interface OrdreTravail {
   technicien: string
   /** Compte ClimaZEN du technicien affecté (équipe) — le patron assigne l’OT */
   technicienUserId?: string
+  /**
+   * Métier / équipe de l’OT (CVC, frigoriste, plombier…) — couleur agenda.
+   * Indépendant du tech affecté : on voit la spécialité demandée.
+   */
+  secteur?: import('./postePersonnel').PostePersonnelId
   /** Heure de passage prévue (HH:mm) — planning agenda. Sans heure = pas encore calé. */
   heure?: string
   /** Lien CERFA si généré avec fluide */
@@ -268,6 +273,7 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     observations: '',
     technicien: '',
     technicienUserId: undefined,
+    secteur: undefined,
     statut: 'brouillon',
     parcoursStep: 'ot',
     lienCommandeType: 'aucun',

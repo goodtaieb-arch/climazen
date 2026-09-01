@@ -59,6 +59,7 @@ import {
 } from '../lib/contratMaintenance'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
+import { SecteurOtSelect } from '../components/PostePersonnelSelect'
 import { OtAvancementFields } from '../components/OtAvancementFields'
 import {
   DOC_OT_LABELS,
@@ -72,6 +73,8 @@ import {
   type DocOtRequis,
   type DocsOtRemplis,
 } from '../lib/otParcours'
+import { dossierForUser } from '../lib/rhDocuments'
+import { secteurOtDepuisPoste } from '../lib/postePersonnel'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -1356,10 +1359,23 @@ export function AppelOtPage() {
               placeholder="Urgence, accès, contact sur place…"
             />
           </label>
+          <SecteurOtSelect
+            required
+            value={otForm.secteur || ''}
+            onChange={(secteur) => setOtForm({ ...otForm, secteur })}
+          />
           <TechnicienAssignField
             technicien={otForm.technicien}
             technicienUserId={otForm.technicienUserId}
-            onChange={(next) => setOtForm({ ...otForm, ...next })}
+            onChange={(next) => {
+              const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
+              const auto = secteurOtDepuisPoste(poste)
+              setOtForm({
+                ...otForm,
+                ...next,
+                secteur: otForm.secteur || auto,
+              })
+            }}
           />
           {isOwner || peutVoirIdentitesRh ? (
             <p className="text-[11px] text-muted">

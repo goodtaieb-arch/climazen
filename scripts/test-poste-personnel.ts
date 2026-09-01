@@ -10,6 +10,9 @@ import {
   parsePostePersonnel,
   posteCouvreTouteLEquipe,
   postesParFamille,
+  secteursOt,
+  labelSecteurCourt,
+  secteurOtDepuisPoste,
 } from '../src/lib/postePersonnel'
 import { migratePersonnelDossiers } from '../src/lib/rhDocuments'
 
@@ -36,6 +39,11 @@ assert.equal(posteCouvreTouteLEquipe('tech_cvc'), false)
 assert.equal(postesParFamille('terrain').every((p) => p.famille === 'terrain'), true)
 assert.equal(postesParFamille('bureau').some((p) => p.couvreTouteLEquipe), true)
 assert.equal(defPostePersonnel('tech_multitechnique')?.label, 'Tech multitechnique')
+assert.equal(secteursOt().every((p) => p.famille === 'terrain'), true)
+assert.equal(labelSecteurCourt('tech_cvc'), 'CVC')
+assert.equal(labelSecteurCourt('tech_frigoriste'), 'Frigo')
+assert.equal(secteurOtDepuisPoste('tech_cvc'), 'tech_cvc')
+assert.equal(secteurOtDepuisPoste('secretaire'), undefined)
 
 assert.equal(ligneNomPoste({ nom: 'Jean', poste: 'tech_cvc' }), 'Jean · Tech CVC')
 assert.equal(ligneNomPoste({ nom: 'Issam', roleOwner: true }), 'Issam · Gérant')

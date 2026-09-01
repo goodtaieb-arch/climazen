@@ -1,11 +1,12 @@
 /**
- * Planning agenda : vue tech vs bureau, couleurs par secteur (tech), hors OT.
+ * Planning agenda : vue tech vs bureau, couleurs par métier (CVC, frigo…), hors OT.
  */
 
 import type { AgendaEvent, AgendaEventType } from './agenda'
 import { AGENDA_TYPE_LABELS } from './agenda'
 import type { OrdreTravail } from './ordreTravail'
 import { isOtCloture } from './ordreTravail'
+import { isPosteBureau, isPosteTerrain, parsePostePersonnel } from './postePersonnel'
 
 export const HORS_OT_TECH: AgendaEventType[] = [
   'deplacement_hors_ot',
@@ -223,6 +224,61 @@ export const COULEURS_HORS_OT: Record<string, CouleurSecteur> = {
   },
 }
 
+/** Une couleur par métier terrain — CVC, frigo, plombier… */
+export const COULEURS_METIER: Record<string, CouleurSecteur> = {
+  tech_cvc: {
+    key: 'cvc',
+    bg: 'bg-sky-50',
+    border: 'border-sky-400',
+    badge: 'bg-sky-700 text-white',
+    text: 'text-sky-950',
+    row: 'border-sky-300 bg-sky-50',
+    dot: 'bg-sky-600',
+  },
+  tech_frigoriste: {
+    key: 'frigo',
+    bg: 'bg-violet-50',
+    border: 'border-violet-400',
+    badge: 'bg-violet-700 text-white',
+    text: 'text-violet-950',
+    row: 'border-violet-300 bg-violet-50',
+    dot: 'bg-violet-600',
+  },
+  tech_multitechnique: {
+    key: 'multi',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-400',
+    badge: 'bg-emerald-800 text-white',
+    text: 'text-emerald-950',
+    row: 'border-emerald-300 bg-emerald-50',
+    dot: 'bg-emerald-600',
+  },
+  plombier: {
+    key: 'plomb',
+    bg: 'bg-amber-50',
+    border: 'border-amber-400',
+    badge: 'bg-amber-800 text-white',
+    text: 'text-amber-950',
+    row: 'border-amber-300 bg-amber-50',
+    dot: 'bg-amber-500',
+  },
+  electricien: {
+    key: 'elec',
+    bg: 'bg-orange-50',
+    border: 'border-orange-400',
+    badge: 'bg-orange-700 text-white',
+    text: 'text-orange-950',
+    row: 'border-orange-300 bg-orange-50',
+    dot: 'bg-orange-500',
+  },
+}
+
+export function couleurMetier(secteur?: string | null): CouleurSecteur | undefined {
+  const id = parsePostePersonnel(secteur)
+  if (!id) return undefined
+  return COULEURS_METIER[id]
+}
+
 export function hashStable(raw: string): number {
   let h = 0
   for (let i = 0; i < raw.length; i++) h = (h * 31 + raw.charCodeAt(i)) >>> 0
@@ -237,12 +293,52 @@ export function couleurSecteurTech(userId?: string | null): CouleurSecteur {
 
 export function couleurPlanning(opts: {
   horsOtType?: string
+  secteur?: string | null
   technicienUserId?: string
 }): CouleurSecteur {
   if (opts.horsOtType && isHorsOtType(opts.horsOtType)) {
     return COULEURS_HORS_OT[opts.horsOtType] || COULEUR_NON_AFFECTE
   }
+  const metier = couleurMetier(opts.secteur)
+  if (metier) return metier
   return couleurSecteurTech(opts.technicienUserId)
+}
+
+export function dateDansSemaine(iso: string | undefined, weekDates: string[]): boolean {
+  const d = (iso || '').slice(0, 10)
+  if (!d) return true
+  return weekDates.includes(d)
+}
+
+/** Lignes du jour : techs terrain (même vides) + ceux qui ont déjà une tâche. */
+export function techsLignesJour(opts: {
+  team: { id: string; role?: string }[]
+  posteOf: (id: string) => string | undefined
+  taskTechIds: string[]
+  filterTechId?: string | null
+  filterSecteur?: string | null
+}): string[] {
+  const order = new Map(opts.team.map((t, i) => [t.id, i]))
+  const always: string[] = []
+  for (const t of opts.team) {
+    const poste = opts.posteOf(t.id)
+    if (isPosteTerrain(poste)) always.push(t.id)
+    else if (!poste && t.role === 'operateur' && !isPosteBureau(poste)) always.push(t.id)
+  }
+  const extra = (opts.taskTechIds || []).filter((id) => id && !always.includes(id))
+  let ids = [...always, ...extra]
+  const tech = String(opts.filterTechId || '').trim()
+  if (tech && tech !== 'tous') ids = ids.filter((id) => id === tech)
+  const secteur = parsePostePersonnel(opts.filterSecteur)
+  if (secteur) ids = ids.filter((id) => opts.posteOf(id) === secteur)
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out.sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99))
 }
 
 export function visibleAgendaPour(

@@ -49,12 +49,21 @@ import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import type { UserAccount } from '../lib/auth'
 import {
   couleurPlanning,
+  dateDansSemaine,
   isHorsOtType,
   otSansCreneau,
+  techsLignesJour,
   titreDefautHorsOt,
   typesAgendaPourSaisie,
   visibleAgendaPour,
 } from '../lib/agendaPlanning'
+import { dossierForUser } from '../lib/rhDocuments'
+import {
+  labelSecteurCourt,
+  secteursOt,
+  secteurOtDepuisPoste,
+  type PostePersonnelId,
+} from '../lib/postePersonnel'
 
 function formatFr(iso?: string) {
   if (!iso) return '—'
@@ -89,6 +98,7 @@ type ProgrammeItem =
       avancement?: string
       technicienUserId?: string
       technicien?: string
+      secteur?: PostePersonnelId
     }
 
 export function AgendaPage() {
@@ -111,6 +121,7 @@ export function AgendaPage() {
   const [formOpen, setFormOpen] = useState(params.get('new') === '1')
   const [syncMsg, setSyncMsg] = useState('')
   const [filterTechId, setFilterTechId] = useState('tous')
+  const [filterSecteur, setFilterSecteur] = useState<PostePersonnelId | 'tous'>('tous')
   const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
 
   const existing = useMemo(
@@ -159,6 +170,9 @@ export function AgendaPage() {
     [user, remoteTeam, data],
   )
 
+  const posteOf = (userId?: string) =>
+    dossierForUser(data.personnelDossiers, userId)?.poste
+
   const weekDates = useMemo(() => weekDatesFrom(cursorDate), [cursorDate])
 
   /** Programme = hors OT + rappels + OT calés (avec heure). */
@@ -200,6 +214,7 @@ export function AgendaPage() {
         avancement: formatOtAvancement(o) || undefined,
         technicienUserId: o.technicienUserId,
         technicien: o.technicien,
+        secteur: o.secteur,
       }))
 
     return [...events, ...ots].sort((a, b) => {
@@ -209,14 +224,42 @@ export function AgendaPage() {
     })
   }, [data.agendaEvents, data.ordresTravail, bureau, user?.id, filterTechId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const matchSecteur = (item: { secteur?: string; technicienUserId?: string }) => {
+    if (!bureau || filterSecteur === 'tous') return true
+    if (item.secteur === filterSecteur) return true
+    return posteOf(item.technicienUserId) === filterSecteur
+  }
+
+  const programmeVisible = useMemo(
+    () =>
+      programmeAll.filter((p) =>
+        matchSecteur(
+          p.kind === 'ot'
+            ? { secteur: p.secteur, technicienUserId: p.technicienUserId }
+            : { technicienUserId: p.event.technicienUserId },
+        ),
+      ),
+    [programmeAll, filterSecteur, bureau, data.personnelDossiers], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
   const otsSansPlanning = useMemo(() => {
-    return (data.ordresTravail || []).filter(
-      (o) => otSansCreneau(o) && visibleAgendaPour(visOpts, o),
-    )
-  }, [data.ordresTravail, bureau, user?.id, filterTechId]) // eslint-disable-line react-hooks/exhaustive-deps
+    const focusTech = bureau && filterTechId !== 'tous'
+    return (data.ordresTravail || []).filter((o) => {
+      if (!otSansCreneau(o) || !visibleAgendaPour(visOpts, o)) return false
+      if (!matchSecteur({ secteur: o.secteur, technicienUserId: o.technicienUserId })) return false
+      if (focusTech && !dateDansSemaine(o.date, weekDates)) return false
+      return true
+    })
+  }, [data.ordresTravail, bureau, user?.id, filterTechId, filterSecteur, weekDates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const programmeForDate = (iso: string) =>
-    programmeAll.filter((p) => p.date === iso.slice(0, 10))
+    programmeVisible.filter((p) => p.date === iso.slice(0, 10))
+
+  const ouvrirSemaineTech = (techId: string) => {
+    setFilterTechId(techId)
+    setFilterSecteur('tous')
+    setView('semaine')
+  }
 
   const rappelsList = useMemo(() => {
     return [...(data.agendaEvents || [])]
@@ -320,6 +363,9 @@ export function AgendaPage() {
       heure: patch.heure !== undefined ? patch.heure : ot.heure,
       technicien: patch.technicien ?? ot.technicien,
       technicienUserId: patch.technicienUserId ?? ot.technicienUserId,
+      secteur:
+        ot.secteur ||
+        secteurOtDepuisPoste(posteOf(patch.technicienUserId ?? ot.technicienUserId)),
     })
     setSyncMsg(
       patch.heure
@@ -525,7 +571,10 @@ export function AgendaPage() {
     if (item.kind === 'ot') {
       const client = data.clients.find((c) => c.id === item.clientId)
       const site = data.chantiers.find((c) => c.id === item.chantierId)
-      const col = couleurPlanning({ technicienUserId: item.technicienUserId })
+      const col = couleurPlanning({
+        secteur: item.secteur || posteOf(item.technicienUserId),
+        technicienUserId: item.technicienUserId,
+      })
       const otFull = (data.ordresTravail || []).find((o) => o.id === item.otId)
       return (
         <article
@@ -548,6 +597,11 @@ export function AgendaPage() {
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
               {nomTech(item.technicienUserId, item.technicien)}
             </span>
+            {labelSecteurCourt(item.secteur || posteOf(item.technicienUserId)) ? (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
+                {labelSecteurCourt(item.secteur || posteOf(item.technicienUserId))}
+              </span>
+            ) : null}
             {item.avancement ? (
               <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-amber-950">
                 {item.avancement}
@@ -589,6 +643,7 @@ export function AgendaPage() {
     const heure = formatHeure(ev.heure)
     const col = couleurPlanning({
       horsOtType: ev.type,
+      secteur: posteOf(ev.technicienUserId),
       technicienUserId: ev.technicienUserId,
     })
     const hors = isHorsOtType(ev.type)
@@ -689,6 +744,107 @@ export function AgendaPage() {
     )
   }
 
+  const itemTechId = (it: ProgrammeItem) =>
+    it.kind === 'ot' ? it.technicienUserId : it.event.technicienUserId
+
+  const renderLignesTechJour = (iso: string) => {
+    const items = programmeForDate(iso)
+    const ids = techsLignesJour({
+      team,
+      posteOf,
+      taskTechIds: items.map((it) => itemTechId(it) || '').filter(Boolean),
+      filterTechId: bureau ? filterTechId : user?.id,
+      filterSecteur: bureau ? filterSecteur : undefined,
+    })
+    const unassigned = items.filter((it) => !itemTechId(it))
+    if (ids.length === 0 && unassigned.length === 0) {
+      return (
+        <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
+          Aucun tech terrain à afficher. Renseignez les postes dans Équipe, ou ajoutez une
+          intervention.
+        </div>
+      )
+    }
+    return (
+      <div className="space-y-2">
+        {ids.map((id) => {
+          const t = team.find((x) => x.id === id)
+          const poste = posteOf(id)
+          const col = couleurPlanning({ secteur: poste, technicienUserId: id })
+          const mine = items.filter((it) => itemTechId(it) === id)
+          return (
+            <div key={id} className={`rounded-2xl border p-2.5 ${col.border} ${col.bg}`}>
+              <button
+                type="button"
+                onClick={() => ouvrirSemaineTech(id)}
+                className="flex w-full flex-wrap items-center gap-2 text-left"
+              >
+                <span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} />
+                <span className={`font-bold ${col.text}`}>
+                  {t?.fullName || nomTech(id)}
+                </span>
+                {labelSecteurCourt(poste) ? (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${col.badge}`}>
+                    {labelSecteurCourt(poste)}
+                  </span>
+                ) : null}
+                <span className="ml-auto text-[10px] font-bold uppercase text-muted">
+                  {mine.length === 0
+                    ? 'Libre'
+                    : `${mine.length} tâche${mine.length > 1 ? 's' : ''}`}
+                </span>
+              </button>
+              {mine.length === 0 ? (
+                <p className="mt-1 px-1 text-[11px] text-muted">
+                  Rien de calé aujourd’hui — tapez le nom pour la semaine sans planning.
+                </p>
+              ) : (
+                <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+                  {mine.map((it) => {
+                    const c = couleurPlanning({
+                      horsOtType: it.kind === 'agenda' ? it.event.type : undefined,
+                      secteur:
+                        it.kind === 'ot' ? it.secteur || poste : poste,
+                      technicienUserId: id,
+                    })
+                    return (
+                      <button
+                        key={it.id}
+                        type="button"
+                        onClick={() => {
+                          if (it.kind === 'agenda') {
+                            navigate(`/app/agenda?id=${encodeURIComponent(it.event.id)}`)
+                          } else {
+                            navigate(`/app/appel?ot=${encodeURIComponent(it.otId)}`)
+                          }
+                        }}
+                        className={`shrink-0 rounded-xl border bg-white px-2.5 py-1.5 text-left ${c.border}`}
+                      >
+                        <span className="block text-[10px] font-extrabold text-ink">
+                          {formatHeure(it.heure) || '—'}
+                        </span>
+                        <span className={`block max-w-[11rem] truncate text-xs font-semibold ${c.text}`}>
+                          {it.kind === 'ot' ? `${formatOtNumero(it.numero)} · ` : ''}
+                          {it.title}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {unassigned.length > 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2.5">
+            <p className="text-xs font-bold uppercase text-muted">Non affecté</p>
+            <div className="mt-2 grid gap-2">{unassigned.map(renderProgrammeCard)}</div>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -700,7 +856,7 @@ export function AgendaPage() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Agenda</h1>
             <p className="mt-0.5 text-sm text-muted">
               {bureau
-                ? 'Planning de tous les techs — affectez OT, date et heure. Chaque secteur a sa couleur.'
+                ? 'Une ligne par tech. Couleur = métier (CVC, frigo…). Tapez un nom pour voir sa semaine sans créneau.'
                 : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
             </p>
           </div>
@@ -754,35 +910,56 @@ export function AgendaPage() {
 
       {bureau ? (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white p-3">
-          <span className="text-xs font-bold uppercase text-muted">Secteur / tech</span>
+          <span className="text-xs font-bold uppercase text-muted">Métier</span>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFilterSecteur('tous')}
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                filterSecteur === 'tous'
+                  ? 'border-ink bg-ink text-white'
+                  : 'border-line bg-white text-muted'
+              }`}
+            >
+              Tous
+            </button>
+            {secteursOt().map((s) => {
+              const c = couleurPlanning({ secteur: s.id })
+              const on = filterSecteur === s.id
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setFilterSecteur(on ? 'tous' : s.id)
+                    setFilterTechId('tous')
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${c.border} ${c.bg} ${c.text} ${
+                    on ? 'ring-2 ring-ink/40' : ''
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${c.dot}`} />
+                  {labelSecteurCourt(s.id)}
+                </button>
+              )
+            })}
+          </div>
           <select
             value={filterTechId}
-            onChange={(e) => setFilterTechId(e.target.value)}
+            onChange={(e) => {
+              setFilterTechId(e.target.value)
+              if (e.target.value !== 'tous') setView('semaine')
+            }}
             className="h-10 min-w-[12rem] rounded-xl border border-line bg-white px-3 text-sm font-semibold"
           >
             <option value="tous">Tous les techs</option>
             {team.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.fullName || t.email}
+                {labelSecteurCourt(posteOf(t.id)) ? ` · ${labelSecteurCourt(posteOf(t.id))}` : ''}
               </option>
             ))}
           </select>
-          <div className="flex flex-wrap gap-1.5">
-            {team.slice(0, 12).map((t) => {
-              const c = couleurPlanning({ technicienUserId: t.id })
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setFilterTechId(t.id === filterTechId ? 'tous' : t.id)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${c.border} ${c.bg} ${c.text}`}
-                >
-                  <span className={`h-2 w-2 rounded-full ${c.dot}`} />
-                  {(t.fullName || '').split(' ')[0] || t.email}
-                </button>
-              )
-            })}
-          </div>
         </div>
       ) : (
         <div className="flex flex-wrap gap-1.5">
@@ -830,7 +1007,11 @@ export function AgendaPage() {
       {otsSansPlanning.length > 0 && view !== 'rappels' ? (
         <section className="space-y-2 rounded-2xl border border-dashed border-line bg-white p-4">
           <h2 className="font-display text-lg font-semibold">
-            {bureau ? 'OT sans créneau — à affecter / caler' : 'Mes OT sans planning'}
+            {bureau && filterTechId !== 'tous'
+              ? `Sans planning · semaine de ${nomTech(filterTechId)}`
+              : bureau
+                ? 'OT sans créneau — à affecter / caler'
+                : 'Mes OT sans planning'}
           </h2>
           <p className="text-xs text-muted">
             {bureau
@@ -839,7 +1020,10 @@ export function AgendaPage() {
           </p>
           <ul className="space-y-2">
             {otsSansPlanning.map((ot) => {
-              const col = couleurPlanning({ technicienUserId: ot.technicienUserId })
+              const col = couleurPlanning({
+                secteur: ot.secteur || posteOf(ot.technicienUserId),
+                technicienUserId: ot.technicienUserId,
+              })
               const client = data.clients.find((c) => c.id === ot.clientId)
               return (
                 <li
@@ -855,6 +1039,11 @@ export function AgendaPage() {
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
                       {nomTech(ot.technicienUserId, ot.technicien)}
                     </span>
+                    {labelSecteurCourt(ot.secteur) ? (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
+                        {labelSecteurCourt(ot.secteur)}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-0.5 text-xs text-muted">
                     {client?.raisonSociale || ''}
@@ -944,7 +1133,9 @@ export function AgendaPage() {
               <Plus className="h-3.5 w-3.5" /> Ajouter ce jour
             </button>
           </div>
-          {programmeForDate(cursorDate).length === 0 ? (
+          {bureau ? (
+            renderLignesTechJour(cursorDate)
+          ) : programmeForDate(cursorDate).length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
               Rien de prévu ce jour. Ajoute une intervention ou un OT daté aujourd’hui.
             </div>
@@ -999,13 +1190,19 @@ export function AgendaPage() {
                     <Plus className="h-3 w-3" /> Planifier
                   </button>
                 </div>
-                {items.length === 0 ? (
+                {bureau ? (
+                  renderLignesTechJour(day)
+                ) : items.length === 0 ? (
                   <p className="px-1 text-xs text-muted">Libre</p>
                 ) : (
                   <ul className="space-y-1.5">
                     {items.map((it) => {
                       const col = couleurPlanning({
                         horsOtType: it.kind === 'agenda' ? it.event.type : undefined,
+                        secteur:
+                          it.kind === 'ot'
+                            ? it.secteur || posteOf(it.technicienUserId)
+                            : posteOf(it.event.technicienUserId),
                         technicienUserId:
                           it.kind === 'ot' ? it.technicienUserId : it.event.technicienUserId,
                       })

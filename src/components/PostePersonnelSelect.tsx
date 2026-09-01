@@ -1,4 +1,5 @@
-import { postesParFamille, parsePostePersonnel, type PostePersonnelId } from '../lib/postePersonnel'
+import { postesParFamille, parsePostePersonnel, secteursOt, labelSecteurCourt, type PostePersonnelId } from '../lib/postePersonnel'
+import { couleurMetier, COULEUR_NON_AFFECTE } from '../lib/agendaPlanning'
 
 type Props = {
   value?: PostePersonnelId | ''
@@ -51,5 +52,49 @@ export function PostePersonnelSelect({
         ))}
       </optgroup>
     </select>
+  )
+}
+
+type SecteurProps = {
+  value?: PostePersonnelId | ''
+  onChange: (next: PostePersonnelId | undefined) => void
+  disabled?: boolean
+  required?: boolean
+  label?: string
+  className?: string
+}
+
+/** Classement OT : CVC, frigoriste, plombier… avec pastille couleur. */
+export function SecteurOtSelect({
+  value,
+  onChange,
+  disabled,
+  required,
+  label = 'Équipe / métier',
+  className = '',
+}: SecteurProps) {
+  const col = couleurMetier(value) || COULEUR_NON_AFFECTE
+  return (
+    <label className={`block text-sm ${className}`}>
+      <span className="mb-1 flex items-center gap-2 font-semibold text-ink">
+        <span className={`inline-block h-2.5 w-2.5 rounded-full ${col.dot}`} />
+        {label}
+        {required ? ' *' : ''}
+      </span>
+      <select
+        required={required}
+        disabled={disabled}
+        value={value || ''}
+        onChange={(e) => onChange(parsePostePersonnel(e.target.value))}
+        className="h-11 w-full rounded-xl border border-line bg-white px-3"
+      >
+        <option value="">— Choisir (CVC, frigo…) —</option>
+        {secteursOt().map((p) => (
+          <option key={p.id} value={p.id}>
+            {labelSecteurCourt(p.id)} — {p.label}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
