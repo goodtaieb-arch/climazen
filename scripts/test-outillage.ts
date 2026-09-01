@@ -7,7 +7,7 @@ import {
   dateFinEtalonnage,
   statutEtalonnage,
 } from '../src/lib/outillageEtalonnage'
-import { mergeTeamMembers } from '../src/lib/teamMembers'
+import { mergeTeamMembers, extraAssigneesFromData } from '../src/lib/teamMembers'
 import {
   grouperMaterielParFamille,
   materielConfiePourUser,
@@ -115,6 +115,25 @@ const retired = mergeTeamMembers({
 })
 assert.equal(retired.length, 3)
 assert.equal(retired.some((m) => m.id === 't2'), false)
+
+const extras = extraAssigneesFromData({
+  outillages: [{ assigneeUserId: 't4', assigneeName: 'Tech 4' }],
+  voitures: [{ assigneeUserId: 't5', assigneeName: 'Tech 5' }],
+  detecteurs: [{ assigneeUserId: 't1', assigneeName: 'Tech 1' }],
+  ordresTravail: [{ technicienUserId: 't6', technicien: 'Tech 6' }],
+})
+assert.equal(extras.length, 4)
+const withExtras = mergeTeamMembers({
+  remote: team,
+  extraAssignees: extras,
+  dossiers: [{ userId: 't7', userName: 'Tech 7' }],
+  orgId: 'org',
+})
+assert.ok(withExtras.some((m) => m.id === 't4'))
+assert.ok(withExtras.some((m) => m.id === 't5'))
+assert.ok(withExtras.some((m) => m.id === 't6'))
+assert.ok(withExtras.some((m) => m.id === 't7'))
+assert.ok(withExtras.length >= 7)
 
 assert.equal(OUTILLAGE_CATALOG.telephone_pro.label.includes('Téléphone'), true)
 

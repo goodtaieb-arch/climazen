@@ -57,3 +57,26 @@ export function mergeTeamMembers(opts: {
     return (a.fullName || a.email).localeCompare(b.fullName || b.email, 'fr')
   })
 }
+
+/** Tous les IDs tech déjà connus dans le parc / OT / dossiers (complète listTeam). */
+export function extraAssigneesFromData(data: {
+  outillages?: Array<{ assigneeUserId?: string; assigneeName?: string }>
+  voitures?: Array<{ assigneeUserId?: string; assigneeName?: string }>
+  detecteurs?: Array<{ assigneeUserId?: string; assigneeName?: string }>
+  ordresTravail?: Array<{ technicienUserId?: string; technicien?: string }>
+}): Array<{ id?: string; name?: string }> {
+  const out: Array<{ id?: string; name?: string }> = []
+  for (const o of data.outillages || []) {
+    if (o.assigneeUserId) out.push({ id: o.assigneeUserId, name: o.assigneeName })
+  }
+  for (const v of data.voitures || []) {
+    if (v.assigneeUserId) out.push({ id: v.assigneeUserId, name: v.assigneeName })
+  }
+  for (const d of data.detecteurs || []) {
+    if (d.assigneeUserId) out.push({ id: d.assigneeUserId, name: d.assigneeName })
+  }
+  for (const ot of data.ordresTravail || []) {
+    if (ot.technicienUserId) out.push({ id: ot.technicienUserId, name: ot.technicien })
+  }
+  return out
+}

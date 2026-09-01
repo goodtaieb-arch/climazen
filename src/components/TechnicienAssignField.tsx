@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Users } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
+import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import { DossierCloudTechButton } from './DossierCloudTechButton'
 import { dossierForUser } from '../lib/rhDocuments'
 
@@ -16,7 +17,7 @@ type Props = {
 }
 
 /**
- * Affectation OT → technicien de l’équipe (patron ouvre l’appel, assigne un tech).
+ * Affectation OT → tous les techniciens de l’équipe (comptes + dossiers + parc).
  */
 export function TechnicienAssignField({
   technicien,
@@ -27,29 +28,34 @@ export function TechnicienAssignField({
 }: Props) {
   const { listTeam, user, organization } = useAuth()
   const { data } = useStore()
-  const [team, setTeam] = useState<UserAccount[]>([])
-  const retiredIds = data.personnelRetiresUserIds
+  const [remote, setRemote] = useState<UserAccount[]>([])
 
   useEffect(() => {
     let cancelled = false
-    const retired = new Set(retiredIds || [])
-    void listTeam().then((members) => {
-      if (cancelled) return
-      const active = members.filter((m) => m.active !== false && !retired.has(m.id))
-      // Toujours inclure le compte connecté (patron) s’il n’est pas dans la liste
-      if (user && !active.some((m) => m.id === user.id)) {
-        active.unshift({
-          ...user,
-          active: true,
-          organizationId: user.organizationId || organization?.id || '',
-        } as UserAccount)
-      }
-      setTeam(active)
-    })
+    void listTeam()
+      .then((members) => {
+        if (!cancelled) setRemote(members)
+      })
+      .catch(() => {
+        if (!cancelled) setRemote([])
+      })
     return () => {
       cancelled = true
     }
-  }, [listTeam, user, organization?.id, retiredIds])
+  }, [listTeam, organization?.id])
+
+  const team = useMemo(
+    () =>
+      mergeTeamMembers({
+        user,
+        remote,
+        dossiers: data.personnelDossiers,
+        extraAssignees: extraAssigneesFromData(data),
+        retiredIds: data.personnelRetiresUserIds,
+        orgId: user?.organizationId || organization?.id,
+      }),
+    [user, remote, data, organization?.id],
+  )
 
   const selectValue = technicienUserId || ''
 
@@ -83,6 +89,7 @@ export function TechnicienAssignField({
           <option key={m.id} value={m.id}>
             {m.fullName || m.email}
             {m.role === 'owner' ? ' (gérant)' : ''}
+            {m.active === false ? ' (inactif)' : ''}
           </option>
         ))}
       </select>
@@ -93,7 +100,8 @@ export function TechnicienAssignField({
         </p>
       ) : (
         <p className="mt-1 text-[11px] text-muted">
-          Le gérant prend l’appel, crée l’OT, puis affecte le technicien qui interviendra.
+          Tous les techniciens de l’équipe. Le gérant prend l’appel, crée l’OT, puis affecte celui
+          qui interviendra.
         </p>
       )}
       {selectValue ? (

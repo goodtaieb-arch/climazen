@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v145'
+export const APP_VERSION = 'v146'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-01-v145-accueil-terrain'
+export const APP_BUILD = '2026-09-01-v146-appel-tous-techs'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true
