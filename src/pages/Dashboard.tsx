@@ -608,8 +608,8 @@ export function Dashboard() {
               <TerrainAction
                 icon={QrCode}
                 img3d={ICON3D.search}
-                title="Scanner équipement"
-                subtitle="QR sur place → ouvre l’OT à remplir"
+                title="Scanner QR"
+                subtitle="Équipement → OT · Bâtiment → parc + ticket"
                 color="sites"
                 to="/app/scan-equip?camera=1"
               />

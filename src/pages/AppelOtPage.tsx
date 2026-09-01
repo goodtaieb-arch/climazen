@@ -223,20 +223,29 @@ export function AppelOtPage() {
     setStep(inferParcoursStep(existing))
   }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scan QR terrain : créer / persister l’OT tout de suite (client + site + équipement)
+  // Scan QR terrain : créer / persister l’OT tout de suite (client + site, équipement si présent)
   useEffect(() => {
     if (scanBootRef.current) return
     if (existing || otId || !fromScan) return
-    if (!otForm.clientId || !otForm.chantierId || !otForm.equipementId) return
+    if (!otForm.clientId || !otForm.chantierId) return
     scanBootRef.current = true
+    const hasEquip = Boolean(otForm.equipementId)
     persistOt({
       ...otForm,
       statut: 'en_cours',
-      parcoursStep: 'docs',
-      action: otForm.action || 'Intervention terrain (scan QR)',
+      parcoursStep: hasEquip ? 'docs' : 'equipement',
+      action:
+        otForm.action ||
+        (hasEquip
+          ? 'Intervention terrain (scan QR)'
+          : 'Demande / panne — scan QR bâtiment'),
     })
-    setMsg(`${formatOtNumero(otForm.numero)} ouvert depuis le scan — à compléter.`)
-    setStep('docs')
+    setMsg(
+      hasEquip
+        ? `${formatOtNumero(otForm.numero)} ouvert depuis le scan — à compléter.`
+        : `${formatOtNumero(otForm.numero)} ouvert depuis le QR du bâtiment — choisissez l’équipement si besoin.`,
+    )
+    setStep(hasEquip ? 'docs' : 'equipement')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromScan, otForm.clientId, otForm.chantierId, otForm.equipementId])
 

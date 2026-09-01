@@ -4,6 +4,8 @@ import { parseVoiceCommand } from '../src/lib/speech'
 const cases: Array<[string, string | null]> = [
   ['ouvre le stock', 'stock'],
   ['scanner la bouteille', 'scan'],
+  ['qr du batiment', 'scan_equip'],
+  ['qr site', 'scan_equip'],
   ['nouvel appel', 'appel'],
   ['créer un OT', 'appel'],
   ['ordres de travail', 'ot'],

@@ -1,6 +1,7 @@
 import QRCode from 'qrcode'
 import type { EquipQrHit } from '../lib/equipementQr'
 import { buildEquipQrPayload, equipQrPrintLines } from '../lib/equipementQr'
+import { buildSiteQrPayload, siteQrPrintLines, type SiteQrHit } from '../lib/siteQr'
 
 const LS_FORMAT_KEY = 'climazen.qrPrintFormat'
 
@@ -13,13 +14,18 @@ export async function qrDataUrl(payload: string, size = 280): Promise<string> {
   })
 }
 
-export type EquipQrCard = {
-  hit: EquipQrHit
+/** Carte d’étiquette QR (équipement ou bâtiment) — aperçu + impression. */
+export type QrPrintCard = {
+  id: string
   /** Texte encodé dans le QR (URL scan). */
   payload: string
   imgDataUrl: string
   title: string
   lines: string[]
+}
+
+export type EquipQrCard = QrPrintCard & {
+  hit: EquipQrHit
 }
 
 /** Prépare les cartes QR (image + contenu écrit) pour aperçu ou impression. */
@@ -35,7 +41,25 @@ export async function buildEquipQrCards(
     const payload = buildEquipQrPayload(hit.equip.id, origin)
     const imgDataUrl = await qrDataUrl(payload, 320)
     const { title, lines } = equipQrPrintLines(hit)
-    cards.push({ hit, payload, imgDataUrl, title, lines })
+    cards.push({ id: hit.equip.id, hit, payload, imgDataUrl, title, lines })
+  }
+  return cards
+}
+
+/** Une étiquette « QR du bâtiment » (local technique / accueil). */
+export async function buildSiteQrCards(
+  hits: SiteQrHit[],
+  opts?: { origin?: string },
+): Promise<QrPrintCard[]> {
+  const origin =
+    opts?.origin ||
+    (typeof window !== 'undefined' ? window.location.origin : 'https://climazen.fr')
+  const cards: QrPrintCard[] = []
+  for (const hit of hits) {
+    const payload = buildSiteQrPayload(hit.site.id, origin)
+    const imgDataUrl = await qrDataUrl(payload, 320)
+    const { title, lines } = siteQrPrintLines(hit)
+    cards.push({ id: `site:${hit.site.id}`, payload, imgDataUrl, title, lines })
   }
   return cards
 }
@@ -327,7 +351,7 @@ function printHtmlViaIframe(html: string): Promise<void> {
 }
 
 function cardHtml(
-  c: EquipQrCard,
+  c: QrPrintCard,
   company: string,
   fmt: QrPrintFormat,
 ): string {
@@ -509,28 +533,39 @@ function buildLabelHtml(cards: string[], fmt: QrPrintFormat): string {
 </html>`
 }
 
-/** Imprime des étiquettes équipements (QR) — sans fenêtre pop-up. */
-export async function printEquipementLabels(
-  hits: EquipQrHit[],
-  opts?: {
-    origin?: string
-    companyName?: string
-    /** id format (ex. brother-62x100) ou alias a4 / rouleau */
-    format?: string
-  },
+export type QrPrintOpts = {
+  origin?: string
+  companyName?: string
+  /** id format (ex. brother-62x100) ou alias a4 / rouleau */
+  format?: string
+}
+
+/** Imprime des étiquettes QR déjà préparées (équipement ou bâtiment). */
+export async function printQrPrintCards(
+  prepared: QrPrintCard[],
+  opts?: QrPrintOpts,
 ): Promise<void> {
-  if (!hits.length) return
+  if (!prepared.length) return
   const company = opts?.companyName || 'ClimaZEN'
   const formatId = normalizeFormatId(opts?.format)
   const fmt = getQrPrintFormat(formatId)
   saveQrPrintFormatId(formatId)
 
-  const prepared = await buildEquipQrCards(hits, { origin: opts?.origin })
   const cards = prepared.map((c) => cardHtml(c, company, fmt))
   const html =
     fmt.layout === 'sheet' ? buildSheetHtml(cards, fmt) : buildLabelHtml(cards, fmt)
 
   await printHtmlViaIframe(html)
+}
+
+/** Imprime des étiquettes équipements (QR) — sans fenêtre pop-up. */
+export async function printEquipementLabels(
+  hits: EquipQrHit[],
+  opts?: QrPrintOpts,
+): Promise<void> {
+  if (!hits.length) return
+  const prepared = await buildEquipQrCards(hits, { origin: opts?.origin })
+  await printQrPrintCards(prepared, opts)
 }
 
 function escapeHtml(s: string): string {

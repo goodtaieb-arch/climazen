@@ -159,7 +159,8 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
       test: (s) =>
         (/\b(scan|scanner|qr)\b/.test(s) && /\bequip/.test(s)) ||
         /\betiquette\b/.test(s) ||
-        /\bqr\s+equip/.test(s),
+        /\bqr\s+equip/.test(s) ||
+        /\bqr\s+(du\s+)?(batiment|site|immeuble)\b/.test(s),
     },
     {
       id: 'scan',

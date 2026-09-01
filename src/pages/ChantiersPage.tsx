@@ -52,11 +52,12 @@ import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { findEquipementById, type EquipQrHit } from '../lib/equipementQr'
 import {
   buildEquipQrCards,
-  printEquipementLabels,
+  buildSiteQrCards,
+  printQrPrintCards,
   loadSavedQrPrintFormatId,
   saveQrPrintFormatId,
   QR_PRINT_FORMATS,
-  type EquipQrCard,
+  type QrPrintCard,
 } from '../lib/equipementQrPrint'
 import { Sites3dIcon } from '../components/Sites3dIcon'
 
@@ -188,7 +189,8 @@ export function ChantiersPage() {
     null,
   )
   const [qrBusy, setQrBusy] = useState(false)
-  const [qrPreview, setQrPreview] = useState<EquipQrCard[] | null>(null)
+  const [qrPreview, setQrPreview] = useState<QrPrintCard[] | null>(null)
+  const [qrPreviewKind, setQrPreviewKind] = useState<'equip' | 'site'>('equip')
   const [qrPrintFormat, setQrPrintFormat] = useState(() => loadSavedQrPrintFormatId())
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
@@ -900,6 +902,7 @@ export function ChantiersPage() {
     setQrBusy(true)
     try {
       const cards = await buildEquipQrCards([hit])
+      setQrPreviewKind('equip')
       setQrPreview(cards)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Aperçu QR impossible')
@@ -919,6 +922,21 @@ export function ChantiersPage() {
     setQrBusy(true)
     try {
       const cards = await buildEquipQrCards(hits)
+      setQrPreviewKind('equip')
+      setQrPreview(cards)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Aperçu QR impossible')
+    } finally {
+      setQrBusy(false)
+    }
+  }
+
+  const printSiteBuildingQr = async (site: Chantier) => {
+    const client = data.clients.find((c) => c.id === site.clientId)
+    setQrBusy(true)
+    try {
+      const cards = await buildSiteQrCards([{ site, client }])
+      setQrPreviewKind('site')
       setQrPreview(cards)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Aperçu QR impossible')
@@ -932,13 +950,10 @@ export function ChantiersPage() {
     setQrBusy(true)
     try {
       saveQrPrintFormatId(qrPrintFormat)
-      await printEquipementLabels(
-        qrPreview.map((c) => c.hit),
-        {
-          companyName: data.operateur?.raisonSociale || 'ClimaZEN',
-          format: qrPrintFormat,
-        },
-      )
+      await printQrPrintCards(qrPreview, {
+        companyName: data.operateur?.raisonSociale || 'ClimaZEN',
+        format: qrPrintFormat,
+      })
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Impression impossible')
     } finally {
@@ -1784,6 +1799,17 @@ export function ChantiersPage() {
                     type="button"
                     onClick={() => {
                       setSiteMenuOpen(false)
+                      void printSiteBuildingQr(c)
+                    }}
+                    disabled={qrBusy}
+                    className="flex min-h-10 w-full items-center gap-2 border-b border-line px-3 text-left text-sm font-medium active:bg-mist disabled:opacity-60"
+                  >
+                    <Building2 className="h-3.5 w-3.5" /> QR du bâtiment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteMenuOpen(false)
                       void printSiteLabels(c)
                     }}
                     disabled={qrBusy}
@@ -2533,15 +2559,19 @@ export function ChantiersPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center">
           <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-xl">
             <div className="border-b border-line px-5 py-4">
-              <h2 className="font-display text-lg font-semibold">QR équipements</h2>
+              <h2 className="font-display text-lg font-semibold">
+                {qrPreviewKind === 'site' ? 'QR du bâtiment' : 'QR équipements'}
+              </h2>
               <p className="mt-1 text-sm text-muted">
-                Voici ce qui est écrit dans le code (lien de scan) + l’étiquette.
+                {qrPreviewKind === 'site'
+                  ? 'Sticker pour le local technique / accueil : le scan ouvre tout le parc du site, pas une machine.'
+                  : 'Voici ce qui est écrit dans le code (lien de scan) + l’étiquette.'}
               </p>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
               {qrPreview.map((card) => (
                 <div
-                  key={card.hit.equip.id}
+                  key={card.id}
                   className="rounded-xl border border-line bg-mist/40 p-4 text-center"
                 >
                   <img
