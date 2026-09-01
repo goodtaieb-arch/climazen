@@ -1,6 +1,18 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Cloud, FolderOpen, KeyRound, Phone, ShieldCheck, Trash2, UserPlus, UserX, UserCheck } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Cloud,
+  FolderOpen,
+  KeyRound,
+  Phone,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  UserX,
+  UserCheck,
+} from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
 import { PasswordField } from '../components/PasswordField'
@@ -8,6 +20,7 @@ import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
+import { PostePersonnelSelect } from '../components/PostePersonnelSelect'
 import { useStore } from '../lib/store'
 import {
   dossierForUser,
@@ -17,6 +30,13 @@ import {
   normalizeLienCloudRh,
   normalizePersonnelRetiresUserIds,
 } from '../lib/rhDocuments'
+import {
+  labelPostePersonnel,
+  ligneNomPoste,
+  parsePostePersonnel,
+  posteCouvreTouteLEquipe,
+  type PostePersonnelId,
+} from '../lib/postePersonnel'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { telHref } from '../lib/agenda'
 
@@ -155,8 +175,10 @@ export function EquipePage() {
   } = useAuth()
   const {
     data,
+    upsertPersonnelDossier,
     setPersonnelRhAcces,
     setPersonnelTelephone,
+    setPersonnelPoste,
     setPersonnelLienCloud,
     retirePersonnel,
     peutVoirIdentitesRh,
@@ -168,11 +190,13 @@ export function EquipePage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [telephone, setTelephone] = useState('')
+  const [poste, setPoste] = useState<PostePersonnelId | ''>('')
   const [password, setPassword] = useState(() => generateTempPassword())
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [busy, setBusy] = useState(false)
   const [members, setMembers] = useState<UserAccount[]>([])
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<UserAccount | null>(null)
   const [createdCodes, setCreatedCodes] = useState<{
     email: string
@@ -206,14 +230,24 @@ export function EquipePage() {
     setBusy(true)
     try {
       const { user: op } = await createOperator({ fullName, email, password })
-      if (telephone.trim()) {
-        setPersonnelTelephone(op.id, op.fullName || fullName, telephone)
+      const parsedPoste = parsePostePersonnel(poste)
+      if (telephone.trim() || parsedPoste) {
+        upsertPersonnelDossier({
+          userId: op.id,
+          userName: op.fullName || fullName,
+          telephone: telephone.trim() || undefined,
+          poste: parsedPoste,
+          toucheFroid: true,
+          toucheElectricite: true,
+          conduitVehicule: true,
+        })
       }
       setCreatedCodes({ email: op.email, password })
       setOk(`Opérateur créé — connexion avec l’e-mail ${op.email}.`)
       setFullName('')
       setEmail('')
       setTelephone('')
+      setPoste('')
       setPassword(generateTempPassword())
       await refresh()
       setMembers((prev) => (prev.some((m) => m.id === op.id) ? prev : [...prev, op]))
@@ -287,6 +321,12 @@ export function EquipePage() {
           <li>
             Flux typique : le gérant prend l’appel client → crée l’OT →{' '}
             <strong>affecte un technicien</strong>. Détecteur de fuite : dans Mon profil.
+          </li>
+          <li>
+            Choisissez le <strong>poste</strong> de chacun (tech CVC, frigoriste, plombier,
+            électricien, secrétaire…). Un <strong>responsable</strong>, <strong>pilote</strong> ou{' '}
+            <strong>directeur</strong> s’occupe de <strong>toute l’équipe</strong> — pas d’un seul
+            métier. Tapez une ligne membre pour ouvrir dossier, photos, MDP, suppression.
           </li>
           <li>
             Astreinte week-end : le technicien peut aussi créer l’OT / CERFA lui-même — tout arrive
@@ -395,6 +435,13 @@ export function EquipePage() {
             Pour l’appeler. Le téléphone de société se donne dans son dossier (Équipe → Dossier).
           </p>
         </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className="mb-1 block font-semibold text-ink">Poste *</span>
+          <PostePersonnelSelect required value={poste} onChange={setPoste} />
+          <p className="mt-1 text-xs text-muted">
+            Ce qu’il fait au quotidien. Responsable / pilote / directeur = toute l’équipe.
+          </p>
+        </label>
         <PasswordField
           label="Mot de passe temporaire *"
           required
@@ -419,8 +466,11 @@ export function EquipePage() {
       {!isOwner && ok && <p className="text-sm text-accent">{ok}</p>}
 
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
-        <div className="border-b border-line px-4 py-3 font-display font-semibold">
-          Membres ({visibleMembers.length})
+        <div className="border-b border-line px-4 py-3">
+          <div className="font-display font-semibold">Membres ({visibleMembers.length})</div>
+          <p className="mt-0.5 text-xs text-muted">
+            Une ligne par personne — appuyez pour afficher dossier, photos, identités, MDP.
+          </p>
         </div>
         <ul className="divide-y divide-line">
           {visibleMembers.map((m) => {
@@ -432,23 +482,57 @@ export function EquipePage() {
             const resume = resumeAlertesDossier(effective)
             const hasRhAcces = (data.personnelRhAccesUserIds || []).includes(m.id)
             const racineCloud = data.operateur.lienCloudRhRacine
+            const open = openMemberId === m.id
+            const posteLabel = labelPostePersonnel(dossier?.poste)
+            const couvreTous = posteCouvreTouteLEquipe(dossier?.poste)
+            const tel = (dossier?.telephone || '').trim()
             return (
-            <li key={m.id} className="flex flex-col gap-3 px-4 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-[min(100%,16rem)] flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-medium">
-                  <span>{m.fullName}</span>
-                  <MemberPhoneField
-                    value={dossier?.telephone}
-                    canEdit={isOwner}
-                    onSave={(next) => setPersonnelTelephone(m.id, m.fullName, next)}
-                  />
-                  <span className="break-all text-xs font-normal text-muted">
-                    {m.email || m.username}
+            <li key={m.id} className="bg-white">
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => setOpenMemberId(open ? null : m.id)}
+                className="flex w-full min-w-0 items-center gap-2 px-4 py-2.5 text-left hover:bg-mist/60"
+              >
+                {open ? (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                )}
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                  {ligneNomPoste({
+                    nom: m.fullName,
+                    poste: dossier?.poste,
+                    roleOwner: m.role === 'owner',
+                  })}
+                </span>
+                {couvreTous ? (
+                  <span className="hidden shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase text-slate sm:inline">
+                    Toute l’équipe
                   </span>
-                </div>
+                ) : null}
+                {m.active === false ? (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                    Off
+                  </span>
+                ) : null}
+                {resume.expire ? (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Pièce expirée" />
+                ) : resume.bientot ? (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Pièce bientôt" />
+                ) : null}
+                {tel ? (
+                  <span className="hidden max-w-[8rem] truncate text-xs font-semibold text-muted sm:inline">
+                    {tel}
+                  </span>
+                ) : null}
+              </button>
+              {open ? (
+              <div className="space-y-3 border-t border-line bg-mist/30 px-4 py-3">
                 <div className="text-xs leading-snug text-muted">
                   {m.role === 'owner' ? 'Compte officiel société' : 'Opérateur'}
+                  {posteLabel ? ` · ${posteLabel}` : ' · poste à définir'}
+                  {couvreTous ? ' · s’occupe de toute l’équipe' : ''}
                   {m.active === false ? ' · désactivé' : ''}
                   {m.role !== 'owner' && hasRhAcces ? ' · accès identités / RH' : ''}
                   {(() => {
@@ -459,8 +543,25 @@ export function EquipePage() {
                   })()}
                   {` · ${resumeAlertesTexte(resume, { vide: !dossier })}`}
                 </div>
-              </div>
-              <div className="flex max-w-full flex-wrap gap-2">
+                <span className="block break-all text-xs text-muted">
+                  {m.email || m.username}
+                </span>
+                {isOwner ? (
+                  <label className="block max-w-xs text-sm">
+                    <span className="mb-1 block text-xs font-semibold text-ink">Poste</span>
+                    <PostePersonnelSelect
+                      compact
+                      value={dossier?.poste || ''}
+                      onChange={(next) => setPersonnelPoste(m.id, m.fullName, next)}
+                    />
+                  </label>
+                ) : null}
+                <MemberPhoneField
+                  value={dossier?.telephone}
+                  canEdit={isOwner}
+                  onSave={(next) => setPersonnelTelephone(m.id, m.fullName, next)}
+                />
+                <div className="flex max-w-full flex-wrap gap-2">
                 <Link
                   to={`/app/equipe/${m.id}`}
                   className={[
@@ -537,13 +638,14 @@ export function EquipePage() {
                   </button>
                 </>
               )}
+                </div>
+                <MemberCloudLinkField
+                  value={dossier?.lienCloudDossier}
+                  canEdit={isOwner}
+                  onSave={(next) => setPersonnelLienCloud(m.id, m.fullName, next)}
+                />
               </div>
-              </div>
-              <MemberCloudLinkField
-                value={dossier?.lienCloudDossier}
-                canEdit={isOwner}
-                onSave={(next) => setPersonnelLienCloud(m.id, m.fullName, next)}
-              />
+              ) : null}
             </li>
             )
           })}

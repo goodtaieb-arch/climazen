@@ -6,6 +6,12 @@ import type { UserAccount } from '../lib/auth'
 import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import { DossierCloudTechButton } from './DossierCloudTechButton'
 import { dossierForUser } from '../lib/rhDocuments'
+import {
+  isPosteBureau,
+  isPosteTerrain,
+  optionLabelAvecPoste,
+  posteCouvreTouteLEquipe,
+} from '../lib/postePersonnel'
 
 type Props = {
   technicien: string
@@ -57,6 +63,36 @@ export function TechnicienAssignField({
     [user, remote, data, organization?.id],
   )
 
+  const grouped = useMemo(() => {
+    const terrain: typeof team = []
+    const bureau: typeof team = []
+    const autres: typeof team = []
+    for (const m of team) {
+      const poste = dossierForUser(data.personnelDossiers, m.id)?.poste
+      if (isPosteTerrain(poste)) terrain.push(m)
+      else if (isPosteBureau(poste) || posteCouvreTouteLEquipe(poste) || m.role === 'owner') {
+        bureau.push(m)
+      } else {
+        autres.push(m)
+      }
+    }
+    return { terrain, bureau, autres }
+  }, [team, data.personnelDossiers])
+
+  const optionFor = (m: (typeof team)[number]) => {
+    const poste = dossierForUser(data.personnelDossiers, m.id)?.poste
+    return (
+      <option key={m.id} value={m.id}>
+        {optionLabelAvecPoste({
+          nom: m.fullName || m.email,
+          poste,
+          roleOwner: m.role === 'owner',
+          inactif: m.active === false,
+        })}
+      </option>
+    )
+  }
+
   const selectValue = technicienUserId || ''
 
   return (
@@ -85,13 +121,15 @@ export function TechnicienAssignField({
         className="h-11 w-full rounded-xl border border-line bg-white px-3"
       >
         <option value="">— Choisir un technicien —</option>
-        {team.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.fullName || m.email}
-            {m.role === 'owner' ? ' (gérant)' : ''}
-            {m.active === false ? ' (inactif)' : ''}
-          </option>
-        ))}
+        {grouped.terrain.length > 0 ? (
+          <optgroup label="Terrain">{grouped.terrain.map(optionFor)}</optgroup>
+        ) : null}
+        {grouped.bureau.length > 0 ? (
+          <optgroup label="Bureau / toute l’équipe">{grouped.bureau.map(optionFor)}</optgroup>
+        ) : null}
+        {grouped.autres.length > 0 ? (
+          <optgroup label="Poste à définir">{grouped.autres.map(optionFor)}</optgroup>
+        ) : null}
       </select>
       {!selectValue && technicien.trim() ? (
         <p className="mt-1 text-[11px] text-muted">
@@ -100,8 +138,8 @@ export function TechnicienAssignField({
         </p>
       ) : (
         <p className="mt-1 text-[11px] text-muted">
-          Tous les techniciens de l’équipe. Le gérant prend l’appel, crée l’OT, puis affecte celui
-          qui interviendra.
+          Tous les membres de l’équipe, avec leur poste. Un responsable / directeur s’occupe de
+          toute l’équipe — affectez l’OT au tech qui interviendra.
         </p>
       )}
       {selectValue ? (
