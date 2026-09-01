@@ -55,6 +55,7 @@ import {
 } from '../lib/homeShortcuts'
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
+import { isTerrainUi } from '../lib/uiMode'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -103,6 +104,7 @@ export function Dashboard() {
     }),
     [isOwner, peutVoirIdentitesRh],
   )
+  const terrainUi = isTerrainUi(shortcutAccess)
 
   const [shortcutIds, setShortcutIds] = useState<HomeShortcutId[]>(() =>
     resolveHomeShortcutIds(user?.id, shortcutAccess),
@@ -122,7 +124,11 @@ export function Dashboard() {
     [shortcutIds, shortcutAccess],
   )
 
-  const brouillons = data.interventions.filter((i) => i.status === 'brouillon')
+  const brouillons = data.interventions.filter(
+    (i) =>
+      i.status === 'brouillon' &&
+      (!terrainUi || !user?.id || i.createdByUserId === user.id),
+  )
   const signes = data.interventions.filter((i) => i.status === 'signe' || i.status === 'envoye')
   const actifs = data.chantiers.filter((c) => c.statut === 'actif')
   const stockKg = data.stock.reduce((s, i) => s + i.quantiteKg, 0)
@@ -140,9 +146,16 @@ export function Dashboard() {
   const otAReprendre = useMemo(() => {
     return [...(data.ordresTravail || [])]
       .filter((o) => o.statut === 'brouillon' || o.statut === 'en_cours')
+      .filter(
+        (o) =>
+          !terrainUi ||
+          !user?.id ||
+          o.technicienUserId === user.id ||
+          o.createdByUserId === user.id,
+      )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, 5)
-  }, [data.ordresTravail])
+  }, [data.ordresTravail, terrainUi, user?.id])
 
   const agendaAContacter = useMemo(() => {
     return [...(data.agendaEvents || [])]
@@ -274,13 +287,22 @@ export function Dashboard() {
             <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
               Accueil
             </h1>
-            <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
-              OT &amp; CERFA partagés dans la société — tech en astreinte : bouton « Client appelle ».
-            </p>
-            <p className="mt-1 text-[11px] font-extrabold tracking-wide text-[#0f766e]">
-              Version {APP_VERSION}
-              <span className="ml-2 font-semibold text-muted">({APP_BUILD})</span>
-            </p>
+            {terrainUi ? (
+              <p className="mt-1 text-sm font-medium text-muted">
+                Client appelle, scan QR, sites, OT, CERFA.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
+                  OT &amp; CERFA partagés dans la société — tech en astreinte : bouton « Client
+                  appelle ».
+                </p>
+                <p className="mt-1 text-[11px] font-extrabold tracking-wide text-[#0f766e]">
+                  Version {APP_VERSION}
+                  <span className="ml-2 font-semibold text-muted">({APP_BUILD})</span>
+                </p>
+              </>
+            )}
           </div>
           <label className="relative block w-full md:w-80">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
@@ -404,7 +426,7 @@ export function Dashboard() {
           </nav>
         )}
 
-        {!q.trim() ? <DashboardKpiPanel /> : null}
+        {!q.trim() && !terrainUi ? <DashboardKpiPanel /> : null}
 
         {q.trim() && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -654,18 +676,44 @@ export function Dashboard() {
                 color="stock"
                 to="/app/stock"
               />
-              <TerrainAction
-                icon={Building2}
-                img3d={ICON3D.clients}
-                title="Clients"
-                subtitle={
-                  data.clients.length
-                    ? `${data.clients.length} détenteur${data.clients.length > 1 ? 's' : ''}`
-                    : 'Clients / détenteurs'
-                }
-                color="clients"
-                to="/app/clients"
-              />
+              {terrainUi ? (
+                <>
+                  <TerrainAction
+                    icon={Phone}
+                    img3d={ICON3D.accueil}
+                    title="Client appelle"
+                    subtitle="Ouvrir un OT sur place"
+                    color="cerfa"
+                    to="/app/appel"
+                  />
+                  <TerrainAction
+                    icon={ClipboardList}
+                    img3d={ICON3D.maintenance}
+                    title="OT / Demandes"
+                    subtitle={
+                      otAReprendre.length
+                        ? `${otAReprendre.length} à reprendre`
+                        : 'Tes ordres de travail'
+                    }
+                    color="cerfa"
+                    to="/app/ot"
+                    badge={otAReprendre.length || undefined}
+                  />
+                </>
+              ) : (
+                <TerrainAction
+                  icon={Building2}
+                  img3d={ICON3D.clients}
+                  title="Clients"
+                  subtitle={
+                    data.clients.length
+                      ? `${data.clients.length} détenteur${data.clients.length > 1 ? 's' : ''}`
+                      : 'Clients / détenteurs'
+                  }
+                  color="clients"
+                  to="/app/clients"
+                />
+              )}
             </nav>
           </>
         )}
@@ -973,7 +1021,7 @@ export function Dashboard() {
         </section>
       )}
 
-      {showOnboarding && (
+      {showOnboarding && !terrainUi && (
         <section className="rounded-2xl border border-accent/30 bg-accent-soft/50 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1018,7 +1066,8 @@ export function Dashboard() {
         </section>
       )}
 
-      {/* Raccourcis stats 3D — desktop / tablette (mobile = grille cercles) */}
+      {/* Raccourcis stats 3D — bureau / tablette (masqué sur le téléphone et pour le terrain) */}
+      {!terrainUi && (
       <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-4 md:gap-4">
         <Stat3d
           img={ICON3D.sites}
@@ -1059,6 +1108,7 @@ export function Dashboard() {
           floatDelay="0.9s"
         />
       </div>
+      )}
     </div>
   )
 }

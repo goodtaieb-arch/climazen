@@ -29,6 +29,7 @@ import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
 import { VersionBadge, VersionUpdateBar, MajButton } from './AppVersion'
 import { BetaBadge } from './BetaBadge'
+import { isTerrainUi } from '../lib/uiMode'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -143,11 +144,30 @@ const baseLinksOperator = [
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
-/** Nav terrain mobile (<768px) : 4 actions principales */
-const mobilePrimary = [
+/** Tech terrain : uniquement le boulot (pas clients / contrats / admin). */
+const baseLinksTerrain = [
+  { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
+  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+]
+
+/** Nav mobile bureau / gérant */
+const mobilePrimaryBureau = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Fluides', icon: Package, tone: 'stock' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
+]
+
+/** Nav mobile terrain : Accueil, site, OT, CERFA */
+const mobilePrimaryTerrain = [
+  { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
+  { to: '/app/ot', label: 'OT', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
@@ -176,16 +196,23 @@ export function AppLayout() {
     return () => window.removeEventListener('climazen:voice-state', onVoice)
   }, [])
 
+  const terrainUi = isTerrainUi({ isOwner, peutVoirIdentitesRh })
+
   const links = isOwner
     ? baseLinksOwner
-    : [
-        ...baseLinksOperator,
-        ...(peutVoirIdentitesRh
-          ? [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]
-          : user
+    : terrainUi
+      ? [
+          ...baseLinksTerrain,
+          ...(user
             ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
             : []),
-      ]
+        ]
+      : [
+          ...baseLinksOperator,
+          { to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' },
+        ]
+
+  const mobilePrimary = terrainUi ? mobilePrimaryTerrain : mobilePrimaryBureau
 
   const pageTone = toneForPath(pathname, links)
 
@@ -213,24 +240,31 @@ export function AppLayout() {
     }
   }
 
-  const moreLinks = [
-    { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
-    { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
-    { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
-    { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-    { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
-    ...(user
-      ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-      : []),
-    ...(isOwner
-      ? [
-          { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
-          { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
-        ]
-      : peutVoirIdentitesRh
-        ? [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]
-        : []),
-  ]
+  const moreLinks = terrainUi
+    ? [
+        { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+        { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+        { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+        ...(user
+          ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+          : []),
+      ]
+    : [
+        { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+        { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+        { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
+        { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+        { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+        ...(user
+          ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+          : []),
+        ...(isOwner
+          ? [
+              { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+              { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
+            ]
+          : [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]),
+      ]
 
   return (
     <div

@@ -1,4 +1,5 @@
 import { ICON3D } from './icons3d'
+import { isTerrainUi, shortcutVisibleForAccess, type UiAccess } from './uiMode'
 
 /** Identifiants des raccourcis Accueil mobile (grille de cercles). */
 export type HomeShortcutId =
@@ -26,6 +27,8 @@ export type HomeShortcutDef = {
   ownerOnly?: boolean
   /** Visible si gérant ou accès RH équipe. */
   rhTeamOnly?: boolean
+  /** Clients / contrats : bureau & gérant seulement (pas le tech terrain). */
+  bureauOnly?: boolean
 }
 
 export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
@@ -64,6 +67,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Clients',
     img: ICON3D.clients,
     to: '/app/clients',
+    bureauOnly: true,
   },
   ot: {
     id: 'ot',
@@ -88,6 +92,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Contrats',
     img: ICON3D.maintenance,
     to: '/app/contrats',
+    bureauOnly: true,
   },
   equipe: {
     id: 'equipe',
@@ -105,7 +110,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
   },
 }
 
-/** Disposition par défaut (v134 stock mobile layout). */
+/** Disposition par défaut bureau / gérant. */
 export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'sites',
   'scan_qr',
@@ -115,6 +120,18 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'clients',
   'ot',
   'appel',
+  'profil',
+]
+
+/** Terrain : uniquement les boutons d’intervention. */
+export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
+  'appel',
+  'scan_qr',
+  'sites',
+  'ot',
+  'cerfa',
+  'stock',
+  'agenda',
   'profil',
 ]
 
@@ -131,20 +148,19 @@ function isHomeShortcutId(v: unknown): v is HomeShortcutId {
   return typeof v === 'string' && v in HOME_SHORTCUT_CATALOG
 }
 
-export type HomeShortcutAccess = {
-  isOwner: boolean
-  peutVoirIdentitesRh: boolean
+export type HomeShortcutAccess = UiAccess & {
   equipePath?: string
+}
+
+function defaultShortcutIds(access: HomeShortcutAccess): HomeShortcutId[] {
+  return isTerrainUi(access) ? DEFAULT_HOME_SHORTCUT_IDS_TERRAIN : DEFAULT_HOME_SHORTCUT_IDS
 }
 
 /** Filtre le catalogue selon le rôle / droits. */
 export function availableHomeShortcutIds(access: HomeShortcutAccess): HomeShortcutId[] {
-  return (Object.keys(HOME_SHORTCUT_CATALOG) as HomeShortcutId[]).filter((id) => {
-    const def = HOME_SHORTCUT_CATALOG[id]
-    if (def.ownerOnly && !access.isOwner) return false
-    if (def.rhTeamOnly && !access.isOwner && !access.peutVoirIdentitesRh) return false
-    return true
-  })
+  return (Object.keys(HOME_SHORTCUT_CATALOG) as HomeShortcutId[]).filter((id) =>
+    shortcutVisibleForAccess(HOME_SHORTCUT_CATALOG[id], access),
+  )
 }
 
 /** Charge les préférences utilisateur (localStorage, par appareil). */
@@ -180,10 +196,11 @@ export function resolveHomeShortcutIds(
 ): HomeShortcutId[] {
   const allowed = new Set(availableHomeShortcutIds(access))
   const saved = userId ? loadHomeShortcutIds(userId) : null
-  const base = saved ?? DEFAULT_HOME_SHORTCUT_IDS
+  const defaults = defaultShortcutIds(access)
+  const base = saved ?? defaults
   const filtered = base.filter((id) => allowed.has(id))
   if (filtered.length >= MIN_HOME_SHORTCUTS) return filtered.slice(0, MAX_HOME_SHORTCUTS)
-  const fallback = DEFAULT_HOME_SHORTCUT_IDS.filter((id) => allowed.has(id))
+  const fallback = defaults.filter((id) => allowed.has(id))
   return fallback.length ? fallback : [...allowed].slice(0, MAX_HOME_SHORTCUTS)
 }
 
