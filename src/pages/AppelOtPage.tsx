@@ -75,6 +75,8 @@ import {
 } from '../lib/otParcours'
 import { dossierForUser } from '../lib/rhDocuments'
 import { secteurOtDepuisPoste } from '../lib/postePersonnel'
+import { AgenceSelect } from '../components/AgenceSelect'
+import { agenceDepuisCodePostal, agenceEffective } from '../lib/agences'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -94,6 +96,7 @@ function blankClient(): Omit<Client, 'id' | 'createdAt'> {
     email: '',
     siret: '',
     notes: '',
+    agenceCode: undefined,
   }
 }
 
@@ -105,6 +108,7 @@ function blankSite(clientId: string, from?: Partial<Client>): Omit<Site, 'id' | 
     adresse: from?.adresse || '',
     codePostal: from?.codePostal || '',
     ville: from?.ville || '',
+    agenceCode: from?.agenceCode || agenceDepuisCodePostal(from?.codePostal),
     typeTravaux: 'depanage',
     detailTravaux: '',
     modeGestion: 'ponctuel',
@@ -375,10 +379,23 @@ export function AppelOtPage() {
     const createdByUserId = otForm.createdByUserId || existing?.createdByUserId || user?.id
     const createdByName =
       otForm.createdByName || existing?.createdByName || user?.fullName || user?.email
+    const site =
+      data.chantiers.find((c) => c.id === (patch.chantierId || otForm.chantierId)) || undefined
+    const client =
+      data.clients.find(
+        (c) => c.id === (patch.clientId || otForm.clientId || site?.clientId),
+      ) || undefined
     const id = upsertOrdreTravail({
       ...otForm,
       ...patch,
       id: idOverride || otId || existing?.id,
+      agenceCode:
+        patch.agenceCode ??
+        otForm.agenceCode ??
+        agenceEffective({
+          agenceCode: site?.agenceCode || client?.agenceCode,
+          codePostal: site?.codePostal || client?.codePostal,
+        }),
       signatureTechnicienImage:
         patch.signatureTechnicienImage ??
         otForm.signatureTechnicienImage ??
@@ -1574,7 +1591,14 @@ export function AppelOtPage() {
                 <span className="mb-1 block font-semibold text-ink">Code postal</span>
                 <input
                   value={clientForm.codePostal}
-                  onChange={(e) => setClientForm({ ...clientForm, codePostal: e.target.value })}
+                  onChange={(e) => {
+                    const codePostal = e.target.value
+                    setClientForm({
+                      ...clientForm,
+                      codePostal,
+                      agenceCode: clientForm.agenceCode || agenceDepuisCodePostal(codePostal),
+                    })
+                  }}
                   className="h-11 w-full rounded-xl border border-line px-3"
                 />
               </label>
@@ -1586,6 +1610,11 @@ export function AppelOtPage() {
                   className="h-11 w-full rounded-xl border border-line px-3"
                 />
               </label>
+              <AgenceSelect
+                className="sm:col-span-2"
+                value={clientForm.agenceCode}
+                onChange={(agenceCode) => setClientForm({ ...clientForm, agenceCode })}
+              />
             </div>
           )}
 
@@ -1689,7 +1718,14 @@ export function AppelOtPage() {
                 <span className="mb-1 block font-semibold text-ink">Code postal</span>
                 <input
                   value={siteForm.codePostal}
-                  onChange={(e) => setSiteForm({ ...siteForm, codePostal: e.target.value })}
+                  onChange={(e) => {
+                    const codePostal = e.target.value
+                    setSiteForm({
+                      ...siteForm,
+                      codePostal,
+                      agenceCode: siteForm.agenceCode || agenceDepuisCodePostal(codePostal),
+                    })
+                  }}
                   className="h-11 w-full rounded-xl border border-line px-3"
                 />
               </label>
@@ -1701,6 +1737,11 @@ export function AppelOtPage() {
                   className="h-11 w-full rounded-xl border border-line px-3"
                 />
               </label>
+              <AgenceSelect
+                className="sm:col-span-2"
+                value={siteForm.agenceCode}
+                onChange={(agenceCode) => setSiteForm({ ...siteForm, agenceCode })}
+              />
             </div>
           )}
 

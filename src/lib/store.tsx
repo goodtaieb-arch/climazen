@@ -77,7 +77,8 @@ import {
   type PersonnelDossier,
   type RhAccessActor,
 } from './rhDocuments'
-import { parsePostePersonnel, type PostePersonnelId } from './postePersonnel'
+import { parsePostePersonnel, parseActiviteBureau, parseMetiersCouverts, type PostePersonnelId } from './postePersonnel'
+import { parseAgenceCode } from './agences'
 import {
   getCloudUpdatedAt,
   getPendingSync,
@@ -2494,6 +2495,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         poste: Object.prototype.hasOwnProperty.call(d, 'poste')
           ? parsePostePersonnel(d.poste)
           : existing?.poste,
+        agenceCode: Object.prototype.hasOwnProperty.call(d, 'agenceCode')
+          ? parseAgenceCode(d.agenceCode)
+          : existing?.agenceCode,
+        activiteBureau: Object.prototype.hasOwnProperty.call(d, 'activiteBureau')
+          ? parseActiviteBureau(d.activiteBureau)
+          : existing?.activiteBureau,
+        metiersCouverts: Object.prototype.hasOwnProperty.call(d, 'metiersCouverts')
+          ? parseMetiersCouverts(d.metiersCouverts)
+          : existing?.metiersCouverts,
         telephone:
           d.telephone !== undefined
             ? d.telephone.trim() || undefined

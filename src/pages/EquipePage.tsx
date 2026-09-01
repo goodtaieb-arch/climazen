@@ -20,7 +20,8 @@ import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
-import { PostePersonnelSelect } from '../components/PostePersonnelSelect'
+import { PostePersonnelSelect, BureauActiviteFields } from '../components/PostePersonnelSelect'
+import { AgenceSelect } from '../components/AgenceSelect'
 import { useStore } from '../lib/store'
 import {
   dossierForUser,
@@ -35,8 +36,14 @@ import {
   ligneNomPoste,
   parsePostePersonnel,
   posteCouvreTouteLEquipe,
+  ACTIVITE_BUREAU_LABELS,
+  labelSecteurCourt,
+  secteurCouleurMembre,
+  type ActiviteBureau,
   type PostePersonnelId,
 } from '../lib/postePersonnel'
+import { couleurPlanning } from '../lib/agendaPlanning'
+import { labelAgence } from '../lib/agences'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { telHref } from '../lib/agenda'
 
@@ -191,6 +198,9 @@ export function EquipePage() {
   const [email, setEmail] = useState('')
   const [telephone, setTelephone] = useState('')
   const [poste, setPoste] = useState<PostePersonnelId | ''>('')
+  const [agenceCode, setAgenceCode] = useState<string | undefined>()
+  const [activiteBureau, setActiviteBureau] = useState<ActiviteBureau | undefined>()
+  const [metiersCouverts, setMetiersCouverts] = useState<PostePersonnelId[]>([])
   const [password, setPassword] = useState(() => generateTempPassword())
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
@@ -237,6 +247,9 @@ export function EquipePage() {
           userName: op.fullName || fullName,
           telephone: telephone.trim() || undefined,
           poste: parsedPoste,
+          agenceCode,
+          activiteBureau,
+          metiersCouverts,
           toucheFroid: true,
           toucheElectricite: true,
           conduitVehicule: true,
@@ -248,6 +261,9 @@ export function EquipePage() {
       setEmail('')
       setTelephone('')
       setPoste('')
+      setAgenceCode(undefined)
+      setActiviteBureau(undefined)
+      setMetiersCouverts([])
       setPassword(generateTempPassword())
       await refresh()
       setMembers((prev) => (prev.some((m) => m.id === op.id) ? prev : [...prev, op]))
@@ -290,6 +306,36 @@ export function EquipePage() {
       setError(err instanceof Error ? err.message : 'Suppression impossible')
       setPendingDelete(null)
     }
+  }
+
+  const saveMemberDossier = (
+    m: UserAccount,
+    patch: {
+      poste?: PostePersonnelId | ''
+      agenceCode?: string | undefined
+      activiteBureau?: ActiviteBureau | undefined
+      metiersCouverts?: PostePersonnelId[]
+    },
+  ) => {
+    const d = dossierForUser(data.personnelDossiers, m.id)
+    upsertPersonnelDossier({
+      userId: m.id,
+      userName: m.fullName,
+      telephone: d?.telephone,
+      toucheFroid: d?.toucheFroid ?? true,
+      toucheElectricite: d?.toucheElectricite ?? true,
+      conduitVehicule: d?.conduitVehicule ?? true,
+      notes: d?.notes,
+      lienCloudDossier: d?.lienCloudDossier,
+      poste: patch.poste !== undefined ? parsePostePersonnel(patch.poste) : d?.poste,
+      agenceCode: Object.prototype.hasOwnProperty.call(patch, 'agenceCode')
+        ? patch.agenceCode
+        : d?.agenceCode,
+      activiteBureau: Object.prototype.hasOwnProperty.call(patch, 'activiteBureau')
+        ? patch.activiteBureau
+        : d?.activiteBureau,
+      metiersCouverts: patch.metiersCouverts !== undefined ? patch.metiersCouverts : d?.metiersCouverts,
+    })
   }
 
   return (
@@ -442,6 +488,23 @@ export function EquipePage() {
             Ce qu’il fait au quotidien. Responsable / pilote / directeur = toute l’équipe.
           </p>
         </label>
+        <AgenceSelect
+          compact
+          className="sm:col-span-2"
+          value={agenceCode}
+          onChange={setAgenceCode}
+        />
+        <div className="sm:col-span-2">
+          <BureauActiviteFields
+            poste={poste}
+            activiteBureau={activiteBureau}
+            metiersCouverts={metiersCouverts}
+            onChange={(next) => {
+              setActiviteBureau(next.activiteBureau)
+              setMetiersCouverts(next.metiersCouverts || [])
+            }}
+          />
+        </div>
         <PasswordField
           label="Mot de passe temporaire *"
           required
@@ -486,19 +549,29 @@ export function EquipePage() {
             const posteLabel = labelPostePersonnel(dossier?.poste)
             const couvreTous = posteCouvreTouteLEquipe(dossier?.poste)
             const tel = (dossier?.telephone || '').trim()
+            const col = couleurPlanning({
+              secteur: secteurCouleurMembre({
+                poste: dossier?.poste,
+                metiersCouverts: dossier?.metiersCouverts,
+              }),
+              technicienUserId: m.id,
+            })
+            const agence = labelAgence(dossier?.agenceCode)
             return (
-            <li key={m.id} className="bg-white">
+            <li key={m.id} className={`${col.bg}`}>
+              <div className="flex w-full min-w-0 items-center gap-1">
               <button
                 type="button"
                 aria-expanded={open}
                 onClick={() => setOpenMemberId(open ? null : m.id)}
-                className="flex w-full min-w-0 items-center gap-2 px-4 py-2.5 text-left hover:bg-mist/60"
+                className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2.5 text-left hover:bg-white/50"
               >
                 {open ? (
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
                 ) : (
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
                 )}
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${col.dot}`} />
                 <span className="min-w-0 flex-1 truncate font-medium text-ink">
                   {ligneNomPoste({
                     nom: m.fullName,
@@ -506,6 +579,26 @@ export function EquipePage() {
                     roleOwner: m.role === 'owner',
                   })}
                 </span>
+                {labelSecteurCourt(
+                  secteurCouleurMembre({
+                    poste: dossier?.poste,
+                    metiersCouverts: dossier?.metiersCouverts,
+                  }),
+                ) ? (
+                  <span className={`hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase sm:inline ${col.badge}`}>
+                    {labelSecteurCourt(
+                      secteurCouleurMembre({
+                        poste: dossier?.poste,
+                        metiersCouverts: dossier?.metiersCouverts,
+                      }),
+                    )}
+                  </span>
+                ) : null}
+                {agence ? (
+                  <span className="hidden shrink-0 rounded-full border border-line bg-white/80 px-2 py-0.5 text-[10px] font-bold text-ink sm:inline">
+                    {dossier?.agenceCode}
+                  </span>
+                ) : null}
                 {couvreTous ? (
                   <span className="hidden shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase text-slate sm:inline">
                     Toute l’équipe
@@ -527,12 +620,27 @@ export function EquipePage() {
                   </span>
                 ) : null}
               </button>
+              {isOwner && m.role === 'operateur' && m.id !== user?.id ? (
+                <button
+                  type="button"
+                  title="Retirer de l’effectif"
+                  onClick={() => setPendingDelete(m)}
+                  className="mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-red-200 bg-white text-danger hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              ) : null}
+              </div>
               {open ? (
               <div className="space-y-3 border-t border-line bg-mist/30 px-4 py-3">
                 <div className="text-xs leading-snug text-muted">
                   {m.role === 'owner' ? 'Compte officiel société' : 'Opérateur'}
                   {posteLabel ? ` · ${posteLabel}` : ' · poste à définir'}
                   {couvreTous ? ' · s’occupe de toute l’équipe' : ''}
+                  {dossier?.activiteBureau
+                    ? ` · ${ACTIVITE_BUREAU_LABELS[dossier.activiteBureau]}`
+                    : ''}
+                  {agence ? ` · agence ${agence}` : ''}
                   {m.active === false ? ' · désactivé' : ''}
                   {m.role !== 'owner' && hasRhAcces ? ' · accès identités / RH' : ''}
                   {(() => {
@@ -547,6 +655,7 @@ export function EquipePage() {
                   {m.email || m.username}
                 </span>
                 {isOwner ? (
+                  <>
                   <label className="block max-w-xs text-sm">
                     <span className="mb-1 block text-xs font-semibold text-ink">Poste</span>
                     <PostePersonnelSelect
@@ -555,6 +664,20 @@ export function EquipePage() {
                       onChange={(next) => setPersonnelPoste(m.id, m.fullName, next)}
                     />
                   </label>
+                  <AgenceSelect
+                    compact
+                    className="max-w-xs"
+                    value={dossier?.agenceCode}
+                    onChange={(next) => saveMemberDossier(m, { agenceCode: next })}
+                  />
+                  <BureauActiviteFields
+                    compact
+                    poste={dossier?.poste}
+                    activiteBureau={dossier?.activiteBureau}
+                    metiersCouverts={dossier?.metiersCouverts}
+                    onChange={(next) => saveMemberDossier(m, next)}
+                  />
+                  </>
                 ) : null}
                 <MemberPhoneField
                   value={dossier?.telephone}

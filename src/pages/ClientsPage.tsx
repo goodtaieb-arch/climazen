@@ -30,6 +30,8 @@ import {
   sendClientToMake,
 } from '../lib/makeFacturation'
 import { contratsActifsForClient } from '../lib/contratMaintenance'
+import { AgenceSelect } from '../components/AgenceSelect'
+import { agenceDepuisCodePostal } from '../lib/agences'
 
 const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   typeClient: 'entreprise',
@@ -41,9 +43,10 @@ const blank = (): Omit<Client, 'id' | 'createdAt'> => ({
   codePostal: '',
   ville: '',
   telephone: '',
-  email: '',
-  siret: '',
-  notes: '',
+    email: '',
+    siret: '',
+    notes: '',
+    agenceCode: undefined,
 })
 
 function formatSiret(raw?: string) {
@@ -148,6 +151,7 @@ export function ClientsPage() {
       adresse: c.adresse,
       codePostal: c.codePostal,
       ville: c.ville,
+      agenceCode: c.agenceCode,
       telephone: c.telephone,
       email: c.email,
       siret: c.siret || '',
@@ -338,9 +342,20 @@ export function ClientsPage() {
           <Field
             label="Code postal"
             value={form.codePostal}
-            onChange={(v) => setForm({ ...form, codePostal: v })}
+            onChange={(v) =>
+              setForm({
+                ...form,
+                codePostal: v,
+                agenceCode: form.agenceCode || agenceDepuisCodePostal(v),
+              })
+            }
           />
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
+          <AgenceSelect
+            className="sm:col-span-2"
+            value={form.agenceCode}
+            onChange={(agenceCode) => setForm({ ...form, agenceCode })}
+          />
           <Field
             label="Téléphone"
             value={form.telephone}

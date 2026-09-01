@@ -8,7 +8,8 @@ import { Field } from './ClientsPage'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
-import { PostePersonnelSelect } from '../components/PostePersonnelSelect'
+import { AgenceSelect } from '../components/AgenceSelect'
+import { PostePersonnelSelect, BureauActiviteFields } from '../components/PostePersonnelSelect'
 import { telHref } from '../lib/agenda'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { MaterielConfieDossier } from '../components/MaterielConfieDossier'
@@ -36,7 +37,7 @@ import {
   type StatutDocumentRh,
   type TypeDocumentRh,
 } from '../lib/rhDocuments'
-import { labelPostePersonnel, posteCouvreTouteLEquipe, type PostePersonnelId } from '../lib/postePersonnel'
+import { labelPostePersonnel, posteCouvreTouteLEquipe, type ActiviteBureau, type PostePersonnelId } from '../lib/postePersonnel'
 
 type DocForm = {
   id?: string
@@ -115,6 +116,11 @@ export function TechnicienDossierPage() {
   const [notes, setNotes] = useState(dossier.notes || '')
   const [telephone, setTelephone] = useState(dossier.telephone || '')
   const [poste, setPoste] = useState<PostePersonnelId | ''>(dossier.poste || '')
+  const [agenceCode, setAgenceCode] = useState(dossier.agenceCode)
+  const [activiteBureau, setActiviteBureau] = useState<ActiviteBureau | undefined>(dossier.activiteBureau)
+  const [metiersCouverts, setMetiersCouverts] = useState<PostePersonnelId[]>(
+    dossier.metiersCouverts || [],
+  )
   const [lienCloudDossier, setLienCloudDossier] = useState(dossier.lienCloudDossier || '')
 
   useEffect(() => {
@@ -124,6 +130,9 @@ export function TechnicienDossierPage() {
     setNotes(dossier.notes || '')
     setTelephone(dossier.telephone || '')
     setPoste(dossier.poste || '')
+    setAgenceCode(dossier.agenceCode)
+    setActiviteBureau(dossier.activiteBureau)
+    setMetiersCouverts(dossier.metiersCouverts || [])
     setLienCloudDossier(dossier.lienCloudDossier || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored?.id, stored?.updatedAt, displayName])
@@ -183,6 +192,9 @@ export function TechnicienDossierPage() {
       userName: displayName,
       telephone,
       poste: poste || undefined,
+      agenceCode,
+      activiteBureau,
+      metiersCouverts,
       lienCloudDossier: (() => {
         const t = lienCloudDossier.trim()
         if (!t) return ''
@@ -452,6 +464,22 @@ export function TechnicienDossierPage() {
             </p>
           ) : null}
         </label>
+        <AgenceSelect
+          className="mt-3 max-w-sm"
+          value={agenceCode}
+          onChange={setAgenceCode}
+        />
+        <div className="mt-3 max-w-lg">
+          <BureauActiviteFields
+            poste={poste}
+            activiteBureau={activiteBureau}
+            metiersCouverts={metiersCouverts}
+            onChange={(next) => {
+              setActiviteBureau(next.activiteBureau)
+              setMetiersCouverts(next.metiersCouverts || [])
+            }}
+          />
+        </div>
         <div className="mt-3 max-w-sm">
           <Field
             label="Téléphone perso (pour le joindre)"

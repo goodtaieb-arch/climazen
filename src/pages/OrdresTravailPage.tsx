@@ -35,7 +35,10 @@ import { SecteurOtSelect } from '../components/PostePersonnelSelect'
 import { OtAvancementFields } from '../components/OtAvancementFields'
 import { allEquipements } from '../lib/cerfaBatch'
 import { dossierForUser } from '../lib/rhDocuments'
-import { labelSecteurCourt, secteurOtDepuisPoste } from '../lib/postePersonnel'
+import { labelSecteurCourt, secteurOtDepuisPoste, secteursOt, secteurCouleurMembre } from '../lib/postePersonnel'
+import { couleurPlanning } from '../lib/agendaPlanning'
+import { AgenceSelect } from '../components/AgenceSelect'
+import { agenceEffective, labelAgence } from '../lib/agences'
 
 export function OrdresTravailPage() {
   const {
@@ -54,6 +57,8 @@ export function OrdresTravailPage() {
   const [typeFilter, setTypeFilter] = useState<'tous' | TypeOt>('tous')
   const [statutFilter, setStatutFilter] = useState<'ouverts' | 'clotures' | 'tous'>('ouverts')
   const [assigneeFilter, setAssigneeFilter] = useState<'tous' | 'moi'>('tous')
+  const [secteurFilter, setSecteurFilter] = useState<string>('tous')
+  const [agenceFilter, setAgenceFilter] = useState<string>('tous')
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === editId) || null,
@@ -103,6 +108,22 @@ export function OrdresTravailPage() {
         return o.technicienUserId === user.id
       })
       .filter((o) => {
+        if (secteurFilter === 'tous') return true
+        const poste = dossierForUser(data.personnelDossiers, o.technicienUserId)?.poste
+        const secteur = o.secteur || secteurOtDepuisPoste(poste)
+        return secteur === secteurFilter
+      })
+      .filter((o) => {
+        if (agenceFilter === 'tous') return true
+        const client = data.clients.find((c) => c.id === o.clientId)
+        const site = data.chantiers.find((c) => c.id === o.chantierId)
+        const ag = agenceEffective({
+          agenceCode: o.agenceCode || site?.agenceCode || client?.agenceCode,
+          codePostal: site?.codePostal || client?.codePostal,
+        })
+        return ag === agenceFilter
+      })
+      .filter((o) => {
         const client = data.clients.find((c) => c.id === o.clientId)
         const site = data.chantiers.find((c) => c.id === o.chantierId)
         return matchesQuery(
@@ -116,6 +137,8 @@ export function OrdresTravailPage() {
             o.statut,
             o.lienCommandeRef,
             o.lienCommandeType,
+            labelSecteurCourt(o.secteur),
+            labelAgence(o.agenceCode || site?.agenceCode || client?.agenceCode),
           ]
             .filter(Boolean)
             .join(' '),
@@ -123,7 +146,7 @@ export function OrdresTravailPage() {
         )
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  }, [data.ordresTravail, data.clients, data.chantiers, q, typeFilter, statutFilter, assigneeFilter, user?.id])
+  }, [data.ordresTravail, data.clients, data.chantiers, data.personnelDossiers, q, typeFilter, statutFilter, assigneeFilter, secteurFilter, agenceFilter, user?.id])
 
   const site = data.chantiers.find((c) => c.id === form.chantierId)
   const eqs = site ? allEquipements(site) : []
@@ -152,9 +175,17 @@ export function OrdresTravailPage() {
       alert('Indiquez l’action / mission de l’OT.')
       return
     }
+    const siteRow = data.chantiers.find((c) => c.id === form.chantierId)
+    const clientRow = data.clients.find((c) => c.id === (form.clientId || siteRow?.clientId))
     const id = upsertOrdreTravail({
       ...form,
       id: existing?.id,
+      agenceCode:
+        form.agenceCode ||
+        agenceEffective({
+          agenceCode: siteRow?.agenceCode || clientRow?.agenceCode,
+          codePostal: siteRow?.codePostal || clientRow?.codePostal,
+        }),
       signatureTechnicienImage:
         form.signatureTechnicienImage || user?.signatureImage || '',
       signatureClientImage: form.signatureClientImage || '',
@@ -352,6 +383,10 @@ export function OrdresTravailPage() {
             required
             value={form.secteur || ''}
             onChange={(secteur) => setForm({ ...form, secteur })}
+          />
+          <AgenceSelect
+            value={form.agenceCode}
+            onChange={(agenceCode) => setForm({ ...form, agenceCode })}
           />
           <TechnicienAssignField
             technicien={form.technicien}
@@ -652,6 +687,45 @@ export function OrdresTravailPage() {
             </option>
           ))}
         </select>
+        <select
+          value={secteurFilter}
+          onChange={(e) => setSecteurFilter(e.target.value)}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
+        >
+          <option value="tous">Tous les métiers</option>
+          {secteursOt().map((s) => (
+            <option key={s.id} value={s.id}>
+              {labelSecteurCourt(s.id)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={agenceFilter}
+          onChange={(e) => setAgenceFilter(e.target.value)}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
+        >
+          <option value="tous">Toutes les agences</option>
+          {Array.from(
+            new Set(
+              (data.ordresTravail || [])
+                .map((o) => {
+                  const client = data.clients.find((c) => c.id === o.clientId)
+                  const site = data.chantiers.find((c) => c.id === o.chantierId)
+                  return agenceEffective({
+                    agenceCode: o.agenceCode || site?.agenceCode || client?.agenceCode,
+                    codePostal: site?.codePostal || client?.codePostal,
+                  })
+                })
+                .filter(Boolean) as string[],
+            ),
+          )
+            .sort()
+            .map((code) => (
+              <option key={code} value={code}>
+                {labelAgence(code)}
+              </option>
+            ))}
+        </select>
       </div>
 
       <div className="grid gap-3">
@@ -659,17 +733,27 @@ export function OrdresTravailPage() {
           const client = data.clients.find((c) => c.id === o.clientId)
           const siteRow = data.chantiers.find((c) => c.id === o.chantierId)
           const cloture = isOtCloture(o.statut)
+          const poste = dossierForUser(data.personnelDossiers, o.technicienUserId)?.poste
+          const secteur =
+            o.secteur ||
+            secteurOtDepuisPoste(poste) ||
+            secteurCouleurMembre({ poste })
+          const col = couleurPlanning({ secteur, technicienUserId: o.technicienUserId })
+          const agence = agenceEffective({
+            agenceCode: o.agenceCode || siteRow?.agenceCode || client?.agenceCode,
+            codePostal: siteRow?.codePostal || client?.codePostal,
+          })
           return (
             <div
               key={o.id}
               className={[
-                'rounded-2xl border bg-white p-4 shadow-sm',
-                cloture ? 'border-emerald-200/80' : 'border-line',
+                'rounded-2xl border p-4 shadow-sm',
+                cloture ? `${col.border} opacity-80` : `${col.border} ${col.bg}`,
               ].join(' ')}
             >
               <Link to={`/app/ot?id=${encodeURIComponent(o.id)}`} className="block min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${col.badge}`}>
                     {formatOtNumero(o.numero)}
                   </span>
                   <span className="font-display text-base font-semibold">
@@ -698,7 +782,8 @@ export function OrdresTravailPage() {
                 <p className="mt-0.5 text-xs text-muted">
                   {siteRow?.nom || '—'} · {client?.raisonSociale || '—'} · {o.date}
                   {o.heure ? ` ${o.heure.slice(0, 5)}` : ''}
-                  {labelSecteurCourt(o.secteur) ? ` · ${labelSecteurCourt(o.secteur)}` : ''}
+                  {labelSecteurCourt(secteur) ? ` · ${labelSecteurCourt(secteur)}` : ''}
+                  {agence ? ` · ${labelAgence(agence)}` : ''}
                   {o.technicien ? ` · ${o.technicien}` : ''}
                 </p>
               </Link>

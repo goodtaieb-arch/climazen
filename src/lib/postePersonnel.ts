@@ -99,6 +99,41 @@ export function secteurOtDepuisPoste(poste: unknown): PostePersonnelId | undefin
   return isPosteTerrain(poste) ? parsePostePersonnel(poste) : undefined
 }
 
+export type ActiviteBureau = 'travaux' | 'maintenance' | 'les_deux'
+
+export const ACTIVITE_BUREAU_LABELS: Record<ActiviteBureau, string> = {
+  travaux: 'Travaux',
+  maintenance: 'Maintenance',
+  les_deux: 'Travaux + maintenance',
+}
+
+export function parseActiviteBureau(raw: unknown): ActiviteBureau | undefined {
+  const v = String(raw || '').trim()
+  if (v === 'travaux' || v === 'maintenance' || v === 'les_deux') return v
+  return undefined
+}
+
+export function parseMetiersCouverts(raw: unknown): PostePersonnelId[] {
+  if (!Array.isArray(raw)) return []
+  const out: PostePersonnelId[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const id = parsePostePersonnel(item)
+    if (!id || !isPosteTerrain(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+/** Couleur agenda : poste terrain, sinon 1er métier couvert (responsable). */
+export function secteurCouleurMembre(opts: {
+  poste?: unknown
+  metiersCouverts?: unknown
+}): PostePersonnelId | undefined {
+  return secteurOtDepuisPoste(opts.poste) || parseMetiersCouverts(opts.metiersCouverts)[0]
+}
+
 /** Ligne compacte Équipe : « Jean Dupont · Tech CVC ». */
 export function ligneNomPoste(opts: {
   nom: string

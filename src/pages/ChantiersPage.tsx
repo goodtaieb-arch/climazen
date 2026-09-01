@@ -39,6 +39,8 @@ import { DecimalField } from '../components/DecimalField'
 import { FluideSelect } from '../components/FluideSelect'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { SearchField, matchesQuery } from '../components/SearchField'
+import { AgenceSelect } from '../components/AgenceSelect'
+import { agenceDepuisCodePostal } from '../lib/agences'
 import { SmartSuggestField, type SmartSuggestion } from '../components/SmartSuggestField'
 import { MobileFab } from '../components/MobileFab'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -139,6 +141,7 @@ const blank = (clientId = ''): Omit<Chantier, 'id' | 'createdAt'> => ({
   adresse: '',
   codePostal: '',
   ville: '',
+  agenceCode: undefined,
   typeTravaux: 'maintenance',
   detailTravaux: '',
   modeGestion: 'contrat',
@@ -1292,9 +1295,20 @@ export function ChantiersPage() {
           <Field
             label="Code postal"
             value={form.codePostal}
-            onChange={(v) => setForm({ ...form, codePostal: v })}
+            onChange={(v) =>
+              setForm({
+                ...form,
+                codePostal: v,
+                agenceCode: form.agenceCode || agenceDepuisCodePostal(v),
+              })
+            }
           />
           <Field label="Ville" value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} />
+          <AgenceSelect
+            className="sm:col-span-2"
+            value={form.agenceCode}
+            onChange={(agenceCode) => setForm({ ...form, agenceCode })}
+          />
 
           <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

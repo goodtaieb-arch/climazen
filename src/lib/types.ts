@@ -182,6 +182,8 @@ export interface Client {
   ville: string
   telephone: string
   email: string
+  /** Agence / département (75 Paris, 06, 13…) */
+  agenceCode?: string
   /** SIRET client (utile facturation B2B / Tiime) */
   siret?: string
   notes?: string
@@ -287,6 +289,8 @@ export interface Site {
   adresse: string
   codePostal: string
   ville: string
+  /** Agence / département — si vide, on prend le CP ou l’agence du client */
+  agenceCode?: string
   /** Multi-équipements (évolution) — optionnel */
   equipements?: Equipement[]
   statut: 'actif' | 'termine' | 'archive'

@@ -1,4 +1,15 @@
-import { postesParFamille, parsePostePersonnel, secteursOt, labelSecteurCourt, type PostePersonnelId } from '../lib/postePersonnel'
+import {
+  postesParFamille,
+  parsePostePersonnel,
+  secteursOt,
+  labelSecteurCourt,
+  isPosteBureau,
+  ACTIVITE_BUREAU_LABELS,
+  parseActiviteBureau,
+  parseMetiersCouverts,
+  type ActiviteBureau,
+  type PostePersonnelId,
+} from '../lib/postePersonnel'
 import { couleurMetier, COULEUR_NON_AFFECTE } from '../lib/agendaPlanning'
 
 type Props = {
@@ -96,5 +107,83 @@ export function SecteurOtSelect({
         ))}
       </select>
     </label>
+  )
+}
+
+/** Responsable / bureau : travaux ou maintenance, et quels métiers. */
+export function BureauActiviteFields({
+  poste,
+  activiteBureau,
+  metiersCouverts,
+  onChange,
+  compact,
+}: {
+  poste?: PostePersonnelId | ''
+  activiteBureau?: ActiviteBureau
+  metiersCouverts?: PostePersonnelId[]
+  onChange: (next: {
+    activiteBureau?: ActiviteBureau
+    metiersCouverts?: PostePersonnelId[]
+  }) => void
+  compact?: boolean
+}) {
+  if (!isPosteBureau(poste)) return null
+  const mets = parseMetiersCouverts(metiersCouverts)
+  return (
+    <div className={compact ? 'space-y-2' : 'space-y-3'}>
+      <label className="block text-sm">
+        <span className={`${compact ? 'mb-0.5 text-xs' : 'mb-1'} block font-semibold text-ink`}>
+          Secteur d’activité
+        </span>
+        <select
+          value={activiteBureau || ''}
+          onChange={(e) =>
+            onChange({
+              activiteBureau: parseActiviteBureau(e.target.value),
+              metiersCouverts: mets,
+            })
+          }
+          className={
+            compact
+              ? 'h-9 w-full max-w-xs rounded-lg border border-line bg-white px-2 text-sm'
+              : 'h-11 w-full rounded-xl border border-line bg-white px-3'
+          }
+        >
+          <option value="">— Travaux ou maintenance —</option>
+          {(Object.keys(ACTIVITE_BUREAU_LABELS) as ActiviteBureau[]).map((k) => (
+            <option key={k} value={k}>
+              {ACTIVITE_BUREAU_LABELS[k]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <fieldset>
+        <legend className={`${compact ? 'mb-0.5 text-xs' : 'mb-1'} block font-semibold text-ink`}>
+          Métiers dont il s’occupe
+        </legend>
+        <div className="flex flex-wrap gap-1.5">
+          {secteursOt().map((p) => {
+            const on = mets.includes(p.id)
+            const col = couleurMetier(p.id) || COULEUR_NON_AFFECTE
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  const next = on ? mets.filter((x) => x !== p.id) : [...mets, p.id]
+                  onChange({ activiteBureau, metiersCouverts: next })
+                }}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${col.border} ${col.bg} ${col.text} ${
+                  on ? 'ring-2 ring-ink/30' : 'opacity-60'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                {labelSecteurCourt(p.id)}
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
+    </div>
   )
 }

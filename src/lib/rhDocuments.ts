@@ -4,7 +4,8 @@
  * Stocké dans le coffre société (AppData), pas sur le profil Auth.
  */
 
-import { parsePostePersonnel, type PostePersonnelId } from './postePersonnel'
+import { parsePostePersonnel, parseActiviteBureau, parseMetiersCouverts, type PostePersonnelId } from './postePersonnel'
+import { parseAgenceCode } from './agences'
 
 export const ALERTE_EXPIRATION_JOURS = 45
 
@@ -213,6 +214,14 @@ export interface PersonnelDossier {
   userName: string
   /** Poste métier (tech CVC, secrétaire, directeur…) — catalogue `postePersonnel`. */
   poste?: PostePersonnelId
+  /**
+   * Bureau / responsable : travaux, maintenance, ou les deux.
+   */
+  activiteBureau?: import('./postePersonnel').ActiviteBureau
+  /** Métiers dont le responsable / bureau s’occupe (CVC, frigo…). */
+  metiersCouverts?: PostePersonnelId[]
+  /** Agence / département (75, 06, 13…). */
+  agenceCode?: string
   /** Portable pro — visible dans Équipe à côté du nom / e-mail */
   telephone?: string
   /** Manipulation fluides — aptitude F-Gas obligatoire */
@@ -242,6 +251,9 @@ export function defaultPersonnelDossier(
     userId,
     userName,
     poste: undefined,
+    activiteBureau: undefined,
+    metiersCouverts: undefined,
+    agenceCode: undefined,
     telephone: undefined,
     toucheFroid: true,
     toucheElectricite: true,
@@ -394,6 +406,9 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       userId,
       userName: String(raw.userName || '').trim() || 'Technicien',
       poste: parsePostePersonnel(raw.poste),
+      activiteBureau: parseActiviteBureau(raw.activiteBureau),
+      metiersCouverts: parseMetiersCouverts(raw.metiersCouverts),
+      agenceCode: parseAgenceCode(raw.agenceCode),
       telephone: String(raw.telephone || '').trim() || undefined,
       toucheFroid: raw.toucheFroid !== false,
       toucheElectricite: raw.toucheElectricite !== false,

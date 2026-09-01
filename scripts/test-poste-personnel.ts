@@ -13,6 +13,9 @@ import {
   secteursOt,
   labelSecteurCourt,
   secteurOtDepuisPoste,
+  parseActiviteBureau,
+  parseMetiersCouverts,
+  secteurCouleurMembre,
 } from '../src/lib/postePersonnel'
 import { migratePersonnelDossiers } from '../src/lib/rhDocuments'
 
@@ -44,6 +47,18 @@ assert.equal(labelSecteurCourt('tech_cvc'), 'CVC')
 assert.equal(labelSecteurCourt('tech_frigoriste'), 'Frigo')
 assert.equal(secteurOtDepuisPoste('tech_cvc'), 'tech_cvc')
 assert.equal(secteurOtDepuisPoste('secretaire'), undefined)
+assert.equal(parseActiviteBureau('travaux'), 'travaux')
+assert.equal(parseActiviteBureau('maintenance'), 'maintenance')
+assert.equal(parseActiviteBureau('nope'), undefined)
+assert.deepEqual(parseMetiersCouverts(['tech_cvc', 'plombier', 'secretaire']), [
+  'tech_cvc',
+  'plombier',
+])
+assert.equal(
+  secteurCouleurMembre({ poste: 'responsable', metiersCouverts: ['tech_frigoriste'] }),
+  'tech_frigoriste',
+)
+assert.equal(secteurCouleurMembre({ poste: 'tech_cvc' }), 'tech_cvc')
 
 assert.equal(ligneNomPoste({ nom: 'Jean', poste: 'tech_cvc' }), 'Jean · Tech CVC')
 assert.equal(ligneNomPoste({ nom: 'Issam', roleOwner: true }), 'Issam · Gérant')

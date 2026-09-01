@@ -197,6 +197,8 @@ export interface OrdreTravail {
    * Indépendant du tech affecté : on voit la spécialité demandée.
    */
   secteur?: import('./postePersonnel').PostePersonnelId
+  /** Agence / département du chantier (75, 06, 13…). */
+  agenceCode?: string
   /** Heure de passage prévue (HH:mm) — planning agenda. Sans heure = pas encore calé. */
   heure?: string
   /** Lien CERFA si généré avec fluide */
@@ -274,6 +276,7 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     technicien: '',
     technicienUserId: undefined,
     secteur: undefined,
+    agenceCode: undefined,
     statut: 'brouillon',
     parcoursStep: 'ot',
     lienCommandeType: 'aucun',
