@@ -54,6 +54,7 @@ import {
   type HomeShortcutId,
 } from '../lib/homeShortcuts'
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
+import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -402,6 +403,8 @@ export function Dashboard() {
             </ol>
           </nav>
         )}
+
+        {!q.trim() ? <DashboardKpiPanel /> : null}
 
         {q.trim() && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
