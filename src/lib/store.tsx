@@ -171,7 +171,7 @@ type Store = {
       id?: string
       numero?: string
     },
-  ) => string
+  ) => { id: string; numero: string }
   deleteDevis: (id: string) => void
   upsertCommandeFournisseur: (
     c: Omit<
@@ -181,7 +181,7 @@ type Store = {
       id?: string
       numero?: string
     },
-  ) => string
+  ) => { id: string; numero: string }
   deleteCommandeFournisseur: (id: string) => void
   upsertFacture: (
     f: Omit<import('./chaineCommerciale').Facture, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
@@ -1307,6 +1307,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ) => {
       const id = raw.id ?? uuid()
       const now = new Date().toISOString()
+      let numeroOut = raw.numero?.trim() || ''
       setData((d) => {
         const list = d.devis || []
         const existing = list.find((x) => x.id === id)
@@ -1314,6 +1315,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           raw.numero?.trim() ||
           existing?.numero ||
           nextNumeroDevis(list, raw.type || 'standard')
+        numeroOut = numero
         const next: Devis = {
           ...raw,
           id,
@@ -1322,12 +1324,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
+        let ordres = d.ordresTravail || []
+        if (next.otOrigineId) {
+          ordres = ordres.map((o) =>
+            o.id === next.otOrigineId
+              ? {
+                  ...o,
+                  devisId: next.id,
+                  lienCommandeType:
+                    next.type === 'regularisation' ? 'devis_regule' : o.lienCommandeType || 'devis',
+                  lienCommandeRef: next.numero,
+                  updatedAt: now,
+                }
+              : o,
+          )
+        }
         return {
           ...d,
           devis: existing ? list.map((x) => (x.id === id ? next : x)) : [...list, next],
+          ordresTravail: ordres,
         }
       })
-      return id
+      return { id, numero: numeroOut }
     },
     [],
   )
@@ -1348,16 +1366,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ) => {
       const id = raw.id ?? uuid()
       const now = new Date().toISOString()
+      let numeroOut = raw.numero?.trim() || ''
       setData((d) => {
         const list = d.commandesFournisseur || []
         const existing = list.find((x) => x.id === id)
         const numero = raw.numero?.trim() || existing?.numero || nextNumeroCommande(list)
+        numeroOut = numero
+        const destination =
+          raw.destination ||
+          (raw.otId ? 'ot' : existing?.destination) ||
+          (raw.otId || existing?.otId ? 'ot' : 'stock')
+        const otId = destination === 'ot' ? raw.otId || existing?.otId : undefined
         const next: CommandeFournisseur = {
           ...raw,
           id,
           numero,
+          destination,
+          otId,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
+          commandeeAt:
+            raw.statut === 'commandee'
+              ? raw.commandeeAt || existing?.commandeeAt || now
+              : raw.commandeeAt || existing?.commandeeAt,
         }
         let ordres = d.ordresTravail || []
         let pieces = [...(d.piecesDetachees || [])]
@@ -1379,13 +1410,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             /* référence manquante */
           }
         }
-        if (next.statut === 'recue' && next.otId) {
-          ordres = ordres.map((o) =>
-            o.id === next.otId && o.statut === 'en_attente_piece'
-              ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
-              : o,
-          )
-        }
+
+        const prevOtId = existing?.otId
+        ordres = ordres.map((o) => {
+          if (next.otId && o.id === next.otId) {
+            let statut = o.statut
+            if (next.statut === 'recue' && o.statut === 'en_attente_piece') {
+              statut = 'pret_a_planifier'
+            } else if (
+              (next.statut === 'commandee' || next.statut === 'brouillon') &&
+              !existing &&
+              (o.statut === 'pret_a_planifier' || o.statut === 'brouillon' || !o.statut)
+            ) {
+              statut = 'en_attente_piece'
+            }
+            return {
+              ...o,
+              commandeFournisseurId: next.id,
+              lienCommandeType: 'commande' as const,
+              lienCommandeRef: next.numero,
+              origineOt: o.origineOt || 'commande_materiel',
+              statut,
+              updatedAt: now,
+            }
+          }
+          if (
+            (prevOtId && o.id === prevOtId && prevOtId !== next.otId) ||
+            (o.commandeFournisseurId === next.id && o.id !== next.otId)
+          ) {
+            return {
+              ...o,
+              commandeFournisseurId: undefined,
+              updatedAt: now,
+            }
+          }
+          return o
+        })
+
         return {
           ...d,
           piecesDetachees: pieces,
@@ -1396,7 +1457,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ordresTravail: ordres,
         }
       })
-      return id
+      return { id, numero: numeroOut }
     },
     [user?.id, user?.fullName],
   )

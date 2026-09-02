@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, FileText, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, FileText, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
@@ -13,6 +13,8 @@ import {
   type StatutDevis,
 } from '../lib/chaineCommerciale'
 import { editionHasFeature } from '../lib/appEdition'
+import { downloadDevisPdf } from '../lib/commercialPdf'
+import { formatOtNumero } from '../lib/ordreTravail'
 
 export function DevisPage() {
   const { data, appEdition, upsertDevis, deleteDevis, creerOtDepuisDevis } = useStore()
@@ -21,7 +23,9 @@ export function DevisPage() {
   const editId = params.get('id') || ''
   const newMode = params.get('new') === '1'
   const clientFromQuery = params.get('client') || ''
+  const otFromQuery = params.get('ot') || ''
   const [q, setQ] = useState('')
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   if (!editionHasFeature(appEdition, 'chaine_commerciale')) {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />
@@ -46,12 +50,13 @@ export function DevisPage() {
       setForm(
         blankDevis(clientFromQuery || data.clients[0]?.id || '', {
           clientId: clientFromQuery || data.clients[0]?.id || '',
+          otOrigineId: otFromQuery || undefined,
         }),
       )
     } else {
       setForm(null)
     }
-  }, [existing, newMode, editId, clientFromQuery, data.clients])
+  }, [existing, newMode, editId, clientFromQuery, otFromQuery, data.clients])
 
   const list = useMemo(() => {
     const items = [...(data.devis || [])].sort((a, b) =>
@@ -67,16 +72,53 @@ export function DevisPage() {
     })
   }, [data.devis, data.clients, q])
 
+  const company = {
+    raisonSociale: data.operateur?.raisonSociale,
+    adresse: data.operateur?.adresse,
+    telephone: data.operateur?.telephone,
+    email: data.operateur?.email,
+    siret: data.operateur?.siret,
+  }
+
+  const pdfCtxFor = (d: Pick<Devis, 'clientId' | 'chantierId' | 'otOrigineId'>) => {
+    const ot = d.otOrigineId
+      ? (data.ordresTravail || []).find((o) => o.id === d.otOrigineId)
+      : undefined
+    return {
+      company,
+      clientNom: data.clients.find((c) => c.id === d.clientId)?.raisonSociale,
+      siteNom: data.chantiers.find((s) => s.id === d.chantierId)?.nom,
+      otNumero: ot?.numero,
+    }
+  }
+
   const save = (e: FormEvent) => {
     e.preventDefault()
     if (!form) return
-    const id = upsertDevis(form)
-    navigate(`/app/devis?id=${encodeURIComponent(id)}`, { replace: true })
+    setPdfBusy(true)
+    try {
+      const { id, numero } = upsertDevis({ ...form, id: existing?.id, numero: existing?.numero })
+      const now = new Date().toISOString()
+      const devis: Devis = {
+        ...form,
+        id,
+        numero,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      }
+      downloadDevisPdf(devis, pdfCtxFor(devis))
+      navigate(`/app/devis?id=${encodeURIComponent(id)}`, { replace: true })
+    } finally {
+      setPdfBusy(false)
+    }
   }
 
   if (form) {
     const client = data.clients.find((c) => c.id === form.clientId)
     const ots = existing ? otsPourDevis(data.ordresTravail, existing.id) : []
+    const otOrigine = form.otOrigineId
+      ? (data.ordresTravail || []).find((o) => o.id === form.otOrigineId)
+      : null
 
     return (
       <div className="mx-auto max-w-2xl space-y-4 p-4">
@@ -125,6 +167,41 @@ export function DevisPage() {
                 ))}
             </select>
           </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">Lien OT (optionnel)</span>
+            <select
+              value={form.otOrigineId || ''}
+              onChange={(e) =>
+                setForm({ ...form, otOrigineId: e.target.value || undefined })
+              }
+              className="w-full rounded-xl border border-line px-3 py-2"
+            >
+              <option value="">— Aucun (devis commercial)</option>
+              {(data.ordresTravail || [])
+                .filter((o) => !form.clientId || o.clientId === form.clientId || !o.clientId)
+                .slice()
+                .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+                .map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {formatOtNumero(o.numero)} · {o.action || o.typeOt || 'OT'}
+                  </option>
+                ))}
+            </select>
+            <span className="mt-1 block text-[11px] text-muted">
+              Relie ce devis à un OT (ex. régularisation après dépannage).
+            </span>
+          </label>
+          {otOrigine ? (
+            <p className="text-xs text-muted">
+              OT lié :{' '}
+              <Link
+                to={`/app/ot?id=${otOrigine.id}`}
+                className="font-semibold text-accent underline"
+              >
+                {formatOtNumero(otOrigine.numero)}
+              </Link>
+            </p>
+          ) : null}
           <Field
             label="Libellé"
             value={form.libelle}
@@ -166,10 +243,20 @@ export function DevisPage() {
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
-              className="rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink"
+              disabled={pdfBusy}
+              className="rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink disabled:opacity-60"
             >
-              Enregistrer
+              {pdfBusy ? 'PDF…' : 'Enregistrer + PDF'}
             </button>
+            {existing ? (
+              <button
+                type="button"
+                onClick={() => downloadDevisPdf(existing, pdfCtxFor(existing))}
+                className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
+              >
+                <Download className="h-3.5 w-3.5" /> PDF
+              </button>
+            ) : null}
             {existing && form.statut === 'accepte' ? (
               <button
                 type="button"
@@ -250,6 +337,7 @@ export function DevisPage() {
                     <p className="text-xs text-muted">
                       {client?.raisonSociale || '—'} · {STATUT_DEVIS_LABELS[d.statut]}
                       {d.montantHt != null ? ` · ${d.montantHt} € HT` : ''}
+                      {d.otOrigineId ? ' · lié OT' : ''}
                     </p>
                   </div>
                 </Link>

@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Truck } from 'lucide-react'
+import { ArrowLeft, Download, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
@@ -12,20 +12,24 @@ import {
 } from '../lib/chaineCommerciale'
 import { editionHasFeature } from '../lib/appEdition'
 import { formatOtNumero } from '../lib/ordreTravail'
+import { downloadCommandePdf } from '../lib/commercialPdf'
 
 function blankCommande(opts?: {
   clientId?: string
   chantierId?: string
   otId?: string
   libelle?: string
+  destination?: 'ot' | 'stock'
 }): Omit<CommandeFournisseur, 'id' | 'createdAt' | 'updatedAt' | 'numero'> {
+  const destination = opts?.destination || (opts?.otId ? 'ot' : 'stock')
   return {
     fournisseur: '',
     libelle: opts?.libelle || '',
     statut: 'commandee',
     clientId: opts?.clientId,
     chantierId: opts?.chantierId,
-    otId: opts?.otId,
+    otId: destination === 'ot' ? opts?.otId : undefined,
+    destination,
     quantite: 1,
   }
 }
@@ -46,6 +50,7 @@ export function CommandesPage() {
   const clientFromQuery = params.get('client') || ''
   const chantierFromQuery = params.get('chantier') || ''
   const [q, setQ] = useState('')
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   if (!editionHasFeature(appEdition, 'chaine_commerciale')) {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />
@@ -64,7 +69,10 @@ export function CommandesPage() {
   useEffect(() => {
     if (existing) {
       const { id: _i, createdAt: _c, updatedAt: _u, numero: _n, ...rest } = existing
-      setForm(rest)
+      setForm({
+        ...rest,
+        destination: rest.destination || (rest.otId ? 'ot' : 'stock'),
+      })
       return
     }
     if (newMode || editId) {
@@ -73,6 +81,7 @@ export function CommandesPage() {
           clientId: clientFromQuery || undefined,
           chantierId: chantierFromQuery || undefined,
           otId: otFromQuery || undefined,
+          destination: otFromQuery ? 'ot' : 'stock',
         }),
       )
     } else {
@@ -99,6 +108,7 @@ export function CommandesPage() {
           c.libelle,
           c.fournisseur,
           c.referencePiece,
+          c.destination,
           STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut],
         ].join(' '),
         q,
@@ -106,17 +116,60 @@ export function CommandesPage() {
     )
   }, [data.commandesFournisseur, q])
 
+  const company = {
+    raisonSociale: data.operateur?.raisonSociale,
+    adresse: data.operateur?.adresse,
+    telephone: data.operateur?.telephone,
+    email: data.operateur?.email,
+    siret: data.operateur?.siret,
+  }
+
+  const pdfCtxFor = (c: Pick<CommandeFournisseur, 'clientId' | 'chantierId' | 'otId'>) => {
+    const ot = c.otId ? (data.ordresTravail || []).find((o) => o.id === c.otId) : undefined
+    return {
+      company,
+      clientNom: data.clients.find((x) => x.id === c.clientId)?.raisonSociale,
+      siteNom: data.chantiers.find((s) => s.id === c.chantierId)?.nom,
+      otNumero: ot?.numero,
+    }
+  }
+
   const save = (e: FormEvent) => {
     e.preventDefault()
     if (!form) return
-    const id = upsertCommandeFournisseur(form)
-    navigate(`/app/commandes?id=${encodeURIComponent(id)}`, { replace: true })
+    if (form.destination === 'ot' && !form.otId) {
+      alert('Choisissez un OT, ou basculez la destination sur Stock.')
+      return
+    }
+    setPdfBusy(true)
+    try {
+      const payload = {
+        ...form,
+        id: existing?.id,
+        numero: existing?.numero,
+        otId: form.destination === 'ot' ? form.otId : undefined,
+      }
+      const { id, numero } = upsertCommandeFournisseur(payload)
+      const now = new Date().toISOString()
+      const cmd: CommandeFournisseur = {
+        ...payload,
+        id,
+        numero,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      }
+      downloadCommandePdf(cmd, pdfCtxFor(cmd))
+      navigate(`/app/commandes?id=${encodeURIComponent(id)}`, { replace: true })
+    } finally {
+      setPdfBusy(false)
+    }
   }
 
   if (form) {
     const ot = form.otId
       ? (data.ordresTravail || []).find((o) => o.id === form.otId)
       : null
+    const destination = form.destination || (form.otId ? 'ot' : 'stock')
 
     return (
       <div className="mx-auto max-w-2xl space-y-4 p-4">
@@ -131,6 +184,81 @@ export function CommandesPage() {
           {existing ? `Commande ${existing.numero}` : 'Nouvelle commande fournisseur'}
         </h1>
         <form onSubmit={save} className="space-y-4 rounded-2xl border border-line bg-white p-4">
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold">Destination</legend>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    destination: 'ot',
+                    otId: form.otId || otFromQuery || undefined,
+                  })
+                }
+                className={[
+                  'rounded-full border px-3 py-1.5 text-xs font-bold',
+                  destination === 'ot'
+                    ? 'border-accent bg-accent/15 text-ink'
+                    : 'border-line bg-white text-muted',
+                ].join(' ')}
+              >
+                Liée à un OT
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, destination: 'stock', otId: undefined })}
+                className={[
+                  'rounded-full border px-3 py-1.5 text-xs font-bold',
+                  destination === 'stock'
+                    ? 'border-accent bg-accent/15 text-ink'
+                    : 'border-line bg-white text-muted',
+                ].join(' ')}
+              >
+                Entrée stock / magasin
+              </button>
+            </div>
+            <p className="text-[11px] text-muted">
+              {destination === 'ot'
+                ? 'La pièce sera réservée à un OT (statut « en attente de pièce »).'
+                : 'À réception, la pièce entre au magasin (stock pièces).'}
+            </p>
+          </fieldset>
+
+          {destination === 'ot' ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold">Ordre de travail</span>
+              <select
+                value={form.otId || ''}
+                onChange={(e) => {
+                  const otId = e.target.value || undefined
+                  const linked = otId
+                    ? (data.ordresTravail || []).find((o) => o.id === otId)
+                    : undefined
+                  setForm({
+                    ...form,
+                    otId,
+                    clientId: linked?.clientId || form.clientId,
+                    chantierId: linked?.chantierId || form.chantierId,
+                    destination: 'ot',
+                  })
+                }}
+                className="w-full rounded-xl border border-line px-3 py-2"
+                required
+              >
+                <option value="">— Choisir un OT —</option>
+                {(data.ordresTravail || [])
+                  .slice()
+                  .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {formatOtNumero(o.numero)} · {o.action || o.typeOt || 'OT'}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : null}
+
           <Field
             label="Pièce / matériel"
             value={form.libelle}
@@ -146,6 +274,35 @@ export function CommandesPage() {
             value={form.referencePiece || ''}
             onChange={(v) => setForm({ ...form, referencePiece: v || undefined })}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Quantité"
+              value={form.quantite != null ? String(form.quantite) : '1'}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  quantite: Math.max(1, Number(v.replace(',', '.')) || 1),
+                })
+              }
+            />
+            <Field
+              label="P.U. HT (€)"
+              value={form.prixUnitaireHt != null ? String(form.prixUnitaireHt) : ''}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  prixUnitaireHt: v ? Number(v.replace(',', '.')) : undefined,
+                })
+              }
+            />
+          </div>
+          {destination === 'stock' ? (
+            <Field
+              label="Rayon / emplacement stock"
+              value={form.rayonStock || ''}
+              onChange={(v) => setForm({ ...form, rayonStock: v || undefined })}
+            />
+          ) : null}
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">Statut</span>
             <select
@@ -175,10 +332,20 @@ export function CommandesPage() {
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
-              className="rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink"
+              disabled={pdfBusy}
+              className="rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink disabled:opacity-60"
             >
-              Enregistrer
+              {pdfBusy ? 'PDF…' : 'Enregistrer + PDF'}
             </button>
+            {existing ? (
+              <button
+                type="button"
+                onClick={() => downloadCommandePdf(existing, pdfCtxFor(existing))}
+                className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
+              >
+                <Download className="h-3.5 w-3.5" /> PDF
+              </button>
+            ) : null}
             {existing && existing.statut !== 'recue' ? (
               <button
                 type="button"
@@ -242,6 +409,8 @@ export function CommandesPage() {
                   </p>
                   <p className="text-xs text-muted">
                     {c.fournisseur || '—'} · {STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut]}
+                    {' · '}
+                    {c.destination === 'ot' || c.otId ? 'OT' : 'Stock'}
                   </p>
                 </div>
               </Link>
