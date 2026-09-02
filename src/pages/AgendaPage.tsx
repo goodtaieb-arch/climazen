@@ -50,6 +50,7 @@ import {
   syncTechsOt,
   techIdsOt,
   type OrdreTravail,
+  type TypeOt,
 } from '../lib/ordreTravail'
 import {
   agenceEffective,
@@ -156,6 +157,9 @@ export function AgendaPage() {
   const [dureePose, setDureePose] = useState(DUREE_PLANNING_DEFAUT)
   /** Bande OT ouverte par défaut — reste visible quel que soit le jour. */
   const [otPoolOpen, setOtPoolOpen] = useState(true)
+  /** Filtres bande OT à poser. */
+  const [filterTypeOt, setFilterTypeOt] = useState<TypeOt | 'tous'>('tous')
+  const [filterSiteId, setFilterSiteId] = useState<string>('tous')
 
   const existing = useMemo(
     () => (data.agendaEvents || []).find((e) => e.id === editId) || null,
@@ -343,7 +347,7 @@ export function AgendaPage() {
   )
 
   /** Tous les OT sans créneau (métier / région) — la bande reste visible tous les jours. */
-  const otsSansPlanning = useMemo(() => {
+  const otsSansPlanningBase = useMemo(() => {
     const list = (data.ordresTravail || []).filter((o) => {
       if (!otSansCreneau(o) || !visibleAgendaPour(visOpts, o)) return false
       if (!matchAgence(agenceOfOt(o))) return false
@@ -359,6 +363,35 @@ export function AgendaPage() {
     filterSecteur,
     filterAgences,
   ]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Sites de la région sélectionnée (pour le déroulant bande OT). */
+  const sitesRegionPool = useMemo(() => {
+    const sites = (data.chantiers || []).filter((s) => {
+      if (s.statut === 'archive') return false
+      const client = data.clients.find((c) => c.id === s.clientId)
+      const ag = agenceEffective({
+        agenceCode: s.agenceCode || client?.agenceCode,
+        codePostal: s.codePostal || client?.codePostal,
+      })
+      return matchAgence(ag)
+    })
+    return sites
+      .slice()
+      .sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr'))
+  }, [data.chantiers, data.clients, filterAgences]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (filterSiteId === 'tous') return
+    if (!sitesRegionPool.some((s) => s.id === filterSiteId)) setFilterSiteId('tous')
+  }, [sitesRegionPool, filterSiteId])
+
+  const otsSansPlanning = useMemo(() => {
+    return otsSansPlanningBase.filter((o) => {
+      if (filterTypeOt !== 'tous' && o.typeOt !== filterTypeOt) return false
+      if (filterSiteId !== 'tous' && o.chantierId !== filterSiteId) return false
+      return true
+    })
+  }, [otsSansPlanningBase, filterTypeOt, filterSiteId])
 
   const otAPlacer = useMemo(
     () => (otAPlacerId ? (data.ordresTravail || []).find((o) => o.id === otAPlacerId) : null),
@@ -1487,19 +1520,68 @@ export function AgendaPage() {
             <button
               type="button"
               onClick={() => setOtPoolOpen((o) => !o)}
-              className="inline-flex min-h-10 flex-1 items-center gap-2 rounded-xl border border-line bg-mist/40 px-3 text-left text-sm font-semibold text-ink"
+              className="inline-flex min-h-10 min-w-[10rem] flex-1 items-center gap-2 rounded-xl border border-line bg-mist/40 px-3 text-left text-sm font-semibold text-ink sm:flex-none"
             >
               <ClipboardList className="h-4 w-4 shrink-0 text-muted" />
-              <span className="min-w-0 flex-1 truncate">
+              <span className="min-w-0 truncate">
                 {bureau ? 'OT à poser' : 'Mes OT sans planning'}
                 <span className="ml-1.5 font-bold text-teal-800">
-                  ({otsSansPlanning.length})
+                  ({otsSansPlanning.length}
+                  {otsSansPlanning.length !== otsSansPlanningBase.length
+                    ? `/${otsSansPlanningBase.length}`
+                    : ''}
+                  )
                 </span>
               </span>
               <span className="text-[11px] font-bold uppercase text-muted">
                 {otPoolOpen || otAPlacerId ? 'Replier' : 'Ouvrir'}
               </span>
             </button>
+            <label className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-white px-2 text-[11px] font-bold text-muted">
+              Type
+              <select
+                value={filterTypeOt}
+                onChange={(e) => setFilterTypeOt(e.target.value as TypeOt | 'tous')}
+                className="max-w-[9.5rem] rounded-lg border-0 bg-transparent py-1 text-xs font-semibold text-ink outline-none"
+                aria-label="Filtrer par type d’OT"
+              >
+                <option value="tous">Tous</option>
+                {(
+                  [
+                    'depanage',
+                    'installation',
+                    'maintenance',
+                    'entretien',
+                    'controle_etancheite',
+                    'demantelement',
+                  ] as TypeOt[]
+                ).map((t) => (
+                  <option key={t} value={t}>
+                    {TYPE_OT_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex min-h-10 min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-line bg-white px-2 text-[11px] font-bold text-muted sm:max-w-xs">
+              Site
+              <select
+                value={filterSiteId}
+                onChange={(e) => setFilterSiteId(e.target.value)}
+                className="min-w-0 flex-1 truncate rounded-lg border-0 bg-transparent py-1 text-xs font-semibold text-ink outline-none"
+                aria-label="Filtrer par site de la région"
+              >
+                <option value="tous">
+                  Tous les sites
+                  {filterAgences.length ? ` (${filterAgences.join(', ')})` : ''}
+                </option>
+                {sitesRegionPool.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom || 'Site'}
+                    {s.ville ? ` — ${s.ville}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
             {otAPlacer ? (
               <button
                 type="button"
@@ -1514,13 +1596,13 @@ export function AgendaPage() {
             <>
               <p className="mt-2 text-[11px] text-muted">
                 {bureau
-                  ? 'Tous les OT sans créneau (tous jours) — priorité dépannage → installation → maintenance. Cliquez un OT, choisissez la durée, puis une heure sur la frise. Un OT déjà posé : cliquez-le pour déplacer / ajouter un tech ; croix rouge pour retirer.'
+                  ? 'Sans créneau · priorité dépannage → install → maintenance. Cliquez un OT, durée, puis une heure. Bloc posé : clic = déplacer / + tech ; croix rouge = retirer.'
                   : 'OT affectés à vous, pas encore calés.'}
               </p>
               {otsSansPlanning.length === 0 ? (
                 <p className="mt-2 text-xs text-muted">Aucun OT sans créneau pour ces filtres.</p>
               ) : (
-                <div className="mt-2 flex max-h-[min(50vh,28rem)] flex-col gap-1.5 overflow-y-auto">
+                <div className="mt-2 max-h-[min(50vh,28rem)] space-y-1 overflow-y-auto">
                   {otsSansPlanning.map((ot) => {
                     const selected = otAPlacerId === ot.id
                     const prio = prioriteTypeOt(ot.typeOt)
@@ -1537,10 +1619,22 @@ export function AgendaPage() {
                           : prio === 2
                             ? 'Maint.'
                             : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'OT'
+                    const action = (ot.action || '').trim()
+                    const titleLine = [
+                      typeCourt,
+                      formatOtNumero(ot.numero),
+                      ot.date ? formatFr(ot.date) : '',
+                      clientNom,
+                      siteNom,
+                      action,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
                     return (
                       <button
                         key={ot.id}
                         type="button"
+                        title={titleLine}
                         onClick={() => {
                           if (!bureau) {
                             navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
@@ -1549,34 +1643,29 @@ export function AgendaPage() {
                           setOtAPlacerId(selected ? null : ot.id)
                           setOtPoolOpen(true)
                           setView('jour')
-                          // Ne change pas le jour affiché : la bande reste pour tous les jours.
                         }}
-                        className={`rounded-xl border px-2.5 py-2 text-left ${col.border} ${col.bg} ${
+                        className={`flex w-full items-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-[11px] leading-tight ${col.border} ${col.bg} ${
                           selected ? 'ring-2 ring-teal-600' : 'hover:brightness-95'
                         }`}
                       >
-                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                          <span className={`text-[10px] font-extrabold uppercase ${col.text}`}>
-                            {typeCourt}
+                        <span className={`shrink-0 font-extrabold uppercase ${col.text}`}>
+                          {typeCourt}
+                        </span>
+                        <span className="shrink-0 font-extrabold text-ink">
+                          {formatOtNumero(ot.numero)}
+                        </span>
+                        {ot.date ? (
+                          <span className="hidden shrink-0 font-semibold text-muted sm:inline">
+                            {formatFr(ot.date)}
                           </span>
-                          <span className="text-sm font-extrabold text-ink">
-                            {formatOtNumero(ot.numero)}
-                          </span>
-                          {ot.date ? (
-                            <span className="text-[10px] font-semibold text-muted">
-                              {formatFr(ot.date)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className={`mt-0.5 text-xs font-semibold ${col.text}`}>
+                        ) : null}
+                        <span className={`min-w-0 truncate font-semibold ${col.text}`}>
                           {clientNom}
                           <span className="font-medium text-muted"> · {siteNom}</span>
-                        </div>
-                        {(ot.action || '').trim() ? (
-                          <div className="mt-0.5 truncate text-[11px] text-ink/80">
-                            {ot.action}
-                          </div>
-                        ) : null}
+                          {action ? (
+                            <span className="font-normal text-ink/70"> · {action}</span>
+                          ) : null}
+                        </span>
                       </button>
                     )
                   })}
