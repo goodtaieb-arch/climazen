@@ -4,7 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
 import { APP_BUILD, APP_VERSION } from './lib/buildStamp'
-import { fetchServerVersion, forceLatestAppVersion } from './components/AppVersion'
+import { fetchServerVersion, forceLatestAppVersion, versionRank } from './components/AppVersion'
 
 // Visible dans la console / DevTools pour confirmer la version chargée
 console.info(`[ClimaZEN] ${APP_VERSION} (${APP_BUILD})`)
@@ -17,10 +17,14 @@ async function ensureServerVersion() {
     if (sessionStorage.getItem('climazen_reloading') === '1') return
     const server = await fetchServerVersion()
     if (!server) return
-    if (server !== APP_VERSION) {
+    if (versionRank(server) > versionRank(APP_VERSION)) {
       console.warn(`[ClimaZEN] serveur=${server} local=${APP_VERSION} → MAJ forcée`)
       await forceLatestAppVersion(server)
       return
+    }
+    if (server !== APP_VERSION) {
+      // version.json en retard (ex. oubli de sync) — ne pas rétrograder
+      console.info(`[ClimaZEN] local=${APP_VERSION} serveur=${server} (ignoré, local à jour)`)
     }
     // Seulement quand on est vraiment à jour : mémoriser la version boot
     try {

@@ -79,8 +79,16 @@ export function useServerAppVersion() {
     }
   }, [])
 
-  const needsUpdate = Boolean(server && server !== APP_VERSION)
+  const needsUpdate = Boolean(
+    server && versionRank(server) > versionRank(APP_VERSION),
+  )
   return { server, needsUpdate, local: APP_VERSION }
+}
+
+/** Rang numérique d’une version « v167 » — pour comparer serveur vs local. */
+export function versionRank(v: string | null | undefined): number {
+  const m = String(v || '').match(/(\d+)/)
+  return m ? Number.parseInt(m[1], 10) : 0
 }
 
 /** Purge SW + caches — ne doit jamais bloquer indéfiniment (mobile / iOS). */

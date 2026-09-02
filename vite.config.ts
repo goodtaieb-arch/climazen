@@ -1,10 +1,31 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { APP_VERSION } from './src/lib/buildStamp'
+
+/** Garde public/version.json aligné sur APP_VERSION (évite « MAJ v166 » en v167). */
+function syncVersionJson(): Plugin {
+  const write = () => {
+    const path = resolve(__dirname, 'public/version.json')
+    writeFileSync(path, `${JSON.stringify({ version: APP_VERSION }, null, 2)}\n`)
+  }
+  return {
+    name: 'sync-version-json',
+    buildStart() {
+      write()
+    },
+    configureServer() {
+      write()
+    },
+  }
+}
 
 export default defineConfig({
   plugins: [
+    syncVersionJson(),
     react(),
     tailwindcss(),
     VitePWA({
