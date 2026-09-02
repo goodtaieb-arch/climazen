@@ -14,8 +14,8 @@ export const JOUR_PLANNING_FIN_H = 19
 export const JOUR_PLANNING_SPAN_MIN = (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H) * 60
 export const DUREE_PLANNING_DEFAUT = 60
 
-/** Presets durée (OT / agenda) — minutes. */
-export const DUREES_PLANNING_PRESETS = [30, 45, 60, 90, 120, 180, 240] as const
+/** Presets durée (OT / agenda) — minutes. Inclut 2 h, demi-journée (6 h), journée (12 h). */
+export const DUREES_PLANNING_PRESETS = [30, 60, 90, 120, 180, 240, 360, 720] as const
 
 export function parseHeureToMinutes(h?: string): number | null {
   const v = formatHeure(h)
@@ -37,6 +37,8 @@ export function dureeMinutesEffectif(d?: number | null): number {
 
 export function labelDureeMinutes(d?: number | null): string {
   const n = dureeMinutesEffectif(d)
+  if (n >= 720) return '1 jour'
+  if (n >= 360) return '½ jour'
   if (n < 60) return `${n} min`
   if (n % 60 === 0) return `${n / 60} h`
   return `${Math.floor(n / 60)} h ${n % 60}`
@@ -356,6 +358,70 @@ export const COULEURS_METIER: Record<string, CouleurSecteur> = {
   },
 }
 
+/** Couleurs stables par type d’activité OT (bande « à poser » + blocs frise). */
+export const COULEURS_TYPE_OT: Record<string, CouleurSecteur> = {
+  depanage: {
+    key: 'ot-dep',
+    bg: 'bg-sky-100',
+    border: 'border-sky-500',
+    badge: 'bg-sky-700 text-white',
+    text: 'text-sky-950',
+    row: 'border-sky-400 bg-sky-100',
+    dot: 'bg-sky-600',
+  },
+  installation: {
+    key: 'ot-inst',
+    bg: 'bg-emerald-100',
+    border: 'border-emerald-500',
+    badge: 'bg-emerald-800 text-white',
+    text: 'text-emerald-950',
+    row: 'border-emerald-400 bg-emerald-100',
+    dot: 'bg-emerald-600',
+  },
+  maintenance: {
+    key: 'ot-maint',
+    bg: 'bg-slate-100',
+    border: 'border-slate-400',
+    badge: 'bg-slate-600 text-white',
+    text: 'text-slate-900',
+    row: 'border-slate-300 bg-slate-100',
+    dot: 'bg-slate-500',
+  },
+  entretien: {
+    key: 'ot-entr',
+    bg: 'bg-slate-100',
+    border: 'border-slate-400',
+    badge: 'bg-slate-600 text-white',
+    text: 'text-slate-900',
+    row: 'border-slate-300 bg-slate-100',
+    dot: 'bg-slate-500',
+  },
+  controle_etancheite: {
+    key: 'ot-ce',
+    bg: 'bg-indigo-50',
+    border: 'border-indigo-400',
+    badge: 'bg-indigo-700 text-white',
+    text: 'text-indigo-950',
+    row: 'border-indigo-300 bg-indigo-50',
+    dot: 'bg-indigo-600',
+  },
+  demantelement: {
+    key: 'ot-dem',
+    bg: 'bg-orange-50',
+    border: 'border-orange-400',
+    badge: 'bg-orange-700 text-white',
+    text: 'text-orange-950',
+    row: 'border-orange-300 bg-orange-50',
+    dot: 'bg-orange-500',
+  },
+}
+
+export function couleurTypeOt(typeOt?: string | null): CouleurSecteur | undefined {
+  const t = String(typeOt || '').trim()
+  if (!t) return undefined
+  return COULEURS_TYPE_OT[t]
+}
+
 export function couleurMetier(secteur?: string | null): CouleurSecteur | undefined {
   const id = parsePostePersonnel(secteur)
   if (!id) return undefined
@@ -376,12 +442,16 @@ export function couleurSecteurTech(userId?: string | null): CouleurSecteur {
 
 export function couleurPlanning(opts: {
   horsOtType?: string
+  /** Couleur d’activité OT (dépannage / install / maintenance…). Prioritaire sur le métier. */
+  typeOt?: string | null
   secteur?: string | null
   technicienUserId?: string
 }): CouleurSecteur {
   if (opts.horsOtType && isHorsOtType(opts.horsOtType)) {
     return COULEURS_HORS_OT[opts.horsOtType] || COULEUR_NON_AFFECTE
   }
+  const byType = couleurTypeOt(opts.typeOt)
+  if (byType) return byType
   const metier = couleurMetier(opts.secteur)
   if (metier) return metier
   return couleurSecteurTech(opts.technicienUserId)
