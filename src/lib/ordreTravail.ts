@@ -253,6 +253,8 @@ export interface OrdreTravail {
   agenceCode?: string
   /** Heure de passage prévue (HH:mm) — planning agenda. Sans heure = pas encore calé. */
   heure?: string
+  /** Durée prévue sur le planning (minutes). Défaut 60 si absent. */
+  dureeMinutes?: number
   /** Lien CERFA si généré avec fluide */
   interventionId?: string
   /** Lien fiche maintenance clim / rapport sans CERFA */

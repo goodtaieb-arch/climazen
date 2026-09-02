@@ -3,10 +3,88 @@
  */
 
 import type { AgendaEvent, AgendaEventType } from './agenda'
-import { AGENDA_TYPE_LABELS } from './agenda'
+import { AGENDA_TYPE_LABELS, formatHeure } from './agenda'
 import type { OrdreTravail } from './ordreTravail'
 import { isOtCloture, techIdsOt } from './ordreTravail'
 import { isPosteBureau, isPosteTerrain, parsePostePersonnel } from './postePersonnel'
+
+/** Fenêtre jour affichée sur la frise (7h → 19h). */
+export const JOUR_PLANNING_DEBUT_H = 7
+export const JOUR_PLANNING_FIN_H = 19
+export const JOUR_PLANNING_SPAN_MIN = (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H) * 60
+export const DUREE_PLANNING_DEFAUT = 60
+
+/** Presets durée (OT / agenda) — minutes. */
+export const DUREES_PLANNING_PRESETS = [30, 45, 60, 90, 120, 180, 240] as const
+
+export function parseHeureToMinutes(h?: string): number | null {
+  const v = formatHeure(h)
+  if (!v) return null
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v)
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return hh * 60 + mm
+}
+
+export function dureeMinutesEffectif(d?: number | null): number {
+  const n = Math.round(Number(d) || 0)
+  if (!Number.isFinite(n) || n <= 0) return DUREE_PLANNING_DEFAUT
+  return Math.min(12 * 60, Math.max(15, n))
+}
+
+export function labelDureeMinutes(d?: number | null): string {
+  const n = dureeMinutesEffectif(d)
+  if (n < 60) return `${n} min`
+  if (n % 60 === 0) return `${n / 60} h`
+  return `${Math.floor(n / 60)} h ${n % 60}`
+}
+
+export type TimelinePlacement = {
+  leftPct: number
+  widthPct: number
+  startMin: number
+  endMin: number
+  /** Début hors fenêtre (bloc collé au bord gauche). */
+  clippedStart: boolean
+  clippedEnd: boolean
+}
+
+/** Position % sur la frise 7h–19h. Retourne null si pas d’heure. */
+export function timelinePlacement(
+  heure?: string,
+  dureeMinutes?: number | null,
+): TimelinePlacement | null {
+  const startAbs = parseHeureToMinutes(heure)
+  if (startAbs == null) return null
+  const duree = dureeMinutesEffectif(dureeMinutes)
+  const dayStart = JOUR_PLANNING_DEBUT_H * 60
+  const dayEnd = JOUR_PLANNING_FIN_H * 60
+  const endAbs = startAbs + duree
+  const clippedStart = startAbs < dayStart
+  const clippedEnd = endAbs > dayEnd
+  const start = Math.max(dayStart, Math.min(dayEnd - 15, startAbs))
+  const end = Math.max(start + 15, Math.min(dayEnd, endAbs))
+  const leftPct = ((start - dayStart) / JOUR_PLANNING_SPAN_MIN) * 100
+  const widthPct = ((end - start) / JOUR_PLANNING_SPAN_MIN) * 100
+  return {
+    leftPct: Math.max(0, Math.min(100, leftPct)),
+    widthPct: Math.max(2.5, Math.min(100 - leftPct, widthPct)),
+    startMin: startAbs,
+    endMin: endAbs,
+    clippedStart,
+    clippedEnd,
+  }
+}
+
+/** Graduations horaires de la frise (7 … 18). */
+export function heuresFriseJour(): number[] {
+  const out: number[] = []
+  for (let h = JOUR_PLANNING_DEBUT_H; h < JOUR_PLANNING_FIN_H; h++) out.push(h)
+  return out
+}
 
 export const HORS_OT_TECH: AgendaEventType[] = [
   'deplacement_hors_ot',
