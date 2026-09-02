@@ -169,6 +169,20 @@ assert.deepEqual(
     filterAgenceCodes: ['06'],
     agenceOf: (id) => agences[id],
   }),
+  ['t1'],
+)
+// Sans filtre région : un tech hors liste « always » avec tâche reste visible
+assert.deepEqual(
+  techsLignesJour({
+    team: [
+      { id: 't1', role: 'operateur' },
+      { id: 't2', role: 'operateur' },
+    ],
+    posteOf: (id) => postes[id],
+    taskTechIds: ['t2'],
+    filterAgenceCodes: [],
+    agenceOf: (id) => agences[id],
+  }),
   ['t1', 't2'],
 )
 

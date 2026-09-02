@@ -150,6 +150,8 @@ export function AgendaPage() {
   const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
   /** OT sélectionné pour pose sur la frise (clic tech × heure). */
   const [otAPlacerId, setOtAPlacerId] = useState<string | null>(null)
+  /** Bande OT compacte : repliée par défaut pour ne pas charger la page. */
+  const [otPoolOpen, setOtPoolOpen] = useState(false)
 
   const existing = useMemo(
     () => (data.agendaEvents || []).find((e) => e.id === editId) || null,
@@ -340,10 +342,27 @@ export function AgendaPage() {
       if (!otSansCreneau(o) || !visibleAgendaPour(visOpts, o)) return false
       if (!matchAgence(agenceOfOt(o))) return false
       if (!matchSecteur({ secteur: o.secteur, technicienUserId: o.technicienUserId })) return false
+      const d = (o.date || '').slice(0, 10)
+      // Vue jour : seulement le jour affiché (ou sans date)
+      if (view === 'jour') {
+        if (d && d !== cursorDate.slice(0, 10)) return false
+      } else if (view === 'semaine') {
+        if (d && !weekDates.includes(d)) return false
+      }
       return true
     })
     return list.sort(compareOtPrioritePlanning)
-  }, [data.ordresTravail, bureau, user?.id, filterTechId, filterSecteur, filterAgences]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    data.ordresTravail,
+    bureau,
+    user?.id,
+    filterTechId,
+    filterSecteur,
+    filterAgences,
+    view,
+    cursorDate,
+    weekDates,
+  ]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const otAPlacer = useMemo(
     () => (otAPlacerId ? (data.ordresTravail || []).find((o) => o.id === otAPlacerId) : null),
@@ -1174,7 +1193,7 @@ export function AgendaPage() {
             })}
           </div>
         </div>
-        {unassigned.length > 0 ? (
+        {unassigned.length > 0 && !bureau ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2.5">
             <p className="text-xs font-bold uppercase text-muted">Non affecté</p>
             <div className="mt-2 grid gap-2">{unassigned.map(renderProgrammeCard)}</div>
@@ -1196,7 +1215,7 @@ export function AgendaPage() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Agenda</h1>
             <p className="mt-0.5 text-sm text-muted">
               {bureau
-                ? 'Vue jour : tous les techs sur la même journée (frise 7h–19h). Sélectionnez un OT puis cliquez une heure. Priorité : dépannage → installation → maintenance.'
+                ? 'Vue jour : techs filtrés par métier / région. Sélectionnez un OT (bande compacte) puis cliquez une heure. Priorité : dépannage → installation → maintenance.'
                 : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
             </p>
           </div>
@@ -1352,59 +1371,81 @@ export function AgendaPage() {
       ) : null}
 
       {otsSansPlanning.length > 0 && view !== 'rappels' ? (
-        <section className="space-y-2 rounded-2xl border border-dashed border-line bg-white p-4">
-          <h2 className="font-display text-lg font-semibold">
-            {bureau ? 'OT à poser sur la frise' : 'Mes OT sans planning'}
-          </h2>
-          <p className="text-xs text-muted">
-            {bureau
-              ? 'Priorité : dépannage → installation → maintenance. Sélectionnez un OT, puis cliquez une heure sur la ligne du tech (vue Jour).'
-              : 'OT affectés à vous, pas encore calés à une heure.'}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {otsSansPlanning.map((ot) => {
-              const col = couleurPlanning({
-                secteur: ot.secteur || posteOf(ot.technicienUserId),
-                technicienUserId: ot.technicienUserId,
-              })
-              const client = data.clients.find((c) => c.id === ot.clientId)
-              const selected = otAPlacerId === ot.id
-              const prio = prioriteTypeOt(ot.typeOt)
-              return (
-                <button
-                  key={ot.id}
-                  type="button"
-                  onClick={() => {
-                    if (!bureau) {
-                      navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
-                      return
-                    }
-                    setOtAPlacerId(selected ? null : ot.id)
-                    setView('jour')
-                    if (ot.date) setCursorDate(ot.date.slice(0, 10))
-                  }}
-                  className={`max-w-full rounded-xl border px-3 py-2 text-left transition ${col.border} ${col.bg} ${
-                    selected ? 'ring-2 ring-teal-600' : ''
-                  }`}
-                >
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${col.badge}`}>
-                      {prio === 0 ? '1·Dépannage' : prio === 1 ? '2·Install' : prio === 2 ? '3·Maint.' : TYPE_OT_LABELS[ot.typeOt] || 'OT'}
-                    </span>
-                    <span className="text-xs font-extrabold text-ink">{formatOtNumero(ot.numero)}</span>
-                    <span className={`max-w-[14rem] truncate text-xs font-semibold ${col.text}`}>
-                      {ot.action || TYPE_OT_LABELS[ot.typeOt]}
-                    </span>
-                  </span>
-                  <span className="mt-0.5 block text-[10px] text-muted">
-                    {client?.raisonSociale || 'Client —'}
-                    {ot.date ? ` · ${formatFr(ot.date)}` : ''}
-                    {selected ? ' · cliquez une heure ↓' : bureau ? ' · cliquer pour poser' : ''}
-                  </span>
-                </button>
-              )
-            })}
+        <section className="rounded-2xl border border-dashed border-line bg-white p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOtPoolOpen((o) => !o)}
+              className="inline-flex min-h-10 flex-1 items-center gap-2 rounded-xl border border-line bg-mist/40 px-3 text-left text-sm font-semibold text-ink"
+            >
+              <ClipboardList className="h-4 w-4 shrink-0 text-muted" />
+              <span className="min-w-0 flex-1 truncate">
+                {bureau ? 'OT à poser' : 'Mes OT sans planning'}
+                <span className="ml-1.5 font-bold text-teal-800">
+                  ({otsSansPlanning.length})
+                </span>
+              </span>
+              <span className="text-[11px] font-bold uppercase text-muted">
+                {otPoolOpen || otAPlacerId ? 'Replier' : 'Ouvrir'}
+              </span>
+            </button>
+            {otAPlacer ? (
+              <button
+                type="button"
+                onClick={() => setOtAPlacerId(null)}
+                className="rounded-full border border-teal-300 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-950"
+              >
+                Annuler pose {formatOtNumero(otAPlacer.numero)}
+              </button>
+            ) : null}
           </div>
+          {(otPoolOpen || otAPlacerId) && (
+            <>
+              <p className="mt-2 text-[11px] text-muted">
+                {bureau
+                  ? view === 'jour'
+                    ? `Jour ${formatFr(cursorDate)} — priorité dépannage → installation → maintenance. Cliquez un OT puis une heure sur la frise.`
+                    : 'Priorité dépannage → installation → maintenance. Cliquez un OT puis une heure.'
+                  : 'OT affectés à vous, pas encore calés.'}
+              </p>
+              <div className="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+                {otsSansPlanning.map((ot) => {
+                  const selected = otAPlacerId === ot.id
+                  const prio = prioriteTypeOt(ot.typeOt)
+                  return (
+                    <button
+                      key={ot.id}
+                      type="button"
+                      onClick={() => {
+                        if (!bureau) {
+                          navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
+                          return
+                        }
+                        setOtAPlacerId(selected ? null : ot.id)
+                        setOtPoolOpen(true)
+                        setView('jour')
+                        if (ot.date) setCursorDate(ot.date.slice(0, 10))
+                      }}
+                      className={`rounded-lg border px-2 py-1 text-left text-[11px] ${
+                        selected
+                          ? 'border-teal-600 bg-teal-50 ring-2 ring-teal-600'
+                          : 'border-line bg-white hover:bg-mist'
+                      }`}
+                    >
+                      <span className="font-bold text-muted">
+                        {prio === 0 ? 'Dép.' : prio === 1 ? 'Inst.' : prio === 2 ? 'Maint.' : 'OT'}
+                      </span>{' '}
+                      <span className="font-extrabold">{formatOtNumero(ot.numero)}</span>
+                      <span className="text-ink">
+                        {' '}
+                        · {(ot.action || TYPE_OT_LABELS[ot.typeOt] || '').slice(0, 28)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </section>
       ) : null}
 

@@ -393,14 +393,17 @@ export function dateDansSemaine(iso: string | undefined, weekDates: string[]): b
   return weekDates.includes(d)
 }
 
-/** Lignes du jour : techs terrain (même vides) + ceux qui ont déjà une tâche. */
+/** Lignes du jour : techs terrain (même vides). Filtre région = strict. */
 export function techsLignesJour(opts: {
   team: { id: string; role?: string }[]
   posteOf: (id: string) => string | undefined
   taskTechIds: string[]
   filterTechId?: string | null
   filterSecteur?: string | null
-  /** Si renseigné : techs de ces agences + ceux qui ont déjà une tâche (autre région). */
+  /**
+   * Si renseigné : uniquement les techs de ces agences.
+   * Pas de « renfort » d’une autre région (filtre strict).
+   */
   filterAgenceCodes?: string[]
   agenceOf?: (id: string) => string | undefined
 }): string[] {
@@ -414,11 +417,15 @@ export function techsLignesJour(opts: {
     if (!isTerrain) continue
     if (agences.length) {
       const ag = opts.agenceOf?.(t.id)
-      if (ag && !agences.includes(ag)) continue
+      // Strict : pas d’agence ou mauvaise région → hors liste
+      if (!ag || !agences.includes(ag)) continue
     }
     always.push(t.id)
   }
-  const extra = (opts.taskTechIds || []).filter((id) => id && !always.includes(id))
+  // Sans filtre région : garder aussi les techs hors liste « always » qui ont une tâche
+  const extra = agences.length
+    ? []
+    : (opts.taskTechIds || []).filter((id) => id && !always.includes(id))
   let ids = [...always, ...extra]
   const tech = String(opts.filterTechId || '').trim()
   if (tech && tech !== 'tous') ids = ids.filter((id) => id === tech)
