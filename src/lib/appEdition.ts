@@ -49,7 +49,7 @@ export const APP_EDITION_SOLO_HINT =
 
 /** Parcours solo AE — une intervention = client → site → équipement → papiers. */
 export const LIGHT_SOLO_FLOW_HINT =
-  'OT, contrats, agenda, stock fluides et CERFA — même outil qu’en Pro, en solo.'
+  'Client → site (depuis la fiche client), stock fluides, OT, agenda, contrats et CERFA — solo.'
 
 /** Fonctionnalités réservées à l’édition Pro. */
 export type EditionFeature =

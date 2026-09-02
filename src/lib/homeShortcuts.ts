@@ -43,6 +43,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Sites & Parc',
     img: ICON3D.sites,
     action: 'goTravaux',
+    lightHidden: true,
   },
   scan_qr: {
     id: 'scan_qr',

@@ -1,14 +1,16 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, FolderOpen, PenLine } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { PasswordField } from '../components/PasswordField'
 import { OutillageParc } from '../components/OutillageParc'
 import { VoituresParc } from '../components/VoituresParc'
+import { SignaturePad } from '../components/SignaturePad'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_HINT, validatePasswordStrength } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
+import { Field } from './ClientsPage'
 import {
   defaultPersonnelDossier,
   dossierForUser,
@@ -19,11 +21,11 @@ import { isLightEdition } from '../lib/appEdition'
 
 /**
  * Espace perso : outillage, détecteur, véhicule, mot de passe.
- * Signature CERFA → dossier Équipe (propre à l’opérateur).
+ * Light : signature CERFA ici. Pro : dossier Équipe.
  */
 export function ProfilPage() {
   const { data, peutVoirIdentitesRh, appEdition } = useStore()
-  const { user, organization, isOwner, updatePassword } = useAuth()
+  const { user, organization, isOwner, updatePassword, saveMySignature } = useAuth()
   const light = isLightEdition(appEdition)
   const ownDossier = dossierForUser(data.personnelDossiers, user?.id)
   const ownResume = resumeAlertesDossier(
@@ -31,11 +33,63 @@ export function ProfilPage() {
       (user ? { id: '', ...defaultPersonnelDossier(user.id, user.fullName || 'Technicien') } : undefined),
   )
 
+  const [signNom, setSignNom] = useState('')
+  const [signQualite, setSignQualite] = useState('')
+  const [signImage, setSignImage] = useState('')
+  const [signError, setSignError] = useState('')
+  const [signOk, setSignOk] = useState('')
+  const [signBusy, setSignBusy] = useState(false)
+
   const [newPassword, setNewPassword] = useState('')
   const [newPassword2, setNewPassword2] = useState('')
   const [pwdError, setPwdError] = useState('')
   const [pwdOk, setPwdOk] = useState('')
   const [pwdBusy, setPwdBusy] = useState(false)
+
+  useEffect(() => {
+    if (!light || !user) return
+    setSignNom(user.signataireNom || user.fullName || '')
+    setSignQualite(
+      user.signataireQualite ||
+        (user.role === 'owner' ? 'Responsable / gérant' : 'Opérateur attesté'),
+    )
+    setSignImage(user.signatureImage || '')
+  }, [
+    light,
+    user?.id,
+    user?.signataireNom,
+    user?.signataireQualite,
+    user?.signatureImage,
+    user?.fullName,
+    user?.role,
+  ])
+
+  const onSaveSignature = async (e: FormEvent) => {
+    e.preventDefault()
+    setSignError('')
+    setSignOk('')
+    if (!signNom.trim()) {
+      setSignError('Indiquez le nom du signataire.')
+      return
+    }
+    if (!signImage) {
+      setSignError('Tracez votre signature manuscrite — obligatoire pour valider un CERFA.')
+      return
+    }
+    setSignBusy(true)
+    try {
+      await saveMySignature({
+        signataireNom: signNom.trim(),
+        signataireQualite: signQualite.trim() || 'Opérateur attesté',
+        signatureImage: signImage,
+      })
+      setSignOk('Signature enregistrée — elle s’applique sur vos OT et CERFA.')
+    } catch (err) {
+      setSignError(err instanceof Error ? err.message : 'Enregistrement impossible')
+    } finally {
+      setSignBusy(false)
+    }
+  }
 
   const onChangePassword = async (e: FormEvent) => {
     e.preventDefault()
@@ -71,13 +125,53 @@ export function ProfilPage() {
           <h1 className="font-display text-3xl font-bold tracking-tight">Mon profil</h1>
           <p className="mt-1 text-muted">
             {light
-              ? 'Étalonnages, détecteur CERFA et signature — le cadre société (SIRET, attestation…) est dans Mon entreprise.'
+              ? 'Signature CERFA, étalonnages et détecteur. Sites & équipements : ouvrez un client. Société : Mon entreprise.'
               : `${organization?.name || data.operateur.raisonSociale || 'Société'} — outillage terrain, détecteur de fuite, véhicule de service. Votre matériel perso, pas le cadre société.`}
           </p>
         </div>
       </div>
 
-      {user && (
+      {light && user ? (
+        <form
+          onSubmit={(e) => void onSaveSignature(e)}
+          className="grid gap-3 rounded-2xl border border-accent/30 bg-accent-soft/40 p-5 sm:grid-cols-2"
+        >
+          <div className="sm:col-span-2">
+            <h2 className="font-display mb-1 flex items-center gap-2 text-base font-semibold text-ink">
+              <PenLine className="h-4 w-4 text-accent" />
+              Ma signature CERFA
+            </h2>
+            <p className="text-sm text-muted">
+              Enregistrez-la une fois ici — elle se reporte automatiquement sur vos OT et CERFA.
+              Visible uniquement par vous.
+            </p>
+          </div>
+          <Field label="Nom du signataire *" value={signNom} onChange={setSignNom} required />
+          <Field label="Qualité / fonction *" value={signQualite} onChange={setSignQualite} required />
+          <div className="sm:col-span-2">
+            <SignaturePad
+              label="Signature manuscrite (doigt / stylet) *"
+              value={signImage || undefined}
+              onChange={(v) => setSignImage(v || '')}
+              height={180}
+              hint="Signez dans le cadre, puis enregistrez."
+            />
+          </div>
+          {signError ? <p className="text-sm text-danger sm:col-span-2">{signError}</p> : null}
+          {signOk ? <p className="text-sm text-accent sm:col-span-2">{signOk}</p> : null}
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              disabled={signBusy}
+              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+            >
+              {signBusy ? 'Enregistrement…' : 'Enregistrer ma signature'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {user && !light ? (
         <Link
           to={`/app/equipe/${user.id}`}
           className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent-soft/30 p-5 transition hover:border-accent"
@@ -85,21 +179,17 @@ export function ProfilPage() {
           <FolderOpen className="mt-0.5 h-6 w-6 shrink-0 text-accent" />
           <div>
             <div className="font-display flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
-              {light ? 'Ma signature CERFA' : 'Mon dossier Équipe'}
+              Mon dossier Équipe
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-accent">
                 <PenLine className="h-3 w-3" /> Signature
               </span>
             </div>
             <p className="mt-1 text-sm text-muted">
-              Signature CERFA personnelle
-              {!light
-                ? `, documents, matériel confié${
-                    isOwner || peutVoirIdentitesRh
-                      ? ' — CNI, permis, aptitude froid…'
-                      : ' — aptitude froid, habilitation…'
-                  } Dates limites et alertes.`
-                : ' — enregistrez-la une fois, elle se reporte sur vos CERFA.'}{' '}
-              La signature n’est visible que par vous.
+              Signature CERFA personnelle, documents, matériel confié
+              {isOwner || peutVoirIdentitesRh
+                ? ' — CNI, permis, aptitude froid…'
+                : ' — aptitude froid, habilitation…'}{' '}
+              Dates limites et alertes. La signature n’est visible que par vous.
             </p>
             {ownResume.expire || ownResume.bientot || ownResume.sansDate ? (
               <p className="mt-2 text-sm font-semibold text-amber-800">
@@ -120,7 +210,7 @@ export function ProfilPage() {
             )}
           </div>
         </Link>
-      )}
+      ) : null}
 
       {user && !light ? (
         <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5">
@@ -158,6 +248,23 @@ export function ProfilPage() {
               sauvegarder vos documents (CERFA, attestations…).
             </p>
             <p className="mt-2 text-sm font-semibold text-accent">Configurer la société →</p>
+          </div>
+        </Link>
+      ) : null}
+
+      {light ? (
+        <Link
+          to="/app/clients"
+          className="flex items-start gap-3 rounded-2xl border border-line bg-white p-5 transition hover:border-accent/40"
+        >
+          <Building2 className="mt-0.5 h-6 w-6 shrink-0 text-accent" />
+          <div>
+            <div className="font-display text-base font-semibold text-ink">Sites & équipements</div>
+            <p className="mt-1 text-sm text-muted">
+              Ouvrez un <strong>client</strong>, puis « Voir sites » ou « Nouveau site » — pas de menu
+              Sites & Parc séparé en édition Light.
+            </p>
+            <p className="mt-2 text-sm font-semibold text-accent">Mes clients →</p>
           </div>
         </Link>
       ) : null}
