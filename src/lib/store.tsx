@@ -76,7 +76,7 @@ import {
   type PointageBureauJour,
 } from './pointage'
 import { buildAutoAgendaEvents } from './agenda'
-import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats } from './contratOtAuto'
+import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats, scinderOtContratParEquipement } from './contratOtAuto'
 import {
   applyPersonnelRhScopeToAppData,
   defaultPersonnelDossier,
@@ -230,6 +230,8 @@ type Store = {
   syncAgendaFromSources: () => number
   /** Crée les OT manquants des contrats signés (sans dupliquer un créneau déjà déplacé). */
   syncOtsDepuisContrats: () => number
+  /** Scinde un OT contrat multi-équipements en 1 OT par équipement. */
+  scinderOtContrat: (otId: string) => { created: number } | null
   /** Tickets portail client → OT bureau (cloud). */
   syncClientPortalTickets: () => Promise<number>
   /** Crée un OT pour une action terrain — retourne { id, numero }. */
@@ -1891,6 +1893,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return added
   }, [applyOtsDepuisContrats])
 
+  const scinderOtContrat = useCallback((otId: string) => {
+    const d = dataRef.current
+    const ot = (d.ordresTravail || []).find((o) => o.id === otId)
+    if (!ot) return null
+    const site = d.chantiers.find((s) => s.id === ot.chantierId)
+    const plan = scinderOtContratParEquipement(ot, site?.equipements)
+    if (!plan) return null
+    const now = new Date().toISOString()
+    setData((prev) => {
+      let grown = (prev.ordresTravail || []).filter((o) => o.id !== plan.parentId)
+      for (const draft of plan.children) {
+        const numero = nextNumeroOt({ ...prev, ordresTravail: grown })
+        grown = [
+          ...grown,
+          {
+            ...draft,
+            id: uuid(),
+            numero,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      }
+      return { ...prev, ordresTravail: grown }
+    })
+    return { created: plan.children.length }
+  }, [])
+
   const syncAgendaFromSources = useCallback(() => {
     const d = dataRef.current
     const generated = buildAutoAgendaEvents({
@@ -3265,6 +3295,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
+      scinderOtContrat,
       syncClientPortalTickets,
       createOtForAction,
       validateMaintenanceCerfas,
@@ -3348,6 +3379,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
+      scinderOtContrat,
       syncClientPortalTickets,
       createOtForAction,
       validateMaintenanceCerfas,

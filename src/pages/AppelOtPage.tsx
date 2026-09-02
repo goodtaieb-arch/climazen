@@ -170,7 +170,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh, appEdition } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, scinderOtContrat, peutVoirIdentitesRh, appEdition } =
     useStore()
   const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
   const stockPieces = editionHasFeature(appEdition, 'stock_pieces')
@@ -2030,6 +2030,38 @@ export function AppelOtPage() {
                   >
                     Tout décocher
                   </button>
+                  {otIdParam &&
+                  otForm.contratId &&
+                  selectedEquipIds.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `Scinder cet OT en ${selectedEquipIds.length} OT (1 par équipement) ? L’OT regroupé sera remplacé.`,
+                          )
+                        ) {
+                          return
+                        }
+                        upsertOrdreTravail({
+                          ...otForm,
+                          id: otIdParam,
+                          equipementIds: selectedEquipIds,
+                          equipementId: selectedEquipIds[0] || '',
+                        })
+                        const result = scinderOtContrat(otIdParam)
+                        if (!result) {
+                          alert('Impossible de scinder (il faut au moins 2 équipements liés au contrat).')
+                          return
+                        }
+                        alert(`${result.created} OT créés — 1 par équipement.`)
+                        navigate('/app/ot')
+                      }}
+                      className="rounded-full border border-amber-400 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-950 hover:bg-amber-100"
+                    >
+                      Scinder en 1 OT / équipement
+                    </button>
+                  ) : null}
                   {selectedEquipIds.length > 0 && (
                     <span className="self-center text-xs font-semibold text-emerald-800">
                       {selectedEquipIds.length} sélectionné

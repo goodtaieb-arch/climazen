@@ -11,7 +11,8 @@
  *  6                    → semestrielle
  *  12                   → annuelle
  *
- * Clé stable `contratOtKey` = contrat + site + équipement + créneau.
+ * Clé stable `contratOtKey` = contrat + site + créneau (équipements du site
+ * regroupés sur un seul OT). Variante avec équipement = OT scindé manuellement.
  * Changer la date (urgence, partiel) ne recrée pas l’OT.
  */
 
@@ -31,7 +32,7 @@ import {
 } from './contratMaintenance'
 import { docsRequisPourEquipement, inferCategorieFicheEquipement } from './equipementFiche'
 import type { DocOtRequis } from './otParcours'
-import type { TypeOt } from './ordreTravail'
+import type { OrdreTravail, TypeOt } from './ordreTravail'
 import type { PostePersonnelId } from './postePersonnel'
 import type { OrigineOt, StatutFacturationOt } from './chaineCommerciale'
 import type { Equipement, Site } from './types'
@@ -108,7 +109,10 @@ export type VisiteContratPlanifiee = {
   equipementNom?: string
   visitesParAn: VisitesParAn
   sousTraitant?: boolean
+  /** Clé OT regroupée site + créneau (défaut génération). */
   contratOtKey: string
+  /** Clé OT scindée 1 équipement (lookup calendrier / scission). */
+  contratOtKeyEquipement?: string
 }
 
 export type SiteContratRef = {
@@ -146,6 +150,7 @@ export function sitesCouverts(
   return mine.filter((s) => set.has(s.id))
 }
 
+/** Clé OT regroupée (site + créneau) ou scindée (+ équipement). */
 export function contratOtKey(opts: {
   contratId: string
   siteId: string
@@ -156,6 +161,37 @@ export function contratOtKey(opts: {
   return eq
     ? `cm-ot:${opts.contratId}:${opts.siteId}:${eq}:${opts.slotKey}`
     : `cm-ot:${opts.contratId}:${opts.siteId}:${opts.slotKey}`
+}
+
+export function contratOtSitePrefix(contratId: string, siteId: string): string {
+  return `cm-ot:${contratId}:${siteId}:`
+}
+
+export function slotKeyFromContratOtKey(key: string | undefined): string | undefined {
+  const m = String(key || '')
+    .trim()
+    .match(/:(\d{4}-\d{2})$/)
+  return m ? m[1] : undefined
+}
+
+/**
+ * Créneau site déjà couvert : OT regroupé OU au moins un OT scindé / legacy
+ * (clé avec équipement) pour le même créneau.
+ */
+export function siteSlotDejaCouvert(
+  existingKeys: Iterable<string>,
+  opts: { contratId: string; siteId: string; slotKey: string },
+): boolean {
+  const siteKey = contratOtKey(opts)
+  const prefix = contratOtSitePrefix(opts.contratId, opts.siteId)
+  const slotSuffix = `:${opts.slotKey}`
+  for (const raw of existingKeys) {
+    const k = (raw || '').trim()
+    if (!k) continue
+    if (k === siteKey) return true
+    if (k.startsWith(prefix) && k.endsWith(slotSuffix)) return true
+  }
+  return false
 }
 
 export type LigneContratResolue = {
@@ -257,8 +293,15 @@ function visitesPourLigne(
           contratId: contrat.id,
           siteId: ligne.site.id,
           slotKey,
-          equipementId: ligne.equipementId,
         }),
+        contratOtKeyEquipement: ligne.equipementId
+          ? contratOtKey({
+              contratId: contrat.id,
+              siteId: ligne.site.id,
+              slotKey,
+              equipementId: ligne.equipementId,
+            })
+          : undefined,
       })
     }
   }
@@ -343,6 +386,19 @@ function docsPourLigne(
   return docsRequisPourFamille(resolveFamilleContrat(contrat))
 }
 
+function unionDocs(lists: DocOtRequis[][]): DocOtRequis[] {
+  const seen = new Set<DocOtRequis>()
+  const out: DocOtRequis[] = []
+  for (const list of lists) {
+    for (const d of list) {
+      if (seen.has(d)) continue
+      seen.add(d)
+      out.push(d)
+    }
+  }
+  return out
+}
+
 export function buildOtDraftsDepuisContrats(input: {
   contrats: ContratMaintenance[]
   sites: SiteContratRef[]
@@ -366,36 +422,82 @@ export function buildOtDraftsDepuisContrats(input: {
     const ligneByKey = new Map(
       lignes.map((l) => [`${l.site.id}::${l.equipementId}`, l]),
     )
+
+    type Group = { visites: VisiteContratPlanifiee[]; lignes: LigneContratResolue[] }
+    const groups = new Map<string, Group>()
     for (const v of visites) {
+      const gKey = `${v.siteId}::${v.slotKey}`
+      let g = groups.get(gKey)
+      if (!g) {
+        g = { visites: [], lignes: [] }
+        groups.set(gKey, g)
+      }
+      g.visites.push(v)
       const ligne = ligneByKey.get(`${v.siteId}::${v.equipementId || ''}`)
-      const docs = ligne ? docsPourLigne(ligne, contrat) : docsRequisPourFamille(famille)
-      const ficheLabel = ligne?.equipement
-        ? inferCategorieFicheEquipement(ligne.equipement)
-        : 'aucune'
-      const site = input.sites.find((s) => s.id === v.siteId)
-      const cible = [v.equipementNom, v.siteNom].filter(Boolean).join(' · ')
+      if (ligne) g.lignes.push(ligne)
+    }
+
+    for (const g of groups.values()) {
+      const v0 = g.visites[0]
+      if (!v0) continue
+      const site = input.sites.find((s) => s.id === v0.siteId)
+      const eqIds = [
+        ...new Set(
+          g.visites.map((v) => v.equipementId).filter((id): id is string => Boolean(id)),
+        ),
+      ]
+      const eqNoms = [
+        ...new Set(g.visites.map((v) => v.equipementNom).filter(Boolean) as string[]),
+      ]
+      const docs = unionDocs(
+        g.lignes.length
+          ? g.lignes.map((l) => docsPourLigne(l, contrat))
+          : [docsRequisPourFamille(famille)],
+      )
+      const anySousTraitant = g.visites.some((v) => v.sousTraitant)
+      const allSousTraitant =
+        g.visites.length > 0 && g.visites.every((v) => v.sousTraitant)
+      const nEq = eqIds.length || eqNoms.length
+      const cible =
+        nEq > 1
+          ? `${v0.siteNom} · ${nEq} équipements`
+          : [eqNoms[0] || eqIds[0], v0.siteNom].filter(Boolean).join(' · ')
+      const ficheHint =
+        nEq > 1
+          ? `Fiches / CERFA par équipement (${NIVEAU_VISITE_LABELS[v0.niveau].toLowerCase()}).`
+          : docs.length
+            ? `Fiche ${NIVEAU_VISITE_LABELS[v0.niveau].toLowerCase()} (${
+                g.lignes[0]?.equipement
+                  ? inferCategorieFicheEquipement(g.lignes[0].equipement)
+                  : 'type'
+              }).`
+            : 'Pas de fiche type — le rapport d’OT suffit.'
+
       drafts.push({
-        date: v.date,
+        date: v0.date,
         typeOt,
-        action: `Maintenance ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} — ${cible}`,
+        action: `Maintenance ${NIVEAU_VISITE_LABELS[v0.niveau].toLowerCase()} — ${cible}`,
         rapportAction: '',
         observations: [
           `Contrat ${contrat.numero}`,
           contrat.titre,
-          v.equipementNom ? `Équipement : ${v.equipementNom}` : '',
-          docs.length
-            ? `Fiche ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} (${ficheLabel}).`
-            : 'Pas de fiche type — le rapport d’OT suffit.',
-          v.sousTraitant
-            ? 'Équipement sous-traité : le tech clôture s’il accompagne, sinon le bureau + rapport sous-traitant.'
+          eqNoms.length ? `Équipements : ${eqNoms.join(', ')}` : '',
+          ficheHint,
+          nEq > 1
+            ? 'Un seul OT pour tout le site — vous pouvez scinder par équipement si besoin.'
+            : '',
+          anySousTraitant
+            ? allSousTraitant
+              ? 'Équipements sous-traités : clôture tech accompagnant ou bureau + rapport ST.'
+              : 'Certains équipements sont sous-traités — vérifier le détail sur l’OT.'
             : 'Date déplaçable si urgence ou reprise d’une visite partielle.',
         ]
           .filter(Boolean)
           .join('\n'),
         clientId: contrat.clientId,
-        chantierId: v.siteId,
-        equipementId: v.equipementId,
-        equipementIds: v.equipementId ? [v.equipementId] : undefined,
+        chantierId: v0.siteId,
+        equipementId: eqIds[0],
+        equipementIds: eqIds.length ? eqIds : undefined,
         technicien: '',
         secteur,
         agenceCode: site?.agenceCode,
@@ -403,13 +505,17 @@ export function buildOtDraftsDepuisContrats(input: {
         lienCommandeType: 'contrat',
         lienCommandeRef: contrat.numero,
         contratId: contrat.id,
-        contratOtKey: v.contratOtKey,
-        visiteNiveau: v.niveau,
-        origineOt: v.sousTraitant ? 'sous_traitance' : 'maintenance_contrat',
+        contratOtKey: contratOtKey({
+          contratId: contrat.id,
+          siteId: v0.siteId,
+          slotKey: v0.slotKey,
+        }),
+        visiteNiveau: v0.niveau,
+        origineOt: allSousTraitant ? 'sous_traitance' : 'maintenance_contrat',
         statutFacturation: 'sous_contrat',
         mainOeuvreIncluseContrat: true,
         docsRequis: docs,
-        maintenanceParSousTraitant: v.sousTraitant || undefined,
+        maintenanceParSousTraitant: anySousTraitant || undefined,
         statut: 'pret_a_planifier',
         parcoursStep: 'ot',
         interventionPartielle: false,
@@ -431,7 +537,17 @@ export function mergeOtsDepuisContrats<T extends { contratOtKey?: string }>(
   const toAdd: OtDraftDepuisContrat[] = []
   let skipped = 0
   for (const d of drafts) {
-    if (keys.has(d.contratOtKey)) {
+    const slot = slotKeyFromContratOtKey(d.contratOtKey)
+    const covered =
+      keys.has(d.contratOtKey) ||
+      (slot
+        ? siteSlotDejaCouvert(keys, {
+            contratId: d.contratId,
+            siteId: d.chantierId,
+            slotKey: slot,
+          })
+        : false)
+    if (covered) {
       skipped += 1
       continue
     }
@@ -439,6 +555,98 @@ export function mergeOtsDepuisContrats<T extends { contratOtKey?: string }>(
     toAdd.push(d)
   }
   return { toAdd, skipped }
+}
+
+/**
+ * Scinde un OT contrat multi-équipements → 1 OT par équipement.
+ * Retourne les brouillons enfants (sans id/numero) + id parent à retirer.
+ */
+export function scinderOtContratParEquipement(
+  ot: Pick<
+    OrdreTravail,
+    | 'id'
+    | 'contratId'
+    | 'contratOtKey'
+    | 'chantierId'
+    | 'equipementId'
+    | 'equipementIds'
+    | 'date'
+    | 'visiteNiveau'
+    | 'action'
+    | 'observations'
+    | 'typeOt'
+    | 'clientId'
+    | 'secteur'
+    | 'agenceCode'
+    | 'lienCommandeRef'
+    | 'origineOt'
+    | 'statutFacturation'
+    | 'docsRequis'
+    | 'maintenanceParSousTraitant'
+    | 'technicien'
+    | 'heure'
+  >,
+  siteEquipements?: Equipement[],
+): { parentId: string; children: OtDraftDepuisContrat[] } | null {
+  const ids = [
+    ...new Set(
+      (ot.equipementIds?.length
+        ? ot.equipementIds
+        : ot.equipementId
+          ? [ot.equipementId]
+          : []
+      ).filter(Boolean),
+    ),
+  ]
+  if (ids.length <= 1 || !ot.contratId || !ot.chantierId) return null
+  const slot = slotKeyFromContratOtKey(ot.contratOtKey)
+  if (!slot) return null
+  const niveau = parseNiveauVisite(ot.visiteNiveau) || 'mensuel'
+  const children: OtDraftDepuisContrat[] = ids.map((eqId) => {
+    const eq = siteEquipements?.find((e) => e.id === eqId)
+    const nom = eq?.nom || eq?.type || eqId
+    const docs = eq ? docsRequisPourEquipement(eq) : ot.docsRequis || []
+    return {
+      date: ot.date,
+      typeOt: ot.typeOt,
+      action: `Maintenance ${NIVEAU_VISITE_LABELS[niveau].toLowerCase()} — ${nom}`,
+      rapportAction: '',
+      observations: [
+        ot.observations || '',
+        `Scindé depuis OT multi-équipements (équipement : ${nom}).`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      clientId: ot.clientId || '',
+      chantierId: ot.chantierId!,
+      equipementId: eqId,
+      equipementIds: [eqId],
+      technicien: ot.technicien || '',
+      secteur: (ot.secteur || 'tech_cvc') as PostePersonnelId,
+      agenceCode: ot.agenceCode,
+      heure: ot.heure || '',
+      lienCommandeType: 'contrat',
+      lienCommandeRef: ot.lienCommandeRef || '',
+      contratId: ot.contratId!,
+      contratOtKey: contratOtKey({
+        contratId: ot.contratId!,
+        siteId: ot.chantierId!,
+        slotKey: slot,
+        equipementId: eqId,
+      }),
+      visiteNiveau: niveau,
+      origineOt: (ot.origineOt || 'maintenance_contrat') as OrigineOt,
+      statutFacturation: (ot.statutFacturation || 'sous_contrat') as StatutFacturationOt,
+      mainOeuvreIncluseContrat: true,
+      docsRequis: docs,
+      maintenanceParSousTraitant: ot.maintenanceParSousTraitant,
+      statut: 'pret_a_planifier',
+      parcoursStep: 'ot',
+      interventionPartielle: false,
+      avancementPct: 0,
+    }
+  })
+  return { parentId: ot.id, children }
 }
 
 export function ligneContratVide(
