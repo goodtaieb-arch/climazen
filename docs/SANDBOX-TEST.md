@@ -8,7 +8,7 @@ Jeu de données complet pour tester GMAO, portail client, OT, pièces, contrats,
 |--------|--------|
 | **URL** | https://climazen.fr/login |
 | **E-mail** | `sandbox@climazen.fr` |
-| **Mot de passe** | `ClimaZEN-Sandbox2026!` |
+| **Mot de passe** | `SbxDemo-Gmao#2026xK9mR` |
 | **Édition** | Pro (gérant) |
 
 ## Contenu préchargé
