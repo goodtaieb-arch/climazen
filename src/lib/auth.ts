@@ -19,6 +19,7 @@ import {
   peutVoirIdentitesRh,
   type RhAccessActor,
 } from './rhDocuments'
+import { mergePointageRegles, parsePointageEvents } from './pointage'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -621,6 +622,8 @@ export function appDataWeight(data: AppData): number {
     (data.fichesMaintenanceCtaVmc?.length || 0) * 2 +
     (data.ordresTravail?.length || 0) * 2 +
     (data.personnelDossiers?.length || 0) * 8 +
+    (data.pointageEvents?.length || 0) * 1 +
+    (data.pointageRegles?.active ? 8 : 0) +
     (o?.raisonSociale?.trim() ? 25 : 0) +
     (o?.adresse?.trim() ? 5 : 0) +
     (o?.siret?.trim() ? 5 : 0) +
@@ -820,6 +823,12 @@ export function resolveRemoteVsLocal(
   )
   const factures = mergeByIdLatest(remote.factures, local.factures, preferOnTie)
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
+  const pointageEvents = mergeByIdLatest(
+    parsePointageEvents(remote.pointageEvents),
+    parsePointageEvents(local.pointageEvents),
+    preferOnTie,
+  )
+  const pointageRegles = mergePointageRegles(remote.pointageRegles, local.pointageRegles)
   const mergedDossiers = mergeByIdLatest(
     remote.personnelDossiers,
     local.personnelDossiers,
@@ -907,6 +916,8 @@ export function resolveRemoteVsLocal(
     commandesFournisseur,
     factures,
     agendaEvents,
+    pointageRegles,
+    pointageEvents,
     personnelDossiers,
     personnelRhAccesUserIds,
     personnelRetiresUserIds,

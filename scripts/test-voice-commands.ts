@@ -15,6 +15,8 @@ const cases: Array<[string, string | null]> = [
   ['sites', 'sites'],
   ['aide', 'aide'],
   ['accueil', 'accueil'],
+  ['ouvre la pointeuse', 'pointage'],
+  ['temps de travail', 'pointage'],
   ['bonjour le chat', null],
 ]
 

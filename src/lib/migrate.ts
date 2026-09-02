@@ -18,6 +18,7 @@ import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { purgeOrphanCerfaStock } from './stockMouvements'
 import { migratePersonnelDossiers, normalizePersonnelRhAccesUserIds, normalizePersonnelRetiresUserIds } from './rhDocuments'
+import { parsePointageEvents, parsePointageRegles } from './pointage'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
 type LegacyChantier = Partial<Site> & {
@@ -292,6 +293,10 @@ export function migrateAppData(data: AppData): AppData {
     commandesFournisseur: data.commandesFournisseur || [],
     factures: data.factures || [],
     agendaEvents: data.agendaEvents || [],
+    pointageRegles: data.pointageRegles
+      ? parsePointageRegles(data.pointageRegles)
+      : undefined,
+    pointageEvents: parsePointageEvents(data.pointageEvents),
     personnelDossiers: migratePersonnelDossiers(data.personnelDossiers),
     personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(data.personnelRhAccesUserIds),
     personnelRetiresUserIds: normalizePersonnelRetiresUserIds(data.personnelRetiresUserIds),

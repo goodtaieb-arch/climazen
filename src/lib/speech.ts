@@ -139,6 +139,7 @@ export type VoiceCommandId =
   | 'scan_equip'
   | 'gps'
   | 'aide'
+  | 'pointage'
 
 export type ParsedVoiceCommand = {
   id: VoiceCommandId
@@ -211,6 +212,14 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
       label: 'Sites / parc',
       path: '/app/chantiers',
       test: (s) => /\b(sites?|chantiers?|parc|clients?)\b/.test(s),
+    },
+    {
+      id: 'pointage',
+      label: 'Pointeuse',
+      path: '/app/pointage',
+      test: (s) =>
+        /\b(pointeuse|pointage|pointer)\b/.test(s) ||
+        /\btemps de travail\b/.test(s),
     },
     {
       id: 'accueil',

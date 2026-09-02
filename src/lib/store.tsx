@@ -62,6 +62,12 @@ import {
   type Facture,
 } from './chaineCommerciale'
 import type { AgendaEvent } from './agenda'
+import {
+  parsePointageEvents,
+  parsePointageRegles,
+  type PointageEvent,
+  type PointageRegles,
+} from './pointage'
 import { buildAutoAgendaEvents } from './agenda'
 import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats } from './contratOtAuto'
 import {
@@ -176,6 +182,11 @@ type Store = {
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deleteAgendaEvent: (id: string) => void
+  upsertPointageRegles: (r: import('./pointage').PointageRegles) => void
+  addPointageEvent: (
+    e: Omit<import('./pointage').PointageEvent, 'id' | 'createdAt'> & { id?: string },
+  ) => string
+  annulerPointageEvent: (id: string, motif?: string) => void
   /** Synchronise les rappels + OT de maintenance depuis les contrats signés. */
   syncAgendaFromSources: () => number
   /** Crée les OT manquants des contrats signés (sans dupliquer un créneau déjà déplacé). */
@@ -1464,6 +1475,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({
       ...d,
       agendaEvents: (d.agendaEvents || []).filter((e) => e.id !== id),
+    }))
+  }, [])
+
+  const upsertPointageRegles = useCallback((r: PointageRegles) => {
+    const now = new Date().toISOString()
+    setData((d) => ({
+      ...d,
+      pointageRegles: parsePointageRegles({ ...r, updatedAt: now }),
+    }))
+  }, [])
+
+  const addPointageEvent = useCallback(
+    (e: Omit<PointageEvent, 'id' | 'createdAt'> & { id?: string }) => {
+      const id = e.id ?? uuid()
+      const now = new Date().toISOString()
+      const next: PointageEvent = {
+        ...e,
+        id,
+        createdAt: now,
+      }
+      setData((d) => ({
+        ...d,
+        pointageEvents: [...parsePointageEvents(d.pointageEvents), next],
+      }))
+      return id
+    },
+    [],
+  )
+
+  const annulerPointageEvent = useCallback((id: string, motif?: string) => {
+    setData((d) => ({
+      ...d,
+      pointageEvents: parsePointageEvents(d.pointageEvents).map((e) =>
+        e.id === id ? { ...e, annule: true, annuleMotif: motif || 'Annulé' } : e,
+      ),
     }))
   }, [])
 
@@ -2827,6 +2873,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       marquerCommandeRecue,
       upsertAgendaEvent,
       deleteAgendaEvent,
+      upsertPointageRegles,
+      addPointageEvent,
+      annulerPointageEvent,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
       createOtForAction,
@@ -2897,6 +2946,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       marquerCommandeRecue,
       upsertAgendaEvent,
       deleteAgendaEvent,
+      upsertPointageRegles,
+      addPointageEvent,
+      annulerPointageEvent,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
       createOtForAction,

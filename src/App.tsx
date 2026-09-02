@@ -28,6 +28,7 @@ import { OrdresTravailPage } from './pages/OrdresTravailPage'
 import { AppelOtPage } from './pages/AppelOtPage'
 import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
 import { AgendaPage } from './pages/AgendaPage'
+import { PointagePage } from './pages/PointagePage'
 import { ContactPage } from './pages/ContactPage'
 import { AvisGooglePage } from './pages/AvisGooglePage'
 import { SignerPage } from './pages/SignerPage'
@@ -104,6 +105,7 @@ export default function App() {
                 <Route path="appel" element={<AppelOtPage />} />
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
                 <Route path="agenda" element={<AgendaPage />} />
+                <Route path="pointage" element={<PointagePage />} />
                 <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimRoute />} />
                 <Route
                   path="fiche-maintenance-chaufferie"

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { useAuth } from '../lib/AuthContext'
@@ -108,6 +108,17 @@ export function OperateurPage() {
           </p>
         </div>
       </div>
+
+      <Link
+        to="/app/pointage"
+        className="block rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+      >
+        <span className="font-bold">Pointeuse / temps de travail</span>
+        <span className="mt-0.5 block text-xs">
+          Paramétrer les règles d’heures (obligatoire) puis activer. Horodatage + GPS
+          ponctuel, pas de tracking. Export paie / facturation.
+        </span>
+      </Link>
 
       {loading && (
         <p className="rounded-xl border border-line bg-mist px-4 py-3 text-sm text-muted">

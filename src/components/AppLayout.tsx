@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
   ClipboardList,
+  Clock,
   Ellipsis,
   FolderOpen,
   LayoutDashboard,
@@ -126,6 +127,7 @@ const baseLinksOwner = [
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
@@ -140,6 +142,7 @@ const baseLinksOperator = [
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
@@ -152,6 +155,7 @@ const baseLinksTerrain = [
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
@@ -243,6 +247,7 @@ export function AppLayout() {
   const moreLinks = terrainUi
     ? [
         { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+        { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
         { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
         { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
         ...(user
@@ -251,6 +256,7 @@ export function AppLayout() {
       ]
     : [
         { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+        { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
         { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
         { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
         { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },

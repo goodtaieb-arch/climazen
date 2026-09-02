@@ -119,8 +119,19 @@ export function ConfidentialitePage() {
         <H>Données collectées</H>
         <p>
           Compte (e-mail, nom), données métier saisies (clients, chantiers, stock,
-          interventions, signatures), et données techniques de connexion nécessaires au
-          fonctionnement du service.
+          interventions, signatures), horodatages de pointage et, le cas échéant, une
+          position GPS ponctuelle au moment de l’action (pas de suivi continu), et données
+          techniques de connexion nécessaires au fonctionnement du service.
+        </p>
+      </section>
+      <section className="space-y-2">
+        <H>Pointeuse / temps de travail</H>
+        <p>
+          Si la société active la pointeuse, chaque action (prise de véhicule, trajet,
+          arrivée chantier, pause, retour) est horodatée. Une géolocalisation peut être
+          demandée <strong>uniquement à cet instant</strong> — aucun tracking GPS en
+          continu. Ces données servent à la paie et à la facturation (distinction trajet /
+          chantier / pauses). Elles restent dans le dossier de la société.
         </p>
       </section>
       <section className="space-y-2">

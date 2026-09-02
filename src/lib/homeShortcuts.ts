@@ -15,6 +15,7 @@ export type HomeShortcutId =
   | 'contrats'
   | 'equipe'
   | 'operateur'
+  | 'pointage'
 
 export type HomeShortcutDef = {
   id: HomeShortcutId
@@ -108,6 +109,12 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     to: '/app/operateur',
     ownerOnly: true,
   },
+  pointage: {
+    id: 'pointage',
+    title: 'Pointeuse',
+    img: ICON3D.signaturePad,
+    to: '/app/pointage',
+  },
 }
 
 /** Disposition par défaut bureau / gérant. */
@@ -120,12 +127,14 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'clients',
   'ot',
   'appel',
+  'pointage',
   'profil',
 ]
 
 /** Terrain : uniquement les boutons d’intervention. */
 export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
   'appel',
+  'pointage',
   'scan_qr',
   'sites',
   'ot',

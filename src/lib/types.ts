@@ -762,6 +762,10 @@ export interface AppData {
   factures?: import('./chaineCommerciale').Facture[]
   /** Agenda / rappels RDV maintenance */
   agendaEvents?: import('./agenda').AgendaEvent[]
+  /** Règles pointeuse (obligatoires avant activation). */
+  pointageRegles?: import('./pointage').PointageRegles
+  /** Horodatages ponctuels (pas de tracking GPS continu). */
+  pointageEvents?: import('./pointage').PointageEvent[]
   /**
    * Dossiers RH des techniciens (CNI, permis, aptitude froid, habilitation…)
    * avec dates d’expiration — coffre société.
