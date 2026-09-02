@@ -6,7 +6,11 @@ import { BetaBadge } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
 import type { AppEdition } from '../lib/appEdition'
-import { APP_EDITION_DESCRIPTIONS, APP_EDITION_TAGLINES } from '../lib/appEdition'
+import {
+  APP_EDITION_DESCRIPTIONS,
+  APP_EDITION_PRICING,
+  APP_EDITION_TAGLINES,
+} from '../lib/appEdition'
 
 export function RegisterPage() {
   const { user, loading, registerCompany, configured } = useAuth()
@@ -112,6 +116,10 @@ export function RegisterPage() {
               />
               <span className="font-bold text-white">ClimaZEN Light — solo / auto-entrepreneur</span>
               <span className="mt-1 block text-xs text-white/60">{APP_EDITION_TAGLINES.light}</span>
+              <span className="mt-1 block text-xs font-semibold text-accent">
+                {APP_EDITION_PRICING.light.price} {APP_EDITION_PRICING.light.priceSuffix} —{' '}
+                {APP_EDITION_PRICING.light.detail}
+              </span>
               <span className="mt-2 block text-sm text-white/70">{APP_EDITION_DESCRIPTIONS.light}</span>
             </label>
             <label className="block cursor-pointer rounded-xl border border-white/15 bg-ink/30 p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
@@ -125,6 +133,10 @@ export function RegisterPage() {
               />
               <span className="font-bold text-white">ClimaZEN Pro — PME / TPE / équipe</span>
               <span className="mt-1 block text-xs text-white/60">{APP_EDITION_TAGLINES.pro}</span>
+              <span className="mt-1 block text-xs font-semibold text-amber-200">
+                {APP_EDITION_PRICING.pro.price} {APP_EDITION_PRICING.pro.priceSuffix} —{' '}
+                {APP_EDITION_PRICING.pro.detail}
+              </span>
               <span className="mt-2 block text-sm text-white/70">{APP_EDITION_DESCRIPTIONS.pro}</span>
             </label>
           </fieldset>
