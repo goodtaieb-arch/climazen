@@ -53,6 +53,31 @@ export function isOtCloture(statut: StatutOt | string | undefined): boolean {
   return statut === 'signe' || statut === 'termine'
 }
 
+/**
+ * Priorité planning bureau : dépannage → installation → maintenance / entretien → reste.
+ * Plus petit = plus urgent.
+ */
+export function prioriteTypeOt(typeOt?: TypeOt | string | null): number {
+  const t = String(typeOt || '').trim()
+  if (t === 'depanage') return 0
+  if (t === 'installation') return 1
+  if (t === 'maintenance' || t === 'entretien') return 2
+  if (t === 'controle_etancheite') return 3
+  if (t === 'demantelement') return 4
+  return 5
+}
+
+export function compareOtPrioritePlanning(
+  a: { typeOt?: TypeOt | string; date?: string; numero?: string; action?: string },
+  b: { typeOt?: TypeOt | string; date?: string; numero?: string; action?: string },
+): number {
+  const p = prioriteTypeOt(a.typeOt) - prioriteTypeOt(b.typeOt)
+  if (p !== 0) return p
+  const d = (a.date || '').localeCompare(b.date || '')
+  if (d !== 0) return d
+  return (a.numero || a.action || '').localeCompare(b.numero || b.action || '', 'fr')
+}
+
 /** Tous les comptes tech de l’OT (principal + co-intervenants). */
 export function techIdsOt(ot: {
   technicienUserId?: string

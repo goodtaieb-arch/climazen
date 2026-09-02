@@ -40,10 +40,12 @@ import {
 } from '../lib/agenda'
 import {
   TYPE_OT_LABELS,
+  compareOtPrioritePlanning,
   formatOtAvancement,
   formatOtNumero,
   isOtCloture,
   labelTechsOt,
+  prioriteTypeOt,
   syncTechsOt,
   techIdsOt,
   type OrdreTravail,
@@ -63,7 +65,6 @@ import {
   JOUR_PLANNING_DEBUT_H,
   JOUR_PLANNING_FIN_H,
   couleurPlanning,
-  dateDansSemaine,
   dureeMinutesEffectif,
   heuresFriseJour,
   isHorsOtType,
@@ -147,6 +148,8 @@ export function AgendaPage() {
   const [filterAgences, setFilterAgences] = useState<string[]>([])
   const [agenceFilterReady, setAgenceFilterReady] = useState(false)
   const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
+  /** OT sélectionné pour pose sur la frise (clic tech × heure). */
+  const [otAPlacerId, setOtAPlacerId] = useState<string | null>(null)
 
   const existing = useMemo(
     () => (data.agendaEvents || []).find((e) => e.id === editId) || null,
@@ -333,23 +336,44 @@ export function AgendaPage() {
   )
 
   const otsSansPlanning = useMemo(() => {
-    const focusTech = bureau && filterTechId !== 'tous'
-    return (data.ordresTravail || []).filter((o) => {
+    const list = (data.ordresTravail || []).filter((o) => {
       if (!otSansCreneau(o) || !visibleAgendaPour(visOpts, o)) return false
       if (!matchAgence(agenceOfOt(o))) return false
       if (!matchSecteur({ secteur: o.secteur, technicienUserId: o.technicienUserId })) return false
-      if (focusTech && !dateDansSemaine(o.date, weekDates)) return false
       return true
     })
-  }, [data.ordresTravail, bureau, user?.id, filterTechId, filterSecteur, filterAgences, weekDates]) // eslint-disable-line react-hooks/exhaustive-deps
+    return list.sort(compareOtPrioritePlanning)
+  }, [data.ordresTravail, bureau, user?.id, filterTechId, filterSecteur, filterAgences]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const otAPlacer = useMemo(
+    () => (otAPlacerId ? (data.ordresTravail || []).find((o) => o.id === otAPlacerId) : null),
+    [otAPlacerId, data.ordresTravail],
+  )
 
   const programmeForDate = (iso: string) =>
     programmeVisible.filter((p) => p.date === iso.slice(0, 10))
 
-  const ouvrirSemaineTech = (techId: string) => {
+  /** Clique sur un tech : reste en vue jour, tous les techs visibles, surlignage optionnel. */
+  const focusTechJour = (techId: string) => {
     setFilterTechId(techId)
     setFilterSecteur('tous')
-    setView('semaine')
+    setView('jour')
+  }
+
+  const placerOtSurCreneau = (techId: string, heureH: number, dateIso: string) => {
+    if (!otAPlacer || !bureau) return
+    const heure = `${String(heureH).padStart(2, '0')}:00`
+    const noms: Record<string, string> = {}
+    for (const t of team) noms[t.id] = t.fullName || t.email || ''
+    planifierOt(otAPlacer, {
+      date: dateIso.slice(0, 10),
+      heure,
+      dureeMinutes: dureeMinutesEffectif(otAPlacer.dureeMinutes),
+      technicienUserIds: [techId],
+      technicienUserId: techId,
+      technicien: noms[techId] || '',
+    })
+    setOtAPlacerId(null)
   }
 
   const rappelsList = useMemo(() => {
@@ -911,17 +935,29 @@ export function AgendaPage() {
 
   const renderLignesTechJour = (iso: string) => {
     const items = programmeForDate(iso)
-    const ids = techsLignesJour({
+    const idsRaw = techsLignesJour({
       team,
       posteOf,
       taskTechIds: items.flatMap((it) => itemTechIds(it)),
-      filterTechId: bureau ? filterTechId : user?.id,
+      // Bureau : toujours tous les techs (métier / région filtrent seuls).
+      filterTechId: bureau ? undefined : user?.id,
       filterSecteur: bureau ? filterSecteur : undefined,
       filterAgenceCodes: bureau ? filterAgences : undefined,
       agenceOf: agenceOfTech,
     })
     const unassigned = items.filter((it) => itemTechIds(it).length === 0)
     const heures = heuresFriseJour()
+    const ids = [...idsRaw].sort((a, b) => {
+      const ca = items.filter((it) => itemTechIds(it).includes(a)).length
+      const cb = items.filter((it) => itemTechIds(it).includes(b)).length
+      if ((ca === 0) !== (cb === 0)) return ca === 0 ? -1 : 1
+      if (filterTechId === a) return -1
+      if (filterTechId === b) return 1
+      return (team.find((t) => t.id === a)?.fullName || '').localeCompare(
+        team.find((t) => t.id === b)?.fullName || '',
+        'fr',
+      )
+    })
     if (ids.length === 0 && unassigned.length === 0) {
       return (
         <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
@@ -951,13 +987,22 @@ export function AgendaPage() {
         it.kind === 'ot'
           ? `${formatOtNumero(it.numero)} · ${it.title}`
           : it.title
+      const prio =
+        it.kind === 'ot'
+          ? prioriteTypeOt(
+              (data.ordresTravail || []).find((o) => o.id === it.otId)?.typeOt,
+            )
+          : 9
       return (
         <button
           key={it.id}
           type="button"
           title={`${formatHeure(it.heure) || ''} · ${labelDureeMinutes(it.dureeMinutes)} — ${label}`}
-          onClick={() => openItem(it)}
-          style={{ left: `${place.leftPct}%`, width: `${place.widthPct}%` }}
+          onClick={(e) => {
+            e.stopPropagation()
+            openItem(it)
+          }}
+          style={{ left: `${place.leftPct}%`, width: `${place.widthPct}%`, zIndex: 10 - prio }}
           className={`absolute top-1 bottom-1 overflow-hidden rounded-lg border px-1.5 py-0.5 text-left shadow-sm transition hover:z-20 hover:brightness-95 ${c.border} ${c.bg}`}
         >
           <span className="block truncate text-[10px] font-extrabold leading-tight text-ink">
@@ -974,6 +1019,16 @@ export function AgendaPage() {
 
     return (
       <div className="space-y-2">
+        {bureau && otAPlacer ? (
+          <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-medium text-teal-950">
+            Posez <strong>{formatOtNumero(otAPlacer.numero)}</strong> (
+            {TYPE_OT_LABELS[otAPlacer.typeOt] || otAPlacer.typeOt}) : cliquez une{' '}
+            <strong>heure</strong> sur la ligne du tech ·{' '}
+            <button type="button" className="underline" onClick={() => setOtAPlacerId(null)}>
+              Annuler
+            </button>
+          </p>
+        ) : null}
         <div className="overflow-x-auto rounded-2xl border border-line bg-white">
           <div className="min-w-[52rem]">
             <div className="flex border-b border-line bg-slate-50/80">
@@ -1000,14 +1055,29 @@ export function AgendaPage() {
               const poste = posteOf(id)
               const col = couleurPlanning({ secteur: poste, technicienUserId: id })
               const mine = items.filter((it) => itemTechIds(it).includes(id))
-              const timed = mine.filter((it) => Boolean(formatHeure(it.heure)))
+              const timed = mine
+                .filter((it) => Boolean(formatHeure(it.heure)))
+                .slice()
+                .sort((a, b) => {
+                  if (a.kind === 'ot' && b.kind === 'ot') {
+                    const oa = (data.ordresTravail || []).find((o) => o.id === a.otId)
+                    const ob = (data.ordresTravail || []).find((o) => o.id === b.otId)
+                    const p = prioriteTypeOt(oa?.typeOt) - prioriteTypeOt(ob?.typeOt)
+                    if (p !== 0) return p
+                  }
+                  return compareProgrammeHeure(a, b)
+                })
               const untimed = mine.filter((it) => !formatHeure(it.heure))
+              const highlighted = filterTechId === id
               return (
-                <div key={id} className="border-b border-line last:border-b-0">
+                <div
+                  key={id}
+                  className={`border-b border-line last:border-b-0 ${highlighted ? 'ring-2 ring-inset ring-teal-500/50' : ''}`}
+                >
                   <div className="flex">
                     <button
                       type="button"
-                      onClick={() => ouvrirSemaineTech(id)}
+                      onClick={() => focusTechJour(id)}
                       className={`flex w-36 shrink-0 flex-col justify-center gap-0.5 border-r border-line px-2 py-2 text-left sm:w-44 ${col.bg}`}
                     >
                       <span className="flex items-center gap-1.5">
@@ -1044,18 +1114,35 @@ export function AgendaPage() {
                               )}`}
                       </span>
                     </button>
-                    <div className="relative h-14 flex-1 bg-[linear-gradient(to_right,rgba(15_23_42_/_0.04)_1px,transparent_1px)] bg-[length:calc(100%/12)_100%]">
+                    <div
+                      className={[
+                        'relative h-14 flex-1 bg-[linear-gradient(to_right,rgb(15_23_42_/_0.04)_1px,transparent_1px)] bg-[length:calc(100%/12)_100%]',
+                        otAPlacer ? 'cursor-cell' : '',
+                      ].join(' ')}
+                    >
                       {heures.map((h) => (
-                        <div
+                        <button
                           key={`g-${id}-${h}`}
-                          className="pointer-events-none absolute top-0 bottom-0 border-l border-line/40"
-                          style={{ left: `${((h - JOUR_PLANNING_DEBUT_H) / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%` }}
+                          type="button"
+                          disabled={!otAPlacer}
+                          title={otAPlacer ? `Placer à ${String(h).padStart(2, '0')}:00` : undefined}
+                          onClick={() => {
+                            if (otAPlacer) placerOtSurCreneau(id, h, iso)
+                          }}
+                          className={[
+                            'absolute top-0 bottom-0 border-l border-line/40',
+                            otAPlacer ? 'z-[5] hover:bg-teal-400/25' : 'pointer-events-none',
+                          ].join(' ')}
+                          style={{
+                            left: `${((h - JOUR_PLANNING_DEBUT_H) / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%`,
+                            width: `${(1 / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%`,
+                          }}
                         />
                       ))}
                       {timed.map((it) => renderBlock(it, id))}
-                      {timed.length === 0 ? (
+                      {timed.length === 0 && !otAPlacer ? (
                         <p className="pointer-events-none absolute inset-0 flex items-center px-3 text-[11px] text-muted">
-                          Rien de calé — planifiez depuis « OT sans créneau ».
+                          Libre — sélectionnez un OT ci-dessus puis cliquez une heure.
                         </p>
                       ) : null}
                     </div>
@@ -1097,6 +1184,7 @@ export function AgendaPage() {
     )
   }
 
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -1108,7 +1196,7 @@ export function AgendaPage() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Agenda</h1>
             <p className="mt-0.5 text-sm text-muted">
               {bureau
-                ? 'Vue jour : une ligne par tech sur la frise 7h–19h. Filtrez par région. OT sans heure = à caler.'
+                ? 'Vue jour : tous les techs sur la même journée (frise 7h–19h). Sélectionnez un OT puis cliquez une heure. Priorité : dépannage → installation → maintenance.'
                 : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
             </p>
           </div>
@@ -1200,11 +1288,11 @@ export function AgendaPage() {
             value={filterTechId}
             onChange={(e) => {
               setFilterTechId(e.target.value)
-              if (e.target.value !== 'tous') setView('semaine')
+              setView('jour')
             }}
             className="h-10 min-w-[12rem] rounded-xl border border-line bg-white px-3 text-sm font-semibold"
           >
-            <option value="tous">Tous les techs</option>
+            <option value="tous">Tous les techs (recommandé)</option>
             {team.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.fullName || t.email}
@@ -1266,71 +1354,57 @@ export function AgendaPage() {
       {otsSansPlanning.length > 0 && view !== 'rappels' ? (
         <section className="space-y-2 rounded-2xl border border-dashed border-line bg-white p-4">
           <h2 className="font-display text-lg font-semibold">
-            {bureau && filterTechId !== 'tous'
-              ? `Sans planning · semaine de ${nomTech(filterTechId)}`
-              : bureau
-                ? 'OT sans créneau — à affecter / caler'
-                : 'Mes OT sans planning'}
+            {bureau ? 'OT à poser sur la frise' : 'Mes OT sans planning'}
           </h2>
           <p className="text-xs text-muted">
             {bureau
-              ? 'OT ouverts sans heure. Choisissez le tech, le jour et l’heure.'
-              : 'OT affectés à vous, pas encore calés à une heure. Ils restent visibles ici.'}
+              ? 'Priorité : dépannage → installation → maintenance. Sélectionnez un OT, puis cliquez une heure sur la ligne du tech (vue Jour).'
+              : 'OT affectés à vous, pas encore calés à une heure.'}
           </p>
-          <ul className="space-y-2">
+          <div className="flex flex-wrap gap-2">
             {otsSansPlanning.map((ot) => {
               const col = couleurPlanning({
                 secteur: ot.secteur || posteOf(ot.technicienUserId),
                 technicienUserId: ot.technicienUserId,
               })
               const client = data.clients.find((c) => c.id === ot.clientId)
+              const selected = otAPlacerId === ot.id
+              const prio = prioriteTypeOt(ot.typeOt)
               return (
-                <li
+                <button
                   key={ot.id}
-                  className={`rounded-xl border p-3 ${col.border} ${col.bg}`}
+                  type="button"
+                  onClick={() => {
+                    if (!bureau) {
+                      navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
+                      return
+                    }
+                    setOtAPlacerId(selected ? null : ot.id)
+                    setView('jour')
+                    if (ot.date) setCursorDate(ot.date.slice(0, 10))
+                  }}
+                  className={`max-w-full rounded-xl border px-3 py-2 text-left transition ${col.border} ${col.bg} ${
+                    selected ? 'ring-2 ring-teal-600' : ''
+                  }`}
                 >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${col.badge}`}>
-                      OT
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${col.badge}`}>
+                      {prio === 0 ? '1·Dépannage' : prio === 1 ? '2·Install' : prio === 2 ? '3·Maint.' : TYPE_OT_LABELS[ot.typeOt] || 'OT'}
                     </span>
-                    <span className="text-sm font-bold">{formatOtNumero(ot.numero)}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm">{ot.action || TYPE_OT_LABELS[ot.typeOt]}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
-                      {labelTechsOt(ot, nomTech(ot.technicienUserId, ot.technicien))}
+                    <span className="text-xs font-extrabold text-ink">{formatOtNumero(ot.numero)}</span>
+                    <span className={`max-w-[14rem] truncate text-xs font-semibold ${col.text}`}>
+                      {ot.action || TYPE_OT_LABELS[ot.typeOt]}
                     </span>
-                    {labelSecteurCourt(ot.secteur) ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
-                        {labelSecteurCourt(ot.secteur)}
-                      </span>
-                    ) : null}
-                    {labelAgence(agenceOfOt(ot)) ? (
-                      <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-ink">
-                        {labelAgence(agenceOfOt(ot))}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted">
-                    {client?.raisonSociale || ''}
-                    {ot.date ? ` · date ${formatFr(ot.date)}` : ' · pas de date'}
-                  </p>
-                  {bureau ? (
-                    <OtPlanifierInline
-                      ot={ot}
-                      highlightAgence={agenceOfOt(ot)}
-                      onPlan={(patch) => planifierOt(ot, patch)}
-                    />
-                  ) : (
-                    <Link
-                      to={`/app/appel?ot=${encodeURIComponent(ot.id)}`}
-                      className="mt-2 inline-flex min-h-9 items-center rounded-full bg-[#0f766e] px-3 text-[11px] font-bold text-white"
-                    >
-                      Ouvrir
-                    </Link>
-                  )}
-                </li>
+                  </span>
+                  <span className="mt-0.5 block text-[10px] text-muted">
+                    {client?.raisonSociale || 'Client —'}
+                    {ot.date ? ` · ${formatFr(ot.date)}` : ''}
+                    {selected ? ' · cliquez une heure ↓' : bureau ? ' · cliquer pour poser' : ''}
+                  </span>
+                </button>
               )
             })}
-          </ul>
+          </div>
         </section>
       ) : null}
 
