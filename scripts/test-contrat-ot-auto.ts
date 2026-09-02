@@ -267,7 +267,12 @@ const visitesEq = visitesDepuisContrat(
 assert.equal(visitesEq.filter((v) => v.equipementId === 'eq-ch').length, 12)
 assert.equal(visitesEq.filter((v) => v.equipementId === 'eq-tab').length, 2)
 assert.ok(visitesEq.some((v) => v.equipementId === 'eq-tab' && v.sousTraitant))
-assert.ok(visitesEq.every((v) => v.contratOtKey.includes(v.equipementId || '')))
+assert.ok(visitesEq.every((v) => v.contratOtKey === `cm-ot:cm-eq:s1:${v.slotKey}`))
+assert.ok(
+  visitesEq
+    .filter((v) => v.equipementId)
+    .every((v) => v.contratOtKeyEquipement?.includes(v.equipementId || '')),
+)
 
 const draftsEq = buildOtDraftsDepuisContrats({
   contrats: [
@@ -285,12 +290,38 @@ const draftsEq = buildOtDraftsDepuisContrats({
   sites: eqSites,
   today: '2026-01-20',
 })
-const dCh = draftsEq.find((d) => d.equipementId === 'eq-ch')
-const dTab = draftsEq.find((d) => d.equipementId === 'eq-tab')
-assert.ok(dCh && dTab)
-assert.deepEqual(dCh.docsRequis, ['fiche_chaufferie'])
-assert.deepEqual(dTab.docsRequis, [], 'pas de fiche type → rapport OT')
-assert.equal(dTab.maintenanceParSousTraitant, true)
-assert.equal(dTab.origineOt, 'sous_traitance')
+assert.equal(draftsEq.length, 1, '1 OT regroupé pour 2 équipements même site / créneau')
+assert.deepEqual(draftsEq[0].equipementIds?.slice().sort(), ['eq-ch', 'eq-tab'])
+assert.ok(draftsEq[0].docsRequis.includes('fiche_chaufferie'))
+assert.equal(draftsEq[0].maintenanceParSousTraitant, true)
+assert.equal(draftsEq[0].origineOt, 'maintenance_contrat', 'mixte ST / interne')
+assert.match(draftsEq[0].action, /2 équipements/i)
+assert.equal(draftsEq[0].contratOtKey, 'cm-ot:cm-eq:s1:2026-12')
+
+const draftsAllSt = buildOtDraftsDepuisContrats({
+  contrats: [
+    contrat({
+      id: 'cm-st',
+      chantierIds: ['s1'],
+      lignesEquipements: [
+        { siteId: 's1', equipementId: 'eq-ch', visitesParAn: 1, sousTraitant: true },
+        { siteId: 's1', equipementId: 'eq-tab', visitesParAn: 1, sousTraitant: true },
+      ],
+    }),
+  ],
+  sites: eqSites,
+  today: '2026-01-20',
+})
+assert.equal(draftsAllSt[0].origineOt, 'sous_traitance', 'tous sous-traités → ST')
+
+const { toAdd: addAfterSplit, skipped: skipAfterSplit } = mergeOtsDepuisContrats(
+  [
+    { contratOtKey: 'cm-ot:cm-eq:s1:eq-ch:2026-12' },
+    { contratOtKey: 'cm-ot:cm-eq:s1:eq-tab:2026-12' },
+  ],
+  draftsEq,
+)
+assert.equal(addAfterSplit.length, 0, 'OT scindés couvrent le créneau site → pas de doublon')
+assert.equal(skipAfterSplit, 1)
 
 console.log('ok test-contrat-ot-auto')

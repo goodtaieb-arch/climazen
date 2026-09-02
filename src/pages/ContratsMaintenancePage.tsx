@@ -417,8 +417,9 @@ export function ContratsMaintenancePage() {
                 <span>
                   <span className="font-semibold text-ink">Créer les OT automatiquement</span>
                   <span className="mt-0.5 block text-xs text-muted">
-                    Dès la signature : un OT par visite / équipement, sans heure (à caler
-                    dans l’agenda). Date déplaçable (urgence ou visite partielle).
+                    Dès la signature : un OT par visite / site (tous les équipements du même
+                    site regroupés), sans heure (à caler dans l’agenda). Vous pouvez scinder
+                    par équipement ensuite. Date déplaçable (urgence ou visite partielle).
                   </span>
                 </span>
               </label>
@@ -885,10 +886,13 @@ function CalendrierVisitesPreview({
       ) : (
         <ul className="mt-2 max-h-56 space-y-1 overflow-auto text-xs">
           {visites.slice(0, 24).map((v) => {
-            const ot = byKey.get(v.contratOtKey)
+            const ot =
+              (v.contratOtKeyEquipement && byKey.get(v.contratOtKeyEquipement)) ||
+              byKey.get(v.contratOtKey) ||
+              null
             return (
               <li
-                key={v.contratOtKey}
+                key={v.contratOtKeyEquipement || `${v.contratOtKey}:${v.equipementId || ''}`}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2 py-1.5"
               >
                 <span>
