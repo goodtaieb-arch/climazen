@@ -65,8 +65,10 @@ import type { AgendaEvent } from './agenda'
 import {
   parsePointageEvents,
   parsePointageRegles,
+  parsePointageBureauJours,
   type PointageEvent,
   type PointageRegles,
+  type PointageBureauJour,
 } from './pointage'
 import { buildAutoAgendaEvents } from './agenda'
 import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats } from './contratOtAuto'
@@ -192,6 +194,9 @@ type Store = {
     e: Omit<import('./pointage').PointageEvent, 'id' | 'createdAt'> & { id?: string },
   ) => string
   annulerPointageEvent: (id: string, motif?: string) => void
+  upsertPointageBureauJour: (
+    j: Omit<PointageBureauJour, 'id' | 'updatedAt'> & { id?: string },
+  ) => string
   /** Synchronise les rappels + OT de maintenance depuis les contrats signés. */
   syncAgendaFromSources: () => number
   /** Crée les OT manquants des contrats signés (sans dupliquer un créneau déjà déplacé). */
@@ -1528,6 +1533,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ),
     }))
   }, [])
+
+  const upsertPointageBureauJour = useCallback(
+    (j: Omit<PointageBureauJour, 'id' | 'updatedAt'> & { id?: string }) => {
+      const now = new Date().toISOString()
+      const date = j.date.slice(0, 10)
+      const id = j.id ?? uuid()
+      const next: PointageBureauJour = {
+        id,
+        userId: j.userId,
+        userName: j.userName,
+        date,
+        heureDebut: j.heureDebut,
+        heureFin: j.heureFin,
+        heurePauseDebut: j.heurePauseDebut,
+        heurePauseFin: j.heurePauseFin,
+        note: j.note,
+        updatedAt: now,
+      }
+      setData((d) => {
+        const list = parsePointageBureauJours(d.pointageBureauJours)
+        const idx = list.findIndex((x) => x.userId === j.userId && x.date === date)
+        const merged =
+          idx >= 0
+            ? list.map((x, i) => (i === idx ? { ...next, id: x.id } : x))
+            : [...list, next]
+        return { ...d, pointageBureauJours: merged }
+      })
+      return id
+    },
+    [],
+  )
 
   const applyOtsDepuisContrats = useCallback((prev: AppData) => {
     const drafts = buildOtDraftsDepuisContrats({
@@ -2901,6 +2937,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,
+      upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
       createOtForAction,
@@ -2977,6 +3014,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,
+      upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
       createOtForAction,

@@ -4,22 +4,27 @@ import { Clock, Download, ShieldCheck } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { isBureauUi } from '../lib/uiMode'
+import { dossierForUser } from '../lib/rhDocuments'
 import { PointageOtPanel } from '../components/PointageOtPanel'
+import { PointageBureauPanel } from '../components/PointageBureauPanel'
 import {
   POINTAGE_ACTION_LABELS,
   POINTAGE_CNIL_NOTICE,
   POINTAGE_SEGMENT_LABELS,
   blankPointageRegles,
-  calculerJournee,
+  calculerJourneePourUser,
   datesSemaine,
+  exportBureauJoursCsv,
   exportEvenementsCsv,
   exportJourneesCsv,
   formatHeureIso,
   formatMinutesHhMm,
   motifsReglesIncompletes,
+  parsePointageBureauJours,
   parsePointageEvents,
   parsePointageRegles,
   pointageEstActif,
+  pointageModePourUser,
   pointageReglesCompletes,
   preparerActivation,
   telechargerCsv,
@@ -31,8 +36,18 @@ export function PointagePage() {
   const { user, isOwner } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const events = useMemo(() => parsePointageEvents(data.pointageEvents), [data.pointageEvents])
+  const bureauJours = useMemo(
+    () => parsePointageBureauJours(data.pointageBureauJours),
+    [data.pointageBureauJours],
+  )
   const regles = useMemo(() => parsePointageRegles(data.pointageRegles), [data.pointageRegles])
   const actif = pointageEstActif(regles)
+  const dossier = dossierForUser(data.personnelDossiers, user?.id)
+  const mode = pointageModePourUser({
+    poste: dossier?.poste,
+    isOwner: Boolean(isOwner),
+    peutVoirIdentitesRh,
+  })
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -43,8 +58,9 @@ export function PointagePage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Pointeuse</h1>
           <p className="text-sm text-muted">
-            Liée à l’OT — déplacement, intervention, fournisseur, bureau. Heures calculées
-            automatiquement.
+            {mode === 'bureau'
+              ? 'Personnel bureau — heure de début, de fin et pause.'
+              : 'Technicien terrain — pointage lié à l’OT (déplacement, intervention…). Heures calculées automatiquement.'}
           </p>
         </div>
       </div>
@@ -62,22 +78,36 @@ export function PointagePage() {
       {!actif ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
           {bureau
-            ? 'Paramétrez les règles ci-dessus puis activez. Ensuite le tech pointe depuis son OT.'
+            ? 'Paramétrez les règles ci-dessus puis activez. Ensuite chaque employé pointe selon son poste.'
             : 'La pointeuse n’est pas encore activée. Demandez au bureau les règles d’heures.'}
         </div>
       ) : (
         <>
-          <PointageOtPanel />
-          {user?.id ? <MaJourneeDetail events={events} userId={user.id} regles={regles} /> : null}
+          {mode === 'bureau' ? <PointageBureauPanel /> : <PointageOtPanel />}
+          {user?.id ? (
+            <MaJourneeDetail
+              events={events}
+              bureauJours={bureauJours}
+              userId={user.id}
+              regles={regles}
+              mode={mode}
+            />
+          ) : null}
         </>
       )}
 
       {bureau && actif ? (
         <BureauExport
           events={events}
+          bureauJours={bureauJours}
           regles={regles}
-          teamIds={[...new Set(events.map((e) => e.userId))]}
-          nomOf={(id) => events.find((e) => e.userId === id)?.userName || id}
+          dossiers={data.personnelDossiers || []}
+          teamIds={[...new Set([...events.map((e) => e.userId), ...bureauJours.map((j) => j.userId)])]}
+          nomOf={(id) =>
+            events.find((e) => e.userId === id)?.userName ||
+            bureauJours.find((j) => j.userId === id)?.userName ||
+            id
+          }
           onAnnuler={annulerPointageEvent}
         />
       ) : null}
@@ -87,30 +117,48 @@ export function PointagePage() {
 
 function MaJourneeDetail({
   events,
+  bureauJours,
   userId,
   regles,
+  mode,
 }: {
   events: ReturnType<typeof parsePointageEvents>
+  bureauJours: ReturnType<typeof parsePointageBureauJours>
   userId: string
   regles: PointageRegles
+  mode: ReturnType<typeof pointageModePourUser>
 }) {
   const today = new Date().toISOString().slice(0, 10)
-  const maJournee = calculerJournee({ events, userId, date: today, regles })
-  if (!maJournee.segments.length) return null
+  const maJournee = calculerJourneePourUser({
+    mode,
+    events,
+    bureauJours,
+    userId,
+    date: today,
+    regles,
+  })
+  if (!maJournee.segments.length && maJournee.payeMin <= 0) return null
   return (
     <section className="space-y-2 rounded-2xl border border-line bg-white p-4">
       <h2 className="font-display text-lg font-semibold">Créneaux du jour</h2>
-      <ul className="space-y-1.5 text-sm">
-        {maJournee.segments.map((s, i) => (
-          <li key={`${s.from}-${i}`} className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              {POINTAGE_SEGMENT_LABELS[s.kind]} · {formatHeureIso(s.from)} → {formatHeureIso(s.to)}
-              {s.otId ? ` · OT ${s.otId.slice(0, 8)}…` : ''}
-            </span>
-            <span className="font-bold">{formatMinutesHhMm(s.minutes)}</span>
-          </li>
-        ))}
-      </ul>
+      {mode === 'bureau' ? (
+        <p className="text-sm text-muted">
+          Début, fin et pause enregistrés — {formatMinutesHhMm(maJournee.payeMin)} payé
+          {maJournee.pauseMin > 0 ? ` (${formatMinutesHhMm(maJournee.pauseMin)} de pause)` : ''}
+        </p>
+      ) : (
+        <ul className="space-y-1.5 text-sm">
+          {maJournee.segments.map((s, i) => (
+            <li key={`${s.from}-${i}`} className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {POINTAGE_SEGMENT_LABELS[s.kind]} · {formatHeureIso(s.from)} → {formatHeureIso(s.to)}
+                {s.otId ? ` · OT ${s.otId.slice(0, 8)}…` : ''}
+              </span>
+              <span className="font-bold">{formatMinutesHhMm(s.minutes)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
@@ -157,7 +205,8 @@ function ReglesBloc({
     >
       <h2 className="font-display text-lg font-semibold">Règles de calcul d’heures</h2>
       <p className="text-xs text-muted">
-        Le technicien ne saisit que des actions. Le temps entre deux actions compte pour la paie.
+        Bureau : saisie début / fin / pause. Terrain : actions OT — le temps se calcule entre
+        chaque action.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
@@ -211,13 +260,17 @@ function ReglesBloc({
 
 function BureauExport({
   events,
+  bureauJours,
   regles,
+  dossiers,
   teamIds,
   nomOf,
   onAnnuler,
 }: {
   events: ReturnType<typeof parsePointageEvents>
+  bureauJours: ReturnType<typeof parsePointageBureauJours>
   regles: PointageRegles
+  dossiers: import('../lib/rhDocuments').PersonnelDossier[]
   teamIds: string[]
   nomOf: (id: string) => string
   onAnnuler: (id: string, motif?: string) => void
@@ -227,10 +280,29 @@ function BureauExport({
   const semaine = datesSemaine(jour)
   const users = filterUserId ? [filterUserId] : teamIds
   const jours = users
-    .flatMap((uid) => semaine.map((d) => calculerJournee({ events, userId: uid, date: d, regles })))
+    .flatMap((uid) => {
+      const mode = pointageModePourUser({
+        poste: dossierForUser(dossiers, uid)?.poste,
+        isOwner: false,
+        peutVoirIdentitesRh: true,
+      })
+      return semaine.map((d) =>
+        calculerJourneePourUser({
+          mode,
+          events,
+          bureauJours,
+          userId: uid,
+          date: d,
+          regles,
+        }),
+      )
+    })
     .filter((j) => j.payeMin > 0 || j.ouvert || j.segments.length > 0)
   const evJour = events.filter(
     (e) => e.date === jour && (!filterUserId || e.userId === filterUserId),
+  )
+  const bjJour = bureauJours.filter(
+    (j) => j.date === jour && (!filterUserId || j.userId === filterUserId),
   )
 
   return (
@@ -275,9 +347,31 @@ function BureauExport({
           }
           className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-line px-3 text-xs font-bold"
         >
-          <Download className="h-3.5 w-3.5" /> Export horodatages
+          <Download className="h-3.5 w-3.5" /> Export horodatages terrain
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            telechargerCsv(`pointage-bureau-${jour}.csv`, exportBureauJoursCsv(bjJour))
+          }
+          className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-line px-3 text-xs font-bold"
+        >
+          <Download className="h-3.5 w-3.5" /> Export saisies bureau
         </button>
       </div>
+      {bjJour.length > 0 ? (
+        <ul className="space-y-1.5 text-sm">
+          {bjJour.map((j) => (
+            <li key={j.id}>
+              {j.userName} · {j.heureDebut}
+              {j.heureFin ? ` → ${j.heureFin}` : ' · en cours'}
+              {j.heurePauseDebut && j.heurePauseFin
+                ? ` · pause ${j.heurePauseDebut}-${j.heurePauseFin}`
+                : ''}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <ul className="space-y-1.5 text-sm">
         {evJour.map((e) => (
           <li key={e.id} className="flex justify-between gap-2">

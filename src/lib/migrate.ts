@@ -18,7 +18,7 @@ import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { purgeOrphanCerfaStock } from './stockMouvements'
 import { migratePersonnelDossiers, normalizePersonnelRhAccesUserIds, normalizePersonnelRetiresUserIds } from './rhDocuments'
-import { parsePointageEvents, parsePointageRegles } from './pointage'
+import { parsePointageEvents, parsePointageRegles, parsePointageBureauJours } from './pointage'
 import { resolveAppEdition } from './appEdition'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
@@ -299,6 +299,7 @@ export function migrateAppData(data: AppData): AppData {
       ? parsePointageRegles(data.pointageRegles)
       : undefined,
     pointageEvents: parsePointageEvents(data.pointageEvents),
+    pointageBureauJours: parsePointageBureauJours(data.pointageBureauJours),
     personnelDossiers: migratePersonnelDossiers(data.personnelDossiers),
     personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(data.personnelRhAccesUserIds),
     personnelRetiresUserIds: normalizePersonnelRetiresUserIds(data.personnelRetiresUserIds),

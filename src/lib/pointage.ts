@@ -4,6 +4,7 @@
  */
 
 import { todayIsoLocal } from './agenda'
+import { isPosteBureau, isPosteTerrain } from './postePersonnel'
 
 /** Actions métier (2026+) — liées à l’OT quand pertinent. */
 export const POINTAGE_ACTIONS = [
@@ -781,4 +782,207 @@ export function otsPointablesPourTech(
       return !ids.length || ids.includes(userId)
     })
     .map((o) => o.id)
+}
+
+/** Pointage bureau (saisie début / fin / pause) vs terrain (actions OT). */
+export type PointageMode = 'bureau' | 'terrain'
+
+export type PointageBureauJour = {
+  id: string
+  userId: string
+  userName: string
+  date: string
+  /** HH:MM — arrivée au bureau. */
+  heureDebut: string
+  /** HH:MM — départ (vide = journée encore ouverte). */
+  heureFin?: string
+  /** HH:MM — début de la pause. */
+  heurePauseDebut?: string
+  /** HH:MM — fin de la pause. */
+  heurePauseFin?: string
+  note?: string
+  updatedAt: string
+}
+
+export function hmVersIsoLocal(date: string, hm: string): string {
+  const d = date.slice(0, 10)
+  const t = parseHeureHm(hm, '00:00')
+  return `${d}T${t}:00`
+}
+
+export function parsePointageBureauJours(raw: unknown): PointageBureauJour[] {
+  if (!Array.isArray(raw)) return []
+  const out: PointageBureauJour[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const j = item as Partial<PointageBureauJour>
+    const id = String(j.id || '').trim()
+    const userId = String(j.userId || '').trim()
+    const date = String(j.date || '').slice(0, 10)
+    const heureDebut = parseHeureHm(j.heureDebut, '')
+    if (!id || !userId || !date || !heureDebut) continue
+    out.push({
+      id,
+      userId,
+      userName: String(j.userName || '').trim() || 'Employé',
+      date,
+      heureDebut,
+      heureFin: j.heureFin ? parseHeureHm(j.heureFin, '') : undefined,
+      heurePauseDebut: j.heurePauseDebut ? parseHeureHm(j.heurePauseDebut, '') : undefined,
+      heurePauseFin: j.heurePauseFin ? parseHeureHm(j.heurePauseFin, '') : undefined,
+      note: j.note ? String(j.note) : undefined,
+      updatedAt: j.updatedAt || new Date().toISOString(),
+    })
+  }
+  return out
+}
+
+export function bureauJourDu(
+  jours: PointageBureauJour[],
+  opts: { userId: string; date: string },
+): PointageBureauJour | undefined {
+  const date = opts.date.slice(0, 10)
+  return jours.find((j) => j.userId === opts.userId && j.date === date)
+}
+
+/** Secrétaire, comptable… : saisie horaire classique. Tech terrain : actions OT. */
+export function pointageModePourUser(opts: {
+  poste?: unknown
+  isOwner?: boolean
+  peutVoirIdentitesRh?: boolean
+}): PointageMode {
+  if (opts.poste) {
+    if (isPosteBureau(opts.poste)) return 'bureau'
+    if (isPosteTerrain(opts.poste)) return 'terrain'
+  }
+  if (opts.isOwner || opts.peutVoirIdentitesRh) return 'bureau'
+  return 'terrain'
+}
+
+export function calculerJourneeBureau(
+  j: PointageBureauJour,
+  regles?: PointageRegles | null,
+  now?: string,
+): JourneePointage {
+  const r = parsePointageRegles(regles)
+  const debutIso = hmVersIsoLocal(j.date, j.heureDebut)
+  const finIso = j.heureFin
+    ? hmVersIsoLocal(j.date, j.heureFin)
+    : now || new Date().toISOString()
+  const ouvert = !j.heureFin
+
+  let pauseMin = 0
+  if (j.heurePauseDebut && j.heurePauseFin) {
+    pauseMin = minutesEntre(
+      hmVersIsoLocal(j.date, j.heurePauseDebut),
+      hmVersIsoLocal(j.date, j.heurePauseFin),
+    )
+  }
+
+  const brutMin = minutesEntre(debutIso, finIso)
+  const travailMin = Math.max(0, brutMin - pauseMin)
+  const payeMin = Math.max(
+    0,
+    r.pauseNonPayee ? travailMin : travailMin + pauseMin,
+  )
+  const quota = Math.round(r.heuresJour * 60)
+  const segments: PointageSegment[] = []
+  if (travailMin > 0) {
+    segments.push({
+      kind: 'bureau',
+      from: debutIso,
+      to: finIso,
+      minutes: travailMin,
+    })
+  }
+
+  return {
+    date: j.date,
+    userId: j.userId,
+    userName: j.userName,
+    deplacementMin: 0,
+    interventionMin: 0,
+    fournisseurMin: 0,
+    bureauMin: travailMin,
+    pauseMin,
+    trajetMin: 0,
+    chantierMin: 0,
+    vehiculeMin: 0,
+    retourMin: 0,
+    pauseAutoMin: 0,
+    payeMin,
+    heuresJour: r.heuresJour,
+    heuresSupMin: Math.max(0, payeMin - quota),
+    ouvert,
+    segments,
+  }
+}
+
+export function calculerJourneePourUser(opts: {
+  mode: PointageMode
+  events: PointageEvent[]
+  bureauJours: PointageBureauJour[]
+  userId: string
+  date: string
+  regles?: PointageRegles | null
+  now?: string
+}): JourneePointage {
+  if (opts.mode === 'bureau') {
+    const bj = bureauJourDu(opts.bureauJours, { userId: opts.userId, date: opts.date })
+    if (bj) return calculerJourneeBureau(bj, opts.regles, opts.now)
+    return {
+      date: opts.date.slice(0, 10),
+      userId: opts.userId,
+      userName: '',
+      deplacementMin: 0,
+      interventionMin: 0,
+      fournisseurMin: 0,
+      bureauMin: 0,
+      pauseMin: 0,
+      trajetMin: 0,
+      chantierMin: 0,
+      vehiculeMin: 0,
+      retourMin: 0,
+      pauseAutoMin: 0,
+      payeMin: 0,
+      heuresJour: parsePointageRegles(opts.regles).heuresJour,
+      heuresSupMin: 0,
+      ouvert: false,
+      segments: [],
+    }
+  }
+  return calculerJournee({
+    events: opts.events,
+    userId: opts.userId,
+    date: opts.date,
+    regles: opts.regles,
+    now: opts.now,
+  })
+}
+
+export function exportBureauJoursCsv(jours: PointageBureauJour[]): string {
+  const header = [
+    'Date',
+    'Employé',
+    'Heure début',
+    'Heure fin',
+    'Pause début',
+    'Pause fin',
+    'Note',
+  ]
+  const lines = [header.join(';')]
+  for (const j of jours) {
+    lines.push(
+      [
+        j.date,
+        csvEscape(j.userName),
+        j.heureDebut,
+        j.heureFin || '',
+        j.heurePauseDebut || '',
+        j.heurePauseFin || '',
+        csvEscape(j.note || ''),
+      ].join(';'),
+    )
+  }
+  return `${lines.join('\n')}\n`
 }

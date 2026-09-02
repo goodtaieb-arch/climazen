@@ -771,6 +771,8 @@ export interface AppData {
   pointageRegles?: import('./pointage').PointageRegles
   /** Horodatages ponctuels (pas de tracking GPS continu). */
   pointageEvents?: import('./pointage').PointageEvent[]
+  /** Saisie horaire bureau (début / fin / pause) — personnel non terrain. */
+  pointageBureauJours?: import('./pointage').PointageBureauJour[]
   /**
    * Dossiers RH des techniciens (CNI, permis, aptitude froid, habilitation…)
    * avec dates d’expiration — coffre société.

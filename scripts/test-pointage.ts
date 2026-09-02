@@ -6,6 +6,7 @@ import {
   arrondirDate,
   blankPointageRegles,
   calculerJournee,
+  calculerJourneeBureau,
   calculerSemaine,
   csvEscape,
   exportJourneesCsv,
@@ -15,6 +16,7 @@ import {
   motifsReglesIncompletes,
   normaliserAction,
   parsePointageRegles,
+  pointageModePourUser,
   peutActiverPointage,
   pointageEstActif,
   pointageReglesCompletes,
@@ -173,5 +175,29 @@ const sem = calculerSemaine({
 })
 assert.equal(sem.jours.length, 7)
 assert.equal(sem.payeMin, jour.payeMin)
+
+assert.equal(pointageModePourUser({ poste: 'secretaire' }), 'bureau')
+assert.equal(pointageModePourUser({ poste: 'tech_cvc' }), 'terrain')
+assert.equal(pointageModePourUser({ peutVoirIdentitesRh: true }), 'bureau')
+assert.equal(pointageModePourUser({}), 'terrain')
+
+const bureauJour = calculerJourneeBureau(
+  {
+    id: 'b1',
+    userId: 's1',
+    userName: 'Alice',
+    date: '2026-09-02',
+    heureDebut: '08:00',
+    heureFin: '17:00',
+    heurePauseDebut: '12:00',
+    heurePauseFin: '13:00',
+    updatedAt: '2026-09-02T17:00:00.000Z',
+  },
+  pretes,
+)
+assert.equal(bureauJour.bureauMin, 8 * 60)
+assert.equal(bureauJour.pauseMin, 60)
+assert.equal(bureauJour.payeMin, 8 * 60)
+assert.equal(bureauJour.deplacementMin, 0)
 
 console.log('test-pointage: ok')
