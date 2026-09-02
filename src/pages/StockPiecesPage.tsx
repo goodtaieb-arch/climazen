@@ -1,10 +1,11 @@
 import { type FormEvent, useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import {
   ArrowDownCircle,
   ArrowUpCircle,
   Boxes,
   ClipboardList,
+  FileText,
   Pencil,
   Plus,
   Star,
@@ -40,6 +41,11 @@ import {
   type PieceEmplacement,
   type PieceMouvementKind,
 } from '../lib/piecesDetachees'
+import {
+  buildMemoirePieces,
+  queryDemandeDevisStock,
+  type PieceMemoireItem,
+} from '../lib/piecesFrequentes'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 
 type FiltreEmplacement = 'tous' | PieceEmplacement
@@ -57,6 +63,7 @@ export function StockPiecesPage() {
     marquerCommandeRecue,
   } = useStore()
   const { user, isOwner } = useAuth()
+  const navigate = useNavigate()
 
   const [q, setQ] = useState('')
   const [filtreCat, setFiltreCat] = useState<FiltreCategorie>('toutes')
@@ -110,10 +117,53 @@ export function StockPiecesPage() {
   const commandesAttente = useMemo(
     () =>
       (data.commandesFournisseur || []).filter(
-        (c) => c.statut === 'commandee' || c.statut === 'brouillon',
+        (c) => c.statut === 'commandee',
       ),
     [data.commandesFournisseur],
   )
+
+  const demandesDevisStock = useMemo(
+    () =>
+      (data.commandesFournisseur || []).filter(
+        (c) =>
+          (c.destination === 'stock' || !c.otId) &&
+          (c.statut === 'demande_devis' || c.statut === 'brouillon'),
+      ),
+    [data.commandesFournisseur],
+  )
+
+  const memoire = useMemo(
+    () =>
+      buildMemoirePieces({
+        pieces,
+        commandes: data.commandesFournisseur,
+        limit: 16,
+      }),
+    [pieces, data.commandesFournisseur],
+  )
+
+  const ajouterSeedAuCatalogue = (item: PieceMemoireItem) => {
+    if (!peutGererPiecesDetachees) return
+    upsertPieceDetachee({
+      ...blankPiece(),
+      reference: item.reference,
+      designation: item.designation,
+      categorie: item.categorie || 'consommable',
+      unite: item.unite || 'u',
+      seuilAlerte: item.seuilAlerte,
+      fournisseur: item.fournisseur || '',
+      favori: true,
+      quantite: 0,
+      emplacement: 'atelier',
+    })
+    setMsg(`${item.designation} ajouté au catalogue (favori).`)
+    setTimeout(() => setMsg(''), 2500)
+  }
+
+  const toggleFavori = (p: PieceDetachee) => {
+    if (!peutGererPiecesDetachees) return
+    upsertPieceDetachee({ ...p, favori: !p.favori })
+  }
 
   const filtered = useMemo(() => {
     return pieces.filter((p) => {
@@ -185,6 +235,7 @@ export function StockPiecesPage() {
       assigneeName: p.assigneeName,
       codeBarres: p.codeBarres || '',
       notes: p.notes || '',
+      favori: Boolean(p.favori),
     })
     setOpen(true)
   }
@@ -269,7 +320,12 @@ export function StockPiecesPage() {
               onClick={() => setDetailId(openDetail ? null : p.id)}
               className="text-left"
             >
-              <div className="font-semibold text-ink">{pieceLabel(p)}</div>
+              <div className="font-semibold text-ink">
+                {p.favori ? (
+                  <Star className="mr-1 inline h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                ) : null}
+                {pieceLabel(p)}
+              </div>
               <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-muted">
                 <span>
                   {p.quantite} {p.unite}
@@ -292,6 +348,49 @@ export function StockPiecesPage() {
             ) : null}
           </div>
           <div className="flex flex-wrap gap-1">
+            {peutGererPiecesDetachees && editionHasFeature(appEdition, 'chaine_commerciale') ? (
+              <button
+                type="button"
+                title="Demande de devis fournisseur (entrée stock)"
+                onClick={() =>
+                  navigate(
+                    queryDemandeDevisStock({
+                      reference: p.reference,
+                      designation: p.designation,
+                      quantite: Math.max(1, (p.seuilAlerte || 1) * 2 - (p.quantite || 0)),
+                      unite: p.unite,
+                      categorie: p.categorie,
+                      fournisseur: p.fournisseur,
+                      seuilAlerte: p.seuilAlerte,
+                      pieceId: p.id,
+                    }),
+                  )
+                }
+                className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-[10px] font-bold text-teal-900 hover:bg-teal-100"
+              >
+                <FileText className="h-3.5 w-3.5" /> Devis
+              </button>
+            ) : null}
+            {peutGererPiecesDetachees ? (
+              <button
+                type="button"
+                title={p.favori ? 'Retirer des fréquents' : 'Mémoriser (fréquent)'}
+                onClick={() => toggleFavori(p)}
+                className={[
+                  'rounded-lg border p-2',
+                  p.favori
+                    ? 'border-amber-300 bg-amber-50 hover:bg-amber-100'
+                    : 'border-line hover:bg-mist',
+                ].join(' ')}
+              >
+                <Star
+                  className={[
+                    'h-4 w-4',
+                    p.favori ? 'fill-amber-400 text-amber-500' : 'text-muted',
+                  ].join(' ')}
+                />
+              </button>
+            ) : null}
             <button
               type="button"
               title="Entrée"
@@ -449,6 +548,109 @@ export function StockPiecesPage() {
         </div>
       </div>
 
+      {demandesDevisStock.length > 0 && peutGererPiecesDetachees ? (
+        <section className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
+          <h2 className="flex items-center gap-2 font-display text-base font-semibold text-teal-950">
+            <FileText className="h-4 w-4" />
+            Demandes de devis fournisseur (réappro stock)
+          </h2>
+          <ul className="mt-3 space-y-2">
+            {demandesDevisStock.map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold">{c.numero}</span>
+                  <span className="text-muted"> · {c.libelle}</span>
+                  {c.referencePiece ? (
+                    <span className="block text-xs text-muted">Réf. {c.referencePiece}</span>
+                  ) : null}
+                  <span className="text-xs text-muted">
+                    {STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut]}
+                    {c.fournisseur ? ` · ${c.fournisseur}` : ''}
+                  </span>
+                </div>
+                <Link
+                  to={`/app/commandes?id=${encodeURIComponent(c.id)}`}
+                  className="shrink-0 rounded-full border border-teal-300 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-950"
+                >
+                  Ouvrir / commander
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {peutGererPiecesDetachees ? (
+        <section className="rounded-2xl border border-line bg-white p-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-base font-semibold">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
+                Mémoire pièces fréquentes
+              </h2>
+              <p className="mt-0.5 text-xs text-muted">
+                Gants, brasure, désinfectant… Favoris + historique commandes. Demandez un devis
+                fournisseur pour réapprovisionner le stock.
+              </p>
+            </div>
+            {editionHasFeature(appEdition, 'chaine_commerciale') ? (
+              <Link
+                to="/app/commandes?new=1&dest=stock&statut=demande_devis"
+                className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-ink"
+              >
+                <Plus className="h-3.5 w-3.5" /> Demande de devis stock
+              </Link>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {memoire.map((item) => (
+              <div
+                key={item.key}
+                className="flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-line bg-mist/40 px-2 py-1.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editionHasFeature(appEdition, 'chaine_commerciale')) {
+                      navigate(queryDemandeDevisStock(item))
+                    }
+                  }}
+                  className="min-w-0 text-left text-xs font-semibold text-ink hover:underline"
+                  title="Demande de devis fournisseur"
+                >
+                  {item.favori ? '★ ' : ''}
+                  {item.designation}
+                  {item.foisCommandee > 0 ? (
+                    <span className="ml-1 font-normal text-muted">×{item.foisCommandee}</span>
+                  ) : null}
+                </button>
+                {!item.pieceId && item.fromSeed ? (
+                  <button
+                    type="button"
+                    onClick={() => ajouterSeedAuCatalogue(item)}
+                    className="rounded-full border border-line bg-white px-2 py-0.5 text-[10px] font-bold text-muted hover:text-ink"
+                  >
+                    + Catalogue
+                  </button>
+                ) : null}
+                {editionHasFeature(appEdition, 'chaine_commerciale') ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(queryDemandeDevisStock(item))}
+                    className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-900"
+                  >
+                    Devis
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {commandesAttente.length > 0 && peutGererPiecesDetachees ? (
         <section className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
           <h2 className="flex items-center gap-2 font-display text-base font-semibold text-indigo-950">
@@ -564,11 +766,37 @@ export function StockPiecesPage() {
             {pieces.filter(pieceStockBas).map((p) => (
               <li
                 key={p.id}
-                className="rounded-full border border-amber-200 bg-white px-2.5 py-1 font-medium text-amber-950"
+                className="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-amber-200 bg-white px-2.5 py-1 font-medium text-amber-950"
               >
-                {pieceLabel(p)} · {p.quantite}/{p.seuilAlerte} {p.unite} ·{' '}
-                {PIECE_EMPLACEMENT_LABELS[p.emplacement]}
-                {p.assigneeName ? ` · ${p.assigneeName}` : ''}
+                <span>
+                  {pieceLabel(p)} · {p.quantite}/{p.seuilAlerte} {p.unite}
+                </span>
+                {peutGererPiecesDetachees &&
+                editionHasFeature(appEdition, 'chaine_commerciale') ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        queryDemandeDevisStock({
+                          reference: p.reference,
+                          designation: p.designation,
+                          quantite: Math.max(
+                            1,
+                            (Number(p.seuilAlerte) || 1) * 2 - (Number(p.quantite) || 0),
+                          ),
+                          unite: p.unite,
+                          categorie: p.categorie,
+                          fournisseur: p.fournisseur,
+                          seuilAlerte: p.seuilAlerte,
+                          pieceId: p.id,
+                        }),
+                      )
+                    }
+                    className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-950 hover:bg-amber-200"
+                  >
+                    Devis
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -669,6 +897,15 @@ export function StockPiecesPage() {
                   }))
                 }
               />
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.favori)}
+                  onChange={(e) => setForm((f) => ({ ...f, favori: e.target.checked }))}
+                />
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                <span className="font-semibold">Pièce fréquente (mémoire magasin)</span>
+              </label>
               <Field
                 label="Prix unitaire HT €"
                 value={form.prixUnitaireHt != null ? String(form.prixUnitaireHt) : ''}

@@ -91,9 +91,15 @@ export type Devis = {
   updatedAt: string
 }
 
-export type StatutCommandeFournisseur = 'brouillon' | 'commandee' | 'recue' | 'annulee'
+export type StatutCommandeFournisseur =
+  | 'demande_devis'
+  | 'brouillon'
+  | 'commandee'
+  | 'recue'
+  | 'annulee'
 
 export const STATUT_COMMANDE_FOURNISSEUR_LABELS: Record<StatutCommandeFournisseur, string> = {
+  demande_devis: 'Demande de devis',
   brouillon: 'Brouillon',
   commandee: 'Commandée',
   recue: 'Reçue en stock',

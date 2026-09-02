@@ -82,6 +82,8 @@ export interface PieceDetachee {
   notes?: string
   /** Dernière commande fournisseur liée */
   commandeFournisseurId?: string
+  /** Mémoire magasin — pièce à commander souvent (gants, brasure…). */
+  favori?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -137,6 +139,7 @@ export function blankPiece(): Omit<PieceDetachee, 'id' | 'createdAt' | 'updatedA
     assigneeName: undefined,
     codeBarres: '',
     notes: '',
+    favori: false,
   }
 }
 
