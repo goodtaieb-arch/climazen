@@ -117,6 +117,10 @@ export function fileNameCommande(cmd: Pick<CommandeFournisseur, 'numero' | 'id'>
   return `commande-${(cmd.numero || cmd.id).replace(/\s+/g, '')}.pdf`
 }
 
+export function fileNameDemandeDevisFournisseur(cmd: Pick<CommandeFournisseur, 'numero' | 'id'>) {
+  return `demande-devis-${(cmd.numero || cmd.id).replace(/\s+/g, '')}.pdf`
+}
+
 export type DevisPdfContext = {
   company: CommercialPdfCompany
   clientNom?: string
@@ -250,9 +254,21 @@ export type CommandePdfContext = {
   otNumero?: string
 }
 
-export function buildCommandePdf(cmd: CommandeFournisseur, ctx: CommandePdfContext): Blob {
+export function buildCommandePdf(
+  cmd: CommandeFournisseur,
+  ctx: CommandePdfContext,
+  opts?: { mode?: 'commande' | 'demande_devis' },
+): Blob {
+  const isDevis =
+    opts?.mode === 'demande_devis' ||
+    (opts?.mode !== 'commande' && cmd.statut === 'demande_devis')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  let y = header(doc, ctx.company, 'COMMANDE FOURNISSEUR', cmd.numero)
+  let y = header(
+    doc,
+    ctx.company,
+    isDevis ? 'DEMANDE DE DEVIS FOURNISSEUR' : 'COMMANDE FOURNISSEUR',
+    cmd.numero,
+  )
 
   const dest =
     cmd.destination === 'stock' || (!cmd.otId && cmd.destination !== 'ot')
@@ -264,15 +280,43 @@ export function buildCommandePdf(cmd: CommandeFournisseur, ctx: CommandePdfConte
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(...INK)
-  doc.text(cmd.libelle || 'Commande', 18, y)
+  doc.text(cmd.libelle || (isDevis ? 'Demande de devis' : 'Commande'), 18, y)
   y += 10
+
+  if (isDevis) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...MUTED)
+    const intro = doc.splitTextToSize(
+      `Bonjour,\nMerci de nous adresser votre meilleure offre pour la fourniture ci-dessous (prix HT, délai, disponibilité). Réf. interne : ${cmd.numero}.`,
+      174,
+    ) as string[]
+    for (const line of intro) {
+      y = ensureY(doc, y, 6)
+      doc.text(line, 18, y)
+      y += 5
+    }
+    y += 4
+  }
 
   y = writeLine(doc, 'Statut', STATUT_COMMANDE_FOURNISSEUR_LABELS[cmd.statut] || cmd.statut, y)
   y = writeLine(doc, 'Destination', dest, y)
   y = writeLine(doc, 'Fournisseur', cmd.fournisseur || '—', y)
+  y = writeLine(doc, 'Pièce / matériel', cmd.libelle || '—', y)
   y = writeLine(doc, 'Réf. pièce', cmd.referencePiece || '—', y)
   y = writeLine(doc, 'Quantité', `${cmd.quantite ?? 1}${cmd.unite ? ` ${cmd.unite}` : ''}`, y)
-  y = writeLine(doc, 'P.U. HT', euro(cmd.prixUnitaireHt), y)
+  if (isDevis) {
+    y = writeLine(
+      doc,
+      'P.U. HT demandé',
+      cmd.prixUnitaireHt != null && !Number.isNaN(Number(cmd.prixUnitaireHt))
+        ? euro(cmd.prixUnitaireHt)
+        : 'À chiffrer par vos soins',
+      y,
+    )
+  } else {
+    y = writeLine(doc, 'P.U. HT', euro(cmd.prixUnitaireHt), y)
+  }
   y = writeLine(doc, 'Client', ctx.clientNom || '—', y)
   y = writeLine(doc, 'Site', ctx.siteNom || '—', y)
   y = writeLine(doc, 'Date', fmtDate(cmd.updatedAt || cmd.createdAt || cmd.commandeeAt), y)
@@ -281,23 +325,36 @@ export function buildCommandePdf(cmd: CommandeFournisseur, ctx: CommandePdfConte
 
   y += 10
   doc.setFillColor(240, 253, 250)
-  doc.roundedRect(18, y, 174, 22, 2, 2, 'F')
+  doc.roundedRect(18, y, 174, isDevis ? 28 : 22, 2, 2, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   doc.setTextColor(...ACCENT)
   doc.text(
-    cmd.destination === 'stock' || !cmd.otId
-      ? 'À réception → entrée magasin pièces'
-      : 'À réception → débloque l’OT en attente de pièce',
+    isDevis
+      ? 'Document à transmettre au fournisseur — réponse devis attendue'
+      : cmd.destination === 'stock' || !cmd.otId
+        ? 'À réception → entrée magasin pièces'
+        : 'À réception → débloque l’OT en attente de pièce',
     22,
     y + 9,
   )
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(...MUTED)
-  doc.text(`Document généré le ${fmtDate(new Date().toISOString())}`, 22, y + 16)
+  doc.text(`Document généré le ${fmtDate(new Date().toISOString())}`, 22, y + (isDevis ? 18 : 16))
+  if (isDevis) {
+    doc.text('Coordonnées société en en-tête — merci de répondre par e-mail ou PDF.', 22, y + 24)
+  }
 
   return doc.output('blob')
+}
+
+/** PDF dédié « Demande de devis » à envoyer au fournisseur. */
+export function buildDemandeDevisFournisseurPdf(
+  cmd: CommandeFournisseur,
+  ctx: CommandePdfContext,
+): Blob {
+  return buildCommandePdf(cmd, ctx, { mode: 'demande_devis' })
 }
 
 export function downloadDevisPdf(devis: Devis, ctx: DevisPdfContext) {
@@ -306,4 +363,11 @@ export function downloadDevisPdf(devis: Devis, ctx: DevisPdfContext) {
 
 export function downloadCommandePdf(cmd: CommandeFournisseur, ctx: CommandePdfContext) {
   downloadBlob(buildCommandePdf(cmd, ctx), fileNameCommande(cmd))
+}
+
+export function downloadDemandeDevisFournisseurPdf(
+  cmd: CommandeFournisseur,
+  ctx: CommandePdfContext,
+) {
+  downloadBlob(buildDemandeDevisFournisseurPdf(cmd, ctx), fileNameDemandeDevisFournisseur(cmd))
 }
