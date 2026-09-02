@@ -124,7 +124,6 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.entreprise,
     to: '/app/operateur',
     ownerOnly: true,
-    lightHidden: true,
   },
   pointage: {
     id: 'pointage',
@@ -150,8 +149,8 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'profil',
 ]
 
-/** Light (solo / AE) : intervenir + CERFA + profil (détecteur). */
-export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = ['appel', 'cerfa', 'profil']
+/** Light (solo / AE) : intervenir + CERFA + société + profil. */
+export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = ['appel', 'cerfa', 'operateur', 'profil']
 
 /** Terrain : uniquement les boutons d’intervention. */
 export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [

@@ -200,8 +200,9 @@ export function OperateurPage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Mon entreprise</h1>
           <p className="mt-1 text-muted">
-            Compte administrateur · {organization?.name || 'Société'} — cadre [1], logo, attestation,
-            facturation. Signature, détecteur et matériel perso : dans <strong>Mon profil</strong>.
+            {appEdition === 'light'
+              ? 'Identification société, attestation de capacité, logo et liens pour sauvegarder vos documents. Étalonnages et détecteur : Mon profil.'
+              : `Compte administrateur · ${organization?.name || 'Société'} — cadre [1], logo, attestation, facturation. Signature, détecteur et matériel perso : dans Mon profil.`}
           </p>
         </div>
       </div>
@@ -318,8 +319,14 @@ export function OperateurPage() {
         className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
       >
         <h2 className="font-display text-lg font-semibold sm:col-span-2">
-          Cadre [1] — Opérateur (société)
+          {appEdition === 'light' ? 'Identification société (cadre CERFA [1])' : 'Cadre [1] — Opérateur (société)'}
         </h2>
+        {appEdition === 'light' ? (
+          <p className="text-sm text-muted sm:col-span-2">
+            Raison sociale, SIRET et n° d’attestation de capacité — requis sur vos CERFA. Complétez
+            aussi les liens cloud ci-dessous pour ranger attestations et PDF générés.
+          </p>
+        ) : null}
         <Field
           label="Raison sociale *"
           value={form.raisonSociale}
@@ -356,12 +363,24 @@ export function OperateurPage() {
         </p>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
-          <h2 className="font-display mb-1 text-base font-semibold">Dossier cloud RH</h2>
+          <h2 className="font-display mb-1 text-base font-semibold">
+            {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
+          </h2>
           <p className="mb-3 text-sm text-muted">
-            Un classement (Google Drive, OneDrive ou SharePoint). Le bouton{' '}
-            <strong>Photos pièces</strong> n’ouvre que le lien{' '}
-            <strong>exact de chaque opérateur</strong> (collé dans Équipe), et seulement s’il n’est{' '}
-            <strong>pas public</strong>. L’alerte dépend du cloud collé.
+            {appEdition === 'light' ? (
+              <>
+                Classement Google Drive, OneDrive ou SharePoint pour vos pièces administratives
+                (attestation de capacité, assurances…). Les PDF ClimaZEN peuvent aussi y être
+                rangés via la section Documents ci-dessous.
+              </>
+            ) : (
+              <>
+                Un classement (Google Drive, OneDrive ou SharePoint). Le bouton{' '}
+                <strong>Photos pièces</strong> n’ouvre que le lien{' '}
+                <strong>exact de chaque opérateur</strong> (collé dans Équipe), et seulement s’il n’est{' '}
+                <strong>pas public</strong>. L’alerte dépend du cloud collé.
+              </>
+            )}
           </p>
           <Field
             label="Lien du dossier général"
@@ -520,6 +539,8 @@ export function OperateurPage() {
           </div>
         </div>
 
+        {editionHasFeature(appEdition, 'chaine_commerciale') ? (
+        <>
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Facturation (simple)</h2>
           <p className="mb-3 text-sm text-muted">
@@ -602,6 +623,8 @@ export function OperateurPage() {
             </div>
           )}
         </div>
+        </>
+        ) : null}
 
         {formError && (
           <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger sm:col-span-2">
