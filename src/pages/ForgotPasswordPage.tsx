@@ -50,7 +50,8 @@ export function ForgotPasswordPage() {
                 seulement sur la page suivante que vous choisissez le nouveau mot de passe.
               </p>
               <p className="text-xs text-white/45">
-                Vérifiez aussi les spams. Le lien doit ouvrir climazen-roan.vercel.app/reset-password
+                Vérifiez aussi les spams. Le lien doit ouvrir{' '}
+                <strong className="text-white/70">climazen.fr/reset-password</strong>
               </p>
               <button
                 type="button"
