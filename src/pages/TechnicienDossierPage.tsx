@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, Copy, FileText, FolderOpen, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Camera, Copy, FileText, FolderOpen, Loader2, PenLine, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import type { UserAccount } from '../lib/auth'
@@ -10,6 +10,7 @@ import { Nav3dIcon } from '../components/Nav3dIcon'
 import { DossierCloudTechButton } from '../components/DossierCloudTechButton'
 import { AgenceSelect } from '../components/AgenceSelect'
 import { PostePersonnelSelect, BureauActiviteFields } from '../components/PostePersonnelSelect'
+import { SignaturePad } from '../components/SignaturePad'
 import { telHref } from '../lib/agenda'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { MaterielConfieDossier } from '../components/MaterielConfieDossier'
@@ -73,7 +74,7 @@ function statutClass(statut: StatutDocumentRh) {
 
 export function TechnicienDossierPage() {
   const { userId } = useParams()
-  const { user, isOwner, listTeam } = useAuth()
+  const { user, isOwner, listTeam, saveMySignature } = useAuth()
   const { data, upsertPersonnelDossier, upsertPersonnelDocument, deletePersonnelDocument, setPersonnelLienCloud, peutVoirIdentitesRh } =
     useStore()
   const [member, setMember] = useState<UserAccount | null>(null)
@@ -87,6 +88,14 @@ export function TechnicienDossierPage() {
 
   const canSeeIdentite = peutVoirIdentitesRh
   const canAccess = Boolean(user && userId && (canSeeIdentite || user.id === userId))
+  const isOwnDossier = Boolean(user && userId && user.id === userId)
+
+  const [signNom, setSignNom] = useState('')
+  const [signQualite, setSignQualite] = useState('')
+  const [signImage, setSignImage] = useState('')
+  const [signSaved, setSignSaved] = useState(false)
+  const [signError, setSignError] = useState('')
+  const [signBusy, setSignBusy] = useState(false)
 
   useEffect(() => {
     if (!canAccess || !canSeeIdentite) return
@@ -136,6 +145,52 @@ export function TechnicienDossierPage() {
     setLienCloudDossier(dossier.lienCloudDossier || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored?.id, stored?.updatedAt, displayName])
+
+  useEffect(() => {
+    if (!isOwnDossier || !user) return
+    setSignNom(user.signataireNom || user.fullName || '')
+    setSignQualite(
+      user.signataireQualite ||
+        (user.role === 'owner' ? 'Responsable / gérant' : 'Opérateur attesté'),
+    )
+    setSignImage(user.signatureImage || '')
+  }, [
+    isOwnDossier,
+    user?.id,
+    user?.signataireNom,
+    user?.signataireQualite,
+    user?.signatureImage,
+    user?.fullName,
+    user?.role,
+  ])
+
+  const onSubmitSignature = (e: FormEvent) => {
+    e.preventDefault()
+    if (!isOwnDossier) return
+    setSignError('')
+    if (!signNom.trim()) {
+      setSignError('Indiquez le nom du signataire.')
+      return
+    }
+    if (!signImage) {
+      setSignError('Tracez votre signature manuscrite — obligatoire pour valider un CERFA.')
+      return
+    }
+    setSignBusy(true)
+    void saveMySignature({
+      signataireNom: signNom.trim(),
+      signataireQualite: signQualite.trim() || 'Opérateur attesté',
+      signatureImage: signImage,
+    })
+      .then(() => {
+        setSignSaved(true)
+        window.setTimeout(() => setSignSaved(false), 2000)
+      })
+      .catch((err) => {
+        setSignError(err instanceof Error ? err.message : 'Enregistrement impossible')
+      })
+      .finally(() => setSignBusy(false))
+  }
 
   useEffect(() => {
     if (!formOpen) return
@@ -291,7 +346,7 @@ export function TechnicienDossierPage() {
     setForm((f) => ({ ...f, dateExpiration: addYearsIso(f.dateObtention, years) }))
   }
 
-  const backTo = canSeeIdentite && userId !== user.id ? '/app/equipe' : '/app/profil'
+  const backTo = '/app/equipe'
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -300,7 +355,7 @@ export function TechnicienDossierPage() {
         <div className="min-w-0">
           <Link to={backTo} className="inline-flex items-center gap-1 text-xs font-semibold text-accent">
             <ArrowLeft className="h-3.5 w-3.5" />
-            {canSeeIdentite && userId !== user.id ? 'Équipe' : 'Mon profil'}
+            Équipe
           </Link>
           <h1 className="font-display text-3xl font-bold tracking-tight">Dossier {displayName}</h1>
           <p className="mt-1 text-sm text-muted">
@@ -323,11 +378,65 @@ export function TechnicienDossierPage() {
                 {' · '}
               </>
             ) : null}
-            {member?.email || (userId === user.id ? user.email : '')} — matériel confié, dates
-            limites et alertes d’expiration. Les scans d’identité ne sont pas enregistrés.
+            {member?.email || (userId === user.id ? user.email : '')} — signature CERFA, matériel
+            confié, dates limites et alertes. Les scans d’identité ne sont pas enregistrés.
           </p>
         </div>
       </div>
+
+      {isOwnDossier ? (
+        <form
+          onSubmit={onSubmitSignature}
+          className="grid gap-3 rounded-2xl border border-accent/30 bg-white p-5 sm:grid-cols-2"
+        >
+          <div className="sm:col-span-2">
+            <h2 className="font-display mb-1 flex items-center gap-2 text-base font-semibold text-ink">
+              <PenLine className="h-4 w-4 text-accent" />
+              Ma signature (CERFA / OT)
+            </h2>
+            <p className="mb-1 text-sm text-muted">
+              Signature personnelle — uniquement la vôtre. Personne d’autre dans l’équipe ne peut
+              la voir ni la modifier. Elle s’applique automatiquement sur vos OT et CERFA.
+            </p>
+          </div>
+          <Field label="Nom du signataire *" value={signNom} onChange={setSignNom} required />
+          <Field label="Qualité / fonction *" value={signQualite} onChange={setSignQualite} required />
+          <div className="sm:col-span-2">
+            <SignaturePad
+              label="Signature manuscrite (doigt / stylet) *"
+              value={signImage || undefined}
+              onChange={(v) => setSignImage(v || '')}
+              height={180}
+              hint="Signez ici, puis cliquez Enregistrer."
+            />
+          </div>
+          {signError ? <p className="text-sm text-danger sm:col-span-2">{signError}</p> : null}
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <button
+              type="submit"
+              disabled={signBusy}
+              className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+            >
+              {signBusy ? 'Enregistrement…' : 'Enregistrer ma signature'}
+            </button>
+            {signSaved ? <span className="text-sm text-accent">Signature enregistrée</span> : null}
+            {signImage && !signSaved ? (
+              <span className="text-xs text-muted">Signature présente sur ce compte</span>
+            ) : null}
+          </div>
+        </form>
+      ) : (
+        <div className="rounded-2xl border border-line bg-mist/50 p-4 text-sm text-muted">
+          <div className="font-display flex items-center gap-2 font-semibold text-ink">
+            <PenLine className="h-4 w-4" />
+            Signature de l’opérateur
+          </div>
+          <p className="mt-1">
+            La signature CERFA est <strong>propre à {displayName}</strong> : seul cet opérateur peut
+            l’enregistrer dans son dossier. Elle n’est pas visible ici (confidentialité).
+          </p>
+        </div>
+      )}
 
       {userId ? (
         <MaterielConfieDossier

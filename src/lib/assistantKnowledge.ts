@@ -56,7 +56,7 @@ Parcours principaux :
 4) Clients / Sites → équipements du parc.
 5) Agenda → /app/agenda (RDV, rappels, maintenances).
 6) Mon entreprise → /app/operateur (logo, SIRET, attestation — administration).
-7) Mon profil → /app/profil (signature CERFA, détecteur de fuite).
+7) Équipe → dossier opérateur → signature CERFA (propre au tech). Détecteur / outillage → Mon profil.
 8) Équipe → comptes techniciens et dossiers RH.
 
 Règles stock / CERFA importantes :
@@ -203,9 +203,9 @@ Dans les menus : « Surnom (N° de série : BOT-XXX) ». Jamais mettre « Transf
     id: 'signatures',
     title: 'Signatures et clôture',
     keywords: ['signature', 'signer', 'technicien', 'client', 'detenteur', 'détenteur'],
-    paths: ['/app/appel', '/app/profil', '/app/interventions'],
+    paths: ['/app/appel', '/app/equipe', '/app/interventions'],
     answer: `Signatures :
-- Technicien : Mon profil (/app/profil) — reprise automatiquement sur OT et CERFA.
+- Technicien : Équipe → son dossier (/app/equipe/…) — signature personnelle, invisible aux collègues. Reprise auto sur OT et CERFA.
 - Client : signature à chaque intervention (pad vide sur chaque nouvel OT / CERFA / fiche). Pas de réutilisation auto de l’ancienne signature site.
 
 Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé ».`,
@@ -219,18 +219,18 @@ Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé �
 - Raison sociale, SIRET, attestation de capacité.
 - Logo (apparaît sur le rapport OT).
 - Dossier cloud RH : UN lien général (Drive / OneDrive / SharePoint). ClimaZEN classe ClimaZEN → Dossiers techniciens → nom du tech → catégorie.
-Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
+Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : Mon profil.`,
   },
   {
     id: 'profil',
     title: 'Mon profil',
     keywords: ['profil', 'signature', 'detecteur', 'détecteur', 'ma signature', 'étalonnage', 'outillage'],
-    paths: ['/app/profil'],
+    paths: ['/app/profil', '/app/equipe'],
     answer: `Mon profil (/app/profil) :
-- Signature CERFA personnelle (reprise auto sur les fiches).
 - Outillage : menu frigoriste + CVC. Les appareils à étalonner (détecteur, balance, caméra thermique, analyseur de combustion, anémomètre…) exigent une date. L’accueil alerte 45 jours avant l’échéance, puis à expiration.
 - Détecteur de fuite : le gérant crée l’outil et l’affecte ; contrôle < 1 an obligatoire pour le CERFA.
-Équipe reste pour les comptes techniciens, pas pour le matériel.`,
+- Lien vers Mon dossier Équipe pour la signature CERFA (propre au tech, invisible aux autres).
+Équipe → Dossier : signature + documents RH.`,
   },
   {
     id: 'dossier-rh',
@@ -257,9 +257,11 @@ Signature, détecteur (et plus tard véhicules / outillage) : Mon profil.`,
       'piece',
       'pièce',
       'cloud',
+      'signature',
     ],
     paths: ['/app/equipe', '/app/profil'],
     answer: `Dossier de chaque technicien (Équipe → Dossier, ou Mon profil → Mon dossier) :
+• Signature CERFA personnelle — seul le tech la voit et la modifie ; reprise auto sur OT / CERFA.
 • Identité (CNI / passeport / titre de séjour), permis, carte Vitale, visite médicale.
 • Attestation d’aptitude fluides (cat. I–IV) — obligatoire pour le froid, validité typique 5 ans.
 • Habilitation électrique (BR, B1V…) — obligatoire dès qu’on touche à l’électrique, recyclage ~3 ans.
