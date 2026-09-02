@@ -401,6 +401,10 @@ export function AppelOtPage() {
     navigate('/app/ot', { replace: true })
   }
 
+  const retourAccueil = () => {
+    navigate('/app', { replace: true })
+  }
+
   const persistOt = (
     patch: Partial<OrdreTravail> & { parcoursStep?: ParcoursAppelStepId },
     idOverride?: string,
@@ -1050,11 +1054,7 @@ export function AppelOtPage() {
       signatureClientImage: otForm.signatureClientImage,
       signatureTechnicienImage: otForm.signatureTechnicienImage,
     })
-    setMsg(
-      pct >= 100
-        ? `Présence validée — 100 %. Vous pouvez clôturer l’OT.`
-        : `Présence client validée (${pct} %). L’OT reste ouvert pour la suite.`,
-    )
+    retourAccueil()
   }
 
   const finishWithSignatures = () => {
@@ -1084,7 +1084,7 @@ export function AppelOtPage() {
         interventionPartielle: false,
         avancementPct: 100,
       })
-      setMsg('OT clôturé par le bureau — rapport sous-traitant reçu.')
+      retourAccueil()
       return
     }
     const hasF =
@@ -1225,12 +1225,7 @@ export function AppelOtPage() {
           draft.signatureDetenteurQualite || clientSignQualite || undefined,
       })
     }
-    setMsg(
-      linked.length > 0
-        ? `${formatOtNumero(otForm.numero)} clôturé — ${linked.length} CERFA classé${linked.length > 1 ? 's' : ''} signé${linked.length > 1 ? 's' : ''}.`
-        : `${formatOtNumero(otForm.numero)} clôturé.`,
-    )
-    navigate(`/app/ot?id=${encodeURIComponent(id)}`)
+    retourAccueil()
   }
 
   const stepIdx = STEP_INDEX[step]
@@ -2625,7 +2620,7 @@ export function AppelOtPage() {
             </button>
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 persistOt({
                   rapportAction: otForm.rapportAction,
                   observations: otForm.observations,
@@ -2637,7 +2632,8 @@ export function AppelOtPage() {
                   toucheGaz: otForm.toucheGaz,
                   statut: 'en_cours',
                 })
-              }
+                retourAccueil()
+              }}
               className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
             >
               Enregistrer l’OT

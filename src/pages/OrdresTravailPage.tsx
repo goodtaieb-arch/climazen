@@ -217,7 +217,7 @@ export function OrdresTravailPage() {
     }
     const siteRow = data.chantiers.find((c) => c.id === form.chantierId)
     const clientRow = data.clients.find((c) => c.id === (form.clientId || siteRow?.clientId))
-    const id = upsertOrdreTravail({
+    upsertOrdreTravail({
       ...form,
       id: existing?.id,
       agenceCode:
@@ -230,8 +230,7 @@ export function OrdresTravailPage() {
         form.signatureTechnicienImage || user?.signatureImage || '',
       signatureClientImage: form.signatureClientImage || '',
     })
-    navigate(`/app/ot?id=${encodeURIComponent(id)}`, { replace: true })
-    alert(`OT enregistré — ${formatOtNumero(form.numero)}`)
+    navigate('/app', { replace: true })
   }
 
   const onValiderPresence = () => {
@@ -274,7 +273,7 @@ export function OrdresTravailPage() {
       signatureClientImage: form.signatureClientImage,
       signatureTechnicienImage: form.signatureTechnicienImage,
     })
-    const id = upsertOrdreTravail({
+    upsertOrdreTravail({
       ...form,
       id: existing?.id,
       statut: 'en_cours',
@@ -284,19 +283,7 @@ export function OrdresTravailPage() {
       signatureTechnicienImage: form.signatureTechnicienImage || user?.signatureImage || '',
       signatureClientImage: form.signatureClientImage || '',
     })
-    setForm((f) => ({
-      ...f,
-      statut: 'en_cours',
-      interventionPartielle: pct < 100,
-      avancementPct: pct,
-      visitesPresence: visites,
-    }))
-    navigate(`/app/ot?id=${encodeURIComponent(id)}`, { replace: true })
-    alert(
-      pct >= 100
-        ? 'Présence validée — 100 %. Vous pouvez clôturer.'
-        : `Présence client validée (${pct} %). L’OT reste ouvert.`,
-    )
+    navigate('/app', { replace: true })
   }
 
   const openNew = () => {
