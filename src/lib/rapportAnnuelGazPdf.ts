@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { RapportAnnuelGaz } from './rapportAnnuelGaz'
 import { kgDeclare } from './rapportAnnuelGaz'
+import { embedCompanyLogo } from './pdfLogo'
 
 function fmtDate(iso: string) {
   const d = iso.slice(0, 10)
@@ -25,6 +26,7 @@ export async function buildRapportAnnuelGazPdf(rapport: RapportAnnuelGaz): Promi
   let y = 16
 
   const op = rapport.operateur
+  embedCompanyLogo(doc, op?.logoImage, { x: pageW - 50, y: 10, maxW: 36, maxH: 16 })
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.text('Rapport annuel des mouvements de fluides', margin, y)
@@ -39,7 +41,7 @@ export async function buildRapportAnnuelGazPdf(rapport: RapportAnnuelGaz): Promi
     'Consolidation pour organisme de contrôle / attestation de capacité. Inclut le bilan, les mouvements datés et les justificatifs fournisseurs & déchèteries.',
     margin,
     y,
-    { maxWidth: pageW - margin * 2 },
+    { maxWidth: pageW - margin * 2 - (op?.logoImage ? 40 : 0) },
   )
   doc.setTextColor(0)
   y += 10

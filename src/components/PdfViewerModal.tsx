@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Download, X } from 'lucide-react'
+import { Cloud, Download, HardDrive, X } from 'lucide-react'
 import { downloadBlob } from '../lib/cerfaPdf'
 
 type Props = {
@@ -8,14 +8,21 @@ type Props = {
   /** Nom de fichier si téléchargement (sinon dérivé du titre). */
   fileName?: string
   onClose: () => void
+  /** Enregistrement cloud / serveur privé (Mon entreprise). */
+  onSaveDestination?: () => void | Promise<void>
+  saveDestinationLabel?: string
+  saveDestinationBusy?: boolean
 }
 
 /** Aperçu PDF dans l’app (évite les onglets blob bloqués par le navigateur). */
 export function PdfViewerModal({
   url,
-  title = 'CERFA 15497-04',
+  title = 'Document PDF',
   fileName,
   onClose,
+  onSaveDestination,
+  saveDestinationLabel = 'Enregistrer (cloud / serveur)',
+  saveDestinationBusy,
 }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,13 +50,25 @@ export function PdfViewerModal({
       <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <h2 className="font-display truncate text-base font-semibold">{title}</h2>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {onSaveDestination ? (
+              <button
+                type="button"
+                disabled={saveDestinationBusy}
+                onClick={() => void onSaveDestination()}
+                className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-900 hover:bg-teal-100 disabled:opacity-60"
+              >
+                <Cloud className="h-4 w-4" />
+                <HardDrive className="h-3.5 w-3.5 opacity-70" />
+                {saveDestinationBusy ? 'Enregistrement…' : saveDestinationLabel}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void onDownload()}
               className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm font-medium hover:bg-mist"
             >
-              <Download className="h-4 w-4" /> Enregistrer
+              <Download className="h-4 w-4" /> Télécharger
             </button>
             <button
               type="button"

@@ -117,6 +117,25 @@ export interface Operateur {
    */
   lienCloudRhRacine?: string
   /**
+   * Où enregistrer les PDF générés (devis, commandes, CERFA, fiches…).
+   * - cloud : ouvre le dossier cloud + télécharge pour ranger
+   * - prive : PUT vers le serveur privé (WebDAV / Nextcloud / NAS)
+   * - telechargement : fichier local uniquement (+ copie Supabase si org)
+   */
+  docsStockageMode?: 'cloud' | 'prive' | 'telechargement'
+  /**
+   * Dossier cloud Documents (sinon repli sur lienCloudRhRacine).
+   * Arborescence : ClimaZEN → Documents → {année|Clients} → type.
+   */
+  lienCloudDocsRacine?: string
+  /**
+   * URL de base du serveur privé (ex. https://nas.entreprise.fr/.../ClimaZEN/Documents).
+   * Les chemins relatifs (Devis/…, CERFA/…) sont ajoutés après.
+   */
+  serveurPriveDocsUrl?: string
+  /** Jeton Bearer optionnel pour l’upload serveur privé. */
+  serveurPriveDocsToken?: string
+  /**
    * Installations de destination habituelles (CERFA [13]) —
    * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.
    */

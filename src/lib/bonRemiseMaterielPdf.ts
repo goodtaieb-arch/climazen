@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { downloadBlob } from './cerfaPdf'
+import { embedCompanyLogo } from './pdfLogo'
 import { loadCerfaPdf } from './pdfStore'
 import type { AppData, BonRemiseMateriel, VoitureEtatLieux, VoitureMarqueCarrosserie } from './types'
 import {
@@ -289,6 +290,8 @@ export function buildBonRemiseMaterielPdf(opts: {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const w = doc.internal.pageSize.getWidth()
   let y = 18
+
+  embedCompanyLogo(doc, op?.logoImage, { x: w - 50, y: 8, maxW: 36, maxH: 16 })
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
