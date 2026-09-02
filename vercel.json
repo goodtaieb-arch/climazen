@@ -5,6 +5,17 @@
       "has": [
         {
           "type": "host",
+          "value": "climazen-roan.vercel.app"
+        }
+      ],
+      "destination": "https://climazen.fr/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
           "value": "www.climazen.fr"
         }
       ],

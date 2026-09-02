@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v161'
+export const APP_VERSION = 'v162'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-02-v161-retour-accueil-enregistrer'
+export const APP_BUILD = '2026-09-02-v162-domaine-climazen-fr'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true
