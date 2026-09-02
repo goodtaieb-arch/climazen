@@ -1,7 +1,8 @@
 /** Compte démo sandbox — tests GMAO complets (gérant Pro). */
 
 export const SANDBOX_TEST_EMAIL = 'sandbox@climazen.fr'
-export const SANDBOX_TEST_PASSWORD = 'ClimaZEN-Sandbox2026!'
+/** Sans « climazen » ni mots bannis (passwordPolicy) — Supabase + app OK. */
+export const SANDBOX_TEST_PASSWORD = 'SbxDemo-Gmao#2026xK9mR'
 export const SANDBOX_TEST_COMPANY = 'ClimaZEN Sandbox Demo'
 export const SANDBOX_TEST_FULL_NAME = 'Issam Test Sandbox'
 
