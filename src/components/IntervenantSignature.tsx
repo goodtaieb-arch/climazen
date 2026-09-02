@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Check, PenLine } from 'lucide-react'
 import { SignaturePad } from './SignaturePad'
 import { useAuth } from '../lib/AuthContext'
+import { useStore } from '../lib/store'
+import { isLightEdition } from '../lib/appEdition'
 
 type Props = {
   nom: string
@@ -29,12 +31,15 @@ export function IntervenantSignature({
   label = 'Signature intervenant',
 }: Props) {
   const { user } = useAuth()
+  const { appEdition } = useStore()
+  const light = isLightEdition(appEdition)
   const profileImg = user?.signatureImage || ''
   const profileNom = user?.signataireNom || user?.fullName || user?.email || ''
   const profileQual =
     user?.signataireQualite ||
     (user?.role === 'owner' ? 'Responsable / gérant' : 'Opérateur attesté')
-  const dossierHref = user ? `/app/equipe/${user.id}` : '/app/equipe'
+  const dossierHref = light ? '/app/profil' : user ? `/app/equipe/${user.id}` : '/app/equipe'
+  const dossierLabel = light ? 'Mon profil' : 'Mon dossier Équipe'
 
   // Auto dès que le profil est chargé
   useEffect(() => {
@@ -51,7 +56,7 @@ export function IntervenantSignature({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-sm font-semibold">{label}</h3>
         <Link to={dossierHref} className="text-xs font-medium text-accent hover:underline">
-          Mon dossier Équipe
+          {dossierLabel}
         </Link>
       </div>
 
@@ -64,7 +69,7 @@ export function IntervenantSignature({
         <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-danger">
           Aucune signature. Enregistrez-la une fois dans{' '}
           <Link to={dossierHref} className="font-semibold underline">
-            Équipe → votre dossier
+            {light ? 'Mon profil' : 'Équipe → votre dossier'}
           </Link>
           .
         </p>
@@ -129,7 +134,7 @@ export function IntervenantSignature({
           value={image}
           onChange={onImageChange}
           height={height}
-          hint="Ou enregistrez-la une fois dans Équipe → votre dossier."
+          hint={light ? 'Ou enregistrez-la dans Mon profil.' : 'Ou enregistrez-la une fois dans Équipe → votre dossier.'}
         />
       )}
     </div>

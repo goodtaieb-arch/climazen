@@ -61,7 +61,7 @@ import {
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
 import { isTerrainUi } from '../lib/uiMode'
-import { editionHasFeature, LIGHT_SOLO_FLOW_HINT } from '../lib/appEdition'
+import { editionHasFeature, isLightEdition, LIGHT_SOLO_FLOW_HINT } from '../lib/appEdition'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
@@ -114,7 +114,8 @@ export function Dashboard() {
   )
   const terrainUi = isTerrainUi(shortcutAccess)
   const teamFeatures = editionHasFeature(appEdition, 'equipe')
-  const lightSolo = appEdition === 'light' && !terrainUi
+  const lightEdition = isLightEdition(appEdition)
+  const lightSolo = lightEdition && !terrainUi
 
   const [shortcutIds, setShortcutIds] = useState<HomeShortcutId[]>(() =>
     resolveHomeShortcutIds(user?.id, shortcutAccess),
@@ -463,10 +464,16 @@ export function Dashboard() {
                 Stock fluides
               </Link>
               <Link
+                to="/app/clients"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Clients / sites
+              </Link>
+              <Link
                 to="/app/profil"
                 className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
               >
-                Détecteur
+                Signature
               </Link>
             </div>
           </section>
@@ -725,18 +732,33 @@ export function Dashboard() {
             </div>
 
             <nav className="hidden space-y-3 md:block" aria-label="Actions terrain">
-              <TerrainAction
-                icon={MapPin}
-                img3d={ICON3D.sites}
-                title="Sites & Parc"
-                subtitle={
-                  actifs.length
-                    ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc & équipements`
-                    : 'Sites, équipements, créer un CERFA'
-                }
-                color="sites"
-                onClick={() => goTravaux()}
-              />
+              {lightEdition ? (
+                <TerrainAction
+                  icon={Building2}
+                  img3d={ICON3D.clients}
+                  title="Clients"
+                  subtitle={
+                    data.clients.length
+                      ? `${data.clients.length} client${data.clients.length > 1 ? 's' : ''} — sites & équipements`
+                      : 'Créer un client → ajouter un site'
+                  }
+                  color="clients"
+                  to="/app/clients"
+                />
+              ) : (
+                <TerrainAction
+                  icon={MapPin}
+                  img3d={ICON3D.sites}
+                  title="Sites & Parc"
+                  subtitle={
+                    actifs.length
+                      ? `${actifs.length} site${actifs.length > 1 ? 's' : ''} · parc & équipements`
+                      : 'Sites, équipements, créer un CERFA'
+                  }
+                  color="sites"
+                  onClick={() => goTravaux()}
+                />
+              )}
               <TerrainAction
                 icon={QrCode}
                 img3d={ICON3D.search}
@@ -1223,16 +1245,18 @@ export function Dashboard() {
 
       {/* Raccourcis stats 3D — bureau / tablette (masqué terrain) */}
       {!terrainUi && (
-      <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-4 md:gap-4">
-        <Stat3d
-          img={ICON3D.sites}
-          alt="Sites"
-          label="Sites & Parc"
-          value={String(actifs.length)}
-          to="/app/chantiers"
-          float
-          floatDelay="0.2s"
-        />
+      <div className={`hidden gap-3 md:grid ${lightEdition ? 'md:grid-cols-3' : 'md:grid-cols-4'} md:gap-4`}>
+        {!lightEdition ? (
+          <Stat3d
+            img={ICON3D.sites}
+            alt="Sites"
+            label="Sites & Parc"
+            value={String(actifs.length)}
+            to="/app/chantiers"
+            float
+            floatDelay="0.2s"
+          />
+        ) : null}
         <Stat3d
           img={ICON3D.bottle}
           alt="Stock fluides ClimaZEN"

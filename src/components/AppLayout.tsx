@@ -147,7 +147,6 @@ const baseLinksLightOwner = [
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -322,10 +321,8 @@ export function AppLayout() {
   }
 
   const lightMoreLinks = [
-    { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
     { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
     { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
-    { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
     { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
     { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
     { to: '/app/scan-equip', label: 'Scanner QR', icon: Search, tone: 'sites' },
