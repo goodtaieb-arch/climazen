@@ -10,10 +10,17 @@ import { defaultPersonnelDossier } from './rhDocuments'
 import { blankPiece } from './piecesDetachees'
 import { blankDevis } from './chaineCommerciale'
 import {
-  SANDBOX_MAGASINIER_USER_ID,
+  SANDBOX_OPERATORS,
   SANDBOX_TEST_EMAIL,
   SANDBOX_TECH_IDS,
+  sandboxMagasinierUserId,
 } from './sandboxAccount'
+
+export type SeedSandboxOptions = {
+  ownerUserId?: string
+  /** IDs Auth réels (ordre = SANDBOX_OPERATORS) — après provision script */
+  operatorUserIds?: readonly string[]
+}
 
 const CID_HORIZON = 'b1000001-0001-4000-8000-000000000001'
 const CID_EHPAD = 'b1000001-0001-4000-8000-000000000002'
@@ -30,32 +37,6 @@ const SITE_IDS = [
   'c1000001-0001-4000-8000-000000000008',
   'c1000001-0001-4000-8000-000000000009',
   'c1000001-0001-4000-8000-000000000010',
-] as const
-
-const TECH_NAMES = [
-  'Karim Benali',
-  'Sophie Martin',
-  'Lucas Petit',
-  'Amélie Durand',
-  'Thomas Roux',
-  'Nina Lefèvre',
-  'Hugo Bernard',
-  'Claire Moreau',
-  'Mehdi Ali',
-  'Julie Garnier',
-] as const
-
-const TECH_POSTES = [
-  'tech_frigoriste',
-  'tech_cvc',
-  'electricien',
-  'tech_cvc',
-  'tech_frigoriste',
-  'plombier',
-  'magasinier',
-  'secretaire',
-  'tech_frigoriste',
-  'tech_cvc',
 ] as const
 
 function eq(
@@ -114,7 +95,16 @@ function site(
   }
 }
 
-export function seedSandboxData(ownerUserId?: string): AppData {
+export function seedSandboxData(ownerOrOpts?: string | SeedSandboxOptions): AppData {
+  const opts: SeedSandboxOptions =
+    typeof ownerOrOpts === 'string' ? { ownerUserId: ownerOrOpts } : ownerOrOpts || {}
+  const ownerUserId = opts.ownerUserId
+  const techIds =
+    opts.operatorUserIds?.length === SANDBOX_OPERATORS.length
+      ? opts.operatorUserIds
+      : SANDBOX_TECH_IDS
+  const magasinierUserId = sandboxMagasinierUserId(techIds)
+
   const now = new Date().toISOString()
   const today = now.slice(0, 10)
   const dayKey = today.slice(2).replace(/-/g, '').slice(0, 6) // aammjj approx — use fixed nums
@@ -198,10 +188,10 @@ export function seedSandboxData(ownerUserId?: string): AppData {
     ]),
   ]
 
-  const personnelDossiers: PersonnelDossier[] = SANDBOX_TECH_IDS.map((userId, i) => ({
-    ...defaultPersonnelDossier(userId, TECH_NAMES[i], now),
+  const personnelDossiers: PersonnelDossier[] = techIds.map((userId, i) => ({
+    ...defaultPersonnelDossier(userId, SANDBOX_OPERATORS[i].fullName, now),
     id: `dossier-${userId}`,
-    poste: TECH_POSTES[i] as PersonnelDossier['poste'],
+    poste: SANDBOX_OPERATORS[i].poste,
     telephone: `06 10 20 3${i} ${i}${i}`,
     agenceCode: ['69', '13', '31'][i % 3],
   }))
@@ -270,9 +260,9 @@ export function seedSandboxData(ownerUserId?: string): AppData {
       action: 'Maintenance semestrielle VRV',
       rapportAction: 'Filtres remplacés, contrôle étanchéité OK.',
       statut: 'signe',
-      technicien: TECH_NAMES[0],
-      technicienUserId: SANDBOX_TECH_IDS[0],
-      technicienUserIds: [SANDBOX_TECH_IDS[0]],
+      technicien: SANDBOX_OPERATORS[0].fullName,
+      technicienUserId: techIds[0],
+      technicienUserIds: [techIds[0]],
       contratId,
       lienCommandeType: 'contrat',
       lienCommandeRef: c1.numero,
@@ -303,9 +293,9 @@ export function seedSandboxData(ownerUserId?: string): AppData {
       typeOt: 'entretien',
       action: 'Visite chaufferie P2',
       statut: 'en_cours',
-      technicien: TECH_NAMES[1],
-      technicienUserId: SANDBOX_TECH_IDS[1],
-      technicienUserIds: [SANDBOX_TECH_IDS[1]],
+      technicien: SANDBOX_OPERATORS[1].fullName,
+      technicienUserId: techIds[1],
+      technicienUserIds: [techIds[1]],
       contratId: 'f1000001-0001-4000-8000-000000000002',
       lienCommandeType: 'contrat',
       origineOt: 'maintenance_contrat',
@@ -323,9 +313,9 @@ export function seedSandboxData(ownerUserId?: string): AppData {
       statutFacturation: 'non_facture',
       mainOeuvreIncluseContrat: false,
       commandeFournisseurId: 'cmd001',
-      technicien: TECH_NAMES[2],
-      technicienUserId: SANDBOX_TECH_IDS[2],
-      technicienUserIds: [SANDBOX_TECH_IDS[2]],
+      technicien: SANDBOX_OPERATORS[2].fullName,
+      technicienUserId: techIds[2],
+      technicienUserIds: [techIds[2]],
     }),
     mkOt('ot005', `${dayKey}05`, {
       clientId: CID_HORIZON,
@@ -334,9 +324,9 @@ export function seedSandboxData(ownerUserId?: string): AppData {
       action: 'Maintenance préventive data center',
       statut: 'termine',
       rapportAction: 'Contrôle visuel, températures OK.',
-      technicien: TECH_NAMES[4],
-      technicienUserId: SANDBOX_TECH_IDS[4],
-      technicienUserIds: [SANDBOX_TECH_IDS[4]],
+      technicien: SANDBOX_OPERATORS[4].fullName,
+      technicienUserId: techIds[4],
+      technicienUserIds: [techIds[4]],
       origineOt: 'maintenance_contrat',
       statutFacturation: 'sous_contrat',
       mainOeuvreIncluseContrat: true,
@@ -348,7 +338,7 @@ export function seedSandboxData(ownerUserId?: string): AppData {
     { ...blankPiece(), id: 'p002', reference: 'COMP-SCROLL-3', designation: 'Compresseur scroll 3kW', categorie: 'compresseur' as const, quantite: 2, seuilAlerte: 1, emplacement: 'depot' as const, fournisseur: 'Mitsubishi', createdAt: now, updatedAt: now },
     { ...blankPiece(), id: 'p003', reference: 'VENT-ECO-400', designation: 'Ventilateur EC 400mm', categorie: 'ventilateur' as const, quantite: 6, emplacement: 'atelier' as const, createdAt: now, updatedAt: now },
     { ...blankPiece(), id: 'p004', reference: 'CONTACTOR-25A', designation: 'Contacteur 25A', categorie: 'electrique' as const, quantite: 10, emplacement: 'atelier' as const, createdAt: now, updatedAt: now },
-    { ...blankPiece(), id: 'p005', reference: 'VANNE-1/4', designation: 'Vanne 1/4 tour R410A', categorie: 'gaz' as const, quantite: 8, seuilAlerte: 2, emplacement: 'vehicule' as const, assigneeUserId: SANDBOX_TECH_IDS[0], assigneeName: TECH_NAMES[0], createdAt: now, updatedAt: now },
+    { ...blankPiece(), id: 'p005', reference: 'VANNE-1/4', designation: 'Vanne 1/4 tour R410A', categorie: 'gaz' as const, quantite: 8, seuilAlerte: 2, emplacement: 'vehicule' as const, assigneeUserId: techIds[0], assigneeName: SANDBOX_OPERATORS[0].fullName, createdAt: now, updatedAt: now },
   ]
 
   const devis = [
@@ -450,7 +440,7 @@ export function seedSandboxData(ownerUserId?: string): AppData {
       ticketNotificationEmail: SANDBOX_TEST_EMAIL,
       detecteurIdentification: 'DET-SANDBOX-001',
       detecteurControleDate: today,
-      magasinierUserId: SANDBOX_MAGASINIER_USER_ID,
+      magasinierUserId,
     },
     detecteurs: [
       {
@@ -472,8 +462,8 @@ export function seedSandboxData(ownerUserId?: string): AppData {
         matricule: 'AB-123-CD',
         marque: 'Renault',
         modele: 'Kangoo',
-        assigneeUserId: SANDBOX_TECH_IDS[0],
-        assigneeName: TECH_NAMES[0],
+        assigneeUserId: techIds[0],
+        assigneeName: SANDBOX_OPERATORS[0].fullName,
         updatedAt: now,
       },
     ],
