@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { APP_EDITION_PRICING, APP_EDITION_PRICING_AFTER_BETA } from '../lib/appEdition'
+import { APP_IS_BETA } from '../lib/buildStamp'
 import {
   Building2,
   CheckCircle2,
@@ -204,8 +206,9 @@ export function Landing() {
               </Link>
             </div>
             <p className="mt-3 text-xs text-muted">
-              Version bêta : pendant la finalisation, l’accès reste ouvert. La facturation des
-              structures hors AE / micro s’activera ensuite —{' '}
+              Version bêta : l’édition <strong>Light</strong> reste gratuite. L’édition{' '}
+              <strong>Pro</strong> est payante à terme mais <strong>gratuite pendant la bêta</strong>{' '}
+              —{' '}
               <a href="/#tarifs" className="font-semibold text-accent hover:underline">
                 voir les tarifs
               </a>
@@ -644,30 +647,34 @@ export function Landing() {
             Tarifs
           </p>
           <h2 className="font-display mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
-            Gratuit pour les auto-entrepreneurs et micro-sociétés
+            Light gratuit · Pro payant (gratuit en bêta)
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-            ClimaZEN reste accessible aux indépendants. Pour les structures plus larges
-            (SARL / SAS, multi-techniciens…), l’offre devient payante une fois le site finalisé.
-            Aujourd’hui : tout le monde peut s’inscrire et utiliser l’app.
+            L’édition <strong>Light</strong> (solo / auto-entrepreneur) reste{' '}
+            <strong>gratuite pour toujours</strong>. L’édition <strong>Pro</strong> (équipes, PME)
+            sera <strong>payante</strong> — mais tant que ClimaZEN est en version bêta, elle reste{' '}
+            <strong>gratuite</strong> pour tester sans engagement.
           </p>
 
           <div className="mt-10 grid gap-5 md:grid-cols-2">
             <div className="relative overflow-hidden rounded-3xl border-2 border-accent bg-accent-soft/50 p-6 shadow-sm sm:p-8">
               <span className="absolute right-4 top-4 rounded-full bg-accent px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink">
-                Recommandé
+                Gratuit
               </span>
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Indépendants</p>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Édition Light</p>
               <h3 className="font-display mt-2 text-2xl font-bold">Auto-entrepreneur &amp; micro</h3>
               <p className="mt-2 font-display text-4xl font-bold text-ink">
-                0 € <span className="text-base font-semibold text-muted">/ mois</span>
+                {APP_EDITION_PRICING.light.price}{' '}
+                <span className="text-base font-semibold text-muted">
+                  {APP_EDITION_PRICING.light.priceSuffix}
+                </span>
               </p>
-              <p className="mt-2 text-sm text-muted">Gratuit pour toujours — usage solo / micro-société.</p>
+              <p className="mt-2 text-sm text-muted">{APP_EDITION_PRICING.light.detail}</p>
               <ul className="mt-5 space-y-2.5 text-sm text-slate">
                 {[
                   'CERFA F-Gas & parc équipements',
-                  'Stock fluides & mode hors ligne',
-                  'Compte personnel / micro',
+                  'Mon entreprise (SIRET, attestation…)',
+                  'Étalonnages & détecteur CERFA',
                   'Mises à jour incluses',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
@@ -684,21 +691,38 @@ export function Landing() {
               </Link>
             </div>
 
-            <div className="rounded-3xl border border-line bg-foam p-6 sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Entreprises</p>
+            <div className="relative overflow-hidden rounded-3xl border border-line bg-foam p-6 sm:p-8">
+              {APP_IS_BETA ? (
+                <span className="absolute right-4 top-4 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                  Gratuit en bêta
+                </span>
+              ) : null}
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Édition Pro</p>
               <h3 className="font-display mt-2 text-2xl font-bold">SARL, SAS &amp; équipes</h3>
               <p className="mt-2 font-display text-4xl font-bold text-ink">
-                Payant <span className="text-base font-semibold text-muted">après finalisation</span>
+                {APP_IS_BETA ? (
+                  <>
+                    {APP_EDITION_PRICING.pro.price}{' '}
+                    <span className="text-base font-semibold text-muted">
+                      {APP_EDITION_PRICING.pro.priceSuffix}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Payant <span className="text-base font-semibold text-muted">/ mois</span>
+                  </>
+                )}
               </p>
               <p className="mt-2 text-sm text-muted">
-                Multi-techniciens, compte société, administration — tarification activée à la
-                mise en production finale du site.
+                {APP_IS_BETA
+                  ? APP_EDITION_PRICING.pro.detail
+                  : 'Multi-techniciens, équipe, agenda, pointeuse et pilotage — abonnement Pro.'}
               </p>
               <ul className="mt-5 space-y-2.5 text-sm text-slate">
                 {[
-                  'Tout le plan Indépendants',
+                  'Tout le plan Light',
                   'Équipe terrain + compte bureau',
-                  'Plusieurs opérateurs & signatures',
+                  'Agenda, pointeuse & multi-tech',
                   'Devis / démo sur demande',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
@@ -717,9 +741,19 @@ export function Landing() {
           </div>
 
           <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate">
-            <strong className="font-semibold text-ink">Phase actuelle :</strong> le site est en
-            finalisation — l’inscription et l’usage sont ouverts à tous. La distinction
-            gratuit (AE / micro) / payant (autres structures) s’appliquera ensuite.
+            <strong className="font-semibold text-ink">Version bêta :</strong>{' '}
+            {APP_IS_BETA ? (
+              <>
+                l’édition <strong>Light</strong> est <strong>gratuite pour toujours</strong>.
+                L’édition <strong>Pro</strong> sera payante à la sortie de la bêta —{' '}
+                <strong>gratuite en attendant</strong>. {APP_EDITION_PRICING_AFTER_BETA}
+              </>
+            ) : (
+              <>
+                {APP_EDITION_PRICING_AFTER_BETA} Inscription ouverte pour Light (gratuit) et Pro
+                (abonnement).
+              </>
+            )}
           </p>
         </div>
       </section>
@@ -876,11 +910,13 @@ export function Landing() {
             <BetaBadge />
           </div>
           <h2 className="font-display mt-6 text-2xl font-bold tracking-tight sm:text-3xl">
-            Auto-entrepreneur ? C’est gratuit. Essayez sur un chantier.
+            Light gratuit · Pro gratuit en bêta
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-sm text-muted sm:text-base">
-            AE &amp; micro-sociétés : 0 €. SARL / équipes : payant après la version bêta.
-            CERFA conforme F-Gas, mode hors ligne inclus.
+            Édition <strong>Light</strong> (solo / AE) : 0 € pour toujours. Édition{' '}
+            <strong>Pro</strong> (équipes) : payante à terme,{' '}
+            <strong>gratuite tant que ClimaZEN est en bêta</strong>. CERFA F-Gas, mode hors ligne
+            inclus.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link

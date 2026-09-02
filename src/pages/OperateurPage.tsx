@@ -12,10 +12,13 @@ import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 import {
   APP_EDITION_DESCRIPTIONS,
+  APP_EDITION_PRICING,
+  APP_EDITION_PRICING_AFTER_BETA,
   APP_EDITION_TAGLINES,
   editionHasFeature,
   type AppEdition,
 } from '../lib/appEdition'
+import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 
@@ -231,6 +234,9 @@ export function OperateurPage() {
             ].join(' ')}
           >
             <span className="font-bold">Light</span>
+            <span className="mt-0.5 block text-xs font-semibold text-teal-800">
+              {APP_EDITION_PRICING.light.price} {APP_EDITION_PRICING.light.priceSuffix}
+            </span>
             <span className="mt-1 block text-xs text-muted">{APP_EDITION_DESCRIPTIONS.light}</span>
           </button>
           <button
@@ -245,10 +251,21 @@ export function OperateurPage() {
             ].join(' ')}
           >
             <span className="font-bold">Pro</span>
+            <span className="mt-0.5 block text-xs font-semibold text-indigo-800">
+              {APP_IS_BETA
+                ? `${APP_EDITION_PRICING.pro.price} ${APP_EDITION_PRICING.pro.priceSuffix} (payant après bêta)`
+                : 'Abonnement payant'}
+            </span>
             <span className="mt-1 block text-xs text-muted">{APP_EDITION_DESCRIPTIONS.pro}</span>
           </button>
         </div>
         {editionMsg ? <p className="mt-3 text-sm font-semibold text-accent">{editionMsg}</p> : null}
+        {APP_IS_BETA ? (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+            <strong>Version bêta :</strong> Light gratuite pour toujours. Pro gratuite pendant la
+            bêta — {APP_EDITION_PRICING_AFTER_BETA.toLowerCase()}
+          </p>
+        ) : null}
         {appEdition === 'light' ? (
           <p className="mt-3 text-xs text-muted">
             Besoin d’équipe, agenda ou pointeuse ? Passez à <strong>Pro</strong> quand vous

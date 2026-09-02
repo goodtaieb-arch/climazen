@@ -16,6 +16,26 @@ export const APP_EDITION_TAGLINES: Record<AppEdition, string> = {
   pro: 'PME · TPE · équipes',
 }
 
+/** Tarification affichée (landing, inscription, Mon entreprise). */
+export const APP_EDITION_PRICING: Record<
+  AppEdition,
+  { price: string; priceSuffix?: string; detail: string }
+> = {
+  light: {
+    price: '0 €',
+    priceSuffix: '/ mois',
+    detail: 'Gratuit pour toujours — édition solo / auto-entrepreneur.',
+  },
+  pro: {
+    price: '0 €',
+    priceSuffix: '/ mois (bêta)',
+    detail: 'Offre payante à la sortie de la bêta — gratuite pendant la finalisation.',
+  },
+}
+
+export const APP_EDITION_PRICING_AFTER_BETA =
+  'L’édition Pro deviendra payante à la fin de la version bêta. L’édition Light reste gratuite.'
+
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
     'Intervenir : client, site, équipement, CERFA et société (SIRET, attestation, documents). Étalonnages et détecteur dans Mon profil.',

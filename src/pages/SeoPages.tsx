@@ -27,7 +27,9 @@ function SeoShell({
         <div className="mt-12 rounded-2xl border border-line bg-white p-6 sm:p-8">
           <h2 className="font-display text-xl font-semibold text-ink">Essayer ClimaZEN</h2>
           <p className="mt-2 text-sm text-muted">
-            Auto-entrepreneurs & micro-sociétés : gratuit. CERFA conforme, mode hors ligne inclus.
+            Édition <strong>Light</strong> : gratuite pour toujours. Édition <strong>Pro</strong> :
+            payante à terme, gratuite pendant la version bêta. CERFA conforme, mode hors ligne
+            inclus.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
