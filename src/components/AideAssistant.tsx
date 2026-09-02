@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Check, Loader2, Send, Sparkles, X } from 'lucide-react'
 import { askAideAssistant, type AideMessage } from '../lib/assistantApi'
 import { suggestQuestionsForPath } from '../lib/assistantKnowledge'
@@ -23,11 +23,35 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { VoiceDictationButton } from './VoiceDictationButton'
 import { formatOtNumero } from '../lib/ordreTravail'
+import {
+  aiTierUpsellMessage,
+  canUseAgentActions,
+  canUseChatbot,
+  resolveAiTier,
+  AI_TIER_LABELS,
+} from '../lib/aiAccess'
+import { APP_IS_BETA } from '../lib/buildStamp'
 
 type ChatLine = AideMessage & { id: string }
 
 function newId() {
   return crypto.randomUUID()
+}
+
+function welcomeForTier(tier: ReturnType<typeof resolveAiTier>): string {
+  if (tier === 'none') {
+    return `Bonjour — l’assistant IA n’est pas inclus dans l’édition Light gratuite pendant la version bêta.
+
+${aiTierUpsellMessage('none') ?? ''}
+
+À la sortie de la bêta : chatbot d’aide gratuit, Agent IA (OT, CERFA, agenda…) en option payante.`
+  }
+  if (tier === 'chatbot') {
+    return `Bonjour — je suis le ${AI_TIER_LABELS.chatbot} ClimaZEN (guide et questions sur l’app).
+
+Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
+  }
+  return 'Bonjour — je peux préparer OT, CERFA, clients, agenda, bouteilles, fiches et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée un client Monsieur Albert Dupont, tél 06 15 53 38 54, mail …, adresse … Nice »\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Agenda RDV demain 14h pour Mr Martin site Atelier »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »'
 }
 
 function stripActionJson(reply: string): string {
@@ -53,8 +77,12 @@ export function AideAssistant() {
     upsertStock,
     upsertFicheMaintenanceClim,
     upsertAgendaEvent,
+    appEdition,
   } = useStore()
   const { user } = useAuth()
+  const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
+  const chatbotOk = canUseChatbot(aiTier)
+  const agentOk = canUseAgentActions(aiTier)
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -65,8 +93,9 @@ export function AideAssistant() {
     {
       id: newId(),
       role: 'assistant',
-      content:
-        'Bonjour — je peux préparer OT, CERFA, clients, agenda, bouteilles, fiches et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée un client Monsieur Albert Dupont, tél 06 15 53 38 54, mail …, adresse … Nice »\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Agenda RDV demain 14h pour Mr Martin site Atelier »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »',
+      content: welcomeForTier(
+        resolveAiTier({ appEdition: 'light', aiPlan: undefined }),
+      ),
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -83,6 +112,22 @@ export function AideAssistant() {
     window.addEventListener('climazen:open-aide', openFromVoice)
     return () => window.removeEventListener('climazen:open-aide', openFromVoice)
   }, [])
+
+  useEffect(() => {
+    if (!open) return
+    setLines([
+      {
+        id: newId(),
+        role: 'assistant',
+        content: welcomeForTier(aiTier),
+      },
+    ])
+    setPendingCreate(null)
+    setPendingTerrain(null)
+    setSource(null)
+    setInput('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, aiTier])
 
   const pushAssistant = (content: string) => {
     setLines((prev) => [...prev, { id: newId(), role: 'assistant', content }])
@@ -152,12 +197,19 @@ export function AideAssistant() {
   const send = async (text: string) => {
     const q = text.trim()
     if (!q || busy) return
+    if (!chatbotOk) return
     setInput('')
     const userLine: ChatLine = { id: newId(), role: 'user', content: q }
     setLines((prev) => [...prev, userLine])
     setBusy(true)
     try {
       if ((pendingCreate || pendingTerrain) && isConfirmPhrase(q)) {
+        if (!agentOk) {
+          pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
+          setPendingCreate(null)
+          setPendingTerrain(null)
+          return
+        }
         if (pendingCreate) runCreate()
         else await runTerrain()
         return
@@ -169,9 +221,13 @@ export function AideAssistant() {
         return
       }
 
-      // 1) Actions terrain (détecteur, bouteille, fiche, agenda)
+      // 1) Actions terrain (détecteur, bouteille, fiche, agenda) — Agent IA uniquement
       const terrain = parseTerrainIntent(q)
       if (terrain) {
+        if (!agentOk) {
+          pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
+          return
+        }
         setSource('local')
         setPendingCreate(null)
         setPendingTerrain(terrain)
@@ -179,9 +235,13 @@ export function AideAssistant() {
         return
       }
 
-      // 2) OT + CERFA
+      // 2) OT + CERFA — Agent IA uniquement
       const localIntent = parseCreateOtCerfaIntent(q)
       if (localIntent) {
+        if (!agentOk) {
+          pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
+          return
+        }
         setSource('local')
         tryProposeFromIntent(localIntent)
         return
@@ -192,11 +252,12 @@ export function AideAssistant() {
       const { reply, source: src } = await askAideAssistant({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         pathname: location.pathname,
-        entityCatalog: buildEntityCatalog(data),
+        entityCatalog: agentOk ? buildEntityCatalog(data) : undefined,
+        chatbotOnly: !agentOk,
       })
       setSource(src)
 
-      const geminiEquips = extractEquipementsActionFromReply(reply)
+      const geminiEquips = agentOk ? extractEquipementsActionFromReply(reply) : null
       if (geminiEquips) {
         const cleaned = stripActionJson(reply)
         if (cleaned) pushAssistant(cleaned)
@@ -206,7 +267,7 @@ export function AideAssistant() {
         return
       }
 
-      const geminiIntent = extractActionFromReply(reply)
+      const geminiIntent = agentOk ? extractActionFromReply(reply) : null
       if (geminiIntent) {
         const cleaned = stripActionJson(reply)
         if (cleaned) pushAssistant(cleaned)
@@ -220,7 +281,7 @@ export function AideAssistant() {
           reply,
         )
       if (falseDone) {
-        const retry = parseTerrainIntent(q)
+        const retry = agentOk ? parseTerrainIntent(q) : null
         if (retry) {
           setPendingCreate(null)
           setPendingTerrain(retry)
@@ -259,6 +320,17 @@ export function AideAssistant() {
     else if (content.includes('/app/agenda')) navigate('/app/agenda')
   }
 
+  const tierSubtitle =
+    aiTier === 'agent'
+      ? source === 'api'
+        ? 'Agent IA · Gemini cloud'
+        : source === 'local'
+          ? 'Agent IA · guide + actions'
+          : 'Agent IA · OT · CERFA · agenda'
+      : aiTier === 'chatbot'
+        ? 'Chatbot · guide ClimaZEN'
+        : 'Non activé · édition Light'
+
   return (
     <>
       {open && (
@@ -273,14 +345,7 @@ export function AideAssistant() {
                 <Sparkles className="h-4 w-4 shrink-0" />
                 Assistant ClimaZEN
               </div>
-              <p className="truncate text-[11px] text-white/80">
-                {source === 'api'
-                  ? 'IA cloud (Gemini)'
-                  : source === 'local'
-                    ? 'Guide + actions locales'
-                    : 'Prêt'}{' '}
-                · OT · CERFA · agenda · stock · fiches
-              </p>
+              <p className="truncate text-[11px] text-white/80">{tierSubtitle}</p>
             </div>
             <button
               type="button"
@@ -323,7 +388,25 @@ export function AideAssistant() {
             <div ref={bottomRef} />
           </div>
 
-          {hasPending ? (
+          {!chatbotOk ? (
+            <div className="space-y-3 border-t border-line bg-amber-50 px-4 py-4">
+              <p className="text-sm text-slate">
+                L’assistant IA n’est pas inclus dans votre offre Light gratuite pendant la bêta.
+              </p>
+              <Link
+                to="/contact"
+                onClick={() => setOpen(false)}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white hover:bg-teal-800"
+              >
+                Activer l’Agent IA
+              </Link>
+              <p className="text-[11px] text-muted">
+                À la sortie de la bêta : chatbot gratuit · Agent IA en option payante.
+              </p>
+            </div>
+          ) : (
+            <>
+          {hasPending && agentOk ? (
             <div className="flex gap-2 border-t border-amber-200 bg-amber-50 px-3 py-2">
               <button
                 type="button"
@@ -344,9 +427,11 @@ export function AideAssistant() {
             </div>
           ) : null}
 
-          {suggestions.length > 0 && !hasPending ? (
+          {suggestions.length > 0 && !hasPending && chatbotOk ? (
             <div className="flex flex-wrap gap-1.5 border-t border-line px-3 py-2">
-              {suggestions.map((s) => (
+              {suggestions
+                .filter((s) => agentOk || !/\b(cr[eé]e|ajoute|nouveau|ot\b|cerfa)/i.test(s))
+                .map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -367,7 +452,11 @@ export function AideAssistant() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ex. ajoute détecteur… / crée OT…"
+              placeholder={
+                agentOk
+                  ? 'Ex. ajoute détecteur… / crée OT…'
+                  : 'Question sur l’app ClimaZEN…'
+              }
               className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-sm"
               disabled={busy}
             />
@@ -387,6 +476,17 @@ export function AideAssistant() {
               <Send className="h-4 w-4" />
             </button>
           </form>
+          {!agentOk && chatbotOk ? (
+            <p className="border-t border-line px-3 pb-3 text-center text-[11px] text-muted">
+              <Link to="/contact" onClick={() => setOpen(false)} className="font-semibold text-accent underline">
+                Passer à l’Agent IA
+              </Link>
+              {' '}
+              — création OT/CERFA et actions terrain
+            </p>
+          ) : null}
+            </>
+          )}
         </div>
       )}
     </>

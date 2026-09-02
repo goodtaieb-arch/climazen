@@ -36,6 +36,10 @@ export const APP_EDITION_PRICING: Record<
 export const APP_EDITION_PRICING_AFTER_BETA =
   'L’édition Pro deviendra payante à la fin de la version bêta. L’édition Light reste gratuite.'
 
+/** Réexport tarification IA Light (chatbot post-bêta, Agent payant). */
+export { AI_LIGHT_BETA_HINT, AI_LIGHT_PRICING, AI_TIER_LABELS } from './aiAccess'
+export type { AiPlan, AiTier } from './aiAccess'
+
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
     'OT, agenda, contrats maintenance, stock fluides, CERFA et société — tout le métier, un seul compte utilisateur.',

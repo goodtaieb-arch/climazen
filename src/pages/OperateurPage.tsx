@@ -16,9 +16,13 @@ import {
   APP_EDITION_PRICING_AFTER_BETA,
   APP_EDITION_SOLO_HINT,
   APP_EDITION_TAGLINES,
+  AI_LIGHT_BETA_HINT,
+  AI_LIGHT_PRICING,
+  AI_TIER_LABELS,
   editionHasFeature,
   type AppEdition,
 } from '../lib/appEdition'
+import { resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
@@ -44,6 +48,8 @@ export function OperateurPage() {
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   const [editionBusy, setEditionBusy] = useState(false)
   const [editionMsg, setEditionMsg] = useState('')
+
+  const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
 
   const patchForm = (patch: Partial<Operateur> | ((prev: Operateur) => Operateur)) => {
     setDirty(true)
@@ -275,6 +281,56 @@ export function OperateurPage() {
           </p>
         ) : null}
       </section>
+
+      {appEdition === 'light' ? (
+        <section className="rounded-2xl border border-line bg-white p-5">
+          <h2 className="font-display text-lg font-semibold">Assistant IA</h2>
+          <p className="mt-1 text-sm text-muted">
+            Votre accès actuel :{' '}
+            <strong className="text-ink">{AI_TIER_LABELS[aiTier]}</strong>
+          </p>
+          {APP_IS_BETA ? (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              {AI_LIGHT_BETA_HINT}
+            </p>
+          ) : null}
+          <ul className="mt-4 space-y-3 text-sm text-slate">
+            <li className="rounded-xl border border-line bg-foam px-3 py-2">
+              <span className="font-semibold text-ink">{AI_TIER_LABELS.chatbot}</span>
+              <span className="mt-0.5 block text-xs text-muted">
+                {APP_IS_BETA
+                  ? `Gratuit à la sortie de la bêta — ${AI_LIGHT_PRICING.chatbotAfterBeta.detail}`
+                  : AI_LIGHT_PRICING.chatbotAfterBeta.detail}
+              </span>
+            </li>
+            <li className="rounded-xl border border-teal-200 bg-teal-50/60 px-3 py-2">
+              <span className="font-semibold text-teal-950">{AI_TIER_LABELS.agent}</span>
+              <span className="mt-0.5 block text-xs text-teal-900">
+                {APP_IS_BETA
+                  ? AI_LIGHT_PRICING.agentDuringBeta.detail
+                  : AI_LIGHT_PRICING.agentAfterBeta.detail}
+              </span>
+              {aiTier !== 'agent' ? (
+                <Link
+                  to="/contact"
+                  className="mt-2 inline-flex min-h-10 items-center rounded-xl bg-[#0f766e] px-4 text-xs font-bold text-white hover:bg-teal-800"
+                >
+                  {APP_IS_BETA ? 'Activer l’Agent IA (sur devis)' : 'Passer à l’Agent IA'}
+                </Link>
+              ) : (
+                <p className="mt-2 text-xs font-semibold text-teal-800">Agent IA activé sur votre compte.</p>
+              )}
+            </li>
+          </ul>
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-line bg-white p-5">
+          <h2 className="font-display text-lg font-semibold">Assistant IA</h2>
+          <p className="mt-1 text-sm text-muted">
+            Édition Pro : {AI_TIER_LABELS.agent} inclus (OT, CERFA, agenda, Gemini cloud).
+          </p>
+        </section>
+      )}
 
       {editionHasFeature(appEdition, 'stock_pieces') ? (
         <section className="rounded-2xl border border-line bg-white p-5">

@@ -11,6 +11,7 @@ import {
   Truck,
   LayoutDashboard,
   LogOut,
+  Lock,
   MapPin,
   Mic,
   Package,
@@ -38,6 +39,7 @@ import { BetaBadge } from './BetaBadge'
 import { AppEditionBadge } from './AppEditionBadge'
 import { isTerrainUi } from '../lib/uiMode'
 import { filterLinksByEdition, editionHasFeature } from '../lib/appEdition'
+import { resolveAiTier } from '../lib/aiAccess'
 import { MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 
 type NavLinkDef = {
@@ -260,6 +262,8 @@ export function AppLayout() {
   }, [])
 
   const terrainUi = isTerrainUi({ isOwner, peutVoirIdentitesRh })
+  const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
+  const aiLocked = aiTier === 'none'
 
   const ownerLinks = appEdition === 'light' ? baseLinksLightOwner : baseLinksOwner
 
@@ -512,11 +516,15 @@ export function AppLayout() {
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent('climazen:open-aide'))}
-                className="touch-target inline-flex items-center gap-1.5 rounded-full bg-[#0f766e] px-2.5 text-sm font-bold text-white hover:bg-teal-800 sm:px-3"
-                aria-label="Aide IA"
-                title="Aide IA"
+                className={
+                  aiLocked
+                    ? 'touch-target inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 text-sm font-bold text-amber-950 hover:bg-amber-100 sm:px-3'
+                    : 'touch-target inline-flex items-center gap-1.5 rounded-full bg-[#0f766e] px-2.5 text-sm font-bold text-white hover:bg-teal-800 sm:px-3'
+                }
+                aria-label={aiLocked ? 'Aide IA — option payante' : 'Aide IA'}
+                title={aiLocked ? 'Agent IA — option payante en édition Light' : 'Aide IA'}
               >
-                <Sparkles className="h-4 w-4" />
+                {aiLocked ? <Lock className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                 <span>Aide IA</span>
               </button>
               <button
@@ -669,12 +677,22 @@ export function AppLayout() {
                     setMoreOpen(false)
                     window.dispatchEvent(new CustomEvent('climazen:open-aide'))
                   }}
-                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[#0f766e]/25 bg-[#0f766e]/5 px-4 py-3 font-semibold text-[#0f766e] active:bg-[#0f766e]/10"
+                  className={
+                    aiLocked
+                      ? 'flex min-h-14 w-full items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 font-semibold text-amber-950 active:bg-amber-100'
+                      : 'flex min-h-14 w-full items-center gap-3 rounded-2xl border border-[#0f766e]/25 bg-[#0f766e]/5 px-4 py-3 font-semibold text-[#0f766e] active:bg-[#0f766e]/10'
+                  }
                 >
-                  <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#0f766e]/15 text-[#0f766e]">
-                    <Sparkles className="h-5 w-5" />
+                  <span
+                    className={
+                      aiLocked
+                        ? 'grid h-12 w-12 place-items-center rounded-xl bg-amber-100 text-amber-900'
+                        : 'grid h-12 w-12 place-items-center rounded-xl bg-[#0f766e]/15 text-[#0f766e]'
+                    }
+                  >
+                    {aiLocked ? <Lock className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                   </span>
-                  Aide IA
+                  {aiLocked ? 'Aide IA (option payante)' : 'Aide IA'}
                 </button>
               </li>
               {moreLinks.map(({ to, label, icon: Icon, tone }) => {
