@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useParams, useSearchParams } fr
 import { AuthProvider } from './lib/AuthContext'
 import { StoreProvider } from './lib/store'
 import { RequireAuth } from './components/RequireAuth'
+import { RequireEdition } from './components/RequireEdition'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AppLayout } from './components/AppLayout'
 import { PublicLayout } from './components/PublicLayout'
@@ -104,8 +105,22 @@ export default function App() {
                 <Route path="ot" element={<OrdresTravailPage />} />
                 <Route path="appel" element={<AppelOtPage />} />
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
-                <Route path="agenda" element={<AgendaPage />} />
-                <Route path="pointage" element={<PointagePage />} />
+                <Route
+                  path="agenda"
+                  element={
+                    <RequireEdition>
+                      <AgendaPage />
+                    </RequireEdition>
+                  }
+                />
+                <Route
+                  path="pointage"
+                  element={
+                    <RequireEdition>
+                      <PointagePage />
+                    </RequireEdition>
+                  }
+                />
                 <Route path="fiche-maintenance-clim" element={<FicheMaintenanceClimRoute />} />
                 <Route
                   path="fiche-maintenance-chaufferie"
@@ -116,8 +131,22 @@ export default function App() {
                   element={<FicheMaintenanceCtaVmcRoute />}
                 />
                 <Route path="scan-equip" element={<ScanEquipementPage />} />
-                <Route path="equipe" element={<EquipePage />} />
-                <Route path="equipe/:userId" element={<TechnicienDossierPage />} />
+                <Route
+                  path="equipe"
+                  element={
+                    <RequireEdition>
+                      <EquipePage />
+                    </RequireEdition>
+                  }
+                />
+                <Route
+                  path="equipe/:userId"
+                  element={
+                    <RequireEdition>
+                      <TechnicienDossierPage />
+                    </RequireEdition>
+                  }
+                />
                 <Route path="operateur" element={<OperateurPage />} />
                 <Route path="profil" element={<ProfilPage />} />
               </Route>

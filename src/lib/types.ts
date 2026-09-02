@@ -727,7 +727,12 @@ export interface BonRemiseMateriel {
   createdByName?: string
 }
 
+/** Édition produit : Light (solo / AE) ou Pro (PME / TPE). */
+export type AppEdition = import('./appEdition').AppEdition
+
 export interface AppData {
+  /** Light = solo sans équipe ; Pro = PME/TPE (défaut si absent = Pro). */
+  appEdition?: AppEdition
   operateur: Operateur
   clients: Client[]
   /** Sites d’intervention (clé historique « chantiers ») */

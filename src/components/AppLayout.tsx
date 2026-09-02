@@ -30,7 +30,9 @@ import { formatLastSyncLabel } from '../lib/speech'
 import { getLastSyncAt } from '../lib/offlineSync'
 import { VersionBadge, VersionUpdateBar, MajButton } from './AppVersion'
 import { BetaBadge } from './BetaBadge'
+import { AppEditionBadge } from './AppEditionBadge'
 import { isTerrainUi } from '../lib/uiMode'
+import { filterLinksByEdition } from '../lib/appEdition'
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -119,6 +121,18 @@ const tones: Record<
   },
 }
 
+const baseLinksLightOwner = [
+  { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
+  { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
+  { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+  { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+]
+
 const baseLinksOwner = [
   { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
@@ -184,7 +198,7 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
 
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
-  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud, peutVoirIdentitesRh } =
+  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud, peutVoirIdentitesRh, appEdition } =
     useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -202,21 +216,30 @@ export function AppLayout() {
 
   const terrainUi = isTerrainUi({ isOwner, peutVoirIdentitesRh })
 
-  const links = isOwner
-    ? baseLinksOwner
-    : terrainUi
-      ? [
-          ...baseLinksTerrain,
-          ...(user
-            ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-            : []),
-        ]
-      : [
-          ...baseLinksOperator,
-          { to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' },
-        ]
+  const ownerLinks = appEdition === 'light' ? baseLinksLightOwner : baseLinksOwner
 
-  const mobilePrimary = terrainUi ? mobilePrimaryTerrain : mobilePrimaryBureau
+  const links = isOwner
+    ? ownerLinks
+    : terrainUi
+      ? filterLinksByEdition(
+          [
+            ...baseLinksTerrain,
+            ...(user
+              ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+              : []),
+          ],
+          appEdition,
+        )
+      : filterLinksByEdition(
+          [
+            ...baseLinksOperator,
+            { to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' },
+          ],
+          appEdition,
+        )
+
+  const mobilePrimary =
+    terrainUi || appEdition === 'light' ? mobilePrimaryTerrain : mobilePrimaryBureau
 
   const pageTone = toneForPath(pathname, links)
 
@@ -244,33 +267,36 @@ export function AppLayout() {
     }
   }
 
-  const moreLinks = terrainUi
-    ? [
-        { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
-        { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-        { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
-        { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
-        ...(user
-          ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-          : []),
-      ]
-    : [
-        { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
-        { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-        { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
-        { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
-        { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-        { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
-        ...(user
-          ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-          : []),
-        ...(isOwner
-          ? [
-              { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
-              { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
-            ]
-          : [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]),
-      ]
+  const moreLinks = filterLinksByEdition(
+    terrainUi
+      ? [
+          { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+          { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
+          { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+          { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+          ...(user
+            ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+            : []),
+        ]
+      : [
+          { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+          { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
+          { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+          { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
+          { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+          { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+          ...(user
+            ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+            : []),
+          ...(isOwner
+            ? [
+                { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+                { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
+              ]
+            : [{ to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' }]),
+        ],
+    appEdition,
+  )
 
   return (
     <div
@@ -283,8 +309,9 @@ export function AppLayout() {
       <aside className="hidden border-r border-line bg-[#fafbfc] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:self-start md:overflow-y-auto">
         <div className="border-b border-line bg-white px-4 py-4">
           <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <BetaBadge size="sm" />
+            <AppEditionBadge edition={appEdition} size="sm" />
           </div>
           <div className="mt-3 min-w-0">
             <div className="truncate text-sm font-semibold text-ink">{orgLabel}</div>
@@ -373,6 +400,7 @@ export function AppLayout() {
             <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
               <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />
               <BetaBadge size="sm" />
+              <AppEditionBadge edition={appEdition} size="sm" />
             </div>
             <div className="hidden min-w-0 flex-1 md:block">
               <div className="truncate text-sm font-semibold text-ink">{orgLabel}</div>
@@ -383,6 +411,9 @@ export function AppLayout() {
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
               <span className="hidden md:inline-flex">
                 <BetaBadge />
+              </span>
+              <span className="hidden md:inline-flex">
+                <AppEditionBadge edition={appEdition} />
               </span>
               <VersionBadge />
               <MajButton />

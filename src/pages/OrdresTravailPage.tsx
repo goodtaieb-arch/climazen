@@ -42,6 +42,7 @@ import { couleurPlanning } from '../lib/agendaPlanning'
 import { AgenceFilterChips, AgenceSelect } from '../components/AgenceSelect'
 import { agenceEffective, agencesDuMembre, labelAgence, matchAgenceFilter } from '../lib/agences'
 import { isBureauUi } from '../lib/uiMode'
+import { editionHasFeature } from '../lib/appEdition'
 
 export function OrdresTravailPage() {
   const {
@@ -52,7 +53,9 @@ export function OrdresTravailPage() {
     genererFactureDepuisOt,
     upsertCommandeFournisseur,
     peutVoirIdentitesRh,
+    appEdition,
   } = useStore()
+  const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
   const { user, isOwner } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const navigate = useNavigate()
@@ -416,32 +419,36 @@ export function OrdresTravailPage() {
             </label>
           </div>
 
-          <SecteurOtSelect
-            required
-            value={form.secteur || ''}
-            onChange={(secteur) => setForm({ ...form, secteur })}
-          />
-          <AgenceSelect
-            value={form.agenceCode}
-            onChange={(agenceCode) => setForm({ ...form, agenceCode })}
-          />
-          <TechnicienAssignField
-            multi
-            highlightAgence={form.agenceCode}
-            label="Techniciens (plusieurs possibles)"
-            technicien={form.technicien}
-            technicienUserId={form.technicienUserId}
-            technicienUserIds={form.technicienUserIds}
-            onChange={(next) => {
-              const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
-              const auto = secteurOtDepuisPoste(poste)
-              setForm({
-                ...form,
-                ...next,
-                secteur: form.secteur || auto,
-              })
-            }}
-          />
+          {multiTechOt ? (
+            <>
+              <SecteurOtSelect
+                required
+                value={form.secteur || ''}
+                onChange={(secteur) => setForm({ ...form, secteur })}
+              />
+              <AgenceSelect
+                value={form.agenceCode}
+                onChange={(agenceCode) => setForm({ ...form, agenceCode })}
+              />
+              <TechnicienAssignField
+                multi
+                highlightAgence={form.agenceCode}
+                label="Techniciens (plusieurs possibles)"
+                technicien={form.technicien}
+                technicienUserId={form.technicienUserId}
+                technicienUserIds={form.technicienUserIds}
+                onChange={(next) => {
+                  const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
+                  const auto = secteurOtDepuisPoste(poste)
+                  setForm({
+                    ...form,
+                    ...next,
+                    secteur: form.secteur || auto,
+                  })
+                }}
+              />
+            </>
+          ) : null}
 
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
@@ -728,23 +735,27 @@ export function OrdresTravailPage() {
             </option>
           ))}
         </select>
-        <select
-          value={secteurFilter}
-          onChange={(e) => setSecteurFilter(e.target.value)}
-          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
-        >
-          <option value="tous">Tous les métiers</option>
-          {secteursOt().map((s) => (
-            <option key={s.id} value={s.id}>
-              {labelSecteurCourt(s.id)}
-            </option>
-          ))}
-        </select>
-        <AgenceFilterChips
-          selected={agenceFilter}
-          onChange={setAgenceFilter}
-          codes={agencesDispo}
-        />
+        {multiTechOt ? (
+          <select
+            value={secteurFilter}
+            onChange={(e) => setSecteurFilter(e.target.value)}
+            className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
+          >
+            <option value="tous">Tous les métiers</option>
+            {secteursOt().map((s) => (
+              <option key={s.id} value={s.id}>
+                {labelSecteurCourt(s.id)}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        {multiTechOt ? (
+          <AgenceFilterChips
+            selected={agenceFilter}
+            onChange={setAgenceFilter}
+            codes={agencesDispo}
+          />
+        ) : null}
       </div>
 
       <div className="grid gap-3">

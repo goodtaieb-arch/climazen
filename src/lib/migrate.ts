@@ -19,6 +19,7 @@ import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefau
 import { purgeOrphanCerfaStock } from './stockMouvements'
 import { migratePersonnelDossiers, normalizePersonnelRhAccesUserIds, normalizePersonnelRetiresUserIds } from './rhDocuments'
 import { parsePointageEvents, parsePointageRegles } from './pointage'
+import { resolveAppEdition } from './appEdition'
 
 /** Ancien format plat (1 chantier = 1 équipement). */
 type LegacyChantier = Partial<Site> & {
@@ -277,6 +278,7 @@ export function migrateAppData(data: AppData): AppData {
   const outillages = migrateOutillages(data, detecteurs)
   return purgeOrphanCerfaStock({
     ...data,
+    appEdition: resolveAppEdition(data.appEdition),
     chantiers: sites,
     interventions,
     detecteurs,

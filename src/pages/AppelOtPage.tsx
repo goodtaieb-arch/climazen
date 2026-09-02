@@ -64,6 +64,7 @@ import {
   contratsActifsForSite,
   resolveSecteurContrat,
 } from '../lib/contratMaintenance'
+import { editionHasFeature } from '../lib/appEdition'
 import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
@@ -165,8 +166,9 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh, appEdition } =
     useStore()
+  const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -1472,33 +1474,37 @@ export function AppelOtPage() {
               placeholder="Urgence, accès, contact sur place…"
             />
           </label>
-          <AgenceSelect
-            label="Agence / région de l’OT"
-            value={otForm.agenceCode}
-            onChange={(agenceCode) => setOtForm({ ...otForm, agenceCode })}
-          />
-          <SecteurOtSelect
-            required
-            value={otForm.secteur || ''}
-            onChange={(secteur) => setOtForm({ ...otForm, secteur })}
-          />
-          <TechnicienAssignField
-            multi
-            highlightAgence={otForm.agenceCode}
-            label="Techniciens (plusieurs possibles)"
-            technicien={otForm.technicien}
-            technicienUserId={otForm.technicienUserId}
-            technicienUserIds={otForm.technicienUserIds}
-            onChange={(next) => {
-              const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
-              const auto = secteurOtDepuisPoste(poste)
-              setOtForm({
-                ...otForm,
-                ...next,
-                secteur: otForm.secteur || auto,
-              })
-            }}
-          />
+          {multiTechOt ? (
+            <>
+              <AgenceSelect
+                label="Agence / région de l’OT"
+                value={otForm.agenceCode}
+                onChange={(agenceCode) => setOtForm({ ...otForm, agenceCode })}
+              />
+              <SecteurOtSelect
+                required
+                value={otForm.secteur || ''}
+                onChange={(secteur) => setOtForm({ ...otForm, secteur })}
+              />
+              <TechnicienAssignField
+                multi
+                highlightAgence={otForm.agenceCode}
+                label="Techniciens (plusieurs possibles)"
+                technicien={otForm.technicien}
+                technicienUserId={otForm.technicienUserId}
+                technicienUserIds={otForm.technicienUserIds}
+                onChange={(next) => {
+                  const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
+                  const auto = secteurOtDepuisPoste(poste)
+                  setOtForm({
+                    ...otForm,
+                    ...next,
+                    secteur: otForm.secteur || auto,
+                  })
+                }}
+              />
+            </>
+          ) : null}
           {isOwner || peutVoirIdentitesRh ? (
             <p className="text-[11px] text-muted">
               Si vous vous affectez (auto-entrepreneur / vous sortez), vous remplissez l’intervention.

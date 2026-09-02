@@ -20,6 +20,7 @@ import {
   type RhAccessActor,
 } from './rhDocuments'
 import { mergePointageRegles, parsePointageEvents } from './pointage'
+import { stashPendingEdition, type AppEdition } from './appEdition'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -171,7 +172,10 @@ export async function registerCompany(opts: {
   email: string
   password: string
   fullName: string
+  appEdition?: AppEdition
 }): Promise<RegisterResult> {
+  const edition = opts.appEdition === 'pro' ? 'pro' : 'light'
+  stashPendingEdition(edition)
   const email = normalizeEmail(opts.email)
   if (!opts.companyName.trim()) throw new Error('Indiquez le nom de la société.')
   if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide (ex. contact@societe.fr).')
@@ -188,6 +192,7 @@ export async function registerCompany(opts: {
         company_name: opts.companyName.trim(),
         full_name: opts.fullName.trim(),
         role: 'owner',
+        app_edition: edition,
       },
     },
   })

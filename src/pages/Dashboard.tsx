@@ -56,6 +56,8 @@ import {
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
 import { isTerrainUi } from '../lib/uiMode'
+import { editionHasFeature } from '../lib/appEdition'
+import { AppEditionBadge } from '../components/AppEditionBadge'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -90,7 +92,7 @@ const QUICK_START = [
 ] as const
 
 export function Dashboard() {
-  const { data, peutVoirIdentitesRh } = useStore()
+  const { data, peutVoirIdentitesRh, appEdition } = useStore()
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
@@ -101,10 +103,12 @@ export function Dashboard() {
     () => ({
       isOwner,
       peutVoirIdentitesRh,
+      appEdition,
     }),
-    [isOwner, peutVoirIdentitesRh],
+    [isOwner, peutVoirIdentitesRh, appEdition],
   )
   const terrainUi = isTerrainUi(shortcutAccess)
+  const proFeatures = editionHasFeature(appEdition, 'equipe')
 
   const [shortcutIds, setShortcutIds] = useState<HomeShortcutId[]>(() =>
     resolveHomeShortcutIds(user?.id, shortcutAccess),
@@ -291,6 +295,10 @@ export function Dashboard() {
               <p className="mt-1 text-sm font-medium text-muted">
                 Client appelle, scan QR, sites, OT, CERFA.
               </p>
+            ) : appEdition === 'light' ? (
+              <p className="mt-1 text-sm font-medium text-muted">
+                Solo : clients, OT, contrats, CERFA et détecteur — sans équipe ni admin lourd.
+              </p>
             ) : (
               <>
                 <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
@@ -303,6 +311,11 @@ export function Dashboard() {
                 </p>
               </>
             )}
+            {!terrainUi ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <AppEditionBadge edition={appEdition} size="sm" />
+              </div>
+            ) : null}
           </div>
           <label className="relative block w-full md:w-80">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
@@ -323,7 +336,7 @@ export function Dashboard() {
           </label>
         </div>
 
-        {!q.trim() && isOwner && receptionEquipe.length > 0 ? (
+        {!q.trim() && proFeatures && isOwner && receptionEquipe.length > 0 ? (
           <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
               <ClipboardCheck className="h-4 w-4 shrink-0" />
@@ -349,7 +362,7 @@ export function Dashboard() {
           </div>
         ) : null}
 
-        {!q.trim() && !isOwner && user?.id && receptionPerso.length > 0 ? (
+        {!q.trim() && proFeatures && !isOwner && user?.id && receptionPerso.length > 0 ? (
           <Link
             to={`/app/equipe/${user.id}`}
             className="block rounded-2xl border border-amber-300 bg-amber-50 p-4"
@@ -426,7 +439,7 @@ export function Dashboard() {
           </nav>
         )}
 
-        {!q.trim() && !terrainUi ? <DashboardKpiPanel /> : null}
+        {!q.trim() && !terrainUi && proFeatures ? <DashboardKpiPanel /> : null}
 
         {q.trim() && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -638,19 +651,21 @@ export function Dashboard() {
                 color="sites"
                 to="/app/scan-equip?camera=1"
               />
-              <TerrainAction
-                icon={ClipboardList}
-                img3d={ICON3D.search}
-                title="Agenda"
-                subtitle={
-                  agendaAContacter.length
-                    ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
-                    : 'Rappels maintenance & RDV'
-                }
-                color="sites"
-                to="/app/agenda"
-                badge={agendaAContacter.length || undefined}
-              />
+              {proFeatures ? (
+                <TerrainAction
+                  icon={ClipboardList}
+                  img3d={ICON3D.search}
+                  title="Agenda"
+                  subtitle={
+                    agendaAContacter.length
+                      ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
+                      : 'Rappels maintenance & RDV'
+                  }
+                  color="sites"
+                  to="/app/agenda"
+                  badge={agendaAContacter.length || undefined}
+                />
+              ) : null}
               <TerrainAction
                 icon={ClipboardList}
                 img3d={ICON3D.cerfa}
@@ -719,7 +734,7 @@ export function Dashboard() {
         )}
       </section>
 
-      {!q.trim() && rhAlertes.length > 0 && (
+      {!q.trim() && proFeatures && rhAlertes.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">Documents à renouveler</h2>
@@ -807,7 +822,7 @@ export function Dashboard() {
       )}
 
       {/* Rappels agenda — à contacter */}
-      {!q.trim() && agendaAContacter.length > 0 && (
+      {!q.trim() && proFeatures && agendaAContacter.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">À contacter (agenda)</h2>

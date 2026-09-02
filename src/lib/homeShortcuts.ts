@@ -1,5 +1,6 @@
 import { ICON3D } from './icons3d'
 import { isTerrainUi, shortcutVisibleForAccess, type UiAccess } from './uiMode'
+import type { EditionFeature } from './appEdition'
 
 /** Identifiants des raccourcis Accueil mobile (grille de cercles). */
 export type HomeShortcutId =
@@ -30,6 +31,8 @@ export type HomeShortcutDef = {
   rhTeamOnly?: boolean
   /** Clients / contrats : bureau & gérant seulement (pas le tech terrain). */
   bureauOnly?: boolean
+  proOnly?: boolean
+  proFeature?: EditionFeature
 }
 
 export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
@@ -50,6 +53,8 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Agenda',
     img: ICON3D.search,
     to: '/app/agenda',
+    proOnly: true,
+    proFeature: 'agenda',
   },
   cerfa: {
     id: 'cerfa',
@@ -101,6 +106,8 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.equipe,
     to: '/app/equipe',
     rhTeamOnly: true,
+    proOnly: true,
+    proFeature: 'equipe',
   },
   operateur: {
     id: 'operateur',
@@ -114,10 +121,12 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Pointeuse',
     img: ICON3D.signaturePad,
     to: '/app/pointage',
+    proOnly: true,
+    proFeature: 'pointage',
   },
 }
 
-/** Disposition par défaut bureau / gérant. */
+/** Disposition par défaut bureau / gérant Pro. */
 export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'sites',
   'scan_qr',
@@ -129,6 +138,20 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'appel',
   'pointage',
   'profil',
+]
+
+/** Light (solo / AE) : l’essentiel chantier sans équipe ni admin lourd. */
+export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
+  'appel',
+  'sites',
+  'ot',
+  'cerfa',
+  'clients',
+  'contrats',
+  'stock',
+  'scan_qr',
+  'profil',
+  'operateur',
 ]
 
 /** Terrain : uniquement les boutons d’intervention. */
@@ -162,7 +185,9 @@ export type HomeShortcutAccess = UiAccess & {
 }
 
 function defaultShortcutIds(access: HomeShortcutAccess): HomeShortcutId[] {
-  return isTerrainUi(access) ? DEFAULT_HOME_SHORTCUT_IDS_TERRAIN : DEFAULT_HOME_SHORTCUT_IDS
+  if (isTerrainUi(access)) return DEFAULT_HOME_SHORTCUT_IDS_TERRAIN
+  const edition = access.appEdition ?? 'pro'
+  return edition === 'light' ? DEFAULT_HOME_SHORTCUT_IDS_LIGHT : DEFAULT_HOME_SHORTCUT_IDS
 }
 
 /** Filtre le catalogue selon le rôle / droits. */

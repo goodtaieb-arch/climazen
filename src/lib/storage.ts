@@ -15,6 +15,7 @@ export const defaultOperateur = (): Operateur => ({
 
 export function emptyData(): AppData {
   return {
+    appEdition: 'light',
     operateur: defaultOperateur(),
     clients: [],
     chantiers: [],

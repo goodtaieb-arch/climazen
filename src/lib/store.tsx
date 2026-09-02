@@ -95,6 +95,11 @@ import {
   setPendingSync,
 } from './offlineSync'
 import { withDeletedIds } from './deletedEntities'
+import {
+  applyPendingEditionIfNeeded,
+  resolveAppEdition,
+  type AppEdition,
+} from './appEdition'
 
 type Store = {
   data: AppData
@@ -333,6 +338,10 @@ type Store = {
   retirePersonnel: (userId: string) => void
   /** Identités + dossiers des collègues : gérant ou personnel autorisé. */
   peutVoirIdentitesRh: boolean
+  /** Light (solo / AE) ou Pro (PME / TPE). */
+  appEdition: AppEdition
+  /** Gérant : bascule Light ↔ Pro. */
+  setAppEdition: (edition: AppEdition) => void
   resetDemo: () => void
   /** Remplace les données cloud par un payload (import local). */
   replaceData: (next: AppData) => Promise<void>
@@ -362,6 +371,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dataRef = useRef(data)
   dataRef.current = data
 
+  const applyEditionBootstrap = (payload: AppData): AppData => {
+    const { appEdition, changed } = applyPendingEditionIfNeeded(payload)
+    const resolved = resolveAppEdition(changed ? appEdition : payload.appEdition ?? appEdition)
+    if (resolved === payload.appEdition) return payload
+    return { ...payload, appEdition: resolved }
+  }
+
   const applyLocalLogo = (payload: AppData, organizationId: string): AppData => {
     const localLogo = loadCompanyLogoLocal(organizationId)
     const merged: AppData = {
@@ -374,7 +390,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (merged.operateur.logoImage) {
       saveCompanyLogoLocal(organizationId, merged.operateur.logoImage)
     }
-    return merged
+    return applyEditionBootstrap(merged)
   }
 
   const applyRhView = (payload: AppData): AppData => {
@@ -2834,6 +2850,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [orgId])
 
+  const setAppEdition = useCallback(
+    (edition: AppEdition) => {
+      if (!isOwner) throw new Error('Seul le gérant peut changer d’édition.')
+      setData((prev) => ({ ...prev, appEdition: edition }))
+    },
+    [isOwner],
+  )
+
+  const appEdition = resolveAppEdition(data.appEdition)
   const peutVoirIdentitesRhFlag = peutVoirIdentitesRh(rhActor, data.personnelRhAccesUserIds)
 
   const value = useMemo(
@@ -2907,11 +2932,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
+      appEdition,
+      setAppEdition,
       resetDemo,
       replaceData,
     }),
     [
       data,
+      appEdition,
       loading,
       syncError,
       offline,
@@ -2980,6 +3008,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRhFlag,
+      setAppEdition,
       resetDemo,
       replaceData,
     ],

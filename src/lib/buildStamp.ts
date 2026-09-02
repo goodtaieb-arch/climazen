@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v155'
+export const APP_VERSION = 'v156'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-02-v155-pointeuse-legale'
+export const APP_BUILD = '2026-09-02-v156-editions-light-pro'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true
