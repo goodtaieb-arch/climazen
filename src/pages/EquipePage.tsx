@@ -387,8 +387,10 @@ export function EquipePage() {
             ne peut plus se connecter. <strong>Désactiver</strong> = pause temporaire (toujours visible).
           </li>
           <li>
-            Chaque fiche a un <strong>dossier documents</strong> (dates limites + alertes). Les
-            scans d’identité ne sont pas stockés — seulement le type et la date d’expiration.
+            Chaque fiche a un <strong>dossier</strong> (signature CERFA personnelle de
+            l’opérateur, dates limites + alertes). La signature n’est visible que par le tech
+            lui-même. Les scans d’identité ne sont pas stockés — seulement le type et la date
+            d’expiration.
           </li>
           <li>
             Bouton <strong>Photos pièces</strong> : envoie vers le dossier{' '}

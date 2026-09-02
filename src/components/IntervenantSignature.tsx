@@ -16,7 +16,7 @@ type Props = {
 }
 
 /**
- * Signature intervenant — préremplie automatiquement depuis Mon profil.
+ * Signature intervenant — préremplie depuis le dossier Équipe (signature personnelle).
  */
 export function IntervenantSignature({
   nom,
@@ -34,6 +34,7 @@ export function IntervenantSignature({
   const profileQual =
     user?.signataireQualite ||
     (user?.role === 'owner' ? 'Responsable / gérant' : 'Opérateur attesté')
+  const dossierHref = user ? `/app/equipe/${user.id}` : '/app/equipe'
 
   // Auto dès que le profil est chargé
   useEffect(() => {
@@ -49,8 +50,8 @@ export function IntervenantSignature({
     <div className="rounded-xl border border-line bg-mist/40 p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-sm font-semibold">{label}</h3>
-        <Link to="/app/profil" className="text-xs font-medium text-accent hover:underline">
-          Mon profil
+        <Link to={dossierHref} className="text-xs font-medium text-accent hover:underline">
+          Mon dossier Équipe
         </Link>
       </div>
 
@@ -61,9 +62,9 @@ export function IntervenantSignature({
         </div>
       ) : (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-danger">
-          Aucune signature en profil. Enregistrez-la une fois dans{' '}
-          <Link to="/app/profil" className="font-semibold underline">
-            Mon profil
+          Aucune signature. Enregistrez-la une fois dans{' '}
+          <Link to={dossierHref} className="font-semibold underline">
+            Équipe → votre dossier
           </Link>
           .
         </p>
@@ -104,7 +105,7 @@ export function IntervenantSignature({
             }}
             className="text-xs font-semibold text-muted underline"
           >
-            Réappliquer ma signature profil
+            Réappliquer ma signature
           </button>
         </div>
       ) : image ? (
@@ -128,7 +129,7 @@ export function IntervenantSignature({
           value={image}
           onChange={onImageChange}
           height={height}
-          hint="Ou enregistrez-la une fois dans Mon profil pour l’auto-remplissage."
+          hint="Ou enregistrez-la une fois dans Équipe → votre dossier."
         />
       )}
     </div>

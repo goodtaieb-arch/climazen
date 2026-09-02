@@ -1,9 +1,7 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, PenLine } from 'lucide-react'
 import { useStore } from '../lib/store'
-import { Field } from './ClientsPage'
-import { SignaturePad } from '../components/SignaturePad'
 import { PasswordField } from '../components/PasswordField'
 import { VoituresParc } from '../components/VoituresParc'
 import { OutillageParc } from '../components/OutillageParc'
@@ -19,58 +17,23 @@ import {
 import { cloudPasteHint } from '../lib/cloudLinkGuard'
 
 /**
- * Espace perso : signature CERFA, outillage, détecteur, véhicule.
+ * Espace perso : outillage, détecteur, véhicule, mot de passe.
+ * Signature CERFA → dossier Équipe (propre à l’opérateur).
  */
 export function ProfilPage() {
   const { data, peutVoirIdentitesRh } = useStore()
-  const { user, organization, isOwner, saveMySignature, updatePassword } = useAuth()
+  const { user, organization, isOwner, updatePassword } = useAuth()
   const ownDossier = dossierForUser(data.personnelDossiers, user?.id)
   const ownResume = resumeAlertesDossier(
     ownDossier ||
       (user ? { id: '', ...defaultPersonnelDossier(user.id, user.fullName || 'Technicien') } : undefined),
   )
 
-  const [signNom, setSignNom] = useState(user?.signataireNom || user?.fullName || '')
-  const [signQualite, setSignQualite] = useState(
-    user?.signataireQualite || (isOwner ? 'Responsable / gérant' : 'Opérateur attesté'),
-  )
-  const [signImage, setSignImage] = useState(user?.signatureImage || '')
-  const [saved, setSaved] = useState(false)
-  const [signError, setSignError] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newPassword2, setNewPassword2] = useState('')
   const [pwdError, setPwdError] = useState('')
   const [pwdOk, setPwdOk] = useState('')
   const [pwdBusy, setPwdBusy] = useState(false)
-
-  useEffect(() => {
-    setSignNom(user?.signataireNom || user?.fullName || '')
-    setSignQualite(
-      user?.signataireQualite || (user?.role === 'owner' ? 'Responsable / gérant' : 'Opérateur attesté'),
-    )
-    setSignImage(user?.signatureImage || '')
-  }, [user?.id, user?.signataireNom, user?.signataireQualite, user?.signatureImage, user?.fullName, user?.role])
-
-  const onSubmitSignature = (e: FormEvent) => {
-    e.preventDefault()
-    setSignError('')
-    if (!signNom.trim()) {
-      setSignError('Indiquez le nom du signataire.')
-      return
-    }
-    if (!signImage) {
-      setSignError('Tracez votre signature manuscrite — obligatoire pour valider un CERFA.')
-      return
-    }
-    void saveMySignature({
-      signataireNom: signNom.trim(),
-      signataireQualite: signQualite.trim() || 'Opérateur attesté',
-      signatureImage: signImage,
-    }).then(() => {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    })
-  }
 
   const onChangePassword = async (e: FormEvent) => {
     e.preventDefault()
@@ -105,9 +68,8 @@ export function ProfilPage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Mon profil</h1>
           <p className="mt-1 text-muted">
-            {organization?.name || data.operateur.raisonSociale || 'Société'} — signature CERFA,
-            outillage terrain, détecteur de fuite, véhicule de service. Votre matériel perso, pas le
-            cadre société.
+            {organization?.name || data.operateur.raisonSociale || 'Société'} — outillage terrain,
+            détecteur de fuite, véhicule de service. Votre matériel perso, pas le cadre société.
           </p>
         </div>
       </div>
@@ -115,15 +77,22 @@ export function ProfilPage() {
       {user && (
         <Link
           to={`/app/equipe/${user.id}`}
-          className="flex items-start gap-3 rounded-2xl border border-line bg-white p-5 transition hover:border-accent"
+          className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent-soft/30 p-5 transition hover:border-accent"
         >
           <FolderOpen className="mt-0.5 h-6 w-6 shrink-0 text-accent" />
           <div>
-            <div className="font-display text-base font-semibold text-ink">Mon dossier documents</div>
+            <div className="font-display flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
+              Mon dossier Équipe
+              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-accent">
+                <PenLine className="h-3 w-3" /> Signature
+              </span>
+            </div>
             <p className="mt-1 text-sm text-muted">
+              Signature CERFA personnelle, documents, matériel confié
               {isOwner || peutVoirIdentitesRh
-                ? 'CNI, permis, carte Vitale, aptitude froid, habilitation électrique… dates limites et alertes d’expiration. Les identités restent dans l’administration.'
-                : 'Aptitude froid, habilitation électrique, CACES… dates limites et alertes. Les pièces d’identité sont gérées par l’administration.'}
+                ? ' — CNI, permis, aptitude froid…'
+                : ' — aptitude froid, habilitation…'}{' '}
+              Dates limites et alertes. La signature n’est visible que par vous.
             </p>
             {ownResume.expire || ownResume.bientot || ownResume.sansDate ? (
               <p className="mt-2 text-sm font-semibold text-amber-800">
@@ -133,10 +102,14 @@ export function ProfilPage() {
                 {(ownResume.expire || ownResume.bientot) && ownResume.sansDate ? ' · ' : ''}
                 {ownResume.sansDate ? `${ownResume.sansDate} sans date limite` : ''}
               </p>
-            ) : ownDossier ? (
-              <p className="mt-2 text-sm font-semibold text-emerald-800">Documents à jour</p>
+            ) : user.signatureImage ? (
+              <p className="mt-2 text-sm font-semibold text-emerald-800">
+                Signature enregistrée · ouvrir le dossier →
+              </p>
             ) : (
-              <p className="mt-2 text-sm font-semibold text-accent">Ouvrir le dossier →</p>
+              <p className="mt-2 text-sm font-semibold text-accent">
+                Enregistrer ma signature dans mon dossier →
+              </p>
             )}
           </div>
         </Link>
@@ -180,43 +153,6 @@ export function ProfilPage() {
       <OutillageParc />
 
       <VoituresParc />
-
-      <form
-        onSubmit={onSubmitSignature}
-        className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
-      >
-        <div className="sm:col-span-2">
-          <h2 className="font-display mb-1 text-base font-semibold">Signature opérateur (CERFA)</h2>
-          <p className="mb-3 text-sm text-muted">
-            Enregistrez-la une fois — elle sera appliquée sur vos fiches. L’administrateur ne peut
-            pas la consulter ni la modifier.
-          </p>
-        </div>
-        <Field label="Nom du signataire *" value={signNom} onChange={setSignNom} required />
-        <Field label="Qualité / fonction *" value={signQualite} onChange={setSignQualite} required />
-        <div className="sm:col-span-2">
-          <SignaturePad
-            label="Signature manuscrite (doigt / stylet) *"
-            value={signImage || undefined}
-            onChange={(v) => setSignImage(v || '')}
-            height={180}
-            hint="Signez ici, puis cliquez Enregistrer."
-          />
-        </div>
-        {signError && <p className="text-sm text-danger sm:col-span-2">{signError}</p>}
-        <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-          <button
-            type="submit"
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover"
-          >
-            Enregistrer ma signature
-          </button>
-          {saved && <span className="text-sm text-accent">Signature enregistrée</span>}
-          {signImage && !saved && (
-            <span className="text-xs text-muted">Signature présente sur ce compte</span>
-          )}
-        </div>
-      </form>
 
       <form
         onSubmit={(e) => void onChangePassword(e)}
