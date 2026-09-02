@@ -14,6 +14,7 @@ import {
   MapPin,
   Mic,
   Package,
+  Search,
   Settings,
   Sparkles,
   User,
@@ -144,18 +145,23 @@ const tones: Record<
 const baseLinksLightOwner = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
+  { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
-/** Nav mobile Light : intervenir + stock CERFA au centre. */
+/** Nav mobile Light : OT + agenda au centre. */
 const mobilePrimaryLight = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/ot', label: 'OT', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
-  { to: '/app/stock', label: 'Stock', icon: Package, tone: 'stock' },
-  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Profil', icon: User, tone: 'equipe' },
 ]
 
@@ -316,11 +322,13 @@ export function AppLayout() {
   }
 
   const lightMoreLinks = [
-    { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
     { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
     { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
     { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
+    { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+    { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
     { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+    { to: '/app/scan-equip', label: 'Scanner QR', icon: Search, tone: 'sites' },
   ]
 
   const moreLinks = filterLinksByEdition(

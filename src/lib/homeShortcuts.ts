@@ -43,22 +43,18 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Sites & Parc',
     img: ICON3D.sites,
     action: 'goTravaux',
-    lightHidden: true,
   },
   scan_qr: {
     id: 'scan_qr',
     title: 'Scanner QR',
     img: ICON3D.search,
     to: '/app/scan-equip?camera=1',
-    lightHidden: true,
   },
   agenda: {
     id: 'agenda',
     title: 'Agenda',
     img: ICON3D.search,
     to: '/app/agenda',
-    proOnly: true,
-    proFeature: 'agenda',
   },
   cerfa: {
     id: 'cerfa',
@@ -78,15 +74,12 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.clients,
     to: '/app/clients',
     bureauOnly: true,
-    lightHidden: true,
   },
   ot: {
     id: 'ot',
     title: 'OT / Demandes',
     img: ICON3D.maintenance,
     to: '/app/ot',
-    proOnly: true,
-    proFeature: 'ot_list',
   },
   appel: {
     id: 'appel',
@@ -106,7 +99,6 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.maintenance,
     to: '/app/contrats',
     bureauOnly: true,
-    lightHidden: true,
   },
   equipe: {
     id: 'equipe',
@@ -148,11 +140,14 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'profil',
 ]
 
-/** Light (solo / AE) : intervenir + stock CERFA + CERFA + société + profil. */
+/** Light (solo / AE) : métier complet, un seul utilisateur. */
 export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
   'appel',
+  'ot',
+  'agenda',
   'stock',
   'cerfa',
+  'contrats',
   'operateur',
   'profil',
 ]
