@@ -395,7 +395,22 @@ export function Dashboard() {
             >
               <Phone className="h-8 w-8" />
               <span className="font-display text-xl font-extrabold">Intervenir</span>
-              <span className="text-sm text-emerald-50">Client → site → équipement → CERFA</span>
+              <span className="text-sm text-emerald-50">Client → site → stock fluides → CERFA</span>
+            </Link>
+
+            <Link
+              to="/app/stock"
+              className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3.5 text-sky-950 shadow-sm active:scale-[0.99]"
+            >
+              <Package className="h-6 w-6 shrink-0 text-sky-700" />
+              <div className="min-w-0 text-left">
+                <div className="font-display text-sm font-bold">Stock fluides</div>
+                <div className="text-xs text-sky-900/80">
+                  {stockCount
+                    ? `${stockCount} bouteille${stockCount > 1 ? 's' : ''} · ${stockKg.toFixed(1)} kg — lié au CERFA`
+                    : 'Obligatoire — enregistrez vos bouteilles pour le CERFA'}
+                </div>
+              </div>
             </Link>
 
             {aReprendre.length > 0 ? (
@@ -416,12 +431,18 @@ export function Dashboard() {
               </div>
             ) : null}
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Link
                 to="/app/interventions"
                 className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
               >
                 Mes CERFA
+              </Link>
+              <Link
+                to="/app/stock"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Stock fluides
               </Link>
               <Link
                 to="/app/profil"
@@ -1189,6 +1210,22 @@ export function Dashboard() {
           </ul>
         </section>
       )}
+
+      {/* Stock fluides — visible en Light solo (obligatoire CERFA) */}
+      {!q.trim() && lightSolo ? (
+        <div className="hidden md:grid md:grid-cols-1 md:gap-4 lg:max-w-xs">
+          <Stat3d
+            img={ICON3D.bottle}
+            alt="Stock fluides"
+            label="Stock fluides"
+            value={`${stockKg.toFixed(1)}`}
+            unit="kg"
+            to="/app/stock"
+            float
+            floatDelay="0.3s"
+          />
+        </div>
+      ) : null}
 
       {/* Raccourcis stats 3D — bureau / tablette (masqué sur le téléphone et pour le terrain) */}
       {!terrainUi && !lightSolo && (

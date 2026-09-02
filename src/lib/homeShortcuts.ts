@@ -71,7 +71,6 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Stock fluides',
     img: ICON3D.bottle,
     to: '/app/stock',
-    lightHidden: true,
   },
   clients: {
     id: 'clients',
@@ -149,8 +148,14 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'profil',
 ]
 
-/** Light (solo / AE) : intervenir + CERFA + société + profil. */
-export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = ['appel', 'cerfa', 'operateur', 'profil']
+/** Light (solo / AE) : intervenir + stock CERFA + CERFA + société + profil. */
+export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
+  'appel',
+  'stock',
+  'cerfa',
+  'operateur',
+  'profil',
+]
 
 /** Terrain : uniquement les boutons d’intervention. */
 export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
