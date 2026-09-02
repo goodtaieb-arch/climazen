@@ -24,6 +24,8 @@ import type {
   Outillage,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
+import { seedSandboxData, sandboxDataLooksEmpty } from './seedSandboxData'
+import { isSandboxTestEmail } from './sandboxAccount'
 import {
   loadOrgDataRemote,
   resolveRemoteVsLocal,
@@ -382,6 +384,8 @@ type Store = {
   /** Gérant : bascule Light ↔ Pro. */
   setAppEdition: (edition: AppEdition) => void
   resetDemo: () => void
+  /** Réinitialise avec le jeu de données sandbox complet (10 sites, 10 techs). */
+  resetSandbox: () => void
   /** Remplace les données cloud par un payload (import local). */
   replaceData: (next: AppData) => Promise<void>
 }
@@ -703,15 +707,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
         )
         const merged = applyRhView(applyLocalLogo(resolved, orgId))
+        let final = merged
+        if (
+          isSandboxTestEmail(user?.email) &&
+          sandboxDataLooksEmpty(merged) &&
+          !hadPending
+        ) {
+          final = applyRhView(applyLocalLogo(seedSandboxData(user?.id), orgId))
+        }
         skipNextSave.current = true
-        dataRef.current = merged
-        setData(merged)
-        saveData(merged, orgId)
+        dataRef.current = final
+        setData(final)
+        saveData(final, orgId)
         if (remotePack.updatedAt) setCloudUpdatedAt(orgId, remotePack.updatedAt)
         setHydrated(true)
         setOffline(false)
-        if (shouldPushLocal) {
-          // Cloud plus pauvre / société manquante → ne pas écraser le cache, re-pousser
+        if (final !== merged || shouldPushLocal) {
           markPending(true)
           setPendingSyncState(true)
           setLoading(false)
@@ -3113,6 +3124,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [orgId])
 
+  const resetSandbox = useCallback(() => {
+    if (!orgId) return
+    const sandbox = seedSandboxData(user?.id)
+    skipNextSave.current = true
+    setData(sandbox)
+    saveData(sandbox, orgId)
+    markPending(true)
+    setPendingSyncState(true)
+    void saveOrgDataRemote(orgId, sandbox, rhActorRef.current).then(({ updatedAt }) => {
+      setCloudUpdatedAt(orgId, updatedAt)
+      markSynced(orgId)
+      setPendingSyncState(false)
+    })
+  }, [orgId, user?.id, markPending])
+
   const setAppEdition = useCallback(
     (edition: AppEdition) => {
       if (!isOwner) throw new Error('Seul le gérant peut changer d’édition.')
@@ -3212,6 +3238,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       appEdition,
       setAppEdition,
       resetDemo,
+      resetSandbox,
       replaceData,
     }),
     [
@@ -3293,6 +3320,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       peutGererPiecesDetacheesFlag,
       setAppEdition,
       resetDemo,
+      resetSandbox,
       replaceData,
     ],
   )
