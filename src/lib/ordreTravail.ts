@@ -281,6 +281,11 @@ export interface OrdreTravail {
   devisId?: string
   /** Commande fournisseur (pièce en attente) */
   commandeFournisseurId?: string
+  /** OT créé depuis un ticket portail client */
+  ticketClient?: boolean
+  ticketClientId?: string
+  /** Lieu signalé par le client (ex. Bureau 117) */
+  localisationClient?: string
   /** Facture générée depuis cet OT */
   factureId?: string
   /** Les 6 origines métier CVC */

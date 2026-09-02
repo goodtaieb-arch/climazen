@@ -67,6 +67,7 @@ import {
   resolveSecteurContrat,
 } from '../lib/contratMaintenance'
 import { editionHasFeature } from '../lib/appEdition'
+import { OtPiecesPanel } from '../components/OtPiecesPanel'
 import { parsePointageRegles, pointageEstActif } from '../lib/pointage'
 import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
@@ -172,6 +173,7 @@ export function AppelOtPage() {
   const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh, appEdition } =
     useStore()
   const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
+  const stockPieces = editionHasFeature(appEdition, 'stock_pieces')
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -2432,6 +2434,16 @@ export function AppelOtPage() {
               placeholder="Ce qui a été fait…"
             />
           </label>
+
+          {stockPieces && otId ? (
+            <OtPiecesPanel
+              otId={otId}
+              otNumero={otForm.numero}
+              clientId={otForm.clientId}
+              chantierId={otForm.chantierId}
+              readOnly={otCloture}
+            />
+          ) : null}
 
           <OtAvancementFields
             form={otForm}

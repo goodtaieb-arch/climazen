@@ -16,6 +16,8 @@ import {
   FileSignature,
   Navigation,
   QrCode,
+  Globe,
+  Copy,
   type LucideIcon,
 } from 'lucide-react'
 import { openAddressInGps, formatAddressQuery } from '../lib/mapsNav'
@@ -62,6 +64,10 @@ import {
   type QrPrintCard,
 } from '../lib/equipementQrPrint'
 import { Sites3dIcon } from '../components/Sites3dIcon'
+import { EquipementHistoriquePanel } from '../components/EquipementHistoriquePanel'
+import { historiqueEquipement, historiqueSite } from '../lib/equipementHistorique'
+import { ensureSitePortal, portailLinkUrl, setSitePortalActif } from '../lib/portailClient'
+import { editionHasFeature } from '../lib/appEdition'
 
 type QuickTone = 'sites' | 'cerfa' | 'teal' | 'muted'
 
@@ -173,6 +179,7 @@ export function ChantiersPage() {
     upsertIntervention,
     upsertFicheMaintenanceClim,
     createOtForAction,
+    appEdition,
   } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -198,6 +205,7 @@ export function ChantiersPage() {
   const [equipQ, setEquipQ] = useState('')
   const [equipIdx, setEquipIdx] = useState(0)
   const [equipFilter, setEquipFilter] = useState('')
+  const [portailBusy, setPortailBusy] = useState(false)
   const [clientQuery, setClientQuery] = useState(() => {
     const c = data.clients.find((cl) => cl.id === data.clients[0]?.id)
     return c?.raisonSociale || ''
@@ -231,6 +239,49 @@ export function ChantiersPage() {
     setEquipWork(null)
     setEquipFilter('')
     setSiteMenuOpen(false)
+  }
+
+  const activerPortailClient = async (site: Chantier, clientLabel: string) => {
+    if (!user?.organizationId) {
+      alert('Compte cloud requis pour le portail client (Supabase).')
+      return
+    }
+    setPortailBusy(true)
+    try {
+      const { token, url } = await ensureSitePortal({
+        organizationId: user.organizationId,
+        siteId: site.id,
+        siteNom: site.nom,
+        clientNom: clientLabel,
+        existingToken: site.portailToken,
+      })
+      upsertChantier({ ...site, portailActif: true, portailToken: token })
+      try {
+        await navigator.clipboard.writeText(url)
+        alert(`Portail client activé — lien copié.\n${url}`)
+      } catch {
+        alert(`Portail client activé :\n${url}`)
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Activation portail impossible')
+    } finally {
+      setPortailBusy(false)
+    }
+  }
+
+  const togglePortailActif = async (site: Chantier, actif: boolean) => {
+    if (site.portailToken) await setSitePortalActif(site.portailToken, actif)
+    upsertChantier({ ...site, portailActif: actif })
+  }
+
+  const copyPortailLink = async (token: string) => {
+    const url = portailLinkUrl(token)
+    try {
+      await navigator.clipboard.writeText(url)
+      alert('Lien portail copié.')
+    } catch {
+      prompt('Copiez le lien portail client :', url)
+    }
   }
 
   // Deep-link / scan QR : ?site=&equipement=
@@ -1908,6 +1959,67 @@ export function ChantiersPage() {
               <p className="text-center text-[11px] text-muted">
                 {eqFilter.length} équipement{eqFilter.length > 1 ? 's' : ''} — touchez pour agir
               </p>
+
+              {editionHasFeature(appEdition, 'chaine_commerciale') ? (
+                <>
+                  <EquipementHistoriquePanel
+                    entries={historiqueSite(data, c.id)}
+                    title="Historique maintenance du site"
+                  />
+                  <section className="rounded-2xl border border-line bg-white p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-accent" />
+                      <h3 className="font-display text-sm font-bold">Portail client GMAO</h3>
+                    </div>
+                    <p className="mb-3 text-xs text-muted">
+                      Le client voit les interventions clôturées et peut ouvrir un ticket (ex. fuite
+                      Bureau 117) → ordre de travail pour le bureau.
+                    </p>
+                    {c.portailToken && c.portailActif !== false ? (
+                      <div className="space-y-2">
+                        <p className="break-all rounded-lg bg-mist/50 px-3 py-2 text-xs font-mono">
+                          {portailLinkUrl(c.portailToken)}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void copyPortailLink(c.portailToken!)}
+                            className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold"
+                          >
+                            <Copy className="h-3.5 w-3.5" /> Copier le lien
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void togglePortailActif(c, false)}
+                            className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-muted"
+                          >
+                            Désactiver
+                          </button>
+                        </div>
+                      </div>
+                    ) : c.portailToken ? (
+                      <button
+                        type="button"
+                        onClick={() => void togglePortailActif(c, true)}
+                        className="rounded-full bg-accent px-3 py-2 text-xs font-bold text-ink"
+                      >
+                        Réactiver le portail
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={portailBusy}
+                        onClick={() =>
+                          void activerPortailClient(c, client?.raisonSociale || c.nom)
+                        }
+                        className="rounded-full bg-accent px-3 py-2 text-xs font-bold text-ink disabled:opacity-60"
+                      >
+                        {portailBusy ? 'Activation…' : 'Activer le portail client'}
+                      </button>
+                    )}
+                  </section>
+                </>
+              ) : null}
             </div>
           )
         })()}
@@ -1956,6 +2068,14 @@ export function ChantiersPage() {
                     .join(' · ')}
                 </p>
               </div>
+
+              {editionHasFeature(appEdition, 'chaine_commerciale') ? (
+                <EquipementHistoriquePanel
+                  entries={historiqueEquipement(data, c.id, eq.id)}
+                  title={`Historique · ${eq.nom?.trim() || eq.type || 'équipement'}`}
+                  limit={20}
+                />
+              ) : null}
 
               <div className="overflow-hidden rounded-xl border border-line bg-white">
                 <button

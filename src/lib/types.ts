@@ -326,6 +326,9 @@ export interface Site {
    * Dérivé des équipements à l’enregistrement ; conservé pour compat.
    */
   avecFluideFrigorigene?: boolean
+  /** Portail client GMAO — lien public maintenance + tickets */
+  portailActif?: boolean
+  portailToken?: string
   /** Équipement principal (format actuel UI Sites) */
   equipementType: string
   equipementMarque: string

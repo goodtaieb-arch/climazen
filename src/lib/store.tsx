@@ -50,9 +50,12 @@ import {
 } from './cerfaBatch'
 import { assertDetecteurValidePourCerfa } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
-import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
+import { nextNumeroOt, blankOrdreTravail, type OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
 import { contratsActifsForSite } from './contratMaintenance'
+import { applyContratSigneSync } from './contratSync'
+import { listNouveauxTicketsOrg, markTicketTraite } from './portailClient'
+import { isSupabaseConfigured } from './supabase'
 import {
   nextNumeroCommande,
   nextNumeroDevis,
@@ -225,6 +228,8 @@ type Store = {
   syncAgendaFromSources: () => number
   /** Crée les OT manquants des contrats signés (sans dupliquer un créneau déjà déplacé). */
   syncOtsDepuisContrats: () => number
+  /** Tickets portail client → OT bureau (cloud). */
+  syncClientPortalTickets: () => Promise<number>
   /** Crée un OT pour une action terrain — retourne { id, numero }. */
   createOtForAction: (opts: {
     typeOt: import('./ordreTravail').TypeOt
@@ -250,6 +255,9 @@ type Store = {
     sousGarantie?: boolean
     clientPayeurId?: string
     mainOeuvreIncluseContrat?: boolean
+    ticketClient?: boolean
+    ticketClientId?: string
+    localisationClient?: string
   }) => { id: string; numero: string }
   /**
    * Valide une maintenance : crée 1 CERFA par équipement (équipements déjà sauvés sur le site).
@@ -480,6 +488,57 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [orgId, markPending])
 
+  const syncClientPortalTickets = useCallback(async (): Promise<number> => {
+    if (!orgId || !isSupabaseConfigured()) return 0
+    const tickets = await listNouveauxTicketsOrg(orgId)
+    if (!tickets.length) return 0
+    const d = dataRef.current
+    const pending = tickets.filter(
+      (t) => !(d.ordresTravail || []).some((o) => o.ticketClientId === t.id),
+    )
+    if (!pending.length) return 0
+
+    const now = new Date().toISOString()
+    const grown = [...(d.ordresTravail || [])]
+    const linked: { ticketId: string; otId: string; otNumero: string }[] = []
+
+    for (const t of pending) {
+      const site = d.chantiers.find((s) => s.id === t.site_id)
+      if (!site) continue
+      const numero = nextNumeroOt({ ...d, ordresTravail: grown })
+      const id = uuid()
+      const ot: OrdreTravail = {
+        ...blankOrdreTravail(),
+        id,
+        numero,
+        date: now.slice(0, 10),
+        typeOt: 'depanage',
+        action: `[Ticket client] ${t.localisation} — ${t.description}`,
+        localisationClient: t.localisation,
+        ticketClient: true,
+        ticketClientId: t.id,
+        clientId: site.clientId,
+        chantierId: site.id,
+        origineOt: 'depannage_urgence',
+        statut: 'pret_a_planifier',
+        createdAt: now,
+        updatedAt: now,
+      }
+      grown.push(ot)
+      linked.push({ ticketId: t.id, otId: id, otNumero: numero })
+    }
+
+    if (!linked.length) return 0
+
+    setData((prev) => ({ ...prev, ordresTravail: grown }))
+    markPending(true)
+    setPendingSyncState(true)
+    for (const row of linked) {
+      await markTicketTraite(row.ticketId, row.otId, row.otNumero)
+    }
+    return linked.length
+  }, [orgId, markPending])
+
   const pullFromCloud = useCallback(async () => {
     if (!orgId || !hydrated || syncingPull.current || flushing.current) return
     if (!isBrowserOnline()) {
@@ -523,13 +582,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         markSynced(orgId)
         setPendingSyncState(false)
       }
+      await syncClientPortalTickets()
     } catch (err) {
       console.error(err)
       setSyncError(err instanceof Error ? err.message : 'Sync cloud impossible')
     } finally {
       syncingPull.current = false
     }
-  }, [orgId, hydrated, flushPendingSync, markPending])
+  }, [orgId, hydrated, flushPendingSync, markPending, syncClientPortalTickets])
 
   useEffect(() => {
     const onOnline = () => {
@@ -1194,22 +1254,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
-        let chantiers = d.chantiers
-        if (next.statut === 'signe' && next.clientId) {
-          const coverAll = !next.chantierIds || next.chantierIds.length === 0
-          chantiers = d.chantiers.map((s) => {
-            if (s.clientId !== next.clientId) return s
-            if (!coverAll && !next.chantierIds.includes(s.id)) return s
-            return { ...s, modeGestion: 'contrat' as const }
-          })
-        }
-        return {
+        let updated: AppData = {
           ...d,
-          chantiers,
           contratsMaintenance: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
         }
+        updated = applyContratSigneSync(updated, next)
+        return updated
       })
       return id
     },
@@ -1830,6 +1882,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sousGarantie?: boolean
       clientPayeurId?: string
       mainOeuvreIncluseContrat?: boolean
+      ticketClient?: boolean
+      ticketClientId?: string
+      localisationClient?: string
     }) => {
       const d = dataRef.current
       const numero = nextNumeroOt(d)
@@ -1877,6 +1932,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         contratId,
         devisId: opts.devisId,
         commandeFournisseurId: opts.commandeFournisseurId,
+        ticketClient: opts.ticketClient,
+        ticketClientId: opts.ticketClientId,
+        localisationClient: opts.localisationClient,
         origineOt: origineOt || (opts.typeOt === 'depanage' ? 'depannage_urgence' : 'depannage_urgence'),
         statutFacturation: statutFacturation || 'non_facture',
         sousGarantie: opts.sousGarantie || false,
@@ -3108,6 +3166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
+      syncClientPortalTickets,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
@@ -3189,6 +3248,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
+      syncClientPortalTickets,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
