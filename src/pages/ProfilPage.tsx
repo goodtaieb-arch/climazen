@@ -1,10 +1,10 @@
 import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FolderOpen, PenLine } from 'lucide-react'
+import { Building2, FolderOpen, PenLine } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { PasswordField } from '../components/PasswordField'
-import { VoituresParc } from '../components/VoituresParc'
 import { OutillageParc } from '../components/OutillageParc'
+import { VoituresParc } from '../components/VoituresParc'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_HINT, validatePasswordStrength } from '../lib/passwordPolicy'
 import { Nav3dIcon } from '../components/Nav3dIcon'
@@ -15,14 +15,16 @@ import {
   resumeAlertesDossier,
 } from '../lib/rhDocuments'
 import { cloudPasteHint } from '../lib/cloudLinkGuard'
+import { isLightEdition } from '../lib/appEdition'
 
 /**
  * Espace perso : outillage, détecteur, véhicule, mot de passe.
  * Signature CERFA → dossier Équipe (propre à l’opérateur).
  */
 export function ProfilPage() {
-  const { data, peutVoirIdentitesRh } = useStore()
+  const { data, peutVoirIdentitesRh, appEdition } = useStore()
   const { user, organization, isOwner, updatePassword } = useAuth()
+  const light = isLightEdition(appEdition)
   const ownDossier = dossierForUser(data.personnelDossiers, user?.id)
   const ownResume = resumeAlertesDossier(
     ownDossier ||
@@ -68,8 +70,9 @@ export function ProfilPage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Mon profil</h1>
           <p className="mt-1 text-muted">
-            {organization?.name || data.operateur.raisonSociale || 'Société'} — outillage terrain,
-            détecteur de fuite, véhicule de service. Votre matériel perso, pas le cadre société.
+            {light
+              ? 'Étalonnages, détecteur CERFA et signature — le cadre société (SIRET, attestation…) est dans Mon entreprise.'
+              : `${organization?.name || data.operateur.raisonSociale || 'Société'} — outillage terrain, détecteur de fuite, véhicule de service. Votre matériel perso, pas le cadre société.`}
           </p>
         </div>
       </div>
@@ -82,17 +85,21 @@ export function ProfilPage() {
           <FolderOpen className="mt-0.5 h-6 w-6 shrink-0 text-accent" />
           <div>
             <div className="font-display flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
-              Mon dossier Équipe
+              {light ? 'Ma signature CERFA' : 'Mon dossier Équipe'}
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-accent">
                 <PenLine className="h-3 w-3" /> Signature
               </span>
             </div>
             <p className="mt-1 text-sm text-muted">
-              Signature CERFA personnelle, documents, matériel confié
-              {isOwner || peutVoirIdentitesRh
-                ? ' — CNI, permis, aptitude froid…'
-                : ' — aptitude froid, habilitation…'}{' '}
-              Dates limites et alertes. La signature n’est visible que par vous.
+              Signature CERFA personnelle
+              {!light
+                ? `, documents, matériel confié${
+                    isOwner || peutVoirIdentitesRh
+                      ? ' — CNI, permis, aptitude froid…'
+                      : ' — aptitude froid, habilitation…'
+                  } Dates limites et alertes.`
+                : ' — enregistrez-la une fois, elle se reporte sur vos CERFA.'}{' '}
+              La signature n’est visible que par vous.
             </p>
             {ownResume.expire || ownResume.bientot || ownResume.sansDate ? (
               <p className="mt-2 text-sm font-semibold text-amber-800">
@@ -115,7 +122,7 @@ export function ProfilPage() {
         </Link>
       )}
 
-      {user ? (
+      {user && !light ? (
         <div className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-5">
           <div className="font-display text-base font-semibold text-ink">Photos de pièces</div>
           <p className="mt-1 text-sm text-muted">
@@ -138,7 +145,24 @@ export function ProfilPage() {
         </div>
       ) : null}
 
-      {!isOwner && (
+      {light && isOwner ? (
+        <Link
+          to="/app/operateur"
+          className="flex items-start gap-3 rounded-2xl border border-line bg-white p-5 transition hover:border-accent/40"
+        >
+          <Building2 className="mt-0.5 h-6 w-6 shrink-0 text-accent" />
+          <div>
+            <div className="font-display text-base font-semibold text-ink">Mon entreprise</div>
+            <p className="mt-1 text-sm text-muted">
+              Raison sociale, SIRET, n° attestation de capacité, logo et liens cloud pour
+              sauvegarder vos documents (CERFA, attestations…).
+            </p>
+            <p className="mt-2 text-sm font-semibold text-accent">Configurer la société →</p>
+          </div>
+        </Link>
+      ) : null}
+
+      {!isOwner && !light ? (
         <div className="rounded-2xl border border-line bg-white p-5 text-sm text-muted">
           <div className="font-display text-base font-semibold text-ink">
             {data.operateur.raisonSociale || organization?.name || 'Société'}
@@ -148,11 +172,11 @@ export function ProfilPage() {
             l’administrateur. Vous n’y avez pas accès.
           </p>
         </div>
-      )}
+      ) : null}
 
-      <OutillageParc />
+      <OutillageParc variant={light ? 'light' : 'full'} />
 
-      <VoituresParc />
+      {!light ? <VoituresParc /> : null}
 
       <form
         onSubmit={(e) => void onChangePassword(e)}

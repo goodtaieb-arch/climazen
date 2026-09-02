@@ -364,6 +364,38 @@ export function outillageNeedsControleDate(type: OutillageTypeId | string): bool
   return Boolean(OUTILLAGE_CATALOG[type].needsControleDate)
 }
 
+/** Édition Light : appareils avec date d’étalonnage (+ détecteur CERFA). */
+export function outillageTypesEtalonnage(): OutillageTypeDef[] {
+  return OUTILLAGE_TYPE_OPTIONS.filter((t) => t.needsControleDate)
+}
+
+export function outillageCatalogEtalonnageParGroupe(): {
+  id: OutillageGroupeId
+  label: string
+  items: OutillageTypeDef[]
+}[] {
+  const wanted = new Set(outillageTypesEtalonnage().map((t) => t.id))
+  return outillageCatalogParGroupe()
+    .map((g) => ({ ...g, items: g.items.filter((t) => wanted.has(t.id)) }))
+    .filter((g) => g.items.length > 0)
+}
+
+export function outillageCatalogEtalonnageParGroupeFiltre(query: string): {
+  id: OutillageGroupeId
+  label: string
+  items: OutillageTypeDef[]
+}[] {
+  const wanted = new Set(
+    filterOutillageCatalog(query)
+      .filter((t) => t.needsControleDate)
+      .map((t) => t.id),
+  )
+  if (!foldOutillageSearch(query)) return outillageCatalogEtalonnageParGroupe()
+  return outillageCatalogEtalonnageParGroupe()
+    .map((g) => ({ ...g, items: g.items.filter((t) => wanted.has(t.id)) }))
+    .filter((g) => g.items.length > 0)
+}
+
 /** Recherche FR : « etalon » trouve « étalonnage », « anem » trouve « anémomètre ». */
 export function foldOutillageSearch(s: string): string {
   return (s || '')

@@ -18,7 +18,7 @@ export const APP_EDITION_TAGLINES: Record<AppEdition, string> = {
 
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
-    'Intervenir : client, site, équipement, maintenance et CERFA. Rien d’autre au premier plan.',
+    'Intervenir : client, site, équipement, CERFA et société (SIRET, attestation, documents). Étalonnages et détecteur dans Mon profil.',
   pro:
     'Tout ClimaZEN : équipe, agenda, pointeuse légale, RH, multi-techniciens, agences et pilotage.',
 }
@@ -143,8 +143,19 @@ export function editionHasFeature(edition: AppEdition, feature: EditionFeature):
   return !PRO_ONLY.has(feature)
 }
 
-export function routeAllowedInEdition(pathname: string, edition: AppEdition): boolean {
+/** Dossier opérateur solo (signature CERFA) — autorisé en Light pour son propre compte. */
+export function isLightOwnDossierRoute(pathname: string, ownUserId?: string | null): boolean {
+  if (!ownUserId?.trim()) return false
+  return pathname === `/app/equipe/${ownUserId.trim()}`
+}
+
+export function routeAllowedInEdition(
+  pathname: string,
+  edition: AppEdition,
+  opts?: { ownUserId?: string | null },
+): boolean {
   if (edition === 'pro') return true
+  if (isLightOwnDossierRoute(pathname, opts?.ownUserId)) return true
   return !PRO_ROUTE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   )

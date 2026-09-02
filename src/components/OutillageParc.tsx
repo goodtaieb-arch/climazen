@@ -8,7 +8,7 @@ import {
   groupOutillagesByType,
   outillagesForUser,
 } from '../lib/outillage'
-import { OUTILLAGE_CATALOG, type OutillageTypeId } from '../lib/outillageCatalog'
+import { OUTILLAGE_CATALOG, outillageNeedsControleDate, type OutillageTypeId } from '../lib/outillageCatalog'
 import { OutillageTypeCombobox } from './OutillageTypeCombobox'
 import type { Outillage } from '../lib/types'
 import {
@@ -25,6 +25,12 @@ import { ReceptionMaterielBlock } from './ReceptionMaterielBlock'
 
 type Props = {
   team?: UserAccount[]
+  /** Light : rappels d’étalonnage + détecteur CERFA uniquement. */
+  variant?: 'full' | 'light'
+}
+
+function outillageVisible(o: Outillage, light: boolean) {
+  return !light || outillageNeedsControleDate(o.type)
 }
 
 function etalonnageClass(statut: ReturnType<typeof statutEtalonnage>) {
@@ -51,11 +57,12 @@ function EtalonnageLigne({ o, needs }: { o: Outillage; needs?: boolean }) {
   )
 }
 
-export function OutillageParc({ team: teamProp }: Props) {
+export function OutillageParc({ team: teamProp, variant = 'full' }: Props) {
+  const light = variant === 'light'
   const { data, upsertOutillage, deleteOutillage } = useStore()
   const { user, isOwner, organization, listTeam } = useAuth()
-  const outillages = data.outillages || []
-  const mine = outillagesForUser(data, user?.id)
+  const outillages = (data.outillages || []).filter((o) => outillageVisible(o, light))
+  const mine = outillagesForUser(data, user?.id).filter((o) => outillageVisible(o, light))
   const orgId = user?.organizationId || organization?.id || ''
 
   const [teamRemote, setTeamRemote] = useState<UserAccount[]>([])
@@ -64,7 +71,7 @@ export function OutillageParc({ team: teamProp }: Props) {
   const [teamLoaded, setTeamLoaded] = useState(false)
 
   const [editId, setEditId] = useState<string | null>(null)
-  const [type, setType] = useState<OutillageTypeId>('pompe_vide')
+  const [type, setType] = useState<OutillageTypeId>(light ? 'detecteur_fuite' : 'pompe_vide')
   const [identification, setIdentification] = useState('')
   const [marque, setMarque] = useState('')
   const [modele, setModele] = useState('')
@@ -141,7 +148,7 @@ export function OutillageParc({ team: teamProp }: Props) {
 
   const resetForm = () => {
     setEditId(null)
-    setType('pompe_vide')
+    setType(light ? 'detecteur_fuite' : 'pompe_vide')
     setIdentification('')
     setMarque('')
     setModele('')
@@ -259,6 +266,42 @@ export function OutillageParc({ team: teamProp }: Props) {
     )
   }
 
+  const DetecteurCerfaBlock = ({ userId }: { userId?: string }) => {
+    const rows = checklistOutillageObligatoire(data, userId)
+    const det = rows.find((r) => r.typeId === 'detecteur_fuite')
+    if (!det) return null
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-950">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Détecteur de fuite — cadre CERFA [5]
+          {det.ok ? (
+            <span className="ml-auto inline-flex items-center gap-1 text-emerald-800">
+              <CheckCircle2 className="h-4 w-4" /> Renseigné
+            </span>
+          ) : (
+            <span className="ml-auto text-amber-900">À compléter</span>
+          )}
+        </div>
+        {det.ok ? (
+          <p className="text-sm text-ink">
+            {det.item?.identification}
+            {det.controleExpire ? (
+              <span className="ml-1 text-xs font-semibold text-danger">(étalonnage expiré)</span>
+            ) : det.etalonnageBientot ? (
+              <span className="ml-1 text-xs font-semibold text-amber-800">(étalonnage bientôt)</span>
+            ) : det.etalonnageSansDate ? (
+              <span className="ml-1 text-xs font-semibold text-danger">(date manquante)</span>
+            ) : null}
+          </p>
+        ) : (
+          <p className="text-sm text-amber-950">
+            Identification et date de contrôle obligatoires sur chaque CERFA.
+          </p>
+        )}
+      </div>
+    )
+  }
   const ChecklistBlock = ({ userId }: { userId?: string }) => {
     const rows = checklistOutillageObligatoire(data, userId)
     const missing = rows.filter((r) => !r.ok).length
@@ -303,17 +346,25 @@ export function OutillageParc({ team: teamProp }: Props) {
     )
   }
 
+  const checklistUi = light ? (
+    <DetecteurCerfaBlock userId={user?.id} />
+  ) : (
+    <ChecklistBlock userId={assigneeUserId || user?.id} />
+  )
+
   if (!isOwner) {
     return (
       <div className="space-y-4 rounded-2xl border border-line bg-white p-5">
         <h2 className="font-display mb-1 flex items-center gap-2 text-lg font-semibold">
           <Wrench className="h-5 w-5 text-accent" />
-          Mon outillage
+          {light ? 'Étalonnages & détecteur' : 'Mon outillage'}
         </h2>
         <p className="text-sm text-muted">
-          Matériel qui vous est affecté par le gérant (pompe à vide, station, détecteur…).
+          {light
+            ? 'Rappels de dates d’étalonnage et détecteur de fuite obligatoire sur le CERFA.'
+            : 'Matériel qui vous est affecté par le gérant (pompe à vide, station, détecteur…).'}
         </p>
-        <ChecklistBlock userId={user?.id} />
+        {checklistUi}
         {mine.length === 0 ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
             Aucun outillage ne vous est affecté. Le gérant peut vous en attribuer dans Mon profil.
@@ -367,7 +418,7 @@ export function OutillageParc({ team: teamProp }: Props) {
             ))}
           </div>
         )}
-        {user?.id ? <ReceptionMaterielBlock userId={user.id} kinds={['outillage']} /> : null}
+        {user?.id && !light ? <ReceptionMaterielBlock userId={user.id} kinds={['outillage']} /> : null}
       </div>
     )
   }
@@ -377,15 +428,16 @@ export function OutillageParc({ team: teamProp }: Props) {
       <div>
         <h2 className="font-display mb-1 flex items-center gap-2 text-lg font-semibold">
           <Wrench className="h-5 w-5 text-accent" />
-          Parc outillage
+          {light ? 'Étalonnages & détecteur CERFA' : 'Parc outillage'}
         </h2>
         <p className="text-sm text-muted">
-          Menu complet frigoriste + CVC. Les appareils de mesure demandent une date d’étalonnage
-          (alerte à l’accueil 45 jours avant l’échéance, puis expiré).
+          {light
+            ? 'Appareils de mesure avec date d’étalonnage (alerte 45 jours avant échéance) et détecteur de fuite — cadre [5] du CERFA.'
+            : 'Menu complet frigoriste + CVC. Les appareils de mesure demandent une date d’étalonnage (alerte à l’accueil 45 jours avant l’échéance, puis expiré).'}
         </p>
       </div>
 
-      <ChecklistBlock userId={assigneeUserId || user?.id} />
+      {checklistUi}
 
       <div className="space-y-3">
         {outillages.length === 0 && (
@@ -535,6 +587,7 @@ export function OutillageParc({ team: teamProp }: Props) {
           <span className="mb-1 block font-semibold text-ink">Type d’outillage *</span>
           <OutillageTypeCombobox
             value={type}
+            etalonnageOnly={light}
             onChange={(next) => {
               setType(next)
               if (!OUTILLAGE_CATALOG[next].needsControleDate) setControleDate('')
@@ -562,7 +615,7 @@ export function OutillageParc({ team: teamProp }: Props) {
         {typeDef.needsControleDate ? (
           <div>
             <Field
-              label="Date du dernier étalonnage *"
+              label={light && type === 'detecteur_fuite' ? 'Date du dernier contrôle *' : 'Date du dernier étalonnage *'}
               type="date"
               value={controleDate}
               onChange={setControleDate}
@@ -578,6 +631,7 @@ export function OutillageParc({ team: teamProp }: Props) {
           </div>
         ) : null}
 
+        {!light ? (
         <label className="block text-sm sm:col-span-2">
           <span className="mb-1 block font-semibold text-ink">Attribué au technicien</span>
           <select
@@ -628,6 +682,7 @@ export function OutillageParc({ team: teamProp }: Props) {
             </span>
           </div>
         </label>
+        ) : null}
 
         <Field label="Notes (optionnel)" value={notes} onChange={setNotes} className="sm:col-span-2" />
 

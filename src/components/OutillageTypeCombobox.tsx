@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import {
   OUTILLAGE_CATALOG,
+  outillageCatalogEtalonnageParGroupe,
+  outillageCatalogEtalonnageParGroupeFiltre,
   outillageCatalogParGroupe,
   outillageCatalogParGroupeFiltre,
   type OutillageTypeId,
@@ -10,6 +12,8 @@ import {
 type Props = {
   value: OutillageTypeId
   onChange: (next: OutillageTypeId) => void
+  /** Light : uniquement appareils avec date d’étalonnage (dont détecteur CERFA). */
+  etalonnageOnly?: boolean
 }
 
 function optionLabel(id: OutillageTypeId) {
@@ -21,7 +25,7 @@ function optionLabel(id: OutillageTypeId) {
  * Liste longue : écrire le début du nom → suggestions du catalogue,
  * ou 2 flèches → liste complète groupée (comme l’ancien select).
  */
-export function OutillageTypeCombobox({ value, onChange }: Props) {
+export function OutillageTypeCombobox({ value, onChange, etalonnageOnly }: Props) {
   const listId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -30,8 +34,12 @@ export function OutillageTypeCombobox({ value, onChange }: Props) {
   const [typing, setTyping] = useState(false)
 
   const groups = typing
-    ? outillageCatalogParGroupeFiltre(query)
-    : outillageCatalogParGroupe()
+    ? etalonnageOnly
+      ? outillageCatalogEtalonnageParGroupeFiltre(query)
+      : outillageCatalogParGroupeFiltre(query)
+    : etalonnageOnly
+      ? outillageCatalogEtalonnageParGroupe()
+      : outillageCatalogParGroupe()
 
   useEffect(() => {
     if (!open) return

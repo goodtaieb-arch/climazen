@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
 import {
   APP_EDITION_LABELS,
@@ -10,12 +11,13 @@ import {
 /** Redirige si la route est réservée à Pro ou remplacée en Light. */
 export function RequireEdition({ children }: { children: ReactNode }) {
   const { appEdition } = useStore()
+  const { user } = useAuth()
   const { pathname } = useLocation()
 
   const lightRedirect = lightRouteRedirect(pathname, appEdition)
   if (lightRedirect) return <Navigate to={lightRedirect} replace />
 
-  if (routeAllowedInEdition(pathname, appEdition)) return <>{children}</>
+  if (routeAllowedInEdition(pathname, appEdition, { ownUserId: user?.id })) return <>{children}</>
 
   return (
     <Navigate

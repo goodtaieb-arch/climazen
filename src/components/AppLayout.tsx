@@ -145,6 +145,7 @@ const baseLinksLightOwner = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
@@ -153,6 +154,7 @@ const mobilePrimaryLight = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/operateur', label: 'Société', icon: Settings, tone: 'societe' },
   { to: '/app/profil', label: 'Profil', icon: User, tone: 'equipe' },
 ]
 
