@@ -15,6 +15,7 @@ export const defaultOperateur = (): Operateur => ({
 
 export function emptyData(): AppData {
   return {
+    appEdition: 'light',
     operateur: defaultOperateur(),
     clients: [],
     chantiers: [],
@@ -36,6 +37,7 @@ export function emptyData(): AppData {
     agendaEvents: [],
     pointageRegles: undefined,
     pointageEvents: [],
+    pointageBureauJours: [],
     personnelDossiers: [],
     personnelRhAccesUserIds: [],
     personnelRetiresUserIds: [],
@@ -95,6 +97,7 @@ export function loadData(organizationId?: string | null): AppData {
       agendaEvents: parsed.agendaEvents || [],
       pointageRegles: parsed.pointageRegles,
       pointageEvents: parsed.pointageEvents || [],
+      pointageBureauJours: parsed.pointageBureauJours || [],
       personnelDossiers: parsed.personnelDossiers || [],
       personnelRhAccesUserIds: parsed.personnelRhAccesUserIds || [],
       personnelRetiresUserIds: parsed.personnelRetiresUserIds || [],

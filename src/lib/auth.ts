@@ -19,7 +19,8 @@ import {
   peutVoirIdentitesRh,
   type RhAccessActor,
 } from './rhDocuments'
-import { mergePointageRegles, parsePointageEvents } from './pointage'
+import { mergePointageRegles, parsePointageEvents, parsePointageBureauJours } from './pointage'
+import { stashPendingEdition, type AppEdition } from './appEdition'
 
 export type UserRole = 'owner' | 'operateur'
 
@@ -171,7 +172,10 @@ export async function registerCompany(opts: {
   email: string
   password: string
   fullName: string
+  appEdition?: AppEdition
 }): Promise<RegisterResult> {
+  const edition = opts.appEdition === 'pro' ? 'pro' : 'light'
+  stashPendingEdition(edition)
   const email = normalizeEmail(opts.email)
   if (!opts.companyName.trim()) throw new Error('Indiquez le nom de la société.')
   if (!isValidEmail(email)) throw new Error('Indiquez un e-mail valide (ex. contact@societe.fr).')
@@ -188,6 +192,7 @@ export async function registerCompany(opts: {
         company_name: opts.companyName.trim(),
         full_name: opts.fullName.trim(),
         role: 'owner',
+        app_edition: edition,
       },
     },
   })
@@ -623,6 +628,7 @@ export function appDataWeight(data: AppData): number {
     (data.ordresTravail?.length || 0) * 2 +
     (data.personnelDossiers?.length || 0) * 8 +
     (data.pointageEvents?.length || 0) * 1 +
+    (data.pointageBureauJours?.length || 0) * 2 +
     (data.pointageRegles?.active ? 8 : 0) +
     (o?.raisonSociale?.trim() ? 25 : 0) +
     (o?.adresse?.trim() ? 5 : 0) +
@@ -828,6 +834,11 @@ export function resolveRemoteVsLocal(
     parsePointageEvents(local.pointageEvents),
     preferOnTie,
   )
+  const pointageBureauJours = mergeByIdLatest(
+    parsePointageBureauJours(remote.pointageBureauJours),
+    parsePointageBureauJours(local.pointageBureauJours),
+    preferOnTie,
+  )
   const pointageRegles = mergePointageRegles(remote.pointageRegles, local.pointageRegles)
   const mergedDossiers = mergeByIdLatest(
     remote.personnelDossiers,
@@ -918,6 +929,7 @@ export function resolveRemoteVsLocal(
     agendaEvents,
     pointageRegles,
     pointageEvents,
+    pointageBureauJours,
     personnelDossiers,
     personnelRhAccesUserIds,
     personnelRetiresUserIds,

@@ -191,6 +191,7 @@ export function FicheMaintenanceChaufferiePage() {
     e.preventDefault()
     try {
       persist()
+      navigate('/app', { replace: true })
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Enregistrement impossible')
     }

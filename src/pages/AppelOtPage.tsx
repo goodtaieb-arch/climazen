@@ -14,6 +14,7 @@ import {
   User,
 } from 'lucide-react'
 import { DocsPackPanel } from '../components/DocsPackPanel'
+import { PointageOtPanel } from '../components/PointageOtPanel'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -53,6 +54,7 @@ import {
   presenceValideeLeJour,
   upsertVisitePresence,
   formatOtAvancement,
+  techIdsOt,
   type TypeOt,
   type StatutOt,
   type ParcoursAppelStepId,
@@ -64,6 +66,8 @@ import {
   contratsActifsForSite,
   resolveSecteurContrat,
 } from '../lib/contratMaintenance'
+import { editionHasFeature } from '../lib/appEdition'
+import { parsePointageRegles, pointageEstActif } from '../lib/pointage'
 import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
@@ -165,8 +169,9 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, peutVoirIdentitesRh, appEdition } =
     useStore()
+  const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -390,6 +395,15 @@ export function AppelOtPage() {
 
   const uiAccess = { isOwner: Boolean(isOwner), peutVoirIdentitesRh }
   const role = roleParcoursOt(uiAccess, otForm, user?.id)
+  const bureauPrepare = role === 'bureau_depanage' || role === 'bureau_maintenance'
+
+  const quitterApresTransmission = () => {
+    navigate('/app/ot', { replace: true })
+  }
+
+  const retourAccueil = () => {
+    navigate('/app', { replace: true })
+  }
 
   const persistOt = (
     patch: Partial<OrdreTravail> & { parcoursStep?: ParcoursAppelStepId },
@@ -574,12 +588,16 @@ export function AppelOtPage() {
       otId,
     )
     if (role === 'bureau_depanage') {
-      setStep('equipement')
-      setMsg(
-        otForm.technicien
-          ? `OT prêt pour ${otForm.technicien} — il ouvrira l’intervention (étape 5) sur place.`
-          : 'OT prêt. Affectez un technicien (étape 1) : c’est lui qui remplira l’intervention.',
+      persistOt(
+        {
+          equipementIds,
+          equipementId: equipementIds[0] || '',
+          parcoursStep: 'equipement',
+          statut: 'en_cours',
+        },
+        otId,
       )
+      quitterApresTransmission()
       return
     }
     setStep('docs')
@@ -1036,11 +1054,7 @@ export function AppelOtPage() {
       signatureClientImage: otForm.signatureClientImage,
       signatureTechnicienImage: otForm.signatureTechnicienImage,
     })
-    setMsg(
-      pct >= 100
-        ? `Présence validée — 100 %. Vous pouvez clôturer l’OT.`
-        : `Présence client validée (${pct} %). L’OT reste ouvert pour la suite.`,
-    )
+    retourAccueil()
   }
 
   const finishWithSignatures = () => {
@@ -1070,7 +1084,7 @@ export function AppelOtPage() {
         interventionPartielle: false,
         avancementPct: 100,
       })
-      setMsg('OT clôturé par le bureau — rapport sous-traitant reçu.')
+      retourAccueil()
       return
     }
     const hasF =
@@ -1211,12 +1225,7 @@ export function AppelOtPage() {
           draft.signatureDetenteurQualite || clientSignQualite || undefined,
       })
     }
-    setMsg(
-      linked.length > 0
-        ? `${formatOtNumero(otForm.numero)} clôturé — ${linked.length} CERFA classé${linked.length > 1 ? 's' : ''} signé${linked.length > 1 ? 's' : ''}.`
-        : `${formatOtNumero(otForm.numero)} clôturé.`,
-    )
-    navigate(`/app/ot?id=${encodeURIComponent(id)}`)
+    retourAccueil()
   }
 
   const stepIdx = STEP_INDEX[step]
@@ -1239,6 +1248,13 @@ export function AppelOtPage() {
     toucheGaz: otForm.toucheGaz,
   })
   const otCloture = isOtCloture(otForm.statut)
+  const otCourantId = otId || existing?.id || ''
+  const pointageActif = useMemo(
+    () =>
+      editionHasFeature(appEdition, 'pointage') &&
+      pointageEstActif(parsePointageRegles(data.pointageRegles)),
+    [appEdition, data.pointageRegles],
+  )
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -1353,6 +1369,14 @@ export function AppelOtPage() {
 
       {otEstMaintenancePreparee(otForm.typeOt) || otForm.contratId ? (
         <RegistreSecuriteBanner />
+      ) : null}
+
+      {pointageActif && otCourantId && !otCloture ? (
+        <PointageOtPanel
+          otId={otCourantId}
+          chantierId={otForm.chantierId}
+          compact
+        />
       ) : null}
 
       {/* ——— Étape OT ——— */}
@@ -1472,33 +1496,45 @@ export function AppelOtPage() {
               placeholder="Urgence, accès, contact sur place…"
             />
           </label>
-          <AgenceSelect
-            label="Agence / région de l’OT"
-            value={otForm.agenceCode}
-            onChange={(agenceCode) => setOtForm({ ...otForm, agenceCode })}
-          />
-          <SecteurOtSelect
-            required
-            value={otForm.secteur || ''}
-            onChange={(secteur) => setOtForm({ ...otForm, secteur })}
-          />
-          <TechnicienAssignField
-            multi
-            highlightAgence={otForm.agenceCode}
-            label="Techniciens (plusieurs possibles)"
-            technicien={otForm.technicien}
-            technicienUserId={otForm.technicienUserId}
-            technicienUserIds={otForm.technicienUserIds}
-            onChange={(next) => {
-              const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
-              const auto = secteurOtDepuisPoste(poste)
-              setOtForm({
-                ...otForm,
-                ...next,
-                secteur: otForm.secteur || auto,
-              })
-            }}
-          />
+          {multiTechOt ? (
+            <>
+              <AgenceSelect
+                label="Agence / région de l’OT"
+                value={otForm.agenceCode}
+                onChange={(agenceCode) => setOtForm({ ...otForm, agenceCode })}
+              />
+              <SecteurOtSelect
+                required
+                value={otForm.secteur || ''}
+                onChange={(secteur) => setOtForm({ ...otForm, secteur })}
+              />
+            </>
+          ) : null}
+          {bureauPrepare ? (
+            <>
+              <TechnicienAssignField
+                multi
+                highlightAgence={otForm.agenceCode}
+                label="Technicien(s) — visible sur l’agenda"
+                technicien={otForm.technicien}
+                technicienUserId={otForm.technicienUserId}
+                technicienUserIds={otForm.technicienUserIds}
+                onChange={(next) => {
+                  const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
+                  const auto = secteurOtDepuisPoste(poste)
+                  setOtForm({
+                    ...otForm,
+                    ...next,
+                    secteur: otForm.secteur || auto,
+                  })
+                }}
+              />
+              <p className="text-[11px] text-muted">
+                Cochez plusieurs techs si renfort. Avec l’heure planning ci-dessus, l’OT apparaît
+                sur l’Agenda de chacun.
+              </p>
+            </>
+          ) : null}
           {isOwner || peutVoirIdentitesRh ? (
             <p className="text-[11px] text-muted">
               Si vous vous affectez (auto-entrepreneur / vous sortez), vous remplissez l’intervention.
@@ -1882,6 +1918,53 @@ export function AppelOtPage() {
       {/* ——— Étape Équipement ——— */}
       {step === 'equipement' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
+          {bureauPrepare ? (
+            <div className="space-y-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
+              <div>
+                <p className="text-sm font-semibold text-sky-950">Agenda — qui intervient ?</p>
+                <p className="text-xs text-muted">
+                  Cochez un ou plusieurs techs et l’heure : chacun voit l’OT sur son planning.
+                </p>
+              </div>
+              <label className="block max-w-xs text-sm">
+                <span className="mb-1 block font-semibold text-ink">Heure sur l’agenda</span>
+                <input
+                  type="time"
+                  value={(otForm.heure || '').slice(0, 5)}
+                  onChange={(e) => {
+                    const heure = e.target.value || undefined
+                    setOtForm({ ...otForm, heure })
+                    persistOt({ heure })
+                  }}
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                />
+                <span className="mt-1 block text-[11px] text-muted">
+                  Sans heure → OT dans « sans planning » sur l’Agenda.
+                </span>
+              </label>
+              <TechnicienAssignField
+                multi
+                highlightAgence={otForm.agenceCode}
+                label="Technicien(s) affecté(s)"
+                technicien={otForm.technicien}
+                technicienUserId={otForm.technicienUserId}
+                technicienUserIds={otForm.technicienUserIds}
+                onChange={(next) => {
+                  const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
+                  const auto = secteurOtDepuisPoste(poste)
+                  const patch = {
+                    ...next,
+                    secteur: otForm.secteur || auto,
+                  }
+                  setOtForm({ ...otForm, ...patch })
+                  persistOt(patch)
+                }}
+              />
+              <Link to="/app/agenda" className="inline-block text-xs font-semibold text-sky-800 underline">
+                Ouvrir l’agenda
+              </Link>
+            </div>
+          ) : null}
           {role === 'bureau_depanage' &&
           (otForm.equipementId || (otForm.equipementIds && otForm.equipementIds.length > 0)) ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
@@ -1889,7 +1972,10 @@ export function AppelOtPage() {
               <p className="mt-0.5 text-xs">
                 {otForm.technicien
                   ? `${otForm.technicien} ouvrira l’étape 5 Intervention (rapport, CERFA, signatures).`
-                  : 'Affectez un technicien à l’étape 1 — c’est lui qui remplit l’intervention.'}
+                  : 'Affectez un technicien ci-dessus — c’est lui qui remplit l’intervention.'}
+                {techIdsOt(otForm).length > 1
+                  ? ` · ${techIdsOt(otForm).length} techs sur l’agenda`
+                  : ''}
               </p>
             </div>
           ) : null}
@@ -2534,7 +2620,7 @@ export function AppelOtPage() {
             </button>
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 persistOt({
                   rapportAction: otForm.rapportAction,
                   observations: otForm.observations,
@@ -2546,7 +2632,8 @@ export function AppelOtPage() {
                   toucheGaz: otForm.toucheGaz,
                   statut: 'en_cours',
                 })
-              }
+                retourAccueil()
+              }}
               className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
             >
               Enregistrer l’OT

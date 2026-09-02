@@ -399,9 +399,8 @@ export function FicheMaintenanceClimPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    const id = persist()
-    alert('Fiche enregistrée.')
-    if (!editId) navigate(`/app/fiche-maintenance-clim?id=${encodeURIComponent(id)}`, { replace: true })
+    persist()
+    navigate('/app', { replace: true })
   }
 
   const onPdf = async () => {

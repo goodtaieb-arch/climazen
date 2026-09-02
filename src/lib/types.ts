@@ -727,7 +727,12 @@ export interface BonRemiseMateriel {
   createdByName?: string
 }
 
+/** Édition produit : Light (solo / AE) ou Pro (PME / TPE). */
+export type AppEdition = import('./appEdition').AppEdition
+
 export interface AppData {
+  /** Light = solo sans équipe ; Pro = PME/TPE (défaut si absent = Pro). */
+  appEdition?: AppEdition
   operateur: Operateur
   clients: Client[]
   /** Sites d’intervention (clé historique « chantiers ») */
@@ -766,6 +771,8 @@ export interface AppData {
   pointageRegles?: import('./pointage').PointageRegles
   /** Horodatages ponctuels (pas de tracking GPS continu). */
   pointageEvents?: import('./pointage').PointageEvent[]
+  /** Saisie horaire bureau (début / fin / pause) — personnel non terrain. */
+  pointageBureauJours?: import('./pointage').PointageBureauJour[]
   /**
    * Dossiers RH des techniciens (CNI, permis, aptitude froid, habilitation…)
    * avec dates d’expiration — coffre société.

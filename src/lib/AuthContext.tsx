@@ -62,6 +62,7 @@ type AuthCtx = {
     email: string
     password: string
     fullName: string
+    appEdition?: import('./appEdition').AppEdition
   }) => Promise<{ needsEmailConfirmation: boolean }>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -200,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string
       password: string
       fullName: string
+      appEdition?: import('./appEdition').AppEdition
     }) => {
       const { user: u, needsEmailConfirmation } = await registerCompany(opts)
       if (!needsEmailConfirmation) {

@@ -8,6 +8,13 @@ import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { normalizeLienCloudRh } from '../lib/rhDocuments'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
+import { AppEditionBadge } from '../components/AppEditionBadge'
+import {
+  APP_EDITION_DESCRIPTIONS,
+  APP_EDITION_TAGLINES,
+  editionHasFeature,
+  type AppEdition,
+} from '../lib/appEdition'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
   if (operateur.raisonSociale?.trim() || !orgName?.trim()) return operateur
@@ -16,7 +23,8 @@ function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operate
 
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
-  const { data, setOperateur, setCompanyLogo, resetDemo, loading } = useStore()
+  const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition } =
+    useStore()
   const { organization, isOwner, refreshUser } = useAuth()
 
   const [form, setForm] = useState(() => withOrgDefaults(data.operateur, organization?.name))
@@ -26,6 +34,8 @@ export function OperateurPage() {
   const [formError, setFormError] = useState('')
   const [logoBusy, setLogoBusy] = useState(false)
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
+  const [editionBusy, setEditionBusy] = useState(false)
+  const [editionMsg, setEditionMsg] = useState('')
 
   const patchForm = (patch: Partial<Operateur> | ((prev: Operateur) => Operateur)) => {
     setDirty(true)
@@ -41,6 +51,21 @@ export function OperateurPage() {
 
   if (!isOwner) {
     return <Navigate to="/app/profil" replace />
+  }
+
+  const switchEdition = async (next: AppEdition) => {
+    if (next === appEdition) return
+    setEditionBusy(true)
+    setEditionMsg('')
+    try {
+      setAppEdition(next)
+      setEditionMsg(next === 'pro' ? 'Édition Pro activée.' : 'Édition Light activée.')
+      setTimeout(() => setEditionMsg(''), 2500)
+    } catch (err) {
+      setEditionMsg(err instanceof Error ? err.message : 'Changement impossible')
+    } finally {
+      setEditionBusy(false)
+    }
   }
 
   const onSubmitCompany = async (e: FormEvent) => {
@@ -109,16 +134,68 @@ export function OperateurPage() {
         </div>
       </div>
 
-      <Link
-        to="/app/pointage"
-        className="block rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
-      >
-        <span className="font-bold">Pointeuse / temps de travail</span>
-        <span className="mt-0.5 block text-xs">
-          Paramétrer les règles d’heures (obligatoire) puis activer. Horodatage + GPS
-          ponctuel, pas de tracking. Export paie / facturation.
-        </span>
-      </Link>
+      <section className="rounded-2xl border border-line bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-lg font-semibold">Édition ClimaZEN</h2>
+              <AppEditionBadge edition={appEdition} />
+            </div>
+            <p className="mt-1 text-sm text-muted">{APP_EDITION_TAGLINES[appEdition]}</p>
+            <p className="mt-2 text-sm text-slate">{APP_EDITION_DESCRIPTIONS[appEdition]}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            disabled={editionBusy || appEdition === 'light'}
+            onClick={() => void switchEdition('light')}
+            className={[
+              'rounded-xl border px-4 py-3 text-left text-sm transition',
+              appEdition === 'light'
+                ? 'border-teal-400 bg-teal-50 font-semibold text-teal-950'
+                : 'border-line bg-white hover:bg-mist',
+            ].join(' ')}
+          >
+            <span className="font-bold">Light</span>
+            <span className="mt-1 block text-xs text-muted">{APP_EDITION_DESCRIPTIONS.light}</span>
+          </button>
+          <button
+            type="button"
+            disabled={editionBusy || appEdition === 'pro'}
+            onClick={() => void switchEdition('pro')}
+            className={[
+              'rounded-xl border px-4 py-3 text-left text-sm transition',
+              appEdition === 'pro'
+                ? 'border-indigo-400 bg-indigo-50 font-semibold text-indigo-950'
+                : 'border-line bg-white hover:bg-mist',
+            ].join(' ')}
+          >
+            <span className="font-bold">Pro</span>
+            <span className="mt-1 block text-xs text-muted">{APP_EDITION_DESCRIPTIONS.pro}</span>
+          </button>
+        </div>
+        {editionMsg ? <p className="mt-3 text-sm font-semibold text-accent">{editionMsg}</p> : null}
+        {appEdition === 'light' ? (
+          <p className="mt-3 text-xs text-muted">
+            Besoin d’équipe, agenda ou pointeuse ? Passez à <strong>Pro</strong> quand vous
+            embauchez — vos clients, OT et CERFA restent en place.
+          </p>
+        ) : null}
+      </section>
+
+      {editionHasFeature(appEdition, 'pointage') ? (
+        <Link
+          to="/app/pointage"
+          className="block rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+        >
+          <span className="font-bold">Pointeuse / temps de travail</span>
+          <span className="mt-0.5 block text-xs">
+            Paramétrer les règles d’heures (obligatoire) puis activer. Horodatage + GPS ponctuel,
+            pas de tracking. Export paie / facturation.
+          </span>
+        </Link>
+      ) : null}
 
       {loading && (
         <p className="rounded-xl border border-line bg-mist px-4 py-3 text-sm text-muted">

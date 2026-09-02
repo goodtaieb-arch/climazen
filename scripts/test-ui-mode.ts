@@ -18,6 +18,15 @@ assert.equal(shortcutVisibleForAccess({ ownerOnly: true }, terrain), false)
 assert.equal(shortcutVisibleForAccess({ ownerOnly: true }, owner), true)
 assert.equal(shortcutVisibleForAccess({ rhTeamOnly: true }, terrain), false)
 assert.equal(shortcutVisibleForAccess({ rhTeamOnly: true }, bureau), true)
-assert.equal(shortcutVisibleForAccess({}, terrain), true)
+assert.equal(shortcutVisibleForAccess({ proOnly: true, proFeature: 'agenda' }, owner), true)
+assert.equal(
+  shortcutVisibleForAccess({ proOnly: true, proFeature: 'agenda' }, { ...owner, appEdition: 'light' }),
+  false,
+)
+
+assert.equal(
+  shortcutVisibleForAccess({ lightHidden: true }, { ...owner, appEdition: 'light' }),
+  false,
+)
 
 console.log('ok test-ui-mode')

@@ -1174,11 +1174,11 @@ export function InterventionFormPage() {
     setBusy(true)
     setSavedMsg('')
     try {
-      const savedId = await persistInApp()
+      await persistInApp()
       if (equipementId) {
         setMarkedOk((prev) => (prev.includes(equipementId) ? prev : [...prev, equipementId]))
       }
-      if (isNew) navigate(`/app/interventions/${savedId}`, { replace: true })
+      navigate('/app', { replace: true })
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erreur enregistrement')
     } finally {

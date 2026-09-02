@@ -5,6 +5,8 @@ import { PasswordField } from '../components/PasswordField'
 import { BetaBadge } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 import { PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy'
+import type { AppEdition } from '../lib/appEdition'
+import { APP_EDITION_DESCRIPTIONS, APP_EDITION_TAGLINES } from '../lib/appEdition'
 
 export function RegisterPage() {
   const { user, loading, registerCompany, configured } = useAuth()
@@ -15,6 +17,7 @@ export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  const [appEdition, setAppEdition] = useState<AppEdition>('light')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [needsConfirm, setNeedsConfirm] = useState(false)
@@ -35,6 +38,7 @@ export function RegisterPage() {
         email,
         password,
         fullName,
+        appEdition,
       })
       if (needsEmailConfirmation) {
         setNeedsConfirm(true)
@@ -94,6 +98,36 @@ export function RegisterPage() {
               Configurez Supabase (.env.local) avant de créer un compte.
             </p>
           )}
+
+          <fieldset className="mt-6 space-y-3">
+            <legend className="text-sm font-semibold text-white/80">Votre profil</legend>
+            <label className="block cursor-pointer rounded-xl border border-white/15 bg-ink/30 p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+              <input
+                type="radio"
+                name="appEdition"
+                value="light"
+                checked={appEdition === 'light'}
+                onChange={() => setAppEdition('light')}
+                className="sr-only"
+              />
+              <span className="font-bold text-white">ClimaZEN Light — solo / auto-entrepreneur</span>
+              <span className="mt-1 block text-xs text-white/60">{APP_EDITION_TAGLINES.light}</span>
+              <span className="mt-2 block text-sm text-white/70">{APP_EDITION_DESCRIPTIONS.light}</span>
+            </label>
+            <label className="block cursor-pointer rounded-xl border border-white/15 bg-ink/30 p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+              <input
+                type="radio"
+                name="appEdition"
+                value="pro"
+                checked={appEdition === 'pro'}
+                onChange={() => setAppEdition('pro')}
+                className="sr-only"
+              />
+              <span className="font-bold text-white">ClimaZEN Pro — PME / TPE / équipe</span>
+              <span className="mt-1 block text-xs text-white/60">{APP_EDITION_TAGLINES.pro}</span>
+              <span className="mt-2 block text-sm text-white/70">{APP_EDITION_DESCRIPTIONS.pro}</span>
+            </label>
+          </fieldset>
 
           <label className="mt-6 block text-sm">
             <span className="mb-1 block text-white/70">Nom de la société *</span>
