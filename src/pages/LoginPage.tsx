@@ -6,6 +6,7 @@ import { VersionBadge, VersionUpdateBar } from '../components/AppVersion'
 import { BetaBadge, BetaSiteBanner } from '../components/BetaBadge'
 import { useAuth } from '../lib/AuthContext'
 import { APP_VERSION } from '../lib/buildStamp'
+import { SANDBOX_LOGIN_DEMOS } from '../lib/sandboxAccount'
 
 const CLOUD_HOST = (() => {
   try {
@@ -26,6 +27,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [demoOpen, setDemoOpen] = useState(false)
 
   if (loading) {
     return (
@@ -131,6 +133,43 @@ export function LoginPage() {
               Créer un compte société
             </Link>
           </p>
+
+          <div className="mt-6 border-t border-white/10 pt-4">
+            <button
+              type="button"
+              onClick={() => setDemoOpen((v) => !v)}
+              className="w-full text-left text-sm font-semibold text-accent hover:underline"
+            >
+              {demoOpen ? '▼' : '▶'} Comptes démo sandbox (gérant + opérateurs)
+            </button>
+            {demoOpen ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-[11px] leading-snug text-white/50">
+                  Nécessite <code className="text-white/70">npm run provision:sandbox</code> pour les
+                  opérateurs. Cliquez pour préremplir le formulaire.
+                </p>
+                <ul className="space-y-1.5">
+                  {SANDBOX_LOGIN_DEMOS.map((demo) => (
+                    <li key={demo.email}>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setEmail(demo.email)
+                          setPassword(demo.password)
+                          setError('')
+                        }}
+                        className="w-full rounded-lg border border-white/10 bg-ink/30 px-3 py-2 text-left text-xs hover:border-accent/40 disabled:opacity-60"
+                      >
+                        <span className="font-bold text-white">{demo.label}</span>
+                        <span className="mt-0.5 block truncate text-white/55">{demo.email}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </form>
         <p className="mt-4 text-center text-xs text-white/40">
           <Link to="/" className="hover:text-white/70">

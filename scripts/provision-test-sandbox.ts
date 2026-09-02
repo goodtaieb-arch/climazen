@@ -1,18 +1,111 @@
 #!/usr/bin/env npx tsx
 /**
- * Crée / réinitialise le compte sandbox ClimaZEN (Supabase Auth + org_data).
+ * Crée / réinitialise le compte sandbox ClimaZEN (gérant + 10 opérateurs Auth + org_data).
  *
  *   VITE_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npx tsx scripts/provision-test-sandbox.ts
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { seedSandboxData } from '../src/lib/seedSandboxData'
 import {
+  SANDBOX_OPERATORS,
   SANDBOX_TEST_COMPANY,
   SANDBOX_TEST_EMAIL,
   SANDBOX_TEST_FULL_NAME,
   SANDBOX_TEST_PASSWORD,
+  type SandboxOperatorDef,
 } from '../src/lib/sandboxAccount'
+
+async function findUserByEmail(sb: SupabaseClient, email: string) {
+  const target = email.toLowerCase()
+  let page = 1
+  for (;;) {
+    const { data, error } = await sb.auth.admin.listUsers({ page, perPage: 200 })
+    if (error) throw error
+    const hit = data.users.find((u) => u.email?.toLowerCase() === target)
+    if (hit) return hit
+    if (data.users.length < 200) return null
+    page += 1
+  }
+}
+
+async function ensureOperatorProfile(
+  sb: SupabaseClient,
+  userId: string,
+  orgId: string,
+  op: SandboxOperatorDef,
+) {
+  const { data: prof, error } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle()
+  if (error) throw error
+  if (prof) {
+    if (prof.organization_id !== orgId) {
+      throw new Error(`${op.email} appartient à une autre organisation (${prof.organization_id})`)
+    }
+    return
+  }
+  const { error: insErr } = await sb.from('profiles').insert({
+    id: userId,
+    email: op.email.toLowerCase(),
+    full_name: op.fullName,
+    organization_id: orgId,
+    role: 'operateur',
+    active: true,
+    signataire_nom: op.fullName,
+    signataire_qualite: 'Opérateur attesté',
+  })
+  if (insErr) throw insErr
+}
+
+async function ensureOperator(
+  sb: SupabaseClient,
+  orgId: string,
+  ownerUserId: string,
+  op: SandboxOperatorDef,
+): Promise<string> {
+  const email = op.email.toLowerCase()
+  const existing = await findUserByEmail(sb, email)
+
+  if (existing) {
+    const { error } = await sb.auth.admin.updateUserById(existing.id, {
+      password: op.password,
+      email_confirm: true,
+      user_metadata: { full_name: op.fullName, role: 'operateur' },
+    })
+    if (error) throw error
+    await ensureOperatorProfile(sb, existing.id, orgId, op)
+    console.log('  Opérateur existant :', email)
+    return existing.id
+  }
+
+  const { data: invite, error: inviteErr } = await sb
+    .from('operator_invites')
+    .insert({
+      organization_id: orgId,
+      email,
+      full_name: op.fullName,
+      created_by: ownerUserId,
+    })
+    .select('id')
+    .single()
+  if (inviteErr) throw inviteErr
+
+  const { data: created, error: createErr } = await sb.auth.admin.createUser({
+    email,
+    password: op.password,
+    email_confirm: true,
+    user_metadata: {
+      role: 'operateur',
+      invite_id: invite.id,
+      full_name: op.fullName,
+    },
+  })
+  if (createErr) throw createErr
+
+  await new Promise((r) => setTimeout(r, 500))
+  await ensureOperatorProfile(sb, created.user.id, orgId, op)
+  console.log('  Opérateur créé :', email)
+  return created.user.id
+}
 
 async function main() {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
@@ -27,12 +120,10 @@ async function main() {
   })
 
   let userId: string
-  const { data: listData, error: listErr } = await sb.auth.admin.listUsers({ perPage: 1000 })
-  if (listErr) throw listErr
-  const existing = listData.users.find((u) => u.email?.toLowerCase() === SANDBOX_TEST_EMAIL)
-  if (existing) {
-    userId = existing.id
-    console.log('Utilisateur existant :', SANDBOX_TEST_EMAIL)
+  const existingOwner = await findUserByEmail(sb, SANDBOX_TEST_EMAIL)
+  if (existingOwner) {
+    userId = existingOwner.id
+    console.log('Gérant existant :', SANDBOX_TEST_EMAIL)
     const { error } = await sb.auth.admin.updateUserById(userId, {
       password: SANDBOX_TEST_PASSWORD,
       email_confirm: true,
@@ -51,7 +142,7 @@ async function main() {
     })
     if (createErr) throw createErr
     userId = created.user.id
-    console.log('Utilisateur créé :', SANDBOX_TEST_EMAIL)
+    console.log('Gérant créé :', SANDBOX_TEST_EMAIL)
   }
 
   await new Promise((r) => setTimeout(r, 2000))
@@ -67,7 +158,15 @@ async function main() {
   }
 
   const orgId = profile.organization_id
-  const payload = seedSandboxData(userId)
+
+  console.log('\nOpérateurs sandbox (10 comptes connectables) :')
+  const operatorUserIds: string[] = []
+  for (const op of SANDBOX_OPERATORS) {
+    const id = await ensureOperator(sb, orgId, userId, op)
+    operatorUserIds.push(id)
+  }
+
+  const payload = seedSandboxData({ ownerUserId: userId, operatorUserIds })
   payload.appEdition = 'pro'
 
   const { error: orgErr } = await sb.from('org_data').upsert({
@@ -95,12 +194,18 @@ async function main() {
     if (error) console.warn('site_portals (table absente ?)', error.message)
   }
 
-  console.log('\n✅ Sandbox prêt')
+  console.log('\n✅ Sandbox prêt (gérant + 10 opérateurs)')
   console.log('   https://climazen.fr/login')
-  console.log('   E-mail   :', SANDBOX_TEST_EMAIL)
+  console.log('\n--- Gérant (owner) ---')
+  console.log('   E-mail       :', SANDBOX_TEST_EMAIL)
   console.log('   Mot de passe :', SANDBOX_TEST_PASSWORD)
-  console.log('   Sites    :', payload.chantiers.length)
-  console.log('   Équipe   :', payload.personnelDossiers?.length || 0)
+  console.log('\n--- Opérateurs (mot de passe commun) ---')
+  console.log('   Mot de passe :', SANDBOX_OPERATORS[0].password)
+  for (const op of SANDBOX_OPERATORS) {
+    console.log(`   ${op.roleLabel.padEnd(16)} ${op.email}`)
+  }
+  console.log('\n   Sites :', payload.chantiers.length)
+  console.log('   Équipe (dossiers RH) :', payload.personnelDossiers?.length || 0)
 }
 
 main().catch((err) => {
