@@ -759,9 +759,14 @@ export interface BonRemiseMateriel {
 /** Édition produit : Light (solo / AE) ou Pro (PME / TPE). */
 export type AppEdition = import('./appEdition').AppEdition
 
+/** Option IA souscrite (Light) — Agent complet OT/CERFA/Gemini. */
+export type AiPlan = import('./aiAccess').AiPlan
+
 export interface AppData {
   /** Light = solo sans équipe ; Pro = PME/TPE (défaut si absent = Pro). */
   appEdition?: AppEdition
+  /** Light : option Agent IA payante (`agent`). Pro : ignoré (Agent inclus). */
+  aiPlan?: AiPlan
   operateur: Operateur
   clients: Client[]
   /** Sites d’intervention (clé historique « chantiers ») */

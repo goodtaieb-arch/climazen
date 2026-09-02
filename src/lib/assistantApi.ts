@@ -21,6 +21,8 @@ export async function askAideAssistant(opts: {
   messages: AideMessage[]
   pathname?: string
   entityCatalog?: string
+  /** Chatbot Light : guide local uniquement (pas d’appel Gemini). */
+  chatbotOnly?: boolean
 }): Promise<AideReply> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')
   const question = lastUser?.content || ''
@@ -33,6 +35,11 @@ export async function askAideAssistant(opts: {
   ]
     .filter(Boolean)
     .join('\n\n')
+
+  if (opts.chatbotOnly) {
+    const local = answerAideLocal(question, pathname)
+    return { reply: local, source: 'local' }
+  }
 
   try {
     const res = await fetch('/api/assistant', {

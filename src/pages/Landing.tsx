@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { APP_EDITION_PRICING, APP_EDITION_PRICING_AFTER_BETA } from '../lib/appEdition'
+import { APP_EDITION_PRICING, APP_EDITION_PRICING_AFTER_BETA, AI_LIGHT_BETA_HINT } from '../lib/appEdition'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import {
   Building2,
@@ -676,6 +676,9 @@ export function Landing() {
                   'CERFA F-Gas & stock fluides (obligatoire)',
                   'Mon entreprise (SIRET, attestation…)',
                   'Un seul utilisateur — gratuit pour toujours',
+                  APP_IS_BETA
+                    ? 'IA : option Agent payante en bêta (chatbot gratuit après bêta)'
+                    : 'Chatbot d’aide gratuit · Agent IA en option',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
@@ -724,6 +727,7 @@ export function Landing() {
                   'Plusieurs techniciens & comptes opérateurs',
                   'Pointeuse, RH & pilotage équipe',
                   'Devis / commandes / magasin pièces',
+                  'Agent IA inclus (OT, CERFA, Gemini)',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
@@ -746,7 +750,8 @@ export function Landing() {
               <>
                 l’édition <strong>Light</strong> est <strong>gratuite pour toujours</strong>.
                 L’édition <strong>Pro</strong> sera payante à la sortie de la bêta —{' '}
-                <strong>gratuite en attendant</strong>. {APP_EDITION_PRICING_AFTER_BETA}
+                <strong>gratuite en attendant</strong>. {APP_EDITION_PRICING_AFTER_BETA}{' '}
+                {AI_LIGHT_BETA_HINT}
               </>
             ) : (
               <>
