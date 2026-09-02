@@ -23,6 +23,8 @@ import {
   saveGeneratedDocument,
 } from '../lib/docStockage'
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
+import { buildMemoirePieces, type PieceMemoireItem } from '../lib/piecesFrequentes'
+import { parsePieceCategorie } from '../lib/piecesDetachees'
 
 function blankCommande(opts?: {
   clientId?: string
@@ -30,17 +32,28 @@ function blankCommande(opts?: {
   otId?: string
   libelle?: string
   destination?: 'ot' | 'stock'
+  statut?: CommandeFournisseur['statut']
+  referencePiece?: string
+  quantite?: number
+  unite?: string
+  categorie?: string
+  fournisseur?: string
+  seuilAlerte?: number
 }): Omit<CommandeFournisseur, 'id' | 'createdAt' | 'updatedAt' | 'numero'> {
   const destination = opts?.destination || (opts?.otId ? 'ot' : 'stock')
   return {
-    fournisseur: '',
+    fournisseur: opts?.fournisseur || '',
     libelle: opts?.libelle || '',
-    statut: 'commandee',
+    statut: opts?.statut || (destination === 'stock' ? 'demande_devis' : 'commandee'),
     clientId: opts?.clientId,
     chantierId: opts?.chantierId,
     otId: destination === 'ot' ? opts?.otId : undefined,
     destination,
-    quantite: 1,
+    referencePiece: opts?.referencePiece,
+    quantite: opts?.quantite ?? 1,
+    unite: opts?.unite,
+    categorie: opts?.categorie,
+    seuilAlerte: opts?.seuilAlerte,
   }
 }
 
@@ -60,6 +73,15 @@ export function CommandesPage() {
   const otFromQuery = params.get('ot') || ''
   const clientFromQuery = params.get('client') || ''
   const chantierFromQuery = params.get('chantier') || ''
+  const destFromQuery = params.get('dest') || ''
+  const statutFromQuery = params.get('statut') || ''
+  const libelleFromQuery = params.get('libelle') || ''
+  const refFromQuery = params.get('ref') || ''
+  const qteFromQuery = params.get('qte') || ''
+  const uniteFromQuery = params.get('unite') || ''
+  const catFromQuery = params.get('cat') || ''
+  const fournisseurFromQuery = params.get('fournisseur') || ''
+  const seuilFromQuery = params.get('seuil') || ''
   const [q, setQ] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
   const [preview, setPreview] = useState<{ url: string; fileName: string; title: string } | null>(
@@ -91,12 +113,37 @@ export function CommandesPage() {
       return
     }
     if (newMode || editId) {
+      const dest: 'ot' | 'stock' =
+        destFromQuery === 'stock'
+          ? 'stock'
+          : destFromQuery === 'ot' || otFromQuery
+            ? 'ot'
+            : 'stock'
+      const statutRaw = statutFromQuery
+      const statut =
+        statutRaw === 'demande_devis' ||
+        statutRaw === 'brouillon' ||
+        statutRaw === 'commandee' ||
+        statutRaw === 'recue' ||
+        statutRaw === 'annulee'
+          ? statutRaw
+          : dest === 'stock'
+            ? 'demande_devis'
+            : 'commandee'
       setForm(
         blankCommande({
           clientId: clientFromQuery || undefined,
           chantierId: chantierFromQuery || undefined,
           otId: otFromQuery || undefined,
-          destination: otFromQuery ? 'ot' : 'stock',
+          destination: dest,
+          statut,
+          libelle: libelleFromQuery || undefined,
+          referencePiece: refFromQuery || undefined,
+          quantite: qteFromQuery ? Math.max(1, Number(qteFromQuery) || 1) : 1,
+          unite: uniteFromQuery || undefined,
+          categorie: parsePieceCategorie(catFromQuery) || catFromQuery || undefined,
+          fournisseur: fournisseurFromQuery || undefined,
+          seuilAlerte: seuilFromQuery ? Number(seuilFromQuery) || undefined : undefined,
         }),
       )
     } else {
@@ -109,7 +156,43 @@ export function CommandesPage() {
     clientFromQuery,
     chantierFromQuery,
     otFromQuery,
+    destFromQuery,
+    statutFromQuery,
+    libelleFromQuery,
+    refFromQuery,
+    qteFromQuery,
+    uniteFromQuery,
+    catFromQuery,
+    fournisseurFromQuery,
+    seuilFromQuery,
   ])
+
+  const memoirePieces = useMemo(
+    () =>
+      buildMemoirePieces({
+        pieces: data.piecesDetachees,
+        commandes: data.commandesFournisseur,
+        limit: 12,
+      }),
+    [data.piecesDetachees, data.commandesFournisseur],
+  )
+
+  const applyMemoire = (item: PieceMemoireItem) => {
+    if (!form) return
+    setForm({
+      ...form,
+      destination: 'stock',
+      otId: undefined,
+      libelle: item.designation,
+      referencePiece: item.reference || form.referencePiece,
+      fournisseur: item.fournisseur || form.fournisseur,
+      unite: item.unite || form.unite,
+      categorie: item.categorie || form.categorie,
+      seuilAlerte: item.seuilAlerte ?? form.seuilAlerte,
+      statut: form.statut === 'recue' ? form.statut : 'demande_devis',
+      quantite: form.quantite || 1,
+    })
+  }
 
   const list = useMemo(() => {
     const items = [...(data.commandesFournisseur || [])].sort((a, b) =>
@@ -259,7 +342,11 @@ export function CommandesPage() {
           <ArrowLeft className="h-4 w-4" /> Liste commandes
         </button>
         <h1 className="font-display text-xl font-bold">
-          {existing ? `Commande ${existing.numero}` : 'Nouvelle commande fournisseur'}
+          {existing
+            ? `Commande ${existing.numero}`
+            : destination === 'stock'
+              ? 'Demande de devis / réappro stock'
+              : 'Nouvelle commande fournisseur'}
         </h1>
         <form onSubmit={save} className="space-y-4 rounded-2xl border border-line bg-white p-4">
           <fieldset className="space-y-2">
@@ -272,6 +359,7 @@ export function CommandesPage() {
                     ...form,
                     destination: 'ot',
                     otId: form.otId || otFromQuery || undefined,
+                    statut: form.statut === 'demande_devis' ? 'commandee' : form.statut,
                   })
                 }
                 className={[
@@ -285,7 +373,17 @@ export function CommandesPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setForm({ ...form, destination: 'stock', otId: undefined })}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    destination: 'stock',
+                    otId: undefined,
+                    statut:
+                      form.statut === 'commandee' || form.statut === 'demande_devis'
+                        ? form.statut
+                        : 'demande_devis',
+                  })
+                }
                 className={[
                   'rounded-full border px-3 py-1.5 text-xs font-bold',
                   destination === 'stock'
@@ -299,9 +397,33 @@ export function CommandesPage() {
             <p className="text-[11px] text-muted">
               {destination === 'ot'
                 ? 'La pièce sera réservée à un OT (statut « en attente de pièce »).'
-                : 'À réception, la pièce entre au magasin (stock pièces).'}
+                : 'Demande de devis fournisseur puis commande → réception au magasin pièces.'}
             </p>
           </fieldset>
+
+          {destination === 'stock' && !existing ? (
+            <div className="rounded-xl border border-dashed border-line bg-mist/30 p-3">
+              <p className="text-xs font-bold uppercase text-muted">
+                Mémoire pièces fréquentes
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {memoirePieces.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => applyMemoire(item)}
+                    className="rounded-full border border-line bg-white px-2.5 py-1 text-[11px] font-semibold hover:border-accent"
+                  >
+                    {item.favori ? '★ ' : ''}
+                    {item.designation}
+                    {item.foisCommandee > 0 ? (
+                      <span className="text-muted"> · ×{item.foisCommandee}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {destination === 'ot' ? (
             <label className="block text-sm">
@@ -413,8 +535,33 @@ export function CommandesPage() {
               disabled={pdfBusy}
               className="rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink disabled:opacity-60"
             >
-              {pdfBusy ? 'PDF…' : 'Enregistrer + PDF'}
+              {pdfBusy
+                ? 'PDF…'
+                : form.statut === 'demande_devis'
+                  ? 'Enregistrer demande de devis'
+                  : 'Enregistrer + PDF'}
             </button>
+            {existing && existing.statut === 'demande_devis' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setForm({ ...form, statut: 'commandee' })
+                  const payload = {
+                    ...form,
+                    statut: 'commandee' as const,
+                    id: existing.id,
+                    numero: existing.numero,
+                    otId: form.destination === 'ot' ? form.otId : undefined,
+                  }
+                  upsertCommandeFournisseur(payload)
+                  setSaveMsg('Passée en commande fournisseur.')
+                  setTimeout(() => setSaveMsg(''), 4000)
+                }}
+                className="rounded-full border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-950"
+              >
+                Passer en commande
+              </button>
+            ) : null}
             {existing ? (
               <button
                 type="button"
@@ -498,7 +645,7 @@ export function CommandesPage() {
       <div className="flex items-center justify-between gap-2">
         <h1 className="font-display text-xl font-bold">Commandes fournisseur</h1>
         <Link
-          to="/app/commandes?new=1"
+          to="/app/commandes?new=1&dest=stock&statut=demande_devis"
           className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-2 text-xs font-bold text-ink"
         >
           <Plus className="h-4 w-4" /> Nouvelle

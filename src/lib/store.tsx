@@ -1420,7 +1420,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (next.statut === 'recue' && o.statut === 'en_attente_piece') {
               statut = 'pret_a_planifier'
             } else if (
-              (next.statut === 'commandee' || next.statut === 'brouillon') &&
+              (next.statut === 'commandee' ||
+                next.statut === 'brouillon' ||
+                next.statut === 'demande_devis') &&
               !existing &&
               (o.statut === 'pret_a_planifier' || o.statut === 'brouillon' || !o.statut)
             ) {
