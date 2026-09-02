@@ -76,7 +76,7 @@ import {
   type PointageBureauJour,
 } from './pointage'
 import { buildAutoAgendaEvents } from './agenda'
-import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats, scinderOtContratParEquipement } from './contratOtAuto'
+import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats, pruneOtsContratHorsFenetre, scinderOtContratParEquipement } from './contratOtAuto'
 import {
   applyPersonnelRhScopeToAppData,
   defaultPersonnelDossier,
@@ -1868,10 +1868,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sites: prev.chantiers,
     })
     const existing = prev.ordresTravail || []
-    const { toAdd } = mergeOtsDepuisContrats(existing, drafts)
-    if (toAdd.length === 0) return { next: prev, added: 0 }
+    const { kept, removed } = pruneOtsContratHorsFenetre(existing)
+    const { toAdd } = mergeOtsDepuisContrats(kept, drafts)
+    if (toAdd.length === 0 && removed.length === 0) return { next: prev, added: 0, pruned: 0 }
     const now = new Date().toISOString()
-    const grown = [...existing]
+    const grown = [...kept]
     for (const draft of toAdd) {
       const numero = nextNumeroOt({ ...prev, ordresTravail: grown })
       grown.push({
@@ -1882,7 +1883,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         updatedAt: now,
       })
     }
-    return { next: { ...prev, ordresTravail: grown }, added: toAdd.length }
+    return {
+      next: { ...prev, ordresTravail: grown },
+      added: toAdd.length,
+      pruned: removed.length,
+    }
   }, [])
 
   const syncOtsDepuisContrats = useCallback(() => {
@@ -1929,11 +1934,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       contrats: d.contratsMaintenance || [],
       sites: d.chantiers,
     })
+    const validAutoKeys = new Set(generated.map((g) => g.autoKey).filter(Boolean) as string[])
     let added = 0
     setData((prev) => {
       const withOts = applyOtsDepuisContrats(prev)
       added += withOts.added
-      const list = [...(withOts.next.agendaEvents || [])]
+      const list = [...(withOts.next.agendaEvents || [])].filter((e) => {
+        const key = (e.autoKey || '').trim()
+        if (!key.startsWith('contrat:')) return true
+        if (validAutoKeys.has(key)) return true
+        // Garder les rappels déjà traités ; retirer les a_faire hors fenêtre
+        return e.statut !== 'a_faire' && e.statut !== 'contacte'
+      })
       const byKey = new Map(list.filter((e) => e.autoKey).map((e) => [e.autoKey!, e]))
       const now = new Date().toISOString()
       for (const g of generated) {

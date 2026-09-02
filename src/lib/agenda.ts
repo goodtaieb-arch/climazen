@@ -3,7 +3,7 @@
 import type { PeriodiciteContrat, ContratMaintenance } from './contratMaintenance'
 import { isContratActif } from './contratMaintenance'
 import { addMonthsIso } from './siteParc'
-import { NIVEAU_VISITE_LABELS, visitesDepuisContrat } from './contratOtAuto'
+import { NIVEAU_VISITE_LABELS, OT_CONTRAT_HORIZON_MONTHS, OT_CONTRAT_PAST_MONTHS, visitesDepuisContrat } from './contratOtAuto'
 
 export type AgendaEventType =
   | 'maintenance'
@@ -127,6 +127,10 @@ export type AgendaGenInput = {
   sites: { id: string; clientId: string; nom: string; prochaineControleEtancheite?: string }[]
   /** Jours avant la visite pour rappeler d’appeler le client */
   joursAvantRappel?: number
+  /** Même fenêtre que les OT (mois par mois). */
+  today?: string
+  horizonMonths?: number
+  pastMonths?: number
 }
 
 /** Événements à créer / synchroniser depuis contrats signés + contrôles site. */
@@ -136,10 +140,15 @@ export function buildAutoAgendaEvents(input: AgendaGenInput): Omit<
 >[] {
   const jours = input.joursAvantRappel ?? 14
   const events: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'>[] = []
+  const visitOpts = {
+    today: input.today,
+    horizonMonths: input.horizonMonths ?? OT_CONTRAT_HORIZON_MONTHS,
+    pastMonths: input.pastMonths ?? OT_CONTRAT_PAST_MONTHS,
+  }
 
   for (const c of input.contrats) {
     if (!isContratActif(c)) continue
-    const visites = visitesDepuisContrat(c, input.sites)
+    const visites = visitesDepuisContrat(c, input.sites, visitOpts)
     for (const v of visites) {
       const dateRappel = addDaysIso(v.date, -jours)
       events.push({
@@ -155,7 +164,7 @@ export function buildAutoAgendaEvents(input: AgendaGenInput): Omit<
           c.numero,
           `Site : ${v.siteNom}`,
           `Visite ${NIVEAU_VISITE_LABELS[v.niveau].toLowerCase()} · échéance ${v.date}`,
-          `OT déjà créé — affecter le tech dans l’agenda. Appeler ~${jours} j avant si besoin.`,
+          `OT du mois — affecter le tech dans l’agenda. Appeler ~${jours} j avant si besoin.`,
         ]
           .filter(Boolean)
           .join('\n'),

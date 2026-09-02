@@ -11,6 +11,10 @@
  *  6                    → semestrielle
  *  12                   → annuelle
  *
+ * Génération **mois par mois** : on ne crée que la visite due dans la fenêtre
+ * courte (défaut : mois passé + mois courant / +1), pas toute l’année.
+ * Alerte J-7 fin de mois si l’OT du mois n’est pas encore fait.
+ *
  * Clé stable `contratOtKey` = contrat + site + créneau (équipements du site
  * regroupés sur un seul OT). Variante avec équipement = OT scindé manuellement.
  * Changer la date (urgence, partiel) ne recrée pas l’OT.
@@ -33,6 +37,7 @@ import {
 import { docsRequisPourEquipement, inferCategorieFicheEquipement } from './equipementFiche'
 import type { DocOtRequis } from './otParcours'
 import type { OrdreTravail, TypeOt } from './ordreTravail'
+import { isOtCloture, techIdsOt } from './ordreTravail'
 import type { PostePersonnelId } from './postePersonnel'
 import type { OrigineOt, StatutFacturationOt } from './chaineCommerciale'
 import type { Equipement, Site } from './types'
@@ -135,6 +140,12 @@ export type SiteContratRef = {
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
+
+/** Fenêtre de création OT / rappels agenda (pas toute l’année). */
+export const OT_CONTRAT_HORIZON_MONTHS = 1
+export const OT_CONTRAT_PAST_MONTHS = 1
+/** Avertir N jours avant la fin du mois si l’OT du mois n’est pas fait. */
+export const OT_CONTRAT_ALERTE_FIN_MOIS_J = 7
 
 function addYearsIso(iso: string, years: number): string {
   return addMonthsIso(iso, years * 12) || iso
@@ -309,8 +320,9 @@ function visitesPourLigne(
 }
 
 /**
- * Toutes les visites du contrat dans la fenêtre
+ * Visites du contrat dans la fenêtre
  * [today − pastMonths, min(dateFin, today + horizonMonths)[.
+ * Défaut = mois par mois (1 mois devant, 1 mois derrière pour rattrapage).
  */
 export function visitesDepuisContrat(
   contrat: ContratMaintenance,
@@ -318,8 +330,8 @@ export function visitesDepuisContrat(
   opts?: { today?: string; horizonMonths?: number; pastMonths?: number },
 ): VisiteContratPlanifiee[] {
   const today = (opts?.today || todayIso()).slice(0, 10)
-  const horizonMonths = opts?.horizonMonths ?? 14
-  const pastMonths = opts?.pastMonths ?? 1
+  const horizonMonths = opts?.horizonMonths ?? OT_CONTRAT_HORIZON_MONTHS
+  const pastMonths = opts?.pastMonths ?? OT_CONTRAT_PAST_MONTHS
   const horizon = addMonthsIso(today, horizonMonths) || today
   const pastFloor = addMonthsIso(today, -pastMonths) || today
   const fin = (contrat.dateFin || '').slice(0, 10)
@@ -342,6 +354,121 @@ export function visitesDepuisContrat(
       a.siteNom.localeCompare(b.siteNom) ||
       (a.equipementNom || '').localeCompare(b.equipementNom || ''),
   )
+}
+
+/** Bornes ISO de la fenêtre de génération OT contrat. */
+export function fenetreGenerationOtContrat(opts?: {
+  today?: string
+  horizonMonths?: number
+  pastMonths?: number
+}): { today: string; start: string; endExclusive: string } {
+  const today = (opts?.today || todayIso()).slice(0, 10)
+  const horizonMonths = opts?.horizonMonths ?? OT_CONTRAT_HORIZON_MONTHS
+  const pastMonths = opts?.pastMonths ?? OT_CONTRAT_PAST_MONTHS
+  return {
+    today,
+    start: addMonthsIso(today, -pastMonths) || today,
+    endExclusive: addMonthsIso(today, horizonMonths) || today,
+  }
+}
+
+/**
+ * OT auto contrat futurs hors fenêtre, non planifiés → à retirer
+ * (évite de charger toute l’année dans « OT à poser »).
+ */
+export function otContratAutoAPruner(
+  ot: Pick<
+    OrdreTravail,
+    'contratOtKey' | 'date' | 'heure' | 'statut' | 'technicienUserId' | 'technicienUserIds'
+  >,
+  endExclusive: string,
+): boolean {
+  if (!(ot.contratOtKey || '').trim()) return false
+  if (isOtCloture(ot.statut)) return false
+  if ((ot.heure || '').trim()) return false
+  if (techIdsOt(ot).length > 0) return false
+  const d = (ot.date || '').slice(0, 10)
+  if (!d) return false
+  return d >= endExclusive
+}
+
+export function pruneOtsContratHorsFenetre<T extends OrdreTravail>(
+  ots: T[],
+  opts?: { today?: string; horizonMonths?: number; pastMonths?: number },
+): { kept: T[]; removed: T[] } {
+  const { endExclusive } = fenetreGenerationOtContrat(opts)
+  const kept: T[] = []
+  const removed: T[] = []
+  for (const ot of ots) {
+    if (otContratAutoAPruner(ot, endExclusive)) removed.push(ot)
+    else kept.push(ot)
+  }
+  return { kept, removed }
+}
+
+/** Jours restants dans le mois civil (0 = dernier jour). */
+export function joursRestantsDansMois(today?: string): number {
+  const iso = (today || todayIso()).slice(0, 10)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return 99
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const day = Number(m[3])
+  const last = new Date(y, mo, 0).getDate()
+  return Math.max(0, last - day)
+}
+
+export type AlerteOtContratFinMois = {
+  otId: string
+  numero: string
+  date: string
+  clientId?: string
+  chantierId?: string
+  action: string
+  joursRestants: number
+  visiteNiveau?: string
+}
+
+/**
+ * OT contrat du mois en cours encore ouverts, dans les N derniers jours du mois.
+ */
+export function alertesOtContratFinMois(
+  ots: Pick<
+    OrdreTravail,
+    | 'id'
+    | 'numero'
+    | 'date'
+    | 'clientId'
+    | 'chantierId'
+    | 'action'
+    | 'statut'
+    | 'contratOtKey'
+    | 'visiteNiveau'
+  >[],
+  opts?: { today?: string; joursAvantFin?: number },
+): AlerteOtContratFinMois[] {
+  const today = (opts?.today || todayIso()).slice(0, 10)
+  const seuil = opts?.joursAvantFin ?? OT_CONTRAT_ALERTE_FIN_MOIS_J
+  const restants = joursRestantsDansMois(today)
+  if (restants > seuil) return []
+  const mois = today.slice(0, 7)
+  const out: AlerteOtContratFinMois[] = []
+  for (const ot of ots) {
+    if (!(ot.contratOtKey || '').trim()) continue
+    if (isOtCloture(ot.statut)) continue
+    if ((ot.date || '').slice(0, 7) !== mois) continue
+    out.push({
+      otId: ot.id,
+      numero: ot.numero,
+      date: (ot.date || '').slice(0, 10),
+      clientId: ot.clientId,
+      chantierId: ot.chantierId,
+      action: ot.action || '',
+      joursRestants: restants,
+      visiteNiveau: ot.visiteNiveau,
+    })
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.numero.localeCompare(b.numero))
 }
 
 export type OtDraftDepuisContrat = {

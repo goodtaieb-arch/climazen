@@ -1,10 +1,15 @@
 /**
  * Sync automatique contrat signé → OT préventifs + rappels agenda.
+ * OT générés mois par mois (pas toute l’année).
  */
 
 import { v4 as uuid } from 'uuid'
 import type { AppData } from './types'
-import { buildOtDraftsDepuisContrats, mergeOtsDepuisContrats } from './contratOtAuto'
+import {
+  buildOtDraftsDepuisContrats,
+  mergeOtsDepuisContrats,
+  pruneOtsContratHorsFenetre,
+} from './contratOtAuto'
 import { buildAutoAgendaEvents, type AgendaEvent } from './agenda'
 import { nextNumeroOt } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
@@ -27,11 +32,11 @@ export function applyContratSigneSync(data: AppData, contrat?: ContratMaintenanc
     contrats: next.contratsMaintenance || [],
     sites: next.chantiers,
   })
-  const existing = next.ordresTravail || []
-  const { toAdd } = mergeOtsDepuisContrats(existing, drafts)
-  if (toAdd.length > 0) {
+  const { kept, removed: _removed } = pruneOtsContratHorsFenetre(next.ordresTravail || [])
+  const { toAdd } = mergeOtsDepuisContrats(kept, drafts)
+  if (toAdd.length > 0 || kept.length !== (next.ordresTravail || []).length) {
     const now = new Date().toISOString()
-    const grown = [...existing]
+    const grown = [...kept]
     for (const draft of toAdd) {
       const numero = nextNumeroOt({ ...next, ordresTravail: grown })
       grown.push({
@@ -49,7 +54,13 @@ export function applyContratSigneSync(data: AppData, contrat?: ContratMaintenanc
     contrats: next.contratsMaintenance || [],
     sites: next.chantiers,
   })
-  const list = [...(next.agendaEvents || [])]
+  const validAutoKeys = new Set(generated.map((g) => g.autoKey).filter(Boolean) as string[])
+  let list = [...(next.agendaEvents || [])].filter((e) => {
+    const key = (e.autoKey || '').trim()
+    if (!key.startsWith('contrat:')) return true
+    if (validAutoKeys.has(key)) return true
+    return e.statut !== 'a_faire' && e.statut !== 'contacte'
+  })
   const byKey = new Map(list.filter((e) => e.autoKey).map((e) => [e.autoKey!, e]))
   const now = new Date().toISOString()
   for (const g of generated) {

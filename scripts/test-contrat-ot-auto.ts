@@ -9,12 +9,15 @@ import {
 } from '../src/lib/contratMaintenance'
 import {
   NIVEAU_VISITE_LABELS,
+  alertesOtContratFinMois,
   buildOtDraftsDepuisContrats,
   docsRequisPourFamille,
+  joursRestantsDansMois,
   mergeOtsDepuisContrats,
   moisCyclePourFrequence,
   niveauVisitePourMoisCycle,
   periodiciteDepuisVisites,
+  pruneOtsContratHorsFenetre,
   visitesDepuisContrat,
 } from '../src/lib/contratOtAuto'
 import {
@@ -102,6 +105,24 @@ assert.equal(chauffVisites[11].date, '2026-12-15')
 assert.equal(chauffVisites[11].niveau, 'annuel')
 assert.ok(chauffVisites.every((v) => v.contratOtKey.startsWith('cm-ot:cm1:s1:')))
 
+/** Défaut = mois par mois : pas toute l’année. */
+const chauffMoisParMois = visitesDepuisContrat(contrat({ id: 'cm1' }), sites, {
+  today: '2026-03-10',
+})
+assert.ok(
+  chauffMoisParMois.length <= 3,
+  `mois par mois : attendu ≤3, reçu ${chauffMoisParMois.length}`,
+)
+assert.ok(
+  chauffMoisParMois.every((v) => v.date >= '2026-02-10' && v.date < '2026-04-10'),
+  'fenêtre past=1 / horizon=1 autour de mars',
+)
+assert.equal(
+  chauffMoisParMois.find((v) => v.date.startsWith('2026-03'))?.niveau,
+  'trimestriel',
+  'mars = trimestrielle dans le registre',
+)
+
 const climVisites = visitesDepuisContrat(
   contrat({
     id: 'cm2',
@@ -130,7 +151,7 @@ const ctaVisites = visitesDepuisContrat(
     titre: 'CTA',
   }),
   sites,
-  { today: '2026-01-20' },
+  { today: '2026-01-20', horizonMonths: 14, pastMonths: 1 },
 )
 assert.equal(ctaVisites.length, 4)
 assert.deepEqual(
@@ -141,7 +162,7 @@ assert.deepEqual(
 const multiSites = visitesDepuisContrat(
   contrat({ id: 'cm4', chantierIds: [] }),
   sites,
-  { today: '2026-01-20' },
+  { today: '2026-01-20', horizonMonths: 14, pastMonths: 1 },
 )
 assert.equal(multiSites.length, 24, 'tous les sites du client si chantierIds vide')
 
@@ -159,6 +180,8 @@ const drafts = buildOtDraftsDepuisContrats({
   ],
   sites,
   today: '2026-01-20',
+  horizonMonths: 14,
+  pastMonths: 1,
 })
 assert.equal(drafts.length, 12)
 assert.equal(drafts[0].secteur, 'tech_cvc')
@@ -166,6 +189,14 @@ assert.equal(drafts[0].statut, 'pret_a_planifier')
 assert.deepEqual(drafts[0].docsRequis, ['fiche_chaufferie'])
 assert.equal(drafts[5].visiteNiveau, 'semestriel')
 assert.match(drafts[5].action, /semestrielle/i)
+
+const draftsMois = buildOtDraftsDepuisContrats({
+  contrats: [contrat({ id: 'cm1' })],
+  sites,
+  today: '2026-01-20',
+})
+assert.ok(draftsMois.length < 12, 'génération défaut = mois par mois, pas 12 OT')
+assert.ok(draftsMois.length >= 1)
 
 const { toAdd, skipped } = mergeOtsDepuisContrats(
   [{ contratOtKey: drafts[0].contratOtKey, date: '2026-02-01' }],
@@ -262,7 +293,7 @@ const visitesEq = visitesDepuisContrat(
     ],
   }),
   eqSites,
-  { today: '2026-01-20' },
+  { today: '2026-01-20', horizonMonths: 14, pastMonths: 1 },
 )
 assert.equal(visitesEq.filter((v) => v.equipementId === 'eq-ch').length, 12)
 assert.equal(visitesEq.filter((v) => v.equipementId === 'eq-tab').length, 2)
@@ -289,6 +320,8 @@ const draftsEq = buildOtDraftsDepuisContrats({
   ],
   sites: eqSites,
   today: '2026-01-20',
+  horizonMonths: 14,
+  pastMonths: 1,
 })
 assert.equal(draftsEq.length, 1, '1 OT regroupé pour 2 équipements même site / créneau')
 assert.deepEqual(draftsEq[0].equipementIds?.slice().sort(), ['eq-ch', 'eq-tab'])
@@ -311,6 +344,8 @@ const draftsAllSt = buildOtDraftsDepuisContrats({
   ],
   sites: eqSites,
   today: '2026-01-20',
+  horizonMonths: 14,
+  pastMonths: 1,
 })
 assert.equal(draftsAllSt[0].origineOt, 'sous_traitance', 'tous sous-traités → ST')
 
@@ -323,5 +358,65 @@ const { toAdd: addAfterSplit, skipped: skipAfterSplit } = mergeOtsDepuisContrats
 )
 assert.equal(addAfterSplit.length, 0, 'OT scindés couvrent le créneau site → pas de doublon')
 assert.equal(skipAfterSplit, 1)
+
+assert.equal(joursRestantsDansMois('2026-09-24'), 6)
+assert.equal(joursRestantsDansMois('2026-09-30'), 0)
+assert.equal(alertesOtContratFinMois([], { today: '2026-09-10' }).length, 0)
+
+const alertes = alertesOtContratFinMois(
+  [
+    {
+      id: 'o1',
+      numero: '26092401',
+      date: '2026-09-15',
+      statut: 'pret_a_planifier',
+      contratOtKey: 'cm-ot:c:s:2026-09',
+      action: 'Maintenance mensuelle',
+      visiteNiveau: 'mensuel',
+    },
+    {
+      id: 'o2',
+      numero: '26101501',
+      date: '2026-10-15',
+      statut: 'pret_a_planifier',
+      contratOtKey: 'cm-ot:c:s:2026-10',
+      action: 'Maintenance mensuelle',
+    },
+    {
+      id: 'o3',
+      numero: '26090101',
+      date: '2026-09-01',
+      statut: 'signe',
+      contratOtKey: 'cm-ot:c:s:2026-09-done',
+      action: 'faite',
+    },
+  ],
+  { today: '2026-09-24', joursAvantFin: 7 },
+)
+assert.equal(alertes.length, 1)
+assert.equal(alertes[0].otId, 'o1')
+assert.equal(alertes[0].joursRestants, 6)
+
+const pruned = pruneOtsContratHorsFenetre(
+  [
+    {
+      id: 'keep',
+      numero: '1',
+      date: '2026-09-15',
+      statut: 'pret_a_planifier',
+      contratOtKey: 'cm-ot:c:s:2026-09',
+    },
+    {
+      id: 'drop',
+      numero: '2',
+      date: '2027-03-15',
+      statut: 'pret_a_planifier',
+      contratOtKey: 'cm-ot:c:s:2027-03',
+    },
+  ] as Parameters<typeof pruneOtsContratHorsFenetre>[0],
+  { today: '2026-09-02', horizonMonths: 1, pastMonths: 1 },
+)
+assert.equal(pruned.kept.map((o) => o.id).join(','), 'keep')
+assert.equal(pruned.removed.map((o) => o.id).join(','), 'drop')
 
 console.log('ok test-contrat-ot-auto')

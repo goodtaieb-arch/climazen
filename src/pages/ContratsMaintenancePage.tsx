@@ -854,6 +854,7 @@ function CalendrierVisitesPreview({
   const visites = visitesDepuisContrat(
     { ...form, id: contratId, createdAt: '', updatedAt: '' },
     sites,
+    { horizonMonths: 14, pastMonths: 1 },
   )
   const byKey = new Map(ots.filter((o) => o.contratOtKey).map((o) => [o.contratOtKey!, o]))
   return (
@@ -865,6 +866,8 @@ function CalendrierVisitesPreview({
             {parseLignesEquipements(form.lignesEquipements).length || 'parc'} équipement(s)
             {' · '}
             {PERIODICITE_LABELS[form.periodicite].toLowerCase()}
+            {' · '}
+            OT créés mois par mois (pas toute l’année d’un coup)
           </p>
         </div>
         {form.statut === 'signe' ? (
