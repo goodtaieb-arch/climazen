@@ -31,6 +31,8 @@ import {
   AI_TIER_LABELS,
 } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
+import { learnAiVocabulary, learnAiVocabularyCorrection } from '../lib/aiVocabulary'
+import { applySpeechCorrections } from '../lib/speech'
 
 type ChatLine = AideMessage & { id: string }
 
@@ -80,6 +82,7 @@ export function AideAssistant() {
     appEdition,
   } = useStore()
   const { user } = useAuth()
+  const organizationId = user?.organizationId
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
   const chatbotOk = canUseChatbot(aiTier)
   const agentOk = canUseAgentActions(aiTier)
@@ -198,9 +201,28 @@ export function AideAssistant() {
     const q = text.trim()
     if (!q || busy) return
     if (!chatbotOk) return
+    const rawInput = text
     setInput('')
     const userLine: ChatLine = { id: newId(), role: 'user', content: q }
     setLines((prev) => [...prev, userLine])
+
+    if (organizationId) {
+      const corrected = applySpeechCorrections(rawInput)
+      if (corrected && corrected !== rawInput.trim()) {
+        void learnAiVocabularyCorrection({
+          organizationId,
+          before: rawInput,
+          after: corrected,
+          agent: 'voice',
+        })
+      }
+      void learnAiVocabulary({
+        organizationId,
+        text: q,
+        agent: 'gemini',
+      })
+    }
+
     setBusy(true)
     try {
       if ((pendingCreate || pendingTerrain) && isConfirmPhrase(q)) {
@@ -254,6 +276,7 @@ export function AideAssistant() {
         pathname: location.pathname,
         entityCatalog: agentOk ? buildEntityCatalog(data) : undefined,
         chatbotOnly: !agentOk,
+        organizationId,
       })
       setSource(src)
 
