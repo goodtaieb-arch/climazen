@@ -78,6 +78,7 @@ import {
   typesAgendaPourSaisie,
   visibleAgendaPour,
 } from '../lib/agendaPlanning'
+import { alertesOtContratFinMois, NIVEAU_VISITE_LABELS, type NiveauVisite } from '../lib/contratOtAuto'
 import { dossierForUser } from '../lib/rhDocuments'
 import {
   labelSecteurCourt,
@@ -392,6 +393,11 @@ export function AgendaPage() {
       return true
     })
   }, [otsSansPlanningBase, filterTypeOt, filterSiteId])
+
+  const otContratFinMois = useMemo(
+    () => alertesOtContratFinMois(data.ordresTravail || []),
+    [data.ordresTravail],
+  )
 
   const otAPlacer = useMemo(
     () => (otAPlacerId ? (data.ordresTravail || []).find((o) => o.id === otAPlacerId) : null),
@@ -1386,6 +1392,37 @@ export function AgendaPage() {
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
           {syncMsg}
         </p>
+      ) : null}
+
+      {bureau && otContratFinMois.length > 0 ? (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p className="font-semibold">
+            Fin de mois dans {otContratFinMois[0].joursRestants} j —{' '}
+            {otContratFinMois.length} OT contrat encore à poser / faire
+          </p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {otContratFinMois.slice(0, 5).map((a) => (
+              <li key={a.otId}>
+                <button
+                  type="button"
+                  className="font-bold underline"
+                  onClick={() => {
+                    setOtAPlacerId(a.otId)
+                    setOtPoolOpen(true)
+                    setView('jour')
+                    if (a.date) setCursorDate(a.date.slice(0, 10))
+                  }}
+                >
+                  {formatOtNumero(a.numero)}
+                </button>
+                {a.visiteNiveau
+                  ? ` · ${NIVEAU_VISITE_LABELS[a.visiteNiveau as NiveauVisite]}`
+                  : ''}{' '}
+                — {a.action || 'Maintenance contrat'}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div className="flex flex-wrap gap-1.5">

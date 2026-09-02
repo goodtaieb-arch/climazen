@@ -37,6 +37,11 @@ import {
 } from '../lib/agenda'
 import { formatOtAvancement, formatOtNumero } from '../lib/ordreTravail'
 import {
+  alertesOtContratFinMois,
+  NIVEAU_VISITE_LABELS,
+  type NiveauVisite,
+} from '../lib/contratOtAuto'
+import {
   alertesEquipe,
   formatDateFr,
   labelStatutDocumentRh,
@@ -172,6 +177,11 @@ export function Dashboard() {
       .sort((a, b) => agendaSortDate(a).localeCompare(agendaSortDate(b)))
       .slice(0, 5)
   }, [data.agendaEvents])
+
+  const otContratFinMois = useMemo(
+    () => alertesOtContratFinMois(data.ordresTravail || []).slice(0, 8),
+    [data.ordresTravail],
+  )
 
   const etalonnageAlertes = useMemo(() => {
     return alertesEtalonnage(data.outillages, {
@@ -868,6 +878,54 @@ export function Dashboard() {
                 </Link>
               </li>
             ))}
+          </ul>
+        </section>
+      )}
+
+      {/* OT contrat — fin de mois J-7 */}
+      {!q.trim() && proFeatures && otContratFinMois.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">Maintenance contrat — fin de mois</h2>
+            <Link to="/app/agenda" className="text-sm font-semibold text-accent hover:underline">
+              Agenda
+            </Link>
+          </div>
+          <p className="text-sm text-muted">
+            Mois presque terminé ({otContratFinMois[0].joursRestants} j restants) — OT encore à
+            faire / poser.
+          </p>
+          <ul className="space-y-2">
+            {otContratFinMois.map((a) => {
+              const client = data.clients.find((c) => c.id === a.clientId)
+              const site = data.chantiers.find((s) => s.id === a.chantierId)
+              const niv = a.visiteNiveau
+                ? NIVEAU_VISITE_LABELS[a.visiteNiveau as NiveauVisite]
+                : null
+              return (
+                <li key={a.otId}>
+                  <Link
+                    to={`/app/appel?ot=${encodeURIComponent(a.otId)}`}
+                    className="flex flex-col gap-1 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-display text-base font-bold text-ink">
+                        {formatOtNumero(a.numero)}
+                        {niv ? ` · ${niv}` : ''}
+                      </p>
+                      <p className="truncate text-sm text-muted">
+                        {client?.raisonSociale || '—'}
+                        {site?.nom ? ` · ${site.nom}` : ''}
+                        {a.action ? ` — ${a.action}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-amber-900">
+                      Échéance {formatDateFr(a.date)}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}
