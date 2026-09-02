@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Download, FileText, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, FileText, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
@@ -23,6 +23,7 @@ export function DevisPage() {
   const editId = params.get('id') || ''
   const newMode = params.get('new') === '1'
   const clientFromQuery = params.get('client') || ''
+  const chantierFromQuery = params.get('chantier') || ''
   const otFromQuery = params.get('ot') || ''
   const [q, setQ] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -47,16 +48,35 @@ export function DevisPage() {
       return
     }
     if (newMode || editId) {
+      const ot = otFromQuery
+        ? (data.ordresTravail || []).find((o) => o.id === otFromQuery)
+        : undefined
+      const clientId = clientFromQuery || ot?.clientId || data.clients[0]?.id || ''
+      const chantierId = chantierFromQuery || ot?.chantierId || undefined
       setForm(
-        blankDevis(clientFromQuery || data.clients[0]?.id || '', {
-          clientId: clientFromQuery || data.clients[0]?.id || '',
+        blankDevis(clientId, {
+          clientId,
+          chantierId,
           otOrigineId: otFromQuery || undefined,
+          libelle: ot?.action
+            ? `Régularisation — ${ot.action}`
+            : undefined,
+          type: otFromQuery ? 'regularisation' : 'standard',
         }),
       )
     } else {
       setForm(null)
     }
-  }, [existing, newMode, editId, clientFromQuery, otFromQuery, data.clients])
+  }, [
+    existing,
+    newMode,
+    editId,
+    clientFromQuery,
+    chantierFromQuery,
+    otFromQuery,
+    data.clients,
+    data.ordresTravail,
+  ])
 
   const list = useMemo(() => {
     const items = [...(data.devis || [])].sort((a, b) =>
@@ -65,12 +85,41 @@ export function DevisPage() {
     if (!q.trim()) return items
     return items.filter((d) => {
       const client = data.clients.find((c) => c.id === d.clientId)
+      const site = data.chantiers.find((s) => s.id === d.chantierId)
       return matchesQuery(
-        [d.numero, d.libelle, client?.raisonSociale, STATUT_DEVIS_LABELS[d.statut]].join(' '),
+        [
+          d.numero,
+          d.libelle,
+          client?.raisonSociale,
+          site?.nom,
+          STATUT_DEVIS_LABELS[d.statut],
+        ].join(' '),
         q,
       )
     })
-  }, [data.devis, data.clients, q])
+  }, [data.devis, data.clients, data.chantiers, q])
+
+  const listGrouped = useMemo(() => {
+    const groups = new Map<
+      string,
+      { clientNom: string; siteNom: string; items: typeof list }
+    >()
+    for (const d of list) {
+      const client = data.clients.find((c) => c.id === d.clientId)
+      const site = data.chantiers.find((s) => s.id === d.chantierId)
+      const clientNom = client?.raisonSociale || 'Sans client'
+      const siteNom = site?.nom || 'Sans site'
+      const key = `${clientNom}\0${siteNom}`
+      const g = groups.get(key) || { clientNom, siteNom, items: [] }
+      g.items.push(d)
+      groups.set(key, g)
+    }
+    return [...groups.values()].sort(
+      (a, b) =>
+        a.clientNom.localeCompare(b.clientNom, 'fr') ||
+        a.siteNom.localeCompare(b.siteNom, 'fr'),
+    )
+  }, [list, data.clients, data.chantiers])
 
   const company = {
     raisonSociale: data.operateur?.raisonSociale,
@@ -258,17 +307,32 @@ export function DevisPage() {
               </button>
             ) : null}
             {existing && form.statut === 'accepte' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const { id, numero } = creerOtDepuisDevis(existing.id)
-                  navigate(`/app/ot?id=${encodeURIComponent(id)}`)
-                  alert(`OT ${numero} créé depuis le devis.`)
-                }}
-                className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
-              >
-                Créer OT d’exécution
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { id, numero } = creerOtDepuisDevis(existing.id)
+                    navigate(`/app/ot?id=${encodeURIComponent(id)}`)
+                    alert(`OT ${numero} créé depuis le devis.`)
+                  }}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
+                >
+                  Créer OT d’exécution
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const qs = new URLSearchParams({ new: '1' })
+                    if (form.clientId) qs.set('client', form.clientId)
+                    if (form.chantierId) qs.set('chantier', form.chantierId)
+                    if (form.otOrigineId) qs.set('ot', form.otOrigineId)
+                    navigate(`/app/commandes?${qs.toString()}`)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-950"
+                >
+                  <Truck className="h-3.5 w-3.5" /> Lancer commande
+                </button>
+              </>
             ) : null}
             {existing ? (
               <button
@@ -314,37 +378,44 @@ export function DevisPage() {
           <Plus className="h-4 w-4" /> Nouveau
         </Link>
       </div>
-      <SearchField value={q} onChange={setQ} placeholder="Chercher un devis…" />
+      <SearchField value={q} onChange={setQ} placeholder="Client, site, n° devis…" />
       {list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
           <FileText className="mx-auto mb-2 h-8 w-8 opacity-40" />
           Aucun devis — créez-en un ou générez une régularisation depuis un OT.
         </p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
-          {list.map((d) => {
-            const client = data.clients.find((c) => c.id === d.clientId)
-            return (
-              <li key={d.id}>
-                <Link
-                  to={`/app/devis?id=${d.id}`}
-                  className="flex items-center gap-3 px-4 py-3 active:bg-mist"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-ink">
-                      {d.numero} · {d.libelle}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {client?.raisonSociale || '—'} · {STATUT_DEVIS_LABELS[d.statut]}
-                      {d.montantHt != null ? ` · ${d.montantHt} € HT` : ''}
-                      {d.otOrigineId ? ' · lié OT' : ''}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+        <div className="space-y-4">
+          {listGrouped.map((g) => (
+            <div key={`${g.clientNom}|${g.siteNom}`} className="overflow-hidden rounded-xl border border-line bg-white">
+              <div className="border-b border-line bg-mist/50 px-4 py-2">
+                <p className="text-sm font-bold text-ink">{g.clientNom}</p>
+                <p className="text-xs text-muted">{g.siteNom}</p>
+              </div>
+              <ul className="divide-y divide-line">
+                {g.items.map((d) => (
+                  <li key={d.id}>
+                    <Link
+                      to={`/app/devis?id=${d.id}`}
+                      className="flex items-center gap-3 px-4 py-3 active:bg-mist"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-ink">
+                          {d.numero} · {d.libelle}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {STATUT_DEVIS_LABELS[d.statut]}
+                          {d.montantHt != null ? ` · ${d.montantHt} € HT` : ''}
+                          {d.otOrigineId ? ' · lié OT' : ''}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
       <MobileFab to="/app/devis?new=1" label="Nouveau devis" />
     </div>

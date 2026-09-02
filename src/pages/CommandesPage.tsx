@@ -101,20 +101,46 @@ export function CommandesPage() {
       (b.updatedAt || '').localeCompare(a.updatedAt || ''),
     )
     if (!q.trim()) return items
-    return items.filter((c) =>
-      matchesQuery(
+    return items.filter((c) => {
+      const client = data.clients.find((x) => x.id === c.clientId)
+      const site = data.chantiers.find((s) => s.id === c.chantierId)
+      return matchesQuery(
         [
           c.numero,
           c.libelle,
           c.fournisseur,
           c.referencePiece,
           c.destination,
+          client?.raisonSociale,
+          site?.nom,
           STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut],
         ].join(' '),
         q,
-      ),
+      )
+    })
+  }, [data.commandesFournisseur, data.clients, data.chantiers, q])
+
+  const listGrouped = useMemo(() => {
+    const groups = new Map<
+      string,
+      { clientNom: string; siteNom: string; items: typeof list }
+    >()
+    for (const c of list) {
+      const client = data.clients.find((x) => x.id === c.clientId)
+      const site = data.chantiers.find((s) => s.id === c.chantierId)
+      const clientNom = client?.raisonSociale || (c.destination === 'stock' ? 'Stock magasin' : 'Sans client')
+      const siteNom = site?.nom || (c.destination === 'stock' ? 'Entrée stock' : 'Sans site')
+      const key = `${clientNom}\0${siteNom}`
+      const g = groups.get(key) || { clientNom, siteNom, items: [] }
+      g.items.push(c)
+      groups.set(key, g)
+    }
+    return [...groups.values()].sort(
+      (a, b) =>
+        a.clientNom.localeCompare(b.clientNom, 'fr') ||
+        a.siteNom.localeCompare(b.siteNom, 'fr'),
     )
-  }, [data.commandesFournisseur, q])
+  }, [list, data.clients, data.chantiers])
 
   const company = {
     raisonSociale: data.operateur?.raisonSociale,
@@ -389,34 +415,44 @@ export function CommandesPage() {
           <Plus className="h-4 w-4" /> Nouvelle
         </Link>
       </div>
-      <SearchField value={q} onChange={setQ} placeholder="Chercher une commande…" />
+      <SearchField value={q} onChange={setQ} placeholder="Client, site, n° commande…" />
       {list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
           <Truck className="mx-auto mb-2 h-8 w-8 opacity-40" />
           Aucune commande — créez-en depuis un OT ou ici.
         </p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
-          {list.map((c) => (
-            <li key={c.id}>
-              <Link
-                to={`/app/commandes?id=${c.id}`}
-                className="flex items-center gap-3 px-4 py-3 active:bg-mist"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-ink">
-                    {c.numero} · {c.libelle}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {c.fournisseur || '—'} · {STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut]}
-                    {' · '}
-                    {c.destination === 'ot' || c.otId ? 'OT' : 'Stock'}
-                  </p>
-                </div>
-              </Link>
-            </li>
+        <div className="space-y-4">
+          {listGrouped.map((g) => (
+            <div key={`${g.clientNom}|${g.siteNom}`} className="overflow-hidden rounded-xl border border-line bg-white">
+              <div className="border-b border-line bg-mist/50 px-4 py-2">
+                <p className="text-sm font-bold text-ink">{g.clientNom}</p>
+                <p className="text-xs text-muted">{g.siteNom}</p>
+              </div>
+              <ul className="divide-y divide-line">
+                {g.items.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      to={`/app/commandes?id=${c.id}`}
+                      className="flex items-center gap-3 px-4 py-3 active:bg-mist"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-ink">
+                          {c.numero} · {c.libelle}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {c.fournisseur || '—'} · {STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut]}
+                          {' · '}
+                          {c.destination === 'ot' || c.otId ? 'OT' : 'Stock'}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       <MobileFab to="/app/commandes?new=1" label="Nouvelle commande" />
     </div>
