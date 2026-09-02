@@ -56,6 +56,8 @@ export interface AgendaEvent {
   dateRappel?: string
   /** Heure de début prévue (HH:mm) — programme jour / semaine */
   heure?: string
+  /** Durée prévue sur le planning (minutes). Défaut 60 si absent. */
+  dureeMinutes?: number
   type: AgendaEventType
   clientId?: string
   chantierId?: string
@@ -189,6 +191,7 @@ export function blankAgendaEvent(): Omit<AgendaEvent, 'id' | 'createdAt' | 'upda
     date: todayIso(),
     dateRappel: todayIso(),
     heure: '',
+    dureeMinutes: 60,
     type: 'rdv',
     statut: 'a_faire',
     notes: '',

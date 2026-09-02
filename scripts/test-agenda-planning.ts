@@ -6,10 +6,15 @@ import {
   couleurPlanning,
   couleurSecteurTech,
   dateDansSemaine,
+  dureeMinutesEffectif,
   estPourTech,
+  heuresFriseJour,
   isHorsOtType,
+  labelDureeMinutes,
   otSansCreneau,
+  parseHeureToMinutes,
   techsLignesJour,
+  timelinePlacement,
   titreDefautHorsOt,
   typesAgendaPourSaisie,
   visibleAgendaPour,
@@ -186,5 +191,22 @@ assert.equal(typesTech.includes('formation'), false)
 const typesBureau = typesAgendaPourSaisie({ bureau: true })
 assert.equal(typesBureau.includes('formation'), true)
 assert.equal(typesBureau.includes('hors_ot_libre'), true)
+
+assert.equal(parseHeureToMinutes('08:30'), 8 * 60 + 30)
+assert.equal(parseHeureToMinutes(''), null)
+assert.equal(dureeMinutesEffectif(undefined), 60)
+assert.equal(dureeMinutesEffectif(90), 90)
+assert.equal(labelDureeMinutes(90), '1 h 30')
+assert.equal(labelDureeMinutes(120), '2 h')
+assert.deepEqual(heuresFriseJour()[0], 7)
+assert.deepEqual(heuresFriseJour().at(-1), 18)
+
+const place = timelinePlacement('09:00', 60)
+assert.ok(place)
+assert.equal(Math.round(place!.leftPct), Math.round(((9 - 7) * 60 / 720) * 100))
+assert.equal(Math.round(place!.widthPct), Math.round((60 / 720) * 100))
+assert.equal(timelinePlacement(undefined, 60), null)
+const early = timelinePlacement('06:00', 120)
+assert.ok(early?.clippedStart)
 
 console.log('test-agenda-planning: ok')

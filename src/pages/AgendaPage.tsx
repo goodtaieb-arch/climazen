@@ -58,11 +58,19 @@ import { isBureauUi } from '../lib/uiMode'
 import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import type { UserAccount } from '../lib/auth'
 import {
+  DUREES_PLANNING_PRESETS,
+  DUREE_PLANNING_DEFAUT,
+  JOUR_PLANNING_DEBUT_H,
+  JOUR_PLANNING_FIN_H,
   couleurPlanning,
   dateDansSemaine,
+  dureeMinutesEffectif,
+  heuresFriseJour,
   isHorsOtType,
+  labelDureeMinutes,
   otSansCreneau,
   techsLignesJour,
+  timelinePlacement,
   titreDefautHorsOt,
   typesAgendaPourSaisie,
   visibleAgendaPour,
@@ -90,6 +98,7 @@ type ProgrammeItem =
       id: string
       date: string
       heure?: string
+      dureeMinutes?: number
       title: string
       event: AgendaEvent
     }
@@ -98,6 +107,7 @@ type ProgrammeItem =
       id: string
       date: string
       heure?: string
+      dureeMinutes?: number
       title: string
       otId: string
       clientId?: string
@@ -266,6 +276,7 @@ export function AgendaPage() {
         id: `ag-${e.id}`,
         date: (e.date || '').slice(0, 10),
         heure: e.heure,
+        dureeMinutes: e.dureeMinutes,
         title: e.title,
         event: e,
       }))
@@ -280,6 +291,7 @@ export function AgendaPage() {
         id: `ot-${o.id}`,
         date: (o.date || '').slice(0, 10),
         heure: o.heure,
+        dureeMinutes: o.dureeMinutes,
         title: o.action || TYPE_OT_LABELS[o.typeOt] || 'OT',
         otId: o.id,
         clientId: o.clientId,
@@ -416,6 +428,7 @@ export function AgendaPage() {
       ...form,
       id: existing?.id,
       heure: (form.heure || '').trim() || undefined,
+      dureeMinutes: dureeMinutesEffectif(form.dureeMinutes),
       dateRappel: form.dateRappel || form.date,
       createdByUserId: form.createdByUserId || user?.id,
       technicienUserId: form.technicienUserId || (!bureau ? user?.id : form.technicienUserId),
@@ -444,6 +457,7 @@ export function AgendaPage() {
     patch: {
       date?: string
       heure?: string
+      dureeMinutes?: number
       technicien?: string
       technicienUserId?: string
       technicienUserIds?: string[]
@@ -465,18 +479,23 @@ export function AgendaPage() {
       noms,
       technicien: patch.technicien ?? ot.technicien,
     })
+    const duree =
+      patch.dureeMinutes !== undefined
+        ? dureeMinutesEffectif(patch.dureeMinutes)
+        : ot.dureeMinutes
     upsertOrdreTravail({
       ...ot,
       id: ot.id,
       date: patch.date ?? ot.date,
       heure: patch.heure !== undefined ? patch.heure : ot.heure,
+      dureeMinutes: duree,
       ...synced,
       secteur:
         ot.secteur || secteurOtDepuisPoste(posteOf(synced.technicienUserId)),
     })
     setSyncMsg(
       patch.heure
-        ? `${formatOtNumero(ot.numero)} calé ${patch.date || ot.date} à ${patch.heure}.`
+        ? `${formatOtNumero(ot.numero)} calé ${patch.date || ot.date} à ${patch.heure} (${labelDureeMinutes(duree)}).`
         : `${formatOtNumero(ot.numero)} mis à jour.`,
     )
   }
@@ -526,7 +545,7 @@ export function AgendaPage() {
               }
             />
           </label>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">Jour d’intervention</span>
               <input
@@ -544,6 +563,22 @@ export function AgendaPage() {
                 onChange={(e) => setForm({ ...form, heure: e.target.value })}
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Durée</span>
+              <select
+                value={dureeMinutesEffectif(form.dureeMinutes)}
+                onChange={(e) =>
+                  setForm({ ...form, dureeMinutes: Number(e.target.value) || DUREE_PLANNING_DEFAUT })
+                }
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                {DUREES_PLANNING_PRESETS.map((m) => (
+                  <option key={m} value={m}>
+                    {labelDureeMinutes(m)}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">Rappel appel</span>
@@ -698,6 +733,10 @@ export function AgendaPage() {
             {formatHeure(item.heure) ? (
               <span className="rounded-full bg-ink px-2 py-0.5 text-xs font-extrabold text-white">
                 {formatHeure(item.heure)}
+                <span className="font-semibold opacity-80">
+                  {' '}
+                  · {labelDureeMinutes(item.dureeMinutes)}
+                </span>
               </span>
             ) : null}
             <span className="text-[10px] font-bold uppercase text-muted">{item.typeLabel}</span>
@@ -882,6 +921,7 @@ export function AgendaPage() {
       agenceOf: agenceOfTech,
     })
     const unassigned = items.filter((it) => itemTechIds(it).length === 0)
+    const heures = heuresFriseJour()
     if (ids.length === 0 && unassigned.length === 0) {
       return (
         <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
@@ -890,86 +930,163 @@ export function AgendaPage() {
         </div>
       )
     }
+
+    const openItem = (it: ProgrammeItem) => {
+      if (it.kind === 'agenda') {
+        navigate(`/app/agenda?id=${encodeURIComponent(it.event.id)}`)
+      } else {
+        navigate(`/app/appel?ot=${encodeURIComponent(it.otId)}`)
+      }
+    }
+
+    const renderBlock = (it: ProgrammeItem, techId: string) => {
+      const place = timelinePlacement(it.heure, it.dureeMinutes)
+      if (!place) return null
+      const c = couleurPlanning({
+        horsOtType: it.kind === 'agenda' ? it.event.type : undefined,
+        secteur: it.kind === 'ot' ? it.secteur || posteOf(techId) : posteOf(techId),
+        technicienUserId: techId,
+      })
+      const label =
+        it.kind === 'ot'
+          ? `${formatOtNumero(it.numero)} · ${it.title}`
+          : it.title
+      return (
+        <button
+          key={it.id}
+          type="button"
+          title={`${formatHeure(it.heure) || ''} · ${labelDureeMinutes(it.dureeMinutes)} — ${label}`}
+          onClick={() => openItem(it)}
+          style={{ left: `${place.leftPct}%`, width: `${place.widthPct}%` }}
+          className={`absolute top-1 bottom-1 overflow-hidden rounded-lg border px-1.5 py-0.5 text-left shadow-sm transition hover:z-20 hover:brightness-95 ${c.border} ${c.bg}`}
+        >
+          <span className="block truncate text-[10px] font-extrabold leading-tight text-ink">
+            {formatHeure(it.heure)}
+            <span className="font-semibold text-muted"> · {labelDureeMinutes(it.dureeMinutes)}</span>
+          </span>
+          <span className={`block truncate text-[11px] font-semibold leading-tight ${c.text}`}>
+            {it.kind === 'ot' ? `${formatOtNumero(it.numero)} · ` : ''}
+            {it.title}
+          </span>
+        </button>
+      )
+    }
+
     return (
       <div className="space-y-2">
-        {ids.map((id) => {
-          const t = team.find((x) => x.id === id)
-          const poste = posteOf(id)
-          const col = couleurPlanning({ secteur: poste, technicienUserId: id })
-          const mine = items.filter((it) => itemTechIds(it).includes(id))
-          return (
-            <div key={id} className={`rounded-2xl border p-2.5 ${col.border} ${col.bg}`}>
-              <button
-                type="button"
-                onClick={() => ouvrirSemaineTech(id)}
-                className="flex w-full flex-wrap items-center gap-2 text-left"
-              >
-                <span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} />
-                <span className={`font-bold ${col.text}`}>
-                  {t?.fullName || nomTech(id)}
-                </span>
-                {labelSecteurCourt(poste) ? (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${col.badge}`}>
-                    {labelSecteurCourt(poste)}
-                  </span>
-                ) : null}
-                {labelAgence(agenceOfTech(id)) ? (
-                  <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-bold text-ink">
-                    {labelAgence(agenceOfTech(id))}
-                  </span>
-                ) : null}
-                <span className="ml-auto text-[10px] font-bold uppercase text-muted">
-                  {mine.length === 0
-                    ? 'Libre'
-                    : `${mine.length} tâche${mine.length > 1 ? 's' : ''}`}
-                </span>
-              </button>
-              {mine.length === 0 ? (
-                <p className="mt-1 px-1 text-[11px] text-muted">
-                  Rien de calé aujourd’hui — tapez le nom pour la semaine sans planning.
-                </p>
-              ) : (
-                <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
-                  {mine.map((it) => {
-                    const c = couleurPlanning({
-                      horsOtType: it.kind === 'agenda' ? it.event.type : undefined,
-                      secteur:
-                        it.kind === 'ot' ? it.secteur || poste : poste,
-                      technicienUserId: id,
-                    })
-                    return (
-                      <button
-                        key={it.id}
-                        type="button"
-                        onClick={() => {
-                          if (it.kind === 'agenda') {
-                            navigate(`/app/agenda?id=${encodeURIComponent(it.event.id)}`)
-                          } else {
-                            navigate(`/app/appel?ot=${encodeURIComponent(it.otId)}`)
-                          }
-                        }}
-                        className={`shrink-0 rounded-xl border bg-white px-2.5 py-1.5 text-left ${c.border}`}
-                      >
-                        <span className="block text-[10px] font-extrabold text-ink">
-                          {formatHeure(it.heure) || '—'}
+        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+          <div className="min-w-[52rem]">
+            <div className="flex border-b border-line bg-slate-50/80">
+              <div className="w-36 shrink-0 border-r border-line px-2 py-2 text-[10px] font-bold uppercase text-muted sm:w-44">
+                Technicien
+              </div>
+              <div className="relative min-h-[1.75rem] flex-1">
+                {heures.map((h) => (
+                  <div
+                    key={h}
+                    className="absolute top-0 bottom-0 border-l border-line/70"
+                    style={{
+                      left: `${((h - JOUR_PLANNING_DEBUT_H) / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%`,
+                      width: `${(1 / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%`,
+                    }}
+                  >
+                    <span className="pl-1 text-[10px] font-bold text-muted">{`${String(h).padStart(2, '0')}h`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {ids.map((id) => {
+              const t = team.find((x) => x.id === id)
+              const poste = posteOf(id)
+              const col = couleurPlanning({ secteur: poste, technicienUserId: id })
+              const mine = items.filter((it) => itemTechIds(it).includes(id))
+              const timed = mine.filter((it) => Boolean(formatHeure(it.heure)))
+              const untimed = mine.filter((it) => !formatHeure(it.heure))
+              return (
+                <div key={id} className="border-b border-line last:border-b-0">
+                  <div className="flex">
+                    <button
+                      type="button"
+                      onClick={() => ouvrirSemaineTech(id)}
+                      className={`flex w-36 shrink-0 flex-col justify-center gap-0.5 border-r border-line px-2 py-2 text-left sm:w-44 ${col.bg}`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${col.dot}`} />
+                        <span className={`truncate text-xs font-bold ${col.text}`}>
+                          {t?.fullName || nomTech(id)}
                         </span>
-                        <span className={`block max-w-[11rem] truncate text-xs font-semibold ${c.text}`}>
-                          {it.kind === 'ot' ? `${formatOtNumero(it.numero)} · ` : ''}
-                          {it.title}
-                        </span>
-                        {itemTechIds(it).length > 1 ? (
-                          <span className="block text-[9px] font-bold uppercase text-muted">
-                            {itemTechIds(it).length} techs
+                      </span>
+                      <span className="flex flex-wrap gap-1">
+                        {labelSecteurCourt(poste) ? (
+                          <span className={`rounded px-1 py-0.5 text-[8px] font-bold uppercase ${col.badge}`}>
+                            {labelSecteurCourt(poste)}
                           </span>
                         ) : null}
-                      </button>
-                    )
-                  })}
+                        {labelAgence(agenceOfTech(id)) ? (
+                          <span className="rounded bg-white/80 px-1 py-0.5 text-[8px] font-bold text-ink">
+                            {labelAgence(agenceOfTech(id))}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase text-muted">
+                        {mine.length === 0
+                          ? 'Libre'
+                          : timed.length === 0
+                            ? `${mine.length} sans heure`
+                            : `${timed.length} · ${labelDureeMinutes(
+                                Math.max(
+                                  15,
+                                  timed.reduce(
+                                    (s, it) => s + dureeMinutesEffectif(it.dureeMinutes),
+                                    0,
+                                  ),
+                                ),
+                              )}`}
+                      </span>
+                    </button>
+                    <div className="relative h-14 flex-1 bg-[linear-gradient(to_right,rgba(15_23_42_/_0.04)_1px,transparent_1px)] bg-[length:calc(100%/12)_100%]">
+                      {heures.map((h) => (
+                        <div
+                          key={`g-${id}-${h}`}
+                          className="pointer-events-none absolute top-0 bottom-0 border-l border-line/40"
+                          style={{ left: `${((h - JOUR_PLANNING_DEBUT_H) / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%` }}
+                        />
+                      ))}
+                      {timed.map((it) => renderBlock(it, id))}
+                      {timed.length === 0 ? (
+                        <p className="pointer-events-none absolute inset-0 flex items-center px-3 text-[11px] text-muted">
+                          Rien de calé — planifiez depuis « OT sans créneau ».
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  {untimed.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 border-t border-dashed border-line bg-white px-2 py-1.5 pl-[calc(9rem+0.5rem)] sm:pl-[calc(11rem+0.5rem)]">
+                      {untimed.map((it) => {
+                        const c = couleurPlanning({
+                          horsOtType: it.kind === 'agenda' ? it.event.type : undefined,
+                          secteur: it.kind === 'ot' ? it.secteur || poste : poste,
+                          technicienUserId: id,
+                        })
+                        return (
+                          <button
+                            key={it.id}
+                            type="button"
+                            onClick={() => openItem(it)}
+                            className={`rounded-lg border bg-white px-2 py-1 text-left text-[11px] ${c.border}`}
+                          >
+                            <span className="font-bold text-muted">Sans heure · </span>
+                            <span className={`font-semibold ${c.text}`}>{it.title}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
                 </div>
-              )}
-            </div>
-          )
-        })}
+              )
+            })}
+          </div>
+        </div>
         {unassigned.length > 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2.5">
             <p className="text-xs font-bold uppercase text-muted">Non affecté</p>
@@ -991,7 +1108,7 @@ export function AgendaPage() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Agenda</h1>
             <p className="mt-0.5 text-sm text-muted">
               {bureau
-                ? 'Filtrez par région (06, 13…). Plusieurs techs sur la même OT. Un renfort d’une autre région reste visible.'
+                ? 'Vue jour : une ligne par tech sur la frise 7h–19h. Filtrez par région. OT sans heure = à caler.'
                 : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
             </p>
           </div>
@@ -1445,6 +1562,7 @@ function OtPlanifierInline({
   onPlan: (patch: {
     date?: string
     heure?: string
+    dureeMinutes?: number
     technicien?: string
     technicienUserId?: string
     technicienUserIds?: string[]
@@ -1452,6 +1570,7 @@ function OtPlanifierInline({
 }) {
   const [date, setDate] = useState(ot.date || todayIsoLocal())
   const [heure, setHeure] = useState(formatHeure(ot.heure))
+  const [duree, setDuree] = useState(() => dureeMinutesEffectif(ot.dureeMinutes))
   const [tech, setTech] = useState(ot.technicien || '')
   const [techId, setTechId] = useState(ot.technicienUserId)
   const [techIds, setTechIds] = useState(() => techIdsOt(ot))
@@ -1468,13 +1587,14 @@ function OtPlanifierInline({
         onPlan({
           date: date || ot.date,
           heure: heure.trim(),
+          dureeMinutes: duree,
           technicien: tech,
           technicienUserId: techId,
           technicienUserIds: techIds,
         })
       }}
     >
-      <div className="grid gap-2 sm:grid-cols-[1fr_7rem]">
+      <div className="grid gap-2 sm:grid-cols-[1fr_7rem_7rem]">
       <label className="block text-xs">
         <span className="mb-0.5 block font-bold uppercase text-muted">Date</span>
         <input
@@ -1493,6 +1613,20 @@ function OtPlanifierInline({
           onChange={(e) => setHeure(e.target.value)}
           className="h-10 w-full rounded-lg border border-line bg-white px-2 text-sm"
         />
+      </label>
+      <label className="block text-xs">
+        <span className="mb-0.5 block font-bold uppercase text-muted">Durée</span>
+        <select
+          value={duree}
+          onChange={(e) => setDuree(Number(e.target.value) || DUREE_PLANNING_DEFAUT)}
+          className="h-10 w-full rounded-lg border border-line bg-white px-2 text-sm"
+        >
+          {DUREES_PLANNING_PRESETS.map((m) => (
+            <option key={m} value={m}>
+              {labelDureeMinutes(m)}
+            </option>
+          ))}
+        </select>
       </label>
       </div>
       <TechnicienAssignField
