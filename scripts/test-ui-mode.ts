@@ -24,4 +24,9 @@ assert.equal(
   false,
 )
 
+assert.equal(
+  shortcutVisibleForAccess({ lightHidden: true }, { ...owner, appEdition: 'light' }),
+  false,
+)
+
 console.log('ok test-ui-mode')

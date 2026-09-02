@@ -56,7 +56,7 @@ import {
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
 import { isTerrainUi } from '../lib/uiMode'
-import { editionHasFeature } from '../lib/appEdition'
+import { editionHasFeature, LIGHT_SOLO_FLOW_HINT } from '../lib/appEdition'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
@@ -109,6 +109,7 @@ export function Dashboard() {
   )
   const terrainUi = isTerrainUi(shortcutAccess)
   const proFeatures = editionHasFeature(appEdition, 'equipe')
+  const lightSolo = appEdition === 'light' && !terrainUi
 
   const [shortcutIds, setShortcutIds] = useState<HomeShortcutId[]>(() =>
     resolveHomeShortcutIds(user?.id, shortcutAccess),
@@ -296,9 +297,7 @@ export function Dashboard() {
                 Client appelle, scan QR, sites, OT, CERFA.
               </p>
             ) : appEdition === 'light' ? (
-              <p className="mt-1 text-sm font-medium text-muted">
-                Solo : clients, OT, contrats, CERFA et détecteur — sans équipe ni admin lourd.
-              </p>
+              <p className="mt-1 text-sm font-medium text-muted">{LIGHT_SOLO_FLOW_HINT}</p>
             ) : (
               <>
                 <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
@@ -317,7 +316,7 @@ export function Dashboard() {
               </div>
             ) : null}
           </div>
-          <label className="relative block w-full md:w-80">
+          <label className={`relative block w-full md:w-80 ${lightSolo ? 'hidden' : ''}`}>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
             <input
               value={q}
@@ -378,8 +377,60 @@ export function Dashboard() {
           </Link>
         ) : null}
 
-        {/* Bandeau guide 3D — Quick Start */}
-        {!q.trim() && (
+        {lightSolo && !q.trim() ? (
+          <section className="space-y-4">
+            <Link
+              to="/app/appel"
+              className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 px-6 py-5 text-center text-white shadow-lg active:scale-[0.99]"
+            >
+              <Phone className="h-8 w-8" />
+              <span className="font-display text-xl font-extrabold">Intervenir</span>
+              <span className="text-sm text-emerald-50">Client → site → équipement → CERFA</span>
+            </Link>
+
+            {aReprendre.length > 0 ? (
+              <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+                <h2 className="font-display text-base font-semibold">Reprendre un CERFA</h2>
+                <ul className="mt-3 space-y-2">
+                  {aReprendre.map((i) => (
+                    <li key={i.id}>
+                      <Link
+                        to={`/app/interventions/${i.id}`}
+                        className="block rounded-xl border border-line px-3 py-2.5 text-sm font-semibold text-ink active:bg-mist"
+                      >
+                        {i.cerfaPdfFileName || i.numeroIntervention || 'Brouillon CERFA'}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-3 gap-2">
+              <Link
+                to="/app/interventions"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Mes CERFA
+              </Link>
+              <Link
+                to="/app/profil"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Détecteur
+              </Link>
+              <Link
+                to="/app/clients"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Clients
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        {/* Bandeau guide 3D — Quick Start (Pro / terrain) */}
+        {!q.trim() && !lightSolo && (
           <nav
             aria-label="Mode d’emploi rapide"
             className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-600 to-slate-800 p-4 text-white shadow-xl sm:p-6"
@@ -476,7 +527,7 @@ export function Dashboard() {
         )}
 
         {/* Menu portable — cercles (mobile) / liste (desktop) */}
-        {!q.trim() && (
+        {!q.trim() && !lightSolo && (
           <>
             <div className="md:hidden">
               <div className="mb-2 flex items-center justify-between gap-2 px-2">
@@ -878,7 +929,7 @@ export function Dashboard() {
       )}
 
       {/* À reprendre — OT en cours */}
-      {!q.trim() && otAReprendre.length > 0 && (
+      {!q.trim() && !lightSolo && otAReprendre.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">OT à reprendre</h2>
@@ -925,7 +976,7 @@ export function Dashboard() {
       )}
 
       {/* À reprendre — brouillons CERFA */}
-      {!q.trim() && aReprendre.length > 0 && (
+      {!q.trim() && !lightSolo && aReprendre.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">À reprendre</h2>
@@ -995,7 +1046,7 @@ export function Dashboard() {
         </section>
       )}
 
-      {!q.trim() && recentSites.length > 0 && (
+      {!q.trim() && !lightSolo && recentSites.length > 0 && (
         <section className="hidden md:block">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">Sites récents</h2>
@@ -1036,7 +1087,7 @@ export function Dashboard() {
         </section>
       )}
 
-      {showOnboarding && !terrainUi && (
+      {showOnboarding && !terrainUi && !lightSolo && (
         <section className="rounded-2xl border border-accent/30 bg-accent-soft/50 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1082,7 +1133,7 @@ export function Dashboard() {
       )}
 
       {/* Raccourcis stats 3D — bureau / tablette (masqué sur le téléphone et pour le terrain) */}
-      {!terrainUi && (
+      {!terrainUi && !lightSolo && (
       <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-4 md:gap-4">
         <Stat3d
           img={ICON3D.sites}

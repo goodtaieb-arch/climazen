@@ -18,10 +18,14 @@ export const APP_EDITION_TAGLINES: Record<AppEdition, string> = {
 
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
-    'Clients, sites, OT, contrats de maintenance, CERFA et détecteur — sans équipe, agenda ni pointeuse.',
+    'Intervenir : client, site, équipement, maintenance et CERFA. Rien d’autre au premier plan.',
   pro:
     'Tout ClimaZEN : équipe, agenda, pointeuse légale, RH, multi-techniciens, agences et pilotage.',
 }
+
+/** Parcours solo AE — une intervention = client → site → équipement → papiers. */
+export const LIGHT_SOLO_FLOW_HINT =
+  'Nom du client, site, équipements, maintenance et CERFA — c’est tout ce dont vous avez besoin.'
 
 /** Fonctionnalités réservées à l’édition Pro. */
 export type EditionFeature =
@@ -34,6 +38,8 @@ export type EditionFeature =
   | 'agences'
   | 'team_kpi'
   | 'create_operator'
+  /** Liste OT / demandes (le solo passe par « Intervenir »). */
+  | 'ot_list'
 
 const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'equipe',
@@ -45,10 +51,39 @@ const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'agences',
   'team_kpi',
   'create_operator',
+  'ot_list',
 ])
 
-/** Préfixes de routes réservées à Pro (sous /app). */
-export const PRO_ROUTE_PREFIXES = ['/app/equipe', '/app/agenda', '/app/pointage'] as const
+/** Routes Pro ou masquées du menu Light (sous /app). */
+export const PRO_ROUTE_PREFIXES = [
+  '/app/equipe',
+  '/app/agenda',
+  '/app/pointage',
+  '/app/ot',
+] as const
+
+/** Routes Light accessibles via menu « Plus » seulement. */
+export const LIGHT_MORE_ROUTE_PREFIXES = [
+  '/app/clients',
+  '/app/chantiers',
+  '/app/stock',
+  '/app/contrats',
+  '/app/operateur',
+  '/app/scan-equip',
+] as const
+
+export function routeInLightMoreMenu(pathname: string): boolean {
+  return LIGHT_MORE_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  )
+}
+
+/** Redirections Light → parcours solo. */
+export function lightRouteRedirect(pathname: string, edition: AppEdition): string | null {
+  if (edition !== 'light') return null
+  if (pathname === '/app/ot' || pathname.startsWith('/app/ot/')) return '/app/appel'
+  return null
+}
 
 const PENDING_EDITION_KEY = 'climazen_pending_edition'
 let pendingEditionMemory: AppEdition | null = null

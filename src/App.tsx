@@ -102,7 +102,14 @@ export default function App() {
                 <Route path="stock" element={<StockPage />} />
                 <Route path="interventions" element={<InterventionsPage />} />
                 <Route path="interventions/:id" element={<InterventionFormRoute />} />
-                <Route path="ot" element={<OrdresTravailPage />} />
+                <Route
+                  path="ot"
+                  element={
+                    <RequireEdition>
+                      <OrdresTravailPage />
+                    </RequireEdition>
+                  }
+                />
                 <Route path="appel" element={<AppelOtPage />} />
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
                 <Route

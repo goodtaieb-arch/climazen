@@ -123,14 +123,17 @@ const tones: Record<
 
 const baseLinksLightOwner = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
-  { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
-  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
-  { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
-  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
-  { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
-  { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
-  { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+  { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+]
+
+/** Nav mobile Light : intervenir au centre. */
+const mobilePrimaryLight = [
+  { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/profil', label: 'Profil', icon: User, tone: 'equipe' },
 ]
 
 const baseLinksOwner = [
@@ -239,7 +242,11 @@ export function AppLayout() {
         )
 
   const mobilePrimary =
-    terrainUi || appEdition === 'light' ? mobilePrimaryTerrain : mobilePrimaryBureau
+    appEdition === 'light' && isOwner
+      ? mobilePrimaryLight
+      : terrainUi || appEdition === 'light'
+        ? mobilePrimaryTerrain
+        : mobilePrimaryBureau
 
   const pageTone = toneForPath(pathname, links)
 
@@ -267,8 +274,18 @@ export function AppLayout() {
     }
   }
 
+  const lightMoreLinks = [
+    { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+    { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
+    { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+    { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
+    { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
+  ]
+
   const moreLinks = filterLinksByEdition(
-    terrainUi
+    appEdition === 'light' && isOwner
+      ? [...lightMoreLinks, { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' }]
+      : terrainUi
       ? [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },

@@ -6,6 +6,7 @@ import {
   filterLinksByEdition,
   resolveAppEdition,
   routeAllowedInEdition,
+  lightRouteRedirect,
   stashPendingEdition,
   consumePendingEdition,
 } from '../src/lib/appEdition'
@@ -23,8 +24,9 @@ assert.equal(editionHasFeature('light', 'agenda'), false)
 assert.equal(routeAllowedInEdition('/app/clients', 'light'), true)
 assert.equal(routeAllowedInEdition('/app/equipe', 'light'), false)
 assert.equal(routeAllowedInEdition('/app/equipe/u1', 'light'), false)
-assert.equal(routeAllowedInEdition('/app/pointage', 'light'), false)
-assert.equal(routeAllowedInEdition('/app/agenda', 'light'), false)
+assert.equal(routeAllowedInEdition('/app/ot', 'light'), false)
+assert.equal(lightRouteRedirect('/app/ot', 'light'), '/app/appel')
+assert.equal(lightRouteRedirect('/app/clients', 'light'), null)
 assert.equal(routeAllowedInEdition('/app/equipe', 'pro'), true)
 
 const links = [
@@ -63,6 +65,7 @@ assert.equal(
   true,
 )
 
-assert.ok(APP_EDITION_DESCRIPTIONS.light.includes('CERFA'))
+assert.ok(APP_EDITION_DESCRIPTIONS.light.includes('client'))
+assert.deepEqual(['appel', 'cerfa', 'profil'], ['appel', 'cerfa', 'profil'])
 
 console.log('ok test-app-edition')

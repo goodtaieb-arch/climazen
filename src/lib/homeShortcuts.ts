@@ -31,6 +31,8 @@ export type HomeShortcutDef = {
   rhTeamOnly?: boolean
   /** Clients / contrats : bureau & gérant seulement (pas le tech terrain). */
   bureauOnly?: boolean
+  /** Masqué de l’accueil Light (reste accessible via menu Plus ou parcours). */
+  lightHidden?: boolean
   proOnly?: boolean
   proFeature?: EditionFeature
 }
@@ -41,12 +43,14 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Sites & Parc',
     img: ICON3D.sites,
     action: 'goTravaux',
+    lightHidden: true,
   },
   scan_qr: {
     id: 'scan_qr',
     title: 'Scanner QR',
     img: ICON3D.search,
     to: '/app/scan-equip?camera=1',
+    lightHidden: true,
   },
   agenda: {
     id: 'agenda',
@@ -67,6 +71,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Stock fluides',
     img: ICON3D.bottle,
     to: '/app/stock',
+    lightHidden: true,
   },
   clients: {
     id: 'clients',
@@ -74,16 +79,19 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.clients,
     to: '/app/clients',
     bureauOnly: true,
+    lightHidden: true,
   },
   ot: {
     id: 'ot',
     title: 'OT / Demandes',
     img: ICON3D.maintenance,
     to: '/app/ot',
+    proOnly: true,
+    proFeature: 'ot_list',
   },
   appel: {
     id: 'appel',
-    title: 'Client appelle',
+    title: 'Intervenir',
     img: ICON3D.accueil,
     to: '/app/appel',
   },
@@ -99,6 +107,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.maintenance,
     to: '/app/contrats',
     bureauOnly: true,
+    lightHidden: true,
   },
   equipe: {
     id: 'equipe',
@@ -115,6 +124,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.entreprise,
     to: '/app/operateur',
     ownerOnly: true,
+    lightHidden: true,
   },
   pointage: {
     id: 'pointage',
@@ -140,19 +150,8 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'profil',
 ]
 
-/** Light (solo / AE) : l’essentiel chantier sans équipe ni admin lourd. */
-export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
-  'appel',
-  'sites',
-  'ot',
-  'cerfa',
-  'clients',
-  'contrats',
-  'stock',
-  'scan_qr',
-  'profil',
-  'operateur',
-]
+/** Light (solo / AE) : intervenir + CERFA + profil (détecteur). */
+export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = ['appel', 'cerfa', 'profil']
 
 /** Terrain : uniquement les boutons d’intervention. */
 export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
