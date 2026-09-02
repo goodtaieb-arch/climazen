@@ -189,7 +189,8 @@ export function PortailClientPage() {
         {sent ? (
           <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             <Check className="h-4 w-4 shrink-0" />
-            Signalement envoyé — votre prestataire sera notifié.
+            Signalement envoyé — un ordre de travail est créé pour votre prestataire, qui reçoit
+            aussi une notification e-mail.
           </div>
         ) : null}
         <form onSubmit={onSubmit} className="space-y-3">

@@ -54,7 +54,7 @@ import { nextNumeroOt, blankOrdreTravail, type OrdreTravail } from './ordreTrava
 import type { ContratMaintenance } from './contratMaintenance'
 import { contratsActifsForSite } from './contratMaintenance'
 import { applyContratSigneSync } from './contratSync'
-import { listNouveauxTicketsOrg, markTicketTraite } from './portailClient'
+import { listNouveauxTicketsOrg, markTicketTraite, processClientTicket } from './portailClient'
 import { isSupabaseConfigured } from './supabase'
 import {
   nextNumeroCommande,
@@ -498,14 +498,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
     if (!pending.length) return 0
 
-    const now = new Date().toISOString()
-    const grown = [...(d.ordresTravail || [])]
-    const linked: { ticketId: string; otId: string; otNumero: string }[] = []
+    let created = 0
+    const mergedOts = [...(d.ordresTravail || [])]
+    let needsLocalPush = false
 
     for (const t of pending) {
+      const remote = await processClientTicket({ ticketId: t.id })
+      if (remote.ok) {
+        if (remote.ot && !mergedOts.some((o) => o.id === remote.ot!.id)) {
+          mergedOts.push(remote.ot)
+        }
+        created += 1
+        continue
+      }
+
+      // Repli local si l’API serveur n’est pas configurée
       const site = d.chantiers.find((s) => s.id === t.site_id)
       if (!site) continue
-      const numero = nextNumeroOt({ ...d, ordresTravail: grown })
+      const now = new Date().toISOString()
+      const numero = nextNumeroOt({ ...d, ordresTravail: mergedOts })
       const id = uuid()
       const ot: OrdreTravail = {
         ...blankOrdreTravail(),
@@ -524,19 +535,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         createdAt: now,
         updatedAt: now,
       }
-      grown.push(ot)
-      linked.push({ ticketId: t.id, otId: id, otNumero: numero })
+      mergedOts.push(ot)
+      await markTicketTraite(t.id, id, numero)
+      created += 1
+      needsLocalPush = true
     }
 
-    if (!linked.length) return 0
+    if (!created) return 0
 
-    setData((prev) => ({ ...prev, ordresTravail: grown }))
-    markPending(true)
-    setPendingSyncState(true)
-    for (const row of linked) {
-      await markTicketTraite(row.ticketId, row.otId, row.otNumero)
+    setData((prev) => ({ ...prev, ordresTravail: mergedOts }))
+    if (needsLocalPush) {
+      markPending(true)
+      setPendingSyncState(true)
     }
-    return linked.length
+    return created
   }, [orgId, markPending])
 
   const pullFromCloud = useCallback(async () => {

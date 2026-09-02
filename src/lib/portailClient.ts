@@ -134,6 +134,58 @@ export async function submitTicketPublic(opts: {
   return { ok: true, ticketId: String(raw.ticketId) }
 }
 
+export type ProcessClientTicketResult =
+  | {
+      ok: true
+      otId: string
+      otNumero: string
+      alreadyExists?: boolean
+      ot?: import('./ordreTravail').OrdreTravail
+      email?: { ok?: boolean; skipped?: boolean; to?: string[] }
+    }
+  | { ok: false; error: string }
+
+/** Crée l’OT dans org_data cloud + e-mail bureau (API Vercel). */
+export async function processClientTicket(opts: {
+  ticketId: string
+}): Promise<ProcessClientTicketResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: 'Cloud requis pour traiter le ticket.' }
+  }
+  const sb = getSupabase()
+  const { data: sessionData } = await sb.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) {
+    return { ok: false, error: 'Session expirée — reconnectez-vous.' }
+  }
+  try {
+    const res = await fetch('/api/process-client-ticket', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ticketId: opts.ticketId }),
+    })
+    const data = (await res.json().catch(() => ({}))) as ProcessClientTicketResult & {
+      error?: string
+      hint?: string
+    }
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error: data.error || data.hint || `Traitement ticket impossible (${res.status}).`,
+      }
+    }
+    return data
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Traitement ticket impossible.',
+    }
+  }
+}
+
 export async function listNouveauxTicketsOrg(
   organizationId: string,
 ): Promise<ClientTicketRow[]> {

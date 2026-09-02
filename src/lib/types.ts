@@ -126,6 +126,8 @@ export interface Operateur {
    * Si absent, le bureau (secrétariat / gérant) gère le stock.
    */
   magasinierUserId?: string
+  /** E-mail alertes tickets portail client (sinon e-mail société + gérant). */
+  ticketNotificationEmail?: string
 }
 
 /** Plateformes de facturation les plus utilisées (via Make). */

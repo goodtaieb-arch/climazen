@@ -307,6 +307,15 @@ export function OperateurPage() {
           onChange={(v) => patchForm({ telephone: v })}
         />
         <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
+        <Field
+          label="E-mail alertes tickets client (optionnel)"
+          value={form.ticketNotificationEmail || ''}
+          onChange={(v) => patchForm({ ticketNotificationEmail: v || undefined })}
+        />
+        <p className="-mt-2 text-xs text-muted">
+          Portail GMAO : à chaque signalement client, un OT est créé et un e-mail part ici (ou
+          l’e-mail société + gérant).
+        </p>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Dossier cloud RH</h2>

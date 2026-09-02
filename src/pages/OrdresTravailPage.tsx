@@ -768,6 +768,12 @@ export function OrdresTravailPage() {
                   >
                     {STATUT_OT_LABELS[o.statut]}
                   </span>
+                  {o.ticketClient ? (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                      Ticket client
+                      {o.localisationClient ? ` · ${o.localisationClient}` : ''}
+                    </span>
+                  ) : null}
                   {formatOtAvancement(o) ? (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
                       Partiel {formatOtAvancement(o)}
