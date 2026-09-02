@@ -13,6 +13,7 @@ import { Dashboard } from './pages/Dashboard'
 import { ClientsPage } from './pages/ClientsPage'
 import { ChantiersPage } from './pages/ChantiersPage'
 import { StockPage } from './pages/StockPage'
+import { StockPiecesPage } from './pages/StockPiecesPage'
 import { InterventionsPage } from './pages/InterventionsPage'
 import { InterventionFormPage } from './pages/InterventionFormPage'
 import { OperateurPage } from './pages/OperateurPage'
@@ -33,6 +34,9 @@ import { PointagePage } from './pages/PointagePage'
 import { ContactPage } from './pages/ContactPage'
 import { AvisGooglePage } from './pages/AvisGooglePage'
 import { SignerPage } from './pages/SignerPage'
+import { PortailClientPage } from './pages/PortailClientPage'
+import { DevisPage } from './pages/DevisPage'
+import { CommandesPage } from './pages/CommandesPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
 import { Cerfa15497Page, FGasHorsLignePage, LogicielCerfaClimPage } from './pages/SeoPages'
 
@@ -88,6 +92,7 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/signer/:token" element={<SignerPage />} />
+              <Route path="/portail/:token" element={<PortailClientPage />} />
               <Route
                 path="/app"
                 element={
@@ -100,6 +105,14 @@ export default function App() {
                 <Route path="clients" element={<ClientsPage />} />
                 <Route path="chantiers" element={<ChantiersPage />} />
                 <Route path="stock" element={<StockPage />} />
+                <Route
+                  path="stock-pieces"
+                  element={
+                    <RequireEdition>
+                      <StockPiecesPage />
+                    </RequireEdition>
+                  }
+                />
                 <Route path="interventions" element={<InterventionsPage />} />
                 <Route path="interventions/:id" element={<InterventionFormRoute />} />
                 <Route
@@ -112,6 +125,22 @@ export default function App() {
                 />
                 <Route path="appel" element={<AppelOtPage />} />
                 <Route path="contrats" element={<ContratsMaintenancePage />} />
+                <Route
+                  path="devis"
+                  element={
+                    <RequireEdition>
+                      <DevisPage />
+                    </RequireEdition>
+                  }
+                />
+                <Route
+                  path="commandes"
+                  element={
+                    <RequireEdition>
+                      <CommandesPage />
+                    </RequireEdition>
+                  }
+                />
                 <Route
                   path="agenda"
                   element={

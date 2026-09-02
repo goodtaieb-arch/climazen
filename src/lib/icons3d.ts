@@ -31,6 +31,7 @@ export function icon3dForRoute(to: string): string | null {
   if (to === '/app/clients') return ICON3D.clients
   if (to === '/app/chantiers') return ICON3D.sites
   if (to === '/app/stock') return ICON3D.bottle
+  if (to === '/app/stock-pieces') return ICON3D.maintenance
   if (to === '/app/ot') return ICON3D.maintenance
   if (to === '/app/contrats') return ICON3D.maintenance
   if (to === '/app/agenda') return ICON3D.search

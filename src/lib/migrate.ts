@@ -293,6 +293,8 @@ export function migrateAppData(data: AppData): AppData {
     contratsMaintenance: data.contratsMaintenance || [],
     devis: data.devis || [],
     commandesFournisseur: data.commandesFournisseur || [],
+    piecesDetachees: data.piecesDetachees || [],
+    piecesMouvements: data.piecesMouvements || [],
     factures: data.factures || [],
     agendaEvents: data.agendaEvents || [],
     pointageRegles: data.pointageRegles

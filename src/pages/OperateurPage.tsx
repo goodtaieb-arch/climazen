@@ -15,6 +15,8 @@ import {
   editionHasFeature,
   type AppEdition,
 } from '../lib/appEdition'
+import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
+import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
   if (operateur.raisonSociale?.trim() || !orgName?.trim()) return operateur
@@ -25,9 +27,10 @@ function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operate
 export function OperateurPage() {
   const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition } =
     useStore()
-  const { organization, isOwner, refreshUser } = useAuth()
+  const { organization, isOwner, refreshUser, user, listTeam } = useAuth()
 
   const [form, setForm] = useState(() => withOrgDefaults(data.operateur, organization?.name))
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; fullName: string }>>([])
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -48,6 +51,37 @@ export function OperateurPage() {
     setForm(withOrgDefaults(data.operateur, organization?.name))
     setExpertMake(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   }, [data.operateur, organization?.name, loading, dirty])
+
+  useEffect(() => {
+    if (!isOwner) return
+    void listTeam()
+      .then((remote) => {
+        const merged = mergeTeamMembers({
+          user,
+          remote,
+          dossiers: data.personnelDossiers,
+          extraAssignees: extraAssigneesFromData(data),
+          retiredIds: data.personnelRetiresUserIds,
+          orgId: user?.organizationId,
+        })
+        setTeamMembers(
+          merged
+            .filter((m) => m.active !== false)
+            .map((m) => ({ id: m.id, fullName: m.fullName || m.email })),
+        )
+      })
+      .catch(() => undefined)
+  }, [
+    isOwner,
+    listTeam,
+    user,
+    data.personnelDossiers,
+    data.personnelRetiresUserIds,
+    data.outillages,
+    data.voitures,
+    data.ordresTravail,
+    user?.organizationId,
+  ])
 
   if (!isOwner) {
     return <Navigate to="/app/profil" replace />
@@ -184,6 +218,44 @@ export function OperateurPage() {
         ) : null}
       </section>
 
+      {editionHasFeature(appEdition, 'stock_pieces') ? (
+        <section className="rounded-2xl border border-line bg-white p-5">
+          <h2 className="font-display text-lg font-semibold">Magasin pièces détachées</h2>
+          <p className="mt-1 text-sm text-muted">
+            {labelGestionnairePieces({
+              magasinierUserId: form.magasinierUserId,
+              magasinierName: teamMembers.find((m) => m.id === form.magasinierUserId)?.fullName,
+            })}
+            . Sans magasinier, le bureau (secrétariat, gérant) gère le stock GMAO.
+          </p>
+          <label className="mt-4 block text-sm">
+            <span className="mb-1 block text-xs font-semibold text-muted">Magasinier (optionnel)</span>
+            <select
+              value={form.magasinierUserId || ''}
+              onChange={(e) => {
+                const magasinierUserId = e.target.value || undefined
+                patchForm({ magasinierUserId })
+              }}
+              className="w-full max-w-md rounded-xl border border-line bg-white px-3 py-2 text-sm"
+            >
+              <option value="">— Bureau / gérant —</option>
+              {teamMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.fullName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-muted">
+            Choisissez un membre avec le poste « Magasinier » dans Équipe, ou toute personne de
+            confiance.             Stock :{' '}
+            <Link to="/app/stock-pieces" className="font-semibold text-accent underline">
+              {MAGASIN_PIECES_NAV_LABEL}
+            </Link>
+          </p>
+        </section>
+      ) : null}
+
       {editionHasFeature(appEdition, 'pointage') ? (
         <Link
           to="/app/pointage"
@@ -235,6 +307,15 @@ export function OperateurPage() {
           onChange={(v) => patchForm({ telephone: v })}
         />
         <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
+        <Field
+          label="E-mail alertes tickets client (optionnel)"
+          value={form.ticketNotificationEmail || ''}
+          onChange={(v) => patchForm({ ticketNotificationEmail: v || undefined })}
+        />
+        <p className="-mt-2 text-xs text-muted">
+          Portail GMAO : à chaque signalement client, un OT est créé et un e-mail part ici (ou
+          l’e-mail société + gérant).
+        </p>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">Dossier cloud RH</h2>

@@ -50,9 +50,12 @@ import {
 } from './cerfaBatch'
 import { assertDetecteurValidePourCerfa } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
-import { nextNumeroOt, type OrdreTravail } from './ordreTravail'
+import { nextNumeroOt, blankOrdreTravail, type OrdreTravail } from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
 import { contratsActifsForSite } from './contratMaintenance'
+import { applyContratSigneSync } from './contratSync'
+import { listNouveauxTicketsOrg, markTicketTraite, processClientTicket } from './portailClient'
+import { isSupabaseConfigured } from './supabase'
 import {
   nextNumeroCommande,
   nextNumeroDevis,
@@ -102,6 +105,13 @@ import {
   resolveAppEdition,
   type AppEdition,
 } from './appEdition'
+import {
+  appliquerMouvementPiece,
+  receptionCommandeEnStock,
+  peutGererPiecesDetachees as peutGererPiecesDetacheesFn,
+  type PieceDetachee,
+  type PieceMouvementKind,
+} from './piecesDetachees'
 
 type Store = {
   data: AppData
@@ -183,8 +193,25 @@ type Store = {
   genererFactureDepuisOt: (otId: string) => string
   /** OT d’exécution depuis un devis accepté (1 devis → N OT). */
   creerOtDepuisDevis: (devisId: string, opts?: { action?: string }) => { id: string; numero: string }
-  /** Marque commande reçue + OT prêt à planifier. */
+  /** Marque commande reçue + OT prêt à planifier + entrée stock pièces. */
   marquerCommandeRecue: (commandeId: string) => void
+  upsertPieceDetachee: (
+    p: Omit<PieceDetachee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  deletePieceDetachee: (id: string) => void
+  enregistrerMouvementPiece: (opts: {
+    pieceId: string
+    kind: PieceMouvementKind
+    quantite: number
+    otId?: string
+    otNumero?: string
+    clientId?: string
+    chantierId?: string
+    emplacementApres?: PieceDetachee['emplacement']
+    assigneeUserId?: string
+    assigneeName?: string
+    motif?: string
+  }) => void
   upsertAgendaEvent: (
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
@@ -201,6 +228,8 @@ type Store = {
   syncAgendaFromSources: () => number
   /** Crée les OT manquants des contrats signés (sans dupliquer un créneau déjà déplacé). */
   syncOtsDepuisContrats: () => number
+  /** Tickets portail client → OT bureau (cloud). */
+  syncClientPortalTickets: () => Promise<number>
   /** Crée un OT pour une action terrain — retourne { id, numero }. */
   createOtForAction: (opts: {
     typeOt: import('./ordreTravail').TypeOt
@@ -226,6 +255,9 @@ type Store = {
     sousGarantie?: boolean
     clientPayeurId?: string
     mainOeuvreIncluseContrat?: boolean
+    ticketClient?: boolean
+    ticketClientId?: string
+    localisationClient?: string
   }) => { id: string; numero: string }
   /**
    * Valide une maintenance : crée 1 CERFA par équipement (équipements déjà sauvés sur le site).
@@ -343,6 +375,8 @@ type Store = {
   retirePersonnel: (userId: string) => void
   /** Identités + dossiers des collègues : gérant ou personnel autorisé. */
   peutVoirIdentitesRh: boolean
+  /** Stock pièces détachées : gérant, magasinier ou bureau. */
+  peutGererPiecesDetachees: boolean
   /** Light (solo / AE) ou Pro (PME / TPE). */
   appEdition: AppEdition
   /** Gérant : bascule Light ↔ Pro. */
@@ -454,6 +488,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [orgId, markPending])
 
+  const syncClientPortalTickets = useCallback(async (): Promise<number> => {
+    if (!orgId || !isSupabaseConfigured()) return 0
+    const tickets = await listNouveauxTicketsOrg(orgId)
+    if (!tickets.length) return 0
+    const d = dataRef.current
+    const pending = tickets.filter(
+      (t) => !(d.ordresTravail || []).some((o) => o.ticketClientId === t.id),
+    )
+    if (!pending.length) return 0
+
+    let created = 0
+    const mergedOts = [...(d.ordresTravail || [])]
+    let needsLocalPush = false
+
+    for (const t of pending) {
+      const remote = await processClientTicket({ ticketId: t.id })
+      if (remote.ok) {
+        if (remote.ot && !mergedOts.some((o) => o.id === remote.ot!.id)) {
+          mergedOts.push(remote.ot)
+        }
+        created += 1
+        continue
+      }
+
+      // Repli local si l’API serveur n’est pas configurée
+      const site = d.chantiers.find((s) => s.id === t.site_id)
+      if (!site) continue
+      const now = new Date().toISOString()
+      const numero = nextNumeroOt({ ...d, ordresTravail: mergedOts })
+      const id = uuid()
+      const ot: OrdreTravail = {
+        ...blankOrdreTravail(),
+        id,
+        numero,
+        date: now.slice(0, 10),
+        typeOt: 'depanage',
+        action: `[Ticket client] ${t.localisation} — ${t.description}`,
+        localisationClient: t.localisation,
+        ticketClient: true,
+        ticketClientId: t.id,
+        clientId: site.clientId,
+        chantierId: site.id,
+        origineOt: 'depannage_urgence',
+        statut: 'pret_a_planifier',
+        createdAt: now,
+        updatedAt: now,
+      }
+      mergedOts.push(ot)
+      await markTicketTraite(t.id, id, numero)
+      created += 1
+      needsLocalPush = true
+    }
+
+    if (!created) return 0
+
+    setData((prev) => ({ ...prev, ordresTravail: mergedOts }))
+    if (needsLocalPush) {
+      markPending(true)
+      setPendingSyncState(true)
+    }
+    return created
+  }, [orgId, markPending])
+
   const pullFromCloud = useCallback(async () => {
     if (!orgId || !hydrated || syncingPull.current || flushing.current) return
     if (!isBrowserOnline()) {
@@ -497,13 +594,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         markSynced(orgId)
         setPendingSyncState(false)
       }
+      await syncClientPortalTickets()
     } catch (err) {
       console.error(err)
       setSyncError(err instanceof Error ? err.message : 'Sync cloud impossible')
     } finally {
       syncingPull.current = false
     }
-  }, [orgId, hydrated, flushPendingSync, markPending])
+  }, [orgId, hydrated, flushPendingSync, markPending, syncClientPortalTickets])
 
   useEffect(() => {
     const onOnline = () => {
@@ -1168,22 +1266,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
-        let chantiers = d.chantiers
-        if (next.statut === 'signe' && next.clientId) {
-          const coverAll = !next.chantierIds || next.chantierIds.length === 0
-          chantiers = d.chantiers.map((s) => {
-            if (s.clientId !== next.clientId) return s
-            if (!coverAll && !next.chantierIds.includes(s.id)) return s
-            return { ...s, modeGestion: 'contrat' as const }
-          })
-        }
-        return {
+        let updated: AppData = {
           ...d,
-          chantiers,
           contratsMaintenance: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
         }
+        updated = applyContratSigneSync(updated, next)
+        return updated
       })
       return id
     },
@@ -1259,6 +1349,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           updatedAt: now,
         }
         let ordres = d.ordresTravail || []
+        let pieces = [...(d.piecesDetachees || [])]
+        let pieceMvts = [...(d.piecesMouvements || [])]
+        const devientRecue = next.statut === 'recue' && existing?.statut !== 'recue'
+        if (devientRecue) {
+          try {
+            const result = receptionCommandeEnStock({
+              pieces,
+              commande: next,
+              parUserId: user?.id,
+              parUserName: user?.fullName,
+              now,
+            })
+            if (result.created) pieces.push(result.piece)
+            else pieces = pieces.map((p) => (p.id === result.piece.id ? result.piece : p))
+            pieceMvts.push(result.mouvement)
+          } catch {
+            /* référence manquante */
+          }
+        }
         if (next.statut === 'recue' && next.otId) {
           ordres = ordres.map((o) =>
             o.id === next.otId && o.statut === 'en_attente_piece'
@@ -1268,6 +1377,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         return {
           ...d,
+          piecesDetachees: pieces,
+          piecesMouvements: pieceMvts,
           commandesFournisseur: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
@@ -1276,7 +1387,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       return id
     },
-    [],
+    [user?.id, user?.fullName],
   )
 
   const deleteCommandeFournisseur = useCallback((id: string) => {
@@ -1443,26 +1554,136 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return { id, numero }
   }, [])
 
-  const marquerCommandeRecue = useCallback((commandeId: string) => {
-    const now = new Date().toISOString()
-    setData((d) => {
-      const cmd = (d.commandesFournisseur || []).find((c) => c.id === commandeId)
-      if (!cmd) return d
-      return {
-        ...d,
-        commandesFournisseur: (d.commandesFournisseur || []).map((c) =>
-          c.id === commandeId
-            ? { ...c, statut: 'recue' as const, recueAt: now, updatedAt: now }
-            : c,
-        ),
-        ordresTravail: (d.ordresTravail || []).map((o) =>
-          cmd.otId && o.id === cmd.otId && o.statut === 'en_attente_piece'
-            ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
-            : o,
-        ),
-      }
-    })
+  const marquerCommandeRecue = useCallback(
+    (commandeId: string) => {
+      const now = new Date().toISOString()
+      setData((d) => {
+        const cmd = (d.commandesFournisseur || []).find((c) => c.id === commandeId)
+        if (!cmd) return d
+
+        let pieces = [...(d.piecesDetachees || [])]
+        let mouvements = [...(d.piecesMouvements || [])]
+
+        if (cmd.statut !== 'recue') {
+          try {
+            const result = receptionCommandeEnStock({
+              pieces,
+              commande: { ...cmd, statut: 'recue' },
+              parUserId: user?.id,
+              parUserName: user?.fullName,
+              now,
+            })
+            if (result.created) {
+              pieces.push(result.piece)
+            } else {
+              pieces = pieces.map((p) => (p.id === result.piece.id ? result.piece : p))
+            }
+            mouvements.push(result.mouvement)
+          } catch {
+            /* commande sans référence exploitable — on marque quand même reçue */
+          }
+        }
+
+        return {
+          ...d,
+          piecesDetachees: pieces,
+          piecesMouvements: mouvements,
+          commandesFournisseur: (d.commandesFournisseur || []).map((c) =>
+            c.id === commandeId
+              ? { ...c, statut: 'recue' as const, recueAt: now, updatedAt: now }
+              : c,
+          ),
+          ordresTravail: (d.ordresTravail || []).map((o) =>
+            cmd.otId && o.id === cmd.otId && o.statut === 'en_attente_piece'
+              ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
+              : o,
+          ),
+        }
+      })
+    },
+    [user?.id, user?.fullName],
+  )
+
+  const upsertPieceDetachee = useCallback(
+    (raw: Omit<PieceDetachee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+      const id = raw.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.piecesDetachees || []
+        const existing = list.find((x) => x.id === id)
+        const next: PieceDetachee = {
+          ...raw,
+          id,
+          reference: (raw.reference || '').trim(),
+          designation: (raw.designation || '').trim(),
+          quantite: Math.max(0, Number(raw.quantite) || 0),
+          unite: (raw.unite || 'u').trim() || 'u',
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          piecesDetachees: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deletePieceDetachee = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      piecesDetachees: (d.piecesDetachees || []).filter((p) => p.id !== id),
+      deletedEntityIds: withDeletedIds(d.deletedEntityIds, { piecesDetachees: [id] }),
+    }))
   }, [])
+
+  const enregistrerMouvementPiece = useCallback(
+    (opts: {
+      pieceId: string
+      kind: PieceMouvementKind
+      quantite: number
+      otId?: string
+      otNumero?: string
+      clientId?: string
+      chantierId?: string
+      emplacementApres?: PieceDetachee['emplacement']
+      assigneeUserId?: string
+      assigneeName?: string
+      motif?: string
+    }) => {
+      setData((d) => {
+        const piece = (d.piecesDetachees || []).find((p) => p.id === opts.pieceId)
+        if (!piece) throw new Error('Pièce introuvable.')
+        const { piece: nextPiece, mouvement } = appliquerMouvementPiece({
+          piece,
+          kind: opts.kind,
+          quantite: opts.quantite,
+          otId: opts.otId,
+          otNumero: opts.otNumero,
+          clientId: opts.clientId,
+          chantierId: opts.chantierId,
+          emplacementApres: opts.emplacementApres,
+          assigneeUserId: opts.assigneeUserId,
+          assigneeName: opts.assigneeName,
+          motif: opts.motif,
+          parUserId: user?.id,
+          parUserName: user?.fullName,
+        })
+        return {
+          ...d,
+          piecesDetachees: (d.piecesDetachees || []).map((p) =>
+            p.id === nextPiece.id ? nextPiece : p,
+          ),
+          piecesMouvements: [...(d.piecesMouvements || []), mouvement],
+        }
+      })
+    },
+    [user?.id, user?.fullName],
+  )
 
   const upsertAgendaEvent = useCallback(
     (e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
@@ -1673,6 +1894,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sousGarantie?: boolean
       clientPayeurId?: string
       mainOeuvreIncluseContrat?: boolean
+      ticketClient?: boolean
+      ticketClientId?: string
+      localisationClient?: string
     }) => {
       const d = dataRef.current
       const numero = nextNumeroOt(d)
@@ -1720,6 +1944,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         contratId,
         devisId: opts.devisId,
         commandeFournisseurId: opts.commandeFournisseurId,
+        ticketClient: opts.ticketClient,
+        ticketClientId: opts.ticketClientId,
+        localisationClient: opts.localisationClient,
         origineOt: origineOt || (opts.typeOt === 'depanage' ? 'depannage_urgence' : 'depannage_urgence'),
         statutFacturation: statutFacturation || 'non_facture',
         sousGarantie: opts.sousGarantie || false,
@@ -2896,6 +3123,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const appEdition = resolveAppEdition(data.appEdition)
   const peutVoirIdentitesRhFlag = peutVoirIdentitesRh(rhActor, data.personnelRhAccesUserIds)
+  const dossierPosteCourant = data.personnelDossiers?.find((d) => d.userId === user?.id)?.poste
+  const peutGererPiecesDetacheesFlag = peutGererPiecesDetacheesFn({
+    isOwner: Boolean(isOwner),
+    userId: user?.id,
+    magasinierUserId: data.operateur.magasinierUserId,
+    poste: dossierPosteCourant,
+    peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
+  })
 
   const value = useMemo(
     () => ({
@@ -2932,6 +3167,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       genererFactureDepuisOt,
       creerOtDepuisDevis,
       marquerCommandeRecue,
+      upsertPieceDetachee,
+      deletePieceDetachee,
+      enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
       upsertPointageRegles,
@@ -2940,6 +3178,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
+      syncClientPortalTickets,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
@@ -2969,6 +3208,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
+      peutGererPiecesDetachees: peutGererPiecesDetacheesFlag,
       appEdition,
       setAppEdition,
       resetDemo,
@@ -3009,6 +3249,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       genererFactureDepuisOt,
       creerOtDepuisDevis,
       marquerCommandeRecue,
+      upsertPieceDetachee,
+      deletePieceDetachee,
+      enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
       upsertPointageRegles,
@@ -3017,6 +3260,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
+      syncClientPortalTickets,
       createOtForAction,
       validateMaintenanceCerfas,
       applySiteClientSignature,
@@ -3046,6 +3290,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRhFlag,
+      peutGererPiecesDetacheesFlag,
       setAppEdition,
       resetDemo,
       replaceData,

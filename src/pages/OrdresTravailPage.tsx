@@ -51,7 +51,6 @@ export function OrdresTravailPage() {
     deleteOrdreTravail,
     genererDevisReguleDepuisOt,
     genererFactureDepuisOt,
-    upsertCommandeFournisseur,
     peutVoirIdentitesRh,
     appEdition,
   } = useStore()
@@ -510,28 +509,13 @@ export function OrdresTravailPage() {
                 alert('Enregistrez d’abord l’OT.')
                 return
               }
-              const libelle = window.prompt('Pièce / matériel à commander ?', '') || ''
-              if (!libelle.trim()) return
-              const fournisseur =
-                window.prompt('Fournisseur (Daikin, Mitsubishi, grossiste…)', '') || ''
-              const cmdId = upsertCommandeFournisseur({
-                fournisseur: fournisseur.trim(),
-                libelle: libelle.trim(),
-                statut: 'commandee',
-                clientId: form.clientId,
-                chantierId: form.chantierId,
-                otId: existing.id,
-                commandeeAt: new Date().toISOString(),
+              const qs = new URLSearchParams({
+                new: '1',
+                ot: existing.id,
               })
-              setForm({
-                ...form,
-                commandeFournisseurId: cmdId,
-                origineOt: 'commande_materiel',
-                lienCommandeType: 'commande',
-                statut: 'en_attente_piece',
-                statutFacturation: form.statutFacturation || 'non_facture',
-              })
-              alert('Commande créée — OT en attente de pièce.')
+              if (form.clientId) qs.set('client', form.clientId)
+              if (form.chantierId) qs.set('chantier', form.chantierId)
+              navigate(`/app/commandes?${qs.toString()}`)
             }}
           />
 
@@ -784,6 +768,12 @@ export function OrdresTravailPage() {
                   >
                     {STATUT_OT_LABELS[o.statut]}
                   </span>
+                  {o.ticketClient ? (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-900">
+                      Ticket client
+                      {o.localisationClient ? ` · ${o.localisationClient}` : ''}
+                    </span>
+                  ) : null}
                   {formatOtAvancement(o) ? (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
                       Partiel {formatOtAvancement(o)}

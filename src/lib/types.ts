@@ -121,6 +121,13 @@ export interface Operateur {
    * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.
    */
   destinationsInstallation?: string[]
+  /**
+   * Magasinier pièces détachées — gère le stock GMAO.
+   * Si absent, le bureau (secrétariat / gérant) gère le stock.
+   */
+  magasinierUserId?: string
+  /** E-mail alertes tickets portail client (sinon e-mail société + gérant). */
+  ticketNotificationEmail?: string
 }
 
 /** Plateformes de facturation les plus utilisées (via Make). */
@@ -321,6 +328,9 @@ export interface Site {
    * Dérivé des équipements à l’enregistrement ; conservé pour compat.
    */
   avecFluideFrigorigene?: boolean
+  /** Portail client GMAO — lien public maintenance + tickets */
+  portailActif?: boolean
+  portailToken?: string
   /** Équipement principal (format actuel UI Sites) */
   equipementType: string
   equipementMarque: string
@@ -763,6 +773,10 @@ export interface AppData {
   devis?: import('./chaineCommerciale').Devis[]
   /** Commandes fournisseur (pièces) — OT en attente de réception */
   commandesFournisseur?: import('./chaineCommerciale').CommandeFournisseur[]
+  /** Stock pièces détachées GMAO */
+  piecesDetachees?: import('./piecesDetachees').PieceDetachee[]
+  /** Mouvements stock pièces (entrées, sorties OT, inventaire…) */
+  piecesMouvements?: import('./piecesDetachees').PieceMouvement[]
   /** Factures légères (métadonnées + lien externe Make) */
   factures?: import('./chaineCommerciale').Facture[]
   /** Agenda / rappels RDV maintenance */
