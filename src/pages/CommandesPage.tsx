@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Download, Eye, Plus, Trash2, Truck } from 'lucide-react'
+import { ArrowLeft, Download, Eye, FileText, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -16,7 +16,9 @@ import { editionHasFeature } from '../lib/appEdition'
 import { formatOtNumero } from '../lib/ordreTravail'
 import {
   buildCommandePdf,
+  buildDemandeDevisFournisseurPdf,
   fileNameCommande,
+  fileNameDemandeDevisFournisseur,
 } from '../lib/commercialPdf'
 import {
   createPdfPreviewUrl,
@@ -260,36 +262,97 @@ export function CommandesPage() {
     }
   }
 
-  const persistCommandePdf = async (cmd: CommandeFournisseur) => {
+  const persistCommandePdf = async (
+    cmd: CommandeFournisseur,
+    opts?: { mode?: 'commande' | 'demande_devis' },
+  ) => {
     const ctx = pdfCtxFor(cmd)
-    const blob = buildCommandePdf(cmd, ctx)
-    const fileName = fileNameCommande(cmd)
+    const isDevis =
+      opts?.mode === 'demande_devis' ||
+      (opts?.mode !== 'commande' && cmd.statut === 'demande_devis')
+    const blob = isDevis
+      ? buildDemandeDevisFournisseurPdf(cmd, ctx)
+      : buildCommandePdf(cmd, ctx, { mode: 'commande' })
+    const fileName = isDevis ? fileNameDemandeDevisFournisseur(cmd) : fileNameCommande(cmd)
     const result = await saveGeneratedDocument({
       blob,
       fileName,
       kind: 'commande',
       clientNom: ctx.clientNom,
-      docId: `commande-${cmd.id}`,
+      docId: `commande-${cmd.id}${isDevis ? '-devis' : ''}`,
       organizationId: user?.organizationId,
       operateur: data.operateur,
     })
     setSaveMsg(result.message)
     setTimeout(() => setSaveMsg(''), 6000)
-    return { blob, fileName, result }
+    return { blob, fileName, result, isDevis }
   }
 
-  const openPreview = async (cmd: CommandeFournisseur) => {
+  const openPreview = async (
+    cmd: CommandeFournisseur,
+    opts?: { mode?: 'commande' | 'demande_devis' },
+  ) => {
     setPdfBusy(true)
     try {
       const ctx = pdfCtxFor(cmd)
-      const blob = buildCommandePdf(cmd, ctx)
-      const fileName = fileNameCommande(cmd)
+      const isDevis =
+        opts?.mode === 'demande_devis' ||
+        (opts?.mode !== 'commande' && cmd.statut === 'demande_devis')
+      const blob = isDevis
+        ? buildDemandeDevisFournisseurPdf(cmd, ctx)
+        : buildCommandePdf(cmd, ctx, { mode: 'commande' })
+      const fileName = isDevis ? fileNameDemandeDevisFournisseur(cmd) : fileNameCommande(cmd)
       if (preview?.url) URL.revokeObjectURL(preview.url)
       setPreview({
         url: createPdfPreviewUrl(blob),
         fileName,
-        title: `Commande ${cmd.numero}`,
+        title: isDevis ? `Demande de devis ${cmd.numero}` : `Commande ${cmd.numero}`,
       })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  /** Enregistre + génère le PDF demande de devis à envoyer au fournisseur. */
+  const genererDemandeDevisFournisseur = async () => {
+    if (!form) return
+    if (!(form.fournisseur || '').trim()) {
+      alert('Indiquez le fournisseur avant de générer la demande de devis.')
+      return
+    }
+    if (!(form.libelle || '').trim()) {
+      alert('Indiquez la pièce / matériel.')
+      return
+    }
+    setPdfBusy(true)
+    try {
+      const payload = {
+        ...form,
+        statut: 'demande_devis' as const,
+        id: existing?.id,
+        numero: existing?.numero,
+        otId: form.destination === 'ot' ? form.otId : undefined,
+      }
+      const { id, numero } = upsertCommandeFournisseur(payload)
+      const now = new Date().toISOString()
+      const cmd: CommandeFournisseur = {
+        ...payload,
+        id,
+        numero,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      }
+      setForm({ ...form, statut: 'demande_devis' })
+      const { blob, fileName } = await persistCommandePdf(cmd, { mode: 'demande_devis' })
+      if (preview?.url) URL.revokeObjectURL(preview.url)
+      setPreview({
+        url: createPdfPreviewUrl(blob),
+        fileName,
+        title: `Demande de devis ${cmd.numero}`,
+      })
+      navigate(`/app/commandes?id=${encodeURIComponent(id)}`, { replace: true })
+      setSaveMsg('Demande de devis PDF prête — à envoyer au fournisseur.')
+      setTimeout(() => setSaveMsg(''), 6000)
     } finally {
       setPdfBusy(false)
     }
@@ -531,6 +594,15 @@ export function CommandesPage() {
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button
+              type="button"
+              disabled={pdfBusy}
+              onClick={() => void genererDemandeDevisFournisseur()}
+              className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-950 disabled:opacity-60"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {pdfBusy ? 'PDF…' : 'Demande de devis (PDF fournisseur)'}
+            </button>
+            <button
               type="submit"
               disabled={pdfBusy}
               className="rounded-full bg-accent px-4 py-2 text-sm font-bold text-ink disabled:opacity-60"
@@ -566,7 +638,11 @@ export function CommandesPage() {
               <button
                 type="button"
                 disabled={pdfBusy}
-                onClick={() => void openPreview(existing)}
+                onClick={() =>
+                  void openPreview(existing, {
+                    mode: form.statut === 'demande_devis' ? 'demande_devis' : 'commande',
+                  })
+                }
                 className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
               >
                 <Eye className="h-3.5 w-3.5" /> Prévisualiser
@@ -576,7 +652,11 @@ export function CommandesPage() {
               <button
                 type="button"
                 disabled={pdfBusy}
-                onClick={() => void persistCommandePdf(existing)}
+                onClick={() =>
+                  void persistCommandePdf(existing, {
+                    mode: form.statut === 'demande_devis' ? 'demande_devis' : 'commande',
+                  })
+                }
                 className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
               >
                 <Download className="h-3.5 w-3.5" /> PDF
