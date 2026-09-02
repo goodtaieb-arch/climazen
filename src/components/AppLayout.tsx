@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
+  Boxes,
   ClipboardList,
   Clock,
   Ellipsis,
@@ -32,7 +33,23 @@ import { VersionBadge, VersionUpdateBar, MajButton } from './AppVersion'
 import { BetaBadge } from './BetaBadge'
 import { AppEditionBadge } from './AppEditionBadge'
 import { isTerrainUi } from '../lib/uiMode'
-import { filterLinksByEdition } from '../lib/appEdition'
+import { filterLinksByEdition, editionHasFeature } from '../lib/appEdition'
+import { MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
+
+type NavLinkDef = {
+  to: string
+  end?: boolean
+  label: string
+  icon: typeof LayoutDashboard
+  tone: string
+}
+
+const magasinPiecesLink: NavLinkDef = {
+  to: '/app/stock-pieces',
+  label: MAGASIN_PIECES_NAV_LABEL,
+  icon: Boxes,
+  tone: 'stock',
+}
 
 /** Couleurs pastel très claires (quasi transparentes) */
 const tones: Record<
@@ -141,7 +158,7 @@ const baseLinksOwner = [
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
-  { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
+  magasinPiecesLink,
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -157,7 +174,7 @@ const baseLinksOperator = [
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
-  { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
+  magasinPiecesLink,
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -201,9 +218,17 @@ function toneForPath(pathname: string, links: { to: string; end?: boolean; tone:
   return tones[match?.tone || 'dashboard'] || tones.dashboard
 }
 
+function withMagasinPiecesForGestionnaire(links: NavLinkDef[], appEdition: import('../lib/appEdition').AppEdition, gestionnaire: boolean): NavLinkDef[] {
+  if (!gestionnaire || !editionHasFeature(appEdition, 'stock_pieces')) return links
+  if (links.some((l) => l.to === '/app/stock-pieces')) return links
+  const stockIdx = links.findIndex((l) => l.to === '/app/stock')
+  const at = stockIdx >= 0 ? stockIdx + 1 : links.length
+  return [...links.slice(0, at), magasinPiecesLink, ...links.slice(at)]
+}
+
 export function AppLayout() {
   const { user, organization, isOwner, logout } = useAuth()
-  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud, peutVoirIdentitesRh, appEdition } =
+  const { syncError, clearSyncError, data, offline, pendingSync, flushPendingSync, pullFromCloud, peutVoirIdentitesRh, peutGererPiecesDetachees, appEdition } =
     useStore()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -227,12 +252,16 @@ export function AppLayout() {
     ? ownerLinks
     : terrainUi
       ? filterLinksByEdition(
-          [
-            ...baseLinksTerrain,
-            ...(user
-              ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-              : []),
-          ],
+          withMagasinPiecesForGestionnaire(
+            [
+              ...baseLinksTerrain,
+              ...(user
+                ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+                : []),
+            ],
+            appEdition,
+            peutGererPiecesDetachees,
+          ),
           appEdition,
         )
       : filterLinksByEdition(
@@ -291,7 +320,7 @@ export function AppLayout() {
       ? [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-          { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
+          magasinPiecesLink,
           { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
           ...(user
@@ -301,7 +330,7 @@ export function AppLayout() {
       : [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-          { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
+          magasinPiecesLink,
           { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
           { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
           { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
@@ -381,6 +410,8 @@ export function AppLayout() {
                                   ? '0.1s'
                                   : to === '/app/stock'
                                     ? '0.2s'
+                                    : to === '/app/stock-pieces'
+                                      ? '0.22s'
                                     : to === '/app/ot'
                                       ? '0.25s'
                                     : to === '/app/clients'

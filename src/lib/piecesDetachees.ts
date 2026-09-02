@@ -186,10 +186,11 @@ export function peutGererPiecesDetachees(opts: {
   if (opts.isOwner) return true
   const uid = (opts.userId || '').trim()
   if (!uid) return false
+  /** Poste magasinier = accès complet même sans désignation sur Mon entreprise. */
+  if (parsePostePersonnel(opts.poste) === 'magasinier') return true
   const mag = (opts.magasinierUserId || '').trim()
   if (mag) return uid === mag
   if (opts.peutVoirIdentitesRh) return true
-  if (parsePostePersonnel(opts.poste) === 'magasinier') return true
   if (isPosteBureau(opts.poste)) return true
   return false
 }
@@ -206,6 +207,52 @@ export function labelGestionnairePieces(opts: {
   }
   return 'Géré par le bureau'
 }
+
+/** Accès page magasin pièces (vue complète) — bureau ou magasinier. */
+export function peutAccederMagasinPieces(
+  opts: Parameters<typeof peutGererPiecesDetachees>[0],
+): boolean {
+  return peutGererPiecesDetachees(opts)
+}
+
+export type StockParEmplacement = {
+  atelier: PieceDetachee[]
+  depot: PieceDetachee[]
+  /** Pièces en véhicule, regroupées par technicien. */
+  vehiculesParTech: Array<{ techLabel: string; techId?: string; pieces: PieceDetachee[] }>
+}
+
+export function stockParEmplacement(pieces: PieceDetachee[] | undefined): StockParEmplacement {
+  const atelier: PieceDetachee[] = []
+  const depot: PieceDetachee[] = []
+  const vehMap = new Map<string, { techLabel: string; techId?: string; pieces: PieceDetachee[] }>()
+
+  for (const p of pieces || []) {
+    if (p.emplacement === 'vehicule') {
+      const techLabel = (p.assigneeName || p.assigneeUserId || 'Technicien non assigné').trim()
+      const key = p.assigneeUserId || techLabel
+      const cur = vehMap.get(key) || { techLabel, techId: p.assigneeUserId, pieces: [] }
+      cur.pieces.push(p)
+      vehMap.set(key, cur)
+    } else if (p.emplacement === 'depot') {
+      depot.push(p)
+    } else {
+      atelier.push(p)
+    }
+  }
+
+  const vehiculesParTech = [...vehMap.values()].sort((a, b) =>
+    a.techLabel.localeCompare(b.techLabel, 'fr'),
+  )
+  return { atelier, depot, vehiculesParTech }
+}
+
+export function quantiteTotale(pieces: PieceDetachee[]): number {
+  return pieces.reduce((s, p) => s + (Number(p.quantite) || 0), 0)
+}
+
+/** Libellé menu / navigation (distinct du stock fluides). */
+export const MAGASIN_PIECES_NAV_LABEL = 'Magasin pièces'
 
 export function mouvementsPourPiece(
   mouvements: PieceMouvement[] | undefined,

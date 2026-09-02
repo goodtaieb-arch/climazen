@@ -15,7 +15,7 @@ import {
   editionHasFeature,
   type AppEdition,
 } from '../lib/appEdition'
-import { labelGestionnairePieces } from '../lib/piecesDetachees'
+import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
@@ -248,9 +248,9 @@ export function OperateurPage() {
           </label>
           <p className="mt-2 text-xs text-muted">
             Choisissez un membre avec le poste « Magasinier » dans Équipe, ou toute personne de
-            confiance. Stock :{' '}
+            confiance.             Stock :{' '}
             <Link to="/app/stock-pieces" className="font-semibold text-accent underline">
-              Pièces détachées
+              {MAGASIN_PIECES_NAV_LABEL}
             </Link>
           </p>
         </section>

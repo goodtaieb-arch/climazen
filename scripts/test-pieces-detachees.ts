@@ -110,6 +110,15 @@ function testAcces() {
       isOwner: false,
       userId: 'tech1',
       magasinierUserId: 'mag1',
+      poste: 'magasinier',
+    }),
+    true,
+  )
+  assert.equal(
+    peutGererPiecesDetachees({
+      isOwner: false,
+      userId: 'tech1',
+      magasinierUserId: 'mag1',
     }),
     false,
   )

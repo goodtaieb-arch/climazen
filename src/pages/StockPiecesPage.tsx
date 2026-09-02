@@ -1,13 +1,13 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import {
-  AlertTriangle,
   ArrowDownCircle,
   ArrowUpCircle,
+  Boxes,
   ClipboardList,
-  Package,
   Pencil,
   Plus,
+  Star,
   Trash2,
   Truck,
 } from 'lucide-react'
@@ -26,12 +26,15 @@ import {
   PIECE_MOUVEMENT_KIND_LABELS,
   blankPiece,
   labelGestionnairePieces,
+  MAGASIN_PIECES_NAV_LABEL,
   mouvementsPourPiece,
   parsePieceCategorie,
   parsePieceEmplacement,
   pieceLabel,
   pieceStockBas,
+  quantiteTotale,
   resumeStockPieces,
+  stockParEmplacement,
   type PieceCategorie,
   type PieceDetachee,
   type PieceEmplacement,
@@ -41,6 +44,7 @@ import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 
 type FiltreEmplacement = 'tous' | PieceEmplacement
 type FiltreCategorie = 'toutes' | PieceCategorie
+type VueStock = 'complet' | PieceEmplacement
 
 export function StockPiecesPage() {
   const {
@@ -57,6 +61,7 @@ export function StockPiecesPage() {
   const [q, setQ] = useState('')
   const [filtreCat, setFiltreCat] = useState<FiltreCategorie>('toutes')
   const [filtreEmp, setFiltreEmp] = useState<FiltreEmplacement>('tous')
+  const [vueStock, setVueStock] = useState<VueStock>('complet')
   const [alertesSeulement, setAlertesSeulement] = useState(false)
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
@@ -76,8 +81,22 @@ export function StockPiecesPage() {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />
   }
 
+  if (!peutGererPiecesDetachees) {
+    return (
+      <Navigate
+        to="/app"
+        replace
+        state={{ magasinPiecesBlocked: true }}
+      />
+    )
+  }
+
   const pieces = data.piecesDetachees || []
   const kpis = resumeStockPieces(pieces)
+  const parEmp = stockParEmplacement(pieces)
+  const qteAtelier = quantiteTotale(parEmp.atelier)
+  const qteDepot = quantiteTotale(parEmp.depot)
+  const qteVehicules = quantiteTotale(parEmp.vehiculesParTech.flatMap((v) => v.pieces))
   const magasinier = data.operateur.magasinierUserId
     ? mergeTeamMembers({
         user,
@@ -100,7 +119,8 @@ export function StockPiecesPage() {
     return pieces.filter((p) => {
       if (alertesSeulement && !pieceStockBas(p)) return false
       if (filtreCat !== 'toutes' && p.categorie !== filtreCat) return false
-      if (filtreEmp !== 'tous' && p.emplacement !== filtreEmp) return false
+      if (vueStock !== 'complet' && p.emplacement !== vueStock) return false
+      else if (filtreEmp !== 'tous' && p.emplacement !== filtreEmp) return false
       return matchesQuery(
         [
           p.reference,
@@ -117,12 +137,11 @@ export function StockPiecesPage() {
         q,
       )
     })
-  }, [pieces, q, filtreCat, filtreEmp, alertesSeulement])
+  }, [pieces, q, filtreCat, filtreEmp, vueStock, alertesSeulement])
+
+  const filteredParEmp = useMemo(() => stockParEmplacement(filtered), [filtered])
 
   const detailPiece = detailId ? pieces.find((p) => p.id === detailId) : undefined
-  const detailMvts = detailPiece
-    ? mouvementsPourPiece(data.piecesMouvements, detailPiece.id).slice(0, 20)
-    : []
 
   const otsOuverts = useMemo(
     () =>
@@ -236,13 +255,128 @@ export function StockPiecesPage() {
     setTimeout(() => setMsg(''), 3000)
   }
 
+  const renderPieceRow = (p: PieceDetachee) => {
+    const bas = pieceStockBas(p)
+    const openDetail = detailId === p.id
+    const detailMvtsRow = mouvementsPourPiece(data.piecesMouvements, p.id).slice(0, 20)
+    return (
+      <li key={p.id}>
+        <div className="flex flex-wrap items-start gap-2 px-4 py-3">
+          <Boxes className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setDetailId(openDetail ? null : p.id)}
+              className="text-left"
+            >
+              <div className="font-semibold text-ink">{pieceLabel(p)}</div>
+              <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-muted">
+                <span>
+                  {p.quantite} {p.unite}
+                </span>
+                <span className="font-semibold text-ink/80">
+                  {PIECE_EMPLACEMENT_LABELS[p.emplacement]}
+                </span>
+                {p.categorie ? <span>{PIECE_CATEGORIE_LABELS[p.categorie]}</span> : null}
+                {p.rayon ? <span>Rayon {p.rayon}</span> : null}
+                {p.assigneeName ? (
+                  <span className="text-sky-800">Chez {p.assigneeName}</span>
+                ) : null}
+              </div>
+            </button>
+            {bas ? (
+              <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-800">
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                Stock ≤ seuil ({p.seuilAlerte} {p.unite})
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              title="Entrée"
+              onClick={() => openMouvement(p, 'entree_achat')}
+              className="rounded-lg border border-line p-2 hover:bg-mist"
+            >
+              <ArrowDownCircle className="h-4 w-4 text-teal-700" />
+            </button>
+            <button
+              type="button"
+              title="Sortie OT"
+              onClick={() => openMouvement(p, 'sortie_ot')}
+              className="rounded-lg border border-line p-2 hover:bg-mist"
+            >
+              <ArrowUpCircle className="h-4 w-4 text-rose-700" />
+            </button>
+            <button
+              type="button"
+              title="Inventaire"
+              onClick={() => openMouvement(p, 'inventaire')}
+              className="rounded-lg border border-line p-2 hover:bg-mist"
+            >
+              <ClipboardList className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => openEdit(p)}
+              className="rounded-lg border border-line p-2 hover:bg-mist"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingDelete({ id: p.id, label: pieceLabel(p) })}
+              className="rounded-lg border border-line p-2 hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4 text-danger" />
+            </button>
+          </div>
+        </div>
+        {openDetail && detailMvtsRow.length > 0 ? (
+          <div className="border-t border-line bg-mist/40 px-4 py-3">
+            <div className="text-xs font-bold uppercase text-muted">Derniers mouvements</div>
+            <ul className="mt-2 space-y-1 text-xs">
+              {detailMvtsRow.map((m) => (
+                <li key={m.id} className="flex flex-wrap gap-2">
+                  <span className="text-muted">
+                    {new Date(m.createdAt).toLocaleString('fr-FR')}
+                  </span>
+                  <span className="font-semibold">{PIECE_MOUVEMENT_KIND_LABELS[m.kind]}</span>
+                  <span>
+                    {m.sens === 'entree' ? '+' : '−'}
+                    {m.quantite} → {m.quantiteApres}
+                  </span>
+                  {m.otNumero ? <span>OT {m.otNumero}</span> : null}
+                  {m.motif ? <span className="text-muted">{m.motif}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </li>
+    )
+  }
+
+  const renderSection = (title: string, list: PieceDetachee[], hint?: string) => {
+    if (!list.length) return null
+    return (
+      <section className="overflow-hidden rounded-2xl border border-line bg-white">
+        <div className="border-b border-line bg-mist/50 px-4 py-2.5">
+          <h2 className="font-display text-sm font-bold text-ink">{title}</h2>
+          {hint ? <p className="text-xs text-muted">{hint}</p> : null}
+        </div>
+        <ul className="divide-y divide-line">{list.map(renderPieceRow)}</ul>
+      </section>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 pb-24 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Pièces détachées</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">{MAGASIN_PIECES_NAV_LABEL}</h1>
           <p className="mt-1 text-sm text-muted">
-            Stock GMAO — entrées, sorties OT, inventaire, alertes seuil.
+            Vue complète : magasin, dépôt et stock véhicule technicien — alertes seuil incluses.
           </p>
           <p className="mt-1 text-xs font-semibold text-sky-800">
             {labelGestionnairePieces({
@@ -272,37 +406,46 @@ export function StockPiecesPage() {
         ) : null}
       </div>
 
-      {!peutGererPiecesDetachees ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Consultation seule — seuls le gérant, le bureau ou le magasinier désigné peuvent modifier
-          le stock.
-        </p>
-      ) : null}
-
       {msg ? (
         <p className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-900">
           {msg}
         </p>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-2xl border border-line bg-white p-4">
-          <div className="text-xs font-bold uppercase text-muted">Articles</div>
-          <div className="mt-1 font-display text-2xl font-bold">{kpis.totalArticles}</div>
+          <div className="text-xs font-bold uppercase text-muted">Magasin / atelier</div>
+          <div className="mt-1 font-display text-2xl font-bold">{parEmp.atelier.length}</div>
+          <div className="text-xs text-muted">{qteAtelier} unités</div>
         </div>
         <div className="rounded-2xl border border-line bg-white p-4">
-          <div className="text-xs font-bold uppercase text-muted">Alertes stock bas</div>
-          <div
-            className={`mt-1 font-display text-2xl font-bold ${kpis.alertes ? 'text-amber-700' : ''}`}
-          >
+          <div className="text-xs font-bold uppercase text-muted">Dépôt</div>
+          <div className="mt-1 font-display text-2xl font-bold">{parEmp.depot.length}</div>
+          <div className="text-xs text-muted">{qteDepot} unités</div>
+        </div>
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
+          <div className="text-xs font-bold uppercase text-sky-900">Chez techniciens</div>
+          <div className="mt-1 font-display text-2xl font-bold text-sky-950">
+            {parEmp.vehiculesParTech.reduce((n, v) => n + v.pieces.length, 0)}
+          </div>
+          <div className="text-xs text-sky-800">{qteVehicules} unités · {parEmp.vehiculesParTech.length} véh.</div>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+          <div className="flex items-center gap-1 text-xs font-bold uppercase text-amber-900">
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+            Alertes seuil
+          </div>
+          <div className={`mt-1 font-display text-2xl font-bold ${kpis.alertes ? 'text-amber-800' : ''}`}>
             {kpis.alertes}
           </div>
+          <div className="text-xs text-amber-900/80">tous emplacements</div>
         </div>
-        <div className="rounded-2xl border border-line bg-white p-4">
+        <div className="rounded-2xl border border-line bg-white p-4 sm:col-span-2 lg:col-span-1">
           <div className="text-xs font-bold uppercase text-muted">Valeur stock HT</div>
           <div className="mt-1 font-display text-2xl font-bold">
             {kpis.valeurHt.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
           </div>
+          <div className="text-xs text-muted">{kpis.totalArticles} références</div>
         </div>
       </div>
 
@@ -345,6 +488,31 @@ export function StockPiecesPage() {
         <div className="min-w-[12rem] flex-1">
           <SearchField value={q} onChange={setQ} placeholder="Référence, désignation, fournisseur…" />
         </div>
+        <div className="flex flex-wrap gap-1 rounded-xl border border-line bg-white p-1">
+          {(
+            [
+              ['complet', 'Tout le stock'],
+              ['atelier', 'Atelier'],
+              ['depot', 'Dépôt'],
+              ['vehicule', 'Techniciens'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setVueStock(id)
+                setFiltreEmp('tous')
+              }}
+              className={[
+                'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                vueStock === id ? 'bg-accent text-ink' : 'text-muted hover:bg-mist',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <label className="text-sm">
           <span className="mb-1 block text-xs font-semibold text-muted">Catégorie</span>
           <select
@@ -381,126 +549,61 @@ export function StockPiecesPage() {
             checked={alertesSeulement}
             onChange={(e) => setAlertesSeulement(e.target.checked)}
           />
-          Stock bas seulement
+          <Star className="h-3.5 w-3.5 text-amber-500" />
+          Alertes seulement
         </label>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-line bg-white">
-        {filtered.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-muted">
-            Aucun article — créez votre catalogue pièces ou réceptionnez une commande fournisseur.
-          </p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {filtered.map((p) => {
-              const bas = pieceStockBas(p)
-              const openDetail = detailId === p.id
-              return (
-                <li key={p.id}>
-                  <div className="flex flex-wrap items-start gap-2 px-4 py-3">
-                    <Package className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-                    <div className="min-w-0 flex-1">
-                      <button
-                        type="button"
-                        onClick={() => setDetailId(openDetail ? null : p.id)}
-                        className="text-left"
-                      >
-                        <div className="font-semibold text-ink">{pieceLabel(p)}</div>
-                        <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-muted">
-                          <span>
-                            {p.quantite} {p.unite}
-                          </span>
-                          <span>{PIECE_EMPLACEMENT_LABELS[p.emplacement]}</span>
-                          {p.categorie ? (
-                            <span>{PIECE_CATEGORIE_LABELS[p.categorie]}</span>
-                          ) : null}
-                          {p.rayon ? <span>Rayon {p.rayon}</span> : null}
-                          {p.assigneeName ? <span>Véh. {p.assigneeName}</span> : null}
-                        </div>
-                      </button>
-                      {bas ? (
-                        <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-800">
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          Stock ≤ seuil ({p.seuilAlerte} {p.unite})
-                        </p>
-                      ) : null}
-                    </div>
-                    {peutGererPiecesDetachees ? (
-                      <div className="flex flex-wrap gap-1">
-                        <button
-                          type="button"
-                          title="Entrée"
-                          onClick={() => openMouvement(p, 'entree_achat')}
-                          className="rounded-lg border border-line p-2 hover:bg-mist"
-                        >
-                          <ArrowDownCircle className="h-4 w-4 text-teal-700" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Sortie OT"
-                          onClick={() => openMouvement(p, 'sortie_ot')}
-                          className="rounded-lg border border-line p-2 hover:bg-mist"
-                        >
-                          <ArrowUpCircle className="h-4 w-4 text-rose-700" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Inventaire"
-                          onClick={() => openMouvement(p, 'inventaire')}
-                          className="rounded-lg border border-line p-2 hover:bg-mist"
-                        >
-                          <ClipboardList className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openEdit(p)}
-                          className="rounded-lg border border-line p-2 hover:bg-mist"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPendingDelete({ id: p.id, label: pieceLabel(p) })
-                          }
-                          className="rounded-lg border border-line p-2 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4 text-danger" />
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                  {openDetail && detailMvts.length > 0 ? (
-                    <div className="border-t border-line bg-mist/40 px-4 py-3">
-                      <div className="text-xs font-bold uppercase text-muted">
-                        Derniers mouvements
-                      </div>
-                      <ul className="mt-2 space-y-1 text-xs">
-                        {detailMvts.map((m) => (
-                          <li key={m.id} className="flex flex-wrap gap-2">
-                            <span className="text-muted">
-                              {new Date(m.createdAt).toLocaleString('fr-FR')}
-                            </span>
-                            <span className="font-semibold">
-                              {PIECE_MOUVEMENT_KIND_LABELS[m.kind]}
-                            </span>
-                            <span>
-                              {m.sens === 'entree' ? '+' : '−'}
-                              {m.quantite} → {m.quantiteApres}
-                            </span>
-                            {m.otNumero ? <span>OT {m.otNumero}</span> : null}
-                            {m.motif ? <span className="text-muted">{m.motif}</span> : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </li>
-              )
-            })}
+      {kpis.alertes > 0 ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+          <h2 className="flex items-center gap-2 font-display text-base font-semibold text-amber-950">
+            <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
+            Alertes stock bas ({kpis.alertes})
+          </h2>
+          <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+            {pieces.filter(pieceStockBas).map((p) => (
+              <li
+                key={p.id}
+                className="rounded-full border border-amber-200 bg-white px-2.5 py-1 font-medium text-amber-950"
+              >
+                {pieceLabel(p)} · {p.quantite}/{p.seuilAlerte} {p.unite} ·{' '}
+                {PIECE_EMPLACEMENT_LABELS[p.emplacement]}
+                {p.assigneeName ? ` · ${p.assigneeName}` : ''}
+              </li>
+            ))}
           </ul>
-        )}
-      </div>
+        </section>
+      ) : null}
+
+      {filtered.length === 0 ? (
+        <p className="rounded-2xl border border-line bg-white px-4 py-8 text-center text-sm text-muted">
+          Aucun article — créez votre catalogue pièces ou réceptionnez une commande fournisseur.
+        </p>
+      ) : vueStock === 'complet' ? (
+        <div className="space-y-4">
+          {renderSection(
+            `Magasin / atelier (${filteredParEmp.atelier.length})`,
+            filteredParEmp.atelier,
+            `${quantiteTotale(filteredParEmp.atelier)} unités en stock central`,
+          )}
+          {renderSection(
+            `Dépôt (${filteredParEmp.depot.length})`,
+            filteredParEmp.depot,
+            `${quantiteTotale(filteredParEmp.depot)} unités en consignation`,
+          )}
+          {filteredParEmp.vehiculesParTech.map((v) =>
+            renderSection(
+              `Chez ${v.techLabel} (${v.pieces.length})`,
+              v.pieces,
+              `${quantiteTotale(v.pieces)} unités en véhicule ou panier tech`,
+            ),
+          )}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+          <ul className="divide-y divide-line">{filtered.map(renderPieceRow)}</ul>
+        </div>
+      )}
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
