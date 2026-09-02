@@ -38,14 +38,14 @@ export const APP_EDITION_PRICING_AFTER_BETA =
 
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
-    'Intervenir : client, site, équipement, CERFA et société (SIRET, attestation, documents). Étalonnages et détecteur dans Mon profil.',
+    'Intervenir : client, site, équipement, stock fluides (CERFA), société et CERFA. Étalonnages et détecteur dans Mon profil.',
   pro:
     'Tout ClimaZEN : équipe, agenda, pointeuse légale, RH, multi-techniciens, agences et pilotage.',
 }
 
 /** Parcours solo AE — une intervention = client → site → équipement → papiers. */
 export const LIGHT_SOLO_FLOW_HINT =
-  'Nom du client, site, équipements, maintenance et CERFA — c’est tout ce dont vous avez besoin.'
+  'Client, site, stock fluides, équipements et CERFA — l’essentiel réglementaire pour l’auto-entrepreneur.'
 
 /** Fonctionnalités réservées à l’édition Pro. */
 export type EditionFeature =

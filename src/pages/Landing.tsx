@@ -672,7 +672,7 @@ export function Landing() {
               <p className="mt-2 text-sm text-muted">{APP_EDITION_PRICING.light.detail}</p>
               <ul className="mt-5 space-y-2.5 text-sm text-slate">
                 {[
-                  'CERFA F-Gas & parc équipements',
+                  'CERFA F-Gas & stock fluides (obligatoire)',
                   'Mon entreprise (SIRET, attestation…)',
                   'Étalonnages & détecteur CERFA',
                   'Mises à jour incluses',
