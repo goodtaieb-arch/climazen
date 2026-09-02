@@ -109,6 +109,8 @@ export type CommandeFournisseur = {
   chantierId?: string
   /** OT en attente de cette pièce */
   otId?: string
+  /** Destination métier : OT chantier ou entrée stock magasin */
+  destination?: 'ot' | 'stock'
   libelle: string
   referencePiece?: string
   /** Quantité commandée (défaut 1 à réception stock). */
