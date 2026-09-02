@@ -141,6 +141,7 @@ const baseLinksOwner = [
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -156,6 +157,7 @@ const baseLinksOperator = [
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -289,6 +291,7 @@ export function AppLayout() {
       ? [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
+          { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
           { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
           ...(user
@@ -298,6 +301,7 @@ export function AppLayout() {
       : [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
+          { to: '/app/stock-pieces', label: 'Pièces détachées', icon: Package, tone: 'stock' },
           { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
           { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
           { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },

@@ -13,6 +13,7 @@ import { Dashboard } from './pages/Dashboard'
 import { ClientsPage } from './pages/ClientsPage'
 import { ChantiersPage } from './pages/ChantiersPage'
 import { StockPage } from './pages/StockPage'
+import { StockPiecesPage } from './pages/StockPiecesPage'
 import { InterventionsPage } from './pages/InterventionsPage'
 import { InterventionFormPage } from './pages/InterventionFormPage'
 import { OperateurPage } from './pages/OperateurPage'
@@ -100,6 +101,14 @@ export default function App() {
                 <Route path="clients" element={<ClientsPage />} />
                 <Route path="chantiers" element={<ChantiersPage />} />
                 <Route path="stock" element={<StockPage />} />
+                <Route
+                  path="stock-pieces"
+                  element={
+                    <RequireEdition>
+                      <StockPiecesPage />
+                    </RequireEdition>
+                  }
+                />
                 <Route path="interventions" element={<InterventionsPage />} />
                 <Route path="interventions/:id" element={<InterventionFormRoute />} />
                 <Route

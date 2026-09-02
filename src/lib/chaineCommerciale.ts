@@ -111,6 +111,16 @@ export type CommandeFournisseur = {
   otId?: string
   libelle: string
   referencePiece?: string
+  /** Quantité commandée (défaut 1 à réception stock). */
+  quantite?: number
+  unite?: string
+  prixUnitaireHt?: number
+  /** Catégorie GMAO (filtre, compresseur…) */
+  categorie?: string
+  marque?: string
+  /** Emplacement prévu à réception */
+  rayonStock?: string
+  seuilAlerte?: number
   notes?: string
   commandeeAt?: string
   recueAt?: string

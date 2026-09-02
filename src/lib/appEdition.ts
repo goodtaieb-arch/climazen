@@ -40,6 +40,8 @@ export type EditionFeature =
   | 'create_operator'
   /** Liste OT / demandes (le solo passe par « Intervenir »). */
   | 'ot_list'
+  /** Stock pièces détachées GMAO */
+  | 'stock_pieces'
 
 const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'equipe',
@@ -52,6 +54,7 @@ const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'team_kpi',
   'create_operator',
   'ot_list',
+  'stock_pieces',
 ])
 
 /** Routes Pro ou masquées du menu Light (sous /app). */
@@ -60,6 +63,7 @@ export const PRO_ROUTE_PREFIXES = [
   '/app/agenda',
   '/app/pointage',
   '/app/ot',
+  '/app/stock-pieces',
 ] as const
 
 /** Routes Light accessibles via menu « Plus » seulement. */

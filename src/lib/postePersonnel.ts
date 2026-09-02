@@ -17,6 +17,7 @@ export type PostePersonnelId =
   | 'directeur'
   | 'standard'
   | 'comptable'
+  | 'magasinier'
 
 export type PostePersonnelDef = {
   id: PostePersonnelId
@@ -38,6 +39,7 @@ export const POSTES_PERSONNEL: readonly PostePersonnelDef[] = [
   { id: 'directeur', label: 'Directeur', famille: 'bureau', couvreTouteLEquipe: true },
   { id: 'standard', label: 'Standard', famille: 'bureau' },
   { id: 'comptable', label: 'Comptable', famille: 'bureau' },
+  { id: 'magasinier', label: 'Magasinier', famille: 'bureau' },
 ] as const
 
 const POSTE_BY_ID = new Map<string, PostePersonnelDef>(POSTES_PERSONNEL.map((p) => [p.id, p]))

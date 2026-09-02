@@ -11,6 +11,9 @@ export type DeletedEntityIds = {
   ordresTravail?: string[]
   /** CERFA / interventions liées */
   interventions?: string[]
+  /** Pièces détachées GMAO */
+  piecesDetachees?: string[]
+  piecesMouvements?: string[]
 }
 
 export function mergeIdLists(...lists: (string[] | undefined)[]): string[] {
@@ -43,6 +46,8 @@ export function pruneTombstones(
     stockMouvements?: { id: string }[]
     ordresTravail?: { id: string }[]
     interventions?: { id: string }[]
+    piecesDetachees?: { id: string }[]
+    piecesMouvements?: { id: string }[]
   },
 ): DeletedEntityIds {
   const remoteClients = new Set((remote.clients || []).map((c) => c.id))
@@ -51,6 +56,8 @@ export function pruneTombstones(
   const remoteMvts = new Set((remote.stockMouvements || []).map((m) => m.id))
   const remoteOts = new Set((remote.ordresTravail || []).map((o) => o.id))
   const remoteInters = new Set((remote.interventions || []).map((i) => i.id))
+  const remotePieces = new Set((remote.piecesDetachees || []).map((p) => p.id))
+  const remotePieceMvts = new Set((remote.piecesMouvements || []).map((m) => m.id))
   return {
     clients: (deleted?.clients || []).filter((id) => remoteClients.has(id)),
     chantiers: (deleted?.chantiers || []).filter((id) => remoteSites.has(id)),
@@ -58,6 +65,8 @@ export function pruneTombstones(
     stockMouvements: (deleted?.stockMouvements || []).filter((id) => remoteMvts.has(id)),
     ordresTravail: (deleted?.ordresTravail || []).filter((id) => remoteOts.has(id)),
     interventions: (deleted?.interventions || []).filter((id) => remoteInters.has(id)),
+    piecesDetachees: (deleted?.piecesDetachees || []).filter((id) => remotePieces.has(id)),
+    piecesMouvements: (deleted?.piecesMouvements || []).filter((id) => remotePieceMvts.has(id)),
   }
 }
 
@@ -72,6 +81,8 @@ export function withDeletedIds(
     stockMouvements: mergeIdLists(current?.stockMouvements, patch.stockMouvements),
     ordresTravail: mergeIdLists(current?.ordresTravail, patch.ordresTravail),
     interventions: mergeIdLists(current?.interventions, patch.interventions),
+    piecesDetachees: mergeIdLists(current?.piecesDetachees, patch.piecesDetachees),
+    piecesMouvements: mergeIdLists(current?.piecesMouvements, patch.piecesMouvements),
   }
 }
 
@@ -83,6 +94,8 @@ export function hasAnyTombstones(deleted: DeletedEntityIds | undefined): boolean
       deleted.stock?.length ||
       deleted.stockMouvements?.length ||
       deleted.ordresTravail?.length ||
-      deleted.interventions?.length,
+      deleted.interventions?.length ||
+      deleted.piecesDetachees?.length ||
+      deleted.piecesMouvements?.length,
   )
 }

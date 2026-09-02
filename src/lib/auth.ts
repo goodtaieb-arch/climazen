@@ -827,6 +827,16 @@ export function resolveRemoteVsLocal(
     local.commandesFournisseur,
     preferOnTie,
   )
+  let piecesDetachees = mergeByIdLatest(
+    remote.piecesDetachees,
+    local.piecesDetachees,
+    preferOnTie,
+  )
+  let piecesMouvements = mergeByIdLatest(
+    remote.piecesMouvements,
+    local.piecesMouvements,
+    preferOnTie,
+  )
   const factures = mergeByIdLatest(remote.factures, local.factures, preferOnTie)
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
   const pointageEvents = mergeByIdLatest(
@@ -894,8 +904,25 @@ export function resolveRemoteVsLocal(
         remote.deletedEntityIds?.interventions,
         local.deletedEntityIds?.interventions,
       ),
+      piecesDetachees: mergeIdLists(
+        remote.deletedEntityIds?.piecesDetachees,
+        local.deletedEntityIds?.piecesDetachees,
+      ),
+      piecesMouvements: mergeIdLists(
+        remote.deletedEntityIds?.piecesMouvements,
+        local.deletedEntityIds?.piecesMouvements,
+      ),
     },
-    { clients, chantiers, stock, stockMouvements, ordresTravail, interventions },
+    {
+      clients,
+      chantiers,
+      stock,
+      stockMouvements,
+      ordresTravail,
+      interventions,
+      piecesDetachees,
+      piecesMouvements,
+    },
   )
   clients = applyTombstones(clients, deletedEntityIds.clients)
   chantiers = applyTombstones(chantiers, deletedEntityIds.chantiers)
@@ -905,6 +932,10 @@ export function resolveRemoteVsLocal(
   )
   ordresTravail = applyTombstones(ordresTravail, deletedEntityIds.ordresTravail)
   interventions = applyTombstones(interventions, deletedEntityIds.interventions)
+  piecesDetachees = applyTombstones(piecesDetachees, deletedEntityIds.piecesDetachees)
+  piecesMouvements = piecesMouvements.filter(
+    (m) => !(deletedEntityIds.piecesDetachees || []).includes(m.pieceId),
+  )
 
   const base = localW > remoteW ? local : remote
   const merged: AppData = {
@@ -925,6 +956,8 @@ export function resolveRemoteVsLocal(
     contratsMaintenance,
     devis,
     commandesFournisseur,
+    piecesDetachees,
+    piecesMouvements,
     factures,
     agendaEvents,
     pointageRegles,

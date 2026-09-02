@@ -102,6 +102,13 @@ import {
   resolveAppEdition,
   type AppEdition,
 } from './appEdition'
+import {
+  appliquerMouvementPiece,
+  receptionCommandeEnStock,
+  peutGererPiecesDetachees as peutGererPiecesDetacheesFn,
+  type PieceDetachee,
+  type PieceMouvementKind,
+} from './piecesDetachees'
 
 type Store = {
   data: AppData
@@ -183,8 +190,25 @@ type Store = {
   genererFactureDepuisOt: (otId: string) => string
   /** OT d’exécution depuis un devis accepté (1 devis → N OT). */
   creerOtDepuisDevis: (devisId: string, opts?: { action?: string }) => { id: string; numero: string }
-  /** Marque commande reçue + OT prêt à planifier. */
+  /** Marque commande reçue + OT prêt à planifier + entrée stock pièces. */
   marquerCommandeRecue: (commandeId: string) => void
+  upsertPieceDetachee: (
+    p: Omit<PieceDetachee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  deletePieceDetachee: (id: string) => void
+  enregistrerMouvementPiece: (opts: {
+    pieceId: string
+    kind: PieceMouvementKind
+    quantite: number
+    otId?: string
+    otNumero?: string
+    clientId?: string
+    chantierId?: string
+    emplacementApres?: PieceDetachee['emplacement']
+    assigneeUserId?: string
+    assigneeName?: string
+    motif?: string
+  }) => void
   upsertAgendaEvent: (
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
@@ -343,6 +367,8 @@ type Store = {
   retirePersonnel: (userId: string) => void
   /** Identités + dossiers des collègues : gérant ou personnel autorisé. */
   peutVoirIdentitesRh: boolean
+  /** Stock pièces détachées : gérant, magasinier ou bureau. */
+  peutGererPiecesDetachees: boolean
   /** Light (solo / AE) ou Pro (PME / TPE). */
   appEdition: AppEdition
   /** Gérant : bascule Light ↔ Pro. */
@@ -1259,6 +1285,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           updatedAt: now,
         }
         let ordres = d.ordresTravail || []
+        let pieces = [...(d.piecesDetachees || [])]
+        let pieceMvts = [...(d.piecesMouvements || [])]
+        const devientRecue = next.statut === 'recue' && existing?.statut !== 'recue'
+        if (devientRecue) {
+          try {
+            const result = receptionCommandeEnStock({
+              pieces,
+              commande: next,
+              parUserId: user?.id,
+              parUserName: user?.fullName,
+              now,
+            })
+            if (result.created) pieces.push(result.piece)
+            else pieces = pieces.map((p) => (p.id === result.piece.id ? result.piece : p))
+            pieceMvts.push(result.mouvement)
+          } catch {
+            /* référence manquante */
+          }
+        }
         if (next.statut === 'recue' && next.otId) {
           ordres = ordres.map((o) =>
             o.id === next.otId && o.statut === 'en_attente_piece'
@@ -1268,6 +1313,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         return {
           ...d,
+          piecesDetachees: pieces,
+          piecesMouvements: pieceMvts,
           commandesFournisseur: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
@@ -1276,7 +1323,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       return id
     },
-    [],
+    [user?.id, user?.fullName],
   )
 
   const deleteCommandeFournisseur = useCallback((id: string) => {
@@ -1443,26 +1490,136 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return { id, numero }
   }, [])
 
-  const marquerCommandeRecue = useCallback((commandeId: string) => {
-    const now = new Date().toISOString()
-    setData((d) => {
-      const cmd = (d.commandesFournisseur || []).find((c) => c.id === commandeId)
-      if (!cmd) return d
-      return {
-        ...d,
-        commandesFournisseur: (d.commandesFournisseur || []).map((c) =>
-          c.id === commandeId
-            ? { ...c, statut: 'recue' as const, recueAt: now, updatedAt: now }
-            : c,
-        ),
-        ordresTravail: (d.ordresTravail || []).map((o) =>
-          cmd.otId && o.id === cmd.otId && o.statut === 'en_attente_piece'
-            ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
-            : o,
-        ),
-      }
-    })
+  const marquerCommandeRecue = useCallback(
+    (commandeId: string) => {
+      const now = new Date().toISOString()
+      setData((d) => {
+        const cmd = (d.commandesFournisseur || []).find((c) => c.id === commandeId)
+        if (!cmd) return d
+
+        let pieces = [...(d.piecesDetachees || [])]
+        let mouvements = [...(d.piecesMouvements || [])]
+
+        if (cmd.statut !== 'recue') {
+          try {
+            const result = receptionCommandeEnStock({
+              pieces,
+              commande: { ...cmd, statut: 'recue' },
+              parUserId: user?.id,
+              parUserName: user?.fullName,
+              now,
+            })
+            if (result.created) {
+              pieces.push(result.piece)
+            } else {
+              pieces = pieces.map((p) => (p.id === result.piece.id ? result.piece : p))
+            }
+            mouvements.push(result.mouvement)
+          } catch {
+            /* commande sans référence exploitable — on marque quand même reçue */
+          }
+        }
+
+        return {
+          ...d,
+          piecesDetachees: pieces,
+          piecesMouvements: mouvements,
+          commandesFournisseur: (d.commandesFournisseur || []).map((c) =>
+            c.id === commandeId
+              ? { ...c, statut: 'recue' as const, recueAt: now, updatedAt: now }
+              : c,
+          ),
+          ordresTravail: (d.ordresTravail || []).map((o) =>
+            cmd.otId && o.id === cmd.otId && o.statut === 'en_attente_piece'
+              ? { ...o, statut: 'pret_a_planifier', updatedAt: now }
+              : o,
+          ),
+        }
+      })
+    },
+    [user?.id, user?.fullName],
+  )
+
+  const upsertPieceDetachee = useCallback(
+    (raw: Omit<PieceDetachee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+      const id = raw.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.piecesDetachees || []
+        const existing = list.find((x) => x.id === id)
+        const next: PieceDetachee = {
+          ...raw,
+          id,
+          reference: (raw.reference || '').trim(),
+          designation: (raw.designation || '').trim(),
+          quantite: Math.max(0, Number(raw.quantite) || 0),
+          unite: (raw.unite || 'u').trim() || 'u',
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          piecesDetachees: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deletePieceDetachee = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      piecesDetachees: (d.piecesDetachees || []).filter((p) => p.id !== id),
+      deletedEntityIds: withDeletedIds(d.deletedEntityIds, { piecesDetachees: [id] }),
+    }))
   }, [])
+
+  const enregistrerMouvementPiece = useCallback(
+    (opts: {
+      pieceId: string
+      kind: PieceMouvementKind
+      quantite: number
+      otId?: string
+      otNumero?: string
+      clientId?: string
+      chantierId?: string
+      emplacementApres?: PieceDetachee['emplacement']
+      assigneeUserId?: string
+      assigneeName?: string
+      motif?: string
+    }) => {
+      setData((d) => {
+        const piece = (d.piecesDetachees || []).find((p) => p.id === opts.pieceId)
+        if (!piece) throw new Error('Pièce introuvable.')
+        const { piece: nextPiece, mouvement } = appliquerMouvementPiece({
+          piece,
+          kind: opts.kind,
+          quantite: opts.quantite,
+          otId: opts.otId,
+          otNumero: opts.otNumero,
+          clientId: opts.clientId,
+          chantierId: opts.chantierId,
+          emplacementApres: opts.emplacementApres,
+          assigneeUserId: opts.assigneeUserId,
+          assigneeName: opts.assigneeName,
+          motif: opts.motif,
+          parUserId: user?.id,
+          parUserName: user?.fullName,
+        })
+        return {
+          ...d,
+          piecesDetachees: (d.piecesDetachees || []).map((p) =>
+            p.id === nextPiece.id ? nextPiece : p,
+          ),
+          piecesMouvements: [...(d.piecesMouvements || []), mouvement],
+        }
+      })
+    },
+    [user?.id, user?.fullName],
+  )
 
   const upsertAgendaEvent = useCallback(
     (e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
@@ -2896,6 +3053,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const appEdition = resolveAppEdition(data.appEdition)
   const peutVoirIdentitesRhFlag = peutVoirIdentitesRh(rhActor, data.personnelRhAccesUserIds)
+  const dossierPosteCourant = data.personnelDossiers?.find((d) => d.userId === user?.id)?.poste
+  const peutGererPiecesDetacheesFlag = peutGererPiecesDetacheesFn({
+    isOwner: Boolean(isOwner),
+    userId: user?.id,
+    magasinierUserId: data.operateur.magasinierUserId,
+    poste: dossierPosteCourant,
+    peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
+  })
 
   const value = useMemo(
     () => ({
@@ -2932,6 +3097,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       genererFactureDepuisOt,
       creerOtDepuisDevis,
       marquerCommandeRecue,
+      upsertPieceDetachee,
+      deletePieceDetachee,
+      enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
       upsertPointageRegles,
@@ -2969,6 +3137,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRh: peutVoirIdentitesRhFlag,
+      peutGererPiecesDetachees: peutGererPiecesDetacheesFlag,
       appEdition,
       setAppEdition,
       resetDemo,
@@ -3009,6 +3178,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       genererFactureDepuisOt,
       creerOtDepuisDevis,
       marquerCommandeRecue,
+      upsertPieceDetachee,
+      deletePieceDetachee,
+      enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
       upsertPointageRegles,
@@ -3046,6 +3218,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPersonnelLienCloud,
       retirePersonnel,
       peutVoirIdentitesRhFlag,
+      peutGererPiecesDetacheesFlag,
       setAppEdition,
       resetDemo,
       replaceData,
