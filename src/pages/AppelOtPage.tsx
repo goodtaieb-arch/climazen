@@ -24,6 +24,7 @@ import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { VoiceDictationButton } from '../components/VoiceDictationButton'
+import { PhoneReceptionPanel } from '../components/PhoneReceptionPanel'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
@@ -1304,6 +1305,16 @@ export function AppelOtPage() {
           / gérant sur site).
         </p>
       )}
+
+      <PhoneReceptionPanel
+        onApplyOtAction={(action) => {
+          setOtForm((f) => ({
+            ...f,
+            action: action.trim(),
+            typeOt: f.typeOt || 'depanage',
+          }))
+        }}
+      />
 
       {/* Stepper */}
       <ol className="flex gap-1 overflow-x-auto pb-1">

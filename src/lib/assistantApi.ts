@@ -1,4 +1,5 @@
 import { answerAideLocal, AIDE_SYSTEM_PROMPT, buildAideContext } from './assistantKnowledge'
+import { getSupabase, isSupabaseConfigured } from './supabase'
 
 export type AideMessage = {
   role: 'user' | 'assistant'
@@ -23,6 +24,8 @@ export async function askAideAssistant(opts: {
   entityCatalog?: string
   /** Chatbot Light : guide local uniquement (pas d’appel Gemini). */
   chatbotOnly?: boolean
+  /** Société — vocabulaire technique Supabase injecté dans Gemini. */
+  organizationId?: string
 }): Promise<AideReply> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')
   const question = lastUser?.content || ''
@@ -42,14 +45,28 @@ export async function askAideAssistant(opts: {
   }
 
   try {
+    let token: string | undefined
+    if (isSupabaseConfigured()) {
+      try {
+        const sb = getSupabase()
+        const { data: sessionData } = await sb.auth.getSession()
+        token = sessionData.session?.access_token
+      } catch {
+        /* hors ligne / storage */
+      }
+    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers.Authorization = `Bearer ${token}`
+
     const res = await fetch('/api/assistant', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         messages: opts.messages.slice(-12),
         pathname,
         system: AIDE_SYSTEM_PROMPT,
         context,
+        organizationId: opts.organizationId,
       }),
     })
     if (res.ok) {
