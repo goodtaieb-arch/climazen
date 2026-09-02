@@ -8,6 +8,7 @@ import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { normalizeLienCloudRh } from '../lib/rhDocuments'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
+import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 import {
   APP_EDITION_DESCRIPTIONS,
@@ -107,7 +108,7 @@ export function OperateurPage() {
     setFormError('')
     const racine = (form.lienCloudRhRacine || '').trim()
     if (racine && !normalizeLienCloudRh(racine)) {
-      setFormError('Lien cloud invalide — collez un lien https (Drive, OneDrive, SharePoint).')
+      setFormError('Lien cloud RH invalide — collez un lien https (Drive, OneDrive, SharePoint).')
       return
     }
     if (racine) {
@@ -117,12 +118,49 @@ export function OperateurPage() {
         return
       }
     }
+    const docsCloud = (form.lienCloudDocsRacine || '').trim()
+    if (docsCloud && !normalizeLienCloudRh(docsCloud)) {
+      setFormError('Lien cloud Documents invalide — https Drive / OneDrive / SharePoint.')
+      return
+    }
+    if (docsCloud) {
+      const check = await verifyCloudLinkRestricted(docsCloud)
+      if (!check.ok) {
+        setFormError(`Documents : ${check.message}`)
+        return
+      }
+    }
+    const prive = (form.serveurPriveDocsUrl || '').trim()
+    if (prive) {
+      try {
+        const u = new URL(prive)
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+          setFormError('Serveur privé : URL http(s) requise.')
+          return
+        }
+      } catch {
+        setFormError('Serveur privé : URL invalide.')
+        return
+      }
+    }
+    if (form.docsStockageMode === 'prive' && !prive) {
+      setFormError('Mode serveur privé : renseignez l’URL de base du serveur.')
+      return
+    }
+    if (form.docsStockageMode === 'cloud' && !docsCloud && !racine) {
+      setFormError('Mode cloud : renseignez le lien Documents (ou le dossier cloud RH).')
+      return
+    }
     setSaving(true)
     try {
       await setOperateur({
         ...form,
         facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
         lienCloudRhRacine: normalizeLienCloudRh(form.lienCloudRhRacine) || '',
+        lienCloudDocsRacine: normalizeLienCloudRh(form.lienCloudDocsRacine) || '',
+        serveurPriveDocsUrl: prive,
+        serveurPriveDocsToken: (form.serveurPriveDocsToken || '').trim() || undefined,
+        docsStockageMode: form.docsStockageMode || 'telechargement',
       })
       setDirty(false)
       void refreshUser().catch(() => undefined)
@@ -335,6 +373,69 @@ export function OperateurPage() {
             Créez une fois cette arborescence dans le cloud, puis rangez chaque pièce dans le bon
             sous-dossier. Les scans ne sont pas stockés dans ClimaZEN.
           </p>
+        </div>
+
+        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+          <h2 className="font-display mb-1 text-base font-semibold">
+            Documents générés (PDF)
+          </h2>
+          <p className="mb-3 text-sm text-muted">
+            Logo société sur les PDF + enregistrement vers le cloud ou le serveur privé de
+            l’entreprise. Une copie reste aussi sur ClimaZEN (compte organisation).
+          </p>
+          <label className="mb-3 block text-sm">
+            <span className="mb-1 block font-semibold text-ink">Destination d’enregistrement</span>
+            <select
+              value={form.docsStockageMode || 'telechargement'}
+              onChange={(e) =>
+                patchForm({
+                  docsStockageMode: e.target.value as Operateur['docsStockageMode'],
+                })
+              }
+              className="h-11 w-full rounded-xl border border-line bg-white px-3"
+            >
+              <option value="telechargement">Téléchargement local (+ copie ClimaZEN)</option>
+              <option value="cloud">Cloud (Drive / OneDrive / SharePoint)</option>
+              <option value="prive">Serveur privé société (WebDAV / NAS / Nextcloud)</option>
+            </select>
+          </label>
+          <Field
+            label="Lien dossier Documents (cloud)"
+            value={form.lienCloudDocsRacine || ''}
+            onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            {cloudPasteHint(form.lienCloudDocsRacine) ||
+              'Si vide, repli sur le dossier cloud RH. Créez l’arborescence ci-dessous dans ce dossier.'}
+          </p>
+          <Field
+            label="URL base serveur privé"
+            value={form.serveurPriveDocsUrl || ''}
+            onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
+            className="mt-3"
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user/ClimaZEN/Documents — CORS
+            doit autoriser climazen.fr pour l’upload automatique.
+          </p>
+          <Field
+            label="Jeton serveur privé (optionnel)"
+            value={form.serveurPriveDocsToken || ''}
+            onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
+            className="mt-3"
+          />
+          <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
+            <p className="text-xs font-bold uppercase text-muted">
+              Arborescence à créer sur votre entreprise
+            </p>
+            <pre className="mt-2 overflow-x-auto whitespace-pre text-[11px] leading-relaxed text-ink">
+              {arborescenceDocumentsEntreprise().join('\n')}
+            </pre>
+            <p className="mt-2 text-xs text-muted">
+              Créez ces dossiers une fois (cloud ou NAS). ClimaZEN propose le chemin exact à
+              chaque enregistrement (ex. ClimaZEN/Documents/2026/Devis/…).
+            </p>
+          </div>
         </div>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">

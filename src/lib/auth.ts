@@ -670,6 +670,13 @@ export function mergeOperateurPreferFilled(
     facturationWebhookUrl: pickNonEmpty(remote?.facturationWebhookUrl, local?.facturationWebhookUrl),
     facturationActionDefaut: remote?.facturationActionDefaut || local?.facturationActionDefaut,
     lienCloudRhRacine: pickNonEmpty(remote?.lienCloudRhRacine, local?.lienCloudRhRacine),
+    docsStockageMode: remote?.docsStockageMode || local?.docsStockageMode,
+    lienCloudDocsRacine: pickNonEmpty(remote?.lienCloudDocsRacine, local?.lienCloudDocsRacine),
+    serveurPriveDocsUrl: pickNonEmpty(remote?.serveurPriveDocsUrl, local?.serveurPriveDocsUrl),
+    serveurPriveDocsToken: pickNonEmpty(
+      remote?.serveurPriveDocsToken,
+      local?.serveurPriveDocsToken,
+    ),
   }
 }
 

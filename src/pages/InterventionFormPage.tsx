@@ -1154,7 +1154,10 @@ export function InterventionFormPage() {
       client,
       chantier,
     })
-    await saveCerfaPdf(savedId, blob, fileName, user?.organizationId)
+    await saveCerfaPdf(savedId, blob, fileName, user?.organizationId, {
+      operateur: data.operateur,
+      clientNom: client?.raisonSociale,
+    })
 
     if (pdfUrl) URL.revokeObjectURL(pdfUrl)
     const url = URL.createObjectURL(blob)
@@ -1315,7 +1318,10 @@ export function InterventionFormPage() {
         }
         upsertIntervention(fullDraft)
         const blob = await buildCerfaPdf({ draft: fullDraft, client, chantier })
-        await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId)
+        await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId, {
+          operateur: data.operateur,
+          clientNom: client?.raisonSociale,
+        })
         done += 1
       }
 

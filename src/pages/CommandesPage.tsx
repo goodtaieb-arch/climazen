@@ -1,9 +1,11 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Download, Plus, Trash2, Truck } from 'lucide-react'
+import { ArrowLeft, Download, Eye, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
+import { PdfViewerModal } from '../components/PdfViewerModal'
 import { Field } from './ClientsPage'
 import {
   STATUT_COMMANDE_FOURNISSEUR_LABELS,
@@ -12,7 +14,15 @@ import {
 } from '../lib/chaineCommerciale'
 import { editionHasFeature } from '../lib/appEdition'
 import { formatOtNumero } from '../lib/ordreTravail'
-import { downloadCommandePdf } from '../lib/commercialPdf'
+import {
+  buildCommandePdf,
+  fileNameCommande,
+} from '../lib/commercialPdf'
+import {
+  createPdfPreviewUrl,
+  saveGeneratedDocument,
+} from '../lib/docStockage'
+import { loadCompanyLogoLocal } from '../lib/companyLogo'
 
 function blankCommande(opts?: {
   clientId?: string
@@ -42,6 +52,7 @@ export function CommandesPage() {
     deleteCommandeFournisseur,
     marquerCommandeRecue,
   } = useStore()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const editId = params.get('id') || ''
@@ -51,6 +62,10 @@ export function CommandesPage() {
   const chantierFromQuery = params.get('chantier') || ''
   const [q, setQ] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [preview, setPreview] = useState<{ url: string; fileName: string; title: string } | null>(
+    null,
+  )
+  const [saveMsg, setSaveMsg] = useState('')
 
   if (!editionHasFeature(appEdition, 'chaine_commerciale')) {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />
@@ -148,6 +163,8 @@ export function CommandesPage() {
     telephone: data.operateur?.telephone,
     email: data.operateur?.email,
     siret: data.operateur?.siret,
+    logoImage:
+      data.operateur?.logoImage || loadCompanyLogoLocal(user?.organizationId) || undefined,
   }
 
   const pdfCtxFor = (c: Pick<CommandeFournisseur, 'clientId' | 'chantierId' | 'otId'>) => {
@@ -160,7 +177,42 @@ export function CommandesPage() {
     }
   }
 
-  const save = (e: FormEvent) => {
+  const persistCommandePdf = async (cmd: CommandeFournisseur) => {
+    const ctx = pdfCtxFor(cmd)
+    const blob = buildCommandePdf(cmd, ctx)
+    const fileName = fileNameCommande(cmd)
+    const result = await saveGeneratedDocument({
+      blob,
+      fileName,
+      kind: 'commande',
+      clientNom: ctx.clientNom,
+      docId: `commande-${cmd.id}`,
+      organizationId: user?.organizationId,
+      operateur: data.operateur,
+    })
+    setSaveMsg(result.message)
+    setTimeout(() => setSaveMsg(''), 6000)
+    return { blob, fileName, result }
+  }
+
+  const openPreview = async (cmd: CommandeFournisseur) => {
+    setPdfBusy(true)
+    try {
+      const ctx = pdfCtxFor(cmd)
+      const blob = buildCommandePdf(cmd, ctx)
+      const fileName = fileNameCommande(cmd)
+      if (preview?.url) URL.revokeObjectURL(preview.url)
+      setPreview({
+        url: createPdfPreviewUrl(blob),
+        fileName,
+        title: `Commande ${cmd.numero}`,
+      })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  const save = async (e: FormEvent) => {
     e.preventDefault()
     if (!form) return
     if (form.destination === 'ot' && !form.otId) {
@@ -184,7 +236,7 @@ export function CommandesPage() {
         createdAt: existing?.createdAt || now,
         updatedAt: now,
       }
-      downloadCommandePdf(cmd, pdfCtxFor(cmd))
+      await persistCommandePdf(cmd)
       navigate(`/app/commandes?id=${encodeURIComponent(id)}`, { replace: true })
     } finally {
       setPdfBusy(false)
@@ -366,7 +418,18 @@ export function CommandesPage() {
             {existing ? (
               <button
                 type="button"
-                onClick={() => downloadCommandePdf(existing, pdfCtxFor(existing))}
+                disabled={pdfBusy}
+                onClick={() => void openPreview(existing)}
+                className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
+              >
+                <Eye className="h-3.5 w-3.5" /> Prévisualiser
+              </button>
+            ) : null}
+            {existing ? (
+              <button
+                type="button"
+                disabled={pdfBusy}
+                onClick={() => void persistCommandePdf(existing)}
                 className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
               >
                 <Download className="h-3.5 w-3.5" /> PDF
@@ -400,6 +463,32 @@ export function CommandesPage() {
             ) : null}
           </div>
         </form>
+        {saveMsg ? (
+          <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-medium text-teal-950">
+            {saveMsg}
+          </p>
+        ) : null}
+        {preview ? (
+          <PdfViewerModal
+            url={preview.url}
+            title={preview.title}
+            fileName={preview.fileName}
+            onClose={() => {
+              URL.revokeObjectURL(preview.url)
+              setPreview(null)
+            }}
+            saveDestinationBusy={pdfBusy}
+            onSaveDestination={async () => {
+              if (!existing) return
+              setPdfBusy(true)
+              try {
+                await persistCommandePdf(existing)
+              } finally {
+                setPdfBusy(false)
+              }
+            }}
+          />
+        ) : null}
       </div>
     )
   }

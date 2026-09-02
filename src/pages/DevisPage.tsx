@@ -1,9 +1,11 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Download, FileText, Plus, Trash2, Truck } from 'lucide-react'
+import { ArrowLeft, Download, Eye, FileText, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
+import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
+import { PdfViewerModal } from '../components/PdfViewerModal'
 import { Field } from './ClientsPage'
 import {
   STATUT_DEVIS_LABELS,
@@ -13,11 +15,20 @@ import {
   type StatutDevis,
 } from '../lib/chaineCommerciale'
 import { editionHasFeature } from '../lib/appEdition'
-import { downloadDevisPdf } from '../lib/commercialPdf'
+import {
+  buildDevisPdf,
+  fileNameDevis,
+} from '../lib/commercialPdf'
 import { formatOtNumero } from '../lib/ordreTravail'
+import {
+  createPdfPreviewUrl,
+  saveGeneratedDocument,
+} from '../lib/docStockage'
+import { loadCompanyLogoLocal } from '../lib/companyLogo'
 
 export function DevisPage() {
   const { data, appEdition, upsertDevis, deleteDevis, creerOtDepuisDevis } = useStore()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const editId = params.get('id') || ''
@@ -27,6 +38,10 @@ export function DevisPage() {
   const otFromQuery = params.get('ot') || ''
   const [q, setQ] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [preview, setPreview] = useState<{ url: string; fileName: string; title: string } | null>(
+    null,
+  )
+  const [saveMsg, setSaveMsg] = useState('')
 
   if (!editionHasFeature(appEdition, 'chaine_commerciale')) {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />
@@ -127,6 +142,8 @@ export function DevisPage() {
     telephone: data.operateur?.telephone,
     email: data.operateur?.email,
     siret: data.operateur?.siret,
+    logoImage:
+      data.operateur?.logoImage || loadCompanyLogoLocal(user?.organizationId) || undefined,
   }
 
   const pdfCtxFor = (d: Pick<Devis, 'clientId' | 'chantierId' | 'otOrigineId'>) => {
@@ -141,7 +158,42 @@ export function DevisPage() {
     }
   }
 
-  const save = (e: FormEvent) => {
+  const persistDevisPdf = async (devis: Devis) => {
+    const ctx = pdfCtxFor(devis)
+    const blob = buildDevisPdf(devis, ctx)
+    const fileName = fileNameDevis(devis)
+    const result = await saveGeneratedDocument({
+      blob,
+      fileName,
+      kind: 'devis',
+      clientNom: ctx.clientNom,
+      docId: `devis-${devis.id}`,
+      organizationId: user?.organizationId,
+      operateur: data.operateur,
+    })
+    setSaveMsg(result.message)
+    setTimeout(() => setSaveMsg(''), 6000)
+    return { blob, fileName, result }
+  }
+
+  const openPreview = async (devis: Devis) => {
+    setPdfBusy(true)
+    try {
+      const ctx = pdfCtxFor(devis)
+      const blob = buildDevisPdf(devis, ctx)
+      const fileName = fileNameDevis(devis)
+      if (preview?.url) URL.revokeObjectURL(preview.url)
+      setPreview({
+        url: createPdfPreviewUrl(blob),
+        fileName,
+        title: `Devis ${devis.numero}`,
+      })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  const save = async (e: FormEvent) => {
     e.preventDefault()
     if (!form) return
     setPdfBusy(true)
@@ -155,7 +207,7 @@ export function DevisPage() {
         createdAt: existing?.createdAt || now,
         updatedAt: now,
       }
-      downloadDevisPdf(devis, pdfCtxFor(devis))
+      await persistDevisPdf(devis)
       navigate(`/app/devis?id=${encodeURIComponent(id)}`, { replace: true })
     } finally {
       setPdfBusy(false)
@@ -300,7 +352,18 @@ export function DevisPage() {
             {existing ? (
               <button
                 type="button"
-                onClick={() => downloadDevisPdf(existing, pdfCtxFor(existing))}
+                disabled={pdfBusy}
+                onClick={() => void openPreview(existing)}
+                className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
+              >
+                <Eye className="h-3.5 w-3.5" /> Prévisualiser
+              </button>
+            ) : null}
+            {existing ? (
+              <button
+                type="button"
+                disabled={pdfBusy}
+                onClick={() => void persistDevisPdf(existing)}
                 className="inline-flex items-center gap-1 rounded-full border border-line px-4 py-2 text-sm font-semibold"
               >
                 <Download className="h-3.5 w-3.5" /> PDF
@@ -363,6 +426,32 @@ export function DevisPage() {
             </div>
           ) : null}
         </form>
+        {saveMsg ? (
+          <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-medium text-teal-950">
+            {saveMsg}
+          </p>
+        ) : null}
+        {preview ? (
+          <PdfViewerModal
+            url={preview.url}
+            title={preview.title}
+            fileName={preview.fileName}
+            onClose={() => {
+              URL.revokeObjectURL(preview.url)
+              setPreview(null)
+            }}
+            saveDestinationBusy={pdfBusy}
+            onSaveDestination={async () => {
+              if (!existing) return
+              setPdfBusy(true)
+              try {
+                await persistDevisPdf(existing)
+              } finally {
+                setPdfBusy(false)
+              }
+            }}
+          />
+        ) : null}
       </div>
     )
   }

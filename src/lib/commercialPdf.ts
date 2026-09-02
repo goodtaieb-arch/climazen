@@ -11,6 +11,7 @@ import {
   type Devis,
 } from './chaineCommerciale'
 import { formatOtNumero } from './ordreTravail'
+import { embedCompanyLogo } from './pdfLogo'
 
 export type CommercialPdfCompany = {
   raisonSociale?: string
@@ -18,6 +19,7 @@ export type CommercialPdfCompany = {
   telephone?: string
   email?: string
   siret?: string
+  logoImage?: string
 }
 
 const ACCENT: [number, number, number] = [26, 168, 150]
@@ -78,6 +80,12 @@ function header(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.text(subtitle, 18, 22)
+  if (company.logoImage) {
+    // Logo sur bandeau (fond blanc pour lisibilité)
+    doc.setFillColor(255, 255, 255)
+    doc.roundedRect(158, 4, 40, 20, 2, 2, 'F')
+    embedCompanyLogo(doc, company.logoImage, { x: 160, y: 6, maxW: 36, maxH: 16 })
+  }
   doc.setTextColor(...INK)
   doc.setFontSize(9)
   const co = company.raisonSociale || 'ClimaZEN'
