@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ClipboardList, FileText, Package, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -55,6 +55,7 @@ export function OrdresTravailPage() {
     appEdition,
   } = useStore()
   const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
+  const chaineCommerciale = editionHasFeature(appEdition, 'chaine_commerciale')
   const { user, isOwner } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const navigate = useNavigate()
@@ -62,11 +63,15 @@ export function OrdresTravailPage() {
   const editId = params.get('id') || ''
   const [q, setQ] = useState('')
   const [typeFilter, setTypeFilter] = useState<'tous' | TypeOt>('tous')
-  const [statutFilter, setStatutFilter] = useState<'ouverts' | 'clotures' | 'tous'>('ouverts')
+  const [statutFilter, setStatutFilter] = useState<
+    'ouverts' | 'attente_piece' | 'clotures' | 'tous'
+  >('ouverts')
   const [assigneeFilter, setAssigneeFilter] = useState<'tous' | 'moi'>('tous')
   const [secteurFilter, setSecteurFilter] = useState<string>('tous')
   const [agenceFilter, setAgenceFilter] = useState<string[]>([])
   const [agenceFilterReady, setAgenceFilterReady] = useState(false)
+  const [clientFilter, setClientFilter] = useState('')
+  const [siteFilter, setSiteFilter] = useState('')
 
   const existing = useMemo(
     () => (data.ordresTravail || []).find((o) => o.id === editId) || null,
@@ -140,6 +145,7 @@ export function OrdresTravailPage() {
       .filter((o) => {
         if (statutFilter === 'tous') return true
         if (statutFilter === 'clotures') return isOtCloture(o.statut)
+        if (statutFilter === 'attente_piece') return o.statut === 'en_attente_piece'
         return !isOtCloture(o.statut)
       })
       .filter((o) => {
@@ -151,6 +157,14 @@ export function OrdresTravailPage() {
         const poste = dossierForUser(data.personnelDossiers, o.technicienUserId)?.poste
         const secteur = o.secteur || secteurOtDepuisPoste(poste)
         return secteur === secteurFilter
+      })
+      .filter((o) => {
+        if (!clientFilter) return true
+        return o.clientId === clientFilter
+      })
+      .filter((o) => {
+        if (!siteFilter) return true
+        return o.chantierId === siteFilter
       })
       .filter((o) => {
         const client = data.clients.find((c) => c.id === o.clientId)
@@ -167,17 +181,26 @@ export function OrdresTravailPage() {
         return matchesQuery(
           [
             o.numero,
+            formatOtNumero(o.numero),
+            otBaseNumero(o.numero),
             o.action,
             o.typeOt,
+            TYPE_OT_LABELS[o.typeOt],
             o.technicien,
             client?.raisonSociale,
+            client?.nomContact,
+            client?.ville,
             site?.nom,
+            site?.ville,
+            site?.adresse,
             o.statut,
+            STATUT_OT_LABELS[o.statut],
             o.lienCommandeRef,
             o.lienCommandeType,
             labelSecteurCourt(o.secteur),
             o.visiteNiveau,
             labelAgence(o.agenceCode || site?.agenceCode || client?.agenceCode),
+            o.observations,
           ]
             .filter(Boolean)
             .join(' '),
@@ -185,7 +208,31 @@ export function OrdresTravailPage() {
         )
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  }, [data.ordresTravail, data.clients, data.chantiers, data.personnelDossiers, q, typeFilter, statutFilter, assigneeFilter, secteurFilter, agenceFilter, user?.id])
+  }, [
+    data.ordresTravail,
+    data.clients,
+    data.chantiers,
+    data.personnelDossiers,
+    q,
+    typeFilter,
+    statutFilter,
+    assigneeFilter,
+    secteurFilter,
+    agenceFilter,
+    clientFilter,
+    siteFilter,
+    user?.id,
+  ])
+
+  const countAttentePiece = useMemo(
+    () => (data.ordresTravail || []).filter((o) => o.statut === 'en_attente_piece').length,
+    [data.ordresTravail],
+  )
+
+  const sitesForClientFilter = useMemo(() => {
+    if (!clientFilter) return data.chantiers
+    return data.chantiers.filter((s) => s.clientId === clientFilter)
+  }, [data.chantiers, clientFilter])
 
   const site = data.chantiers.find((c) => c.id === form.chantierId)
   const eqs = site ? allEquipements(site) : []
@@ -674,17 +721,39 @@ export function OrdresTravailPage() {
         <SearchField
           value={q}
           onChange={setQ}
-          placeholder="N° OT, site, technicien…"
+          placeholder="N° OT, client, site, ville, tech, action…"
           testId="ot-search"
         />
         <select
-          value={statutFilter}
-          onChange={(e) => setStatutFilter(e.target.value as typeof statutFilter)}
+          value={clientFilter}
+          onChange={(e) => {
+            setClientFilter(e.target.value)
+            setSiteFilter('')
+          }}
           className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
         >
-          <option value="ouverts">Ouverts (à faire)</option>
-          <option value="clotures">Clôturés</option>
-          <option value="tous">Tous</option>
+          <option value="">Tous les clients</option>
+          {[...data.clients]
+            .sort((a, b) => a.raisonSociale.localeCompare(b.raisonSociale, 'fr'))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.raisonSociale}
+              </option>
+            ))}
+        </select>
+        <select
+          value={siteFilter}
+          onChange={(e) => setSiteFilter(e.target.value)}
+          className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
+        >
+          <option value="">Tous les sites</option>
+          {[...sitesForClientFilter]
+            .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nom}
+              </option>
+            ))}
         </select>
         <select
           value={assigneeFilter}
@@ -729,6 +798,38 @@ export function OrdresTravailPage() {
         ) : null}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: 'ouverts' as const, label: 'Ouverts' },
+            {
+              id: 'attente_piece' as const,
+              label: countAttentePiece
+                ? `Attente pièce (${countAttentePiece})`
+                : 'Attente pièce',
+            },
+            { id: 'clotures' as const, label: 'Clôturés' },
+            { id: 'tous' as const, label: 'Tous' },
+          ] as const
+        ).map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            onClick={() => setStatutFilter(chip.id)}
+            className={[
+              'rounded-full border px-3 py-1.5 text-xs font-bold',
+              statutFilter === chip.id
+                ? chip.id === 'attente_piece'
+                  ? 'border-sky-500 bg-sky-100 text-sky-950'
+                  : 'border-accent bg-accent/20 text-ink'
+                : 'border-line bg-white text-muted',
+            ].join(' ')}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-3">
         {list.map((o) => {
           const client = data.clients.find((c) => c.id === o.clientId)
@@ -744,6 +845,18 @@ export function OrdresTravailPage() {
             agenceCode: o.agenceCode || siteRow?.agenceCode || client?.agenceCode,
             codePostal: siteRow?.codePostal || client?.codePostal,
           })
+          const commandeLiee = (data.commandesFournisseur || []).find((c) => c.otId === o.id)
+          const devisLies = (data.devis || []).filter(
+            (d) => d.id === o.devisId || d.otOrigineId === o.id,
+          )
+          const devisAccepte = devisLies.find(
+            (d) => d.statut === 'accepte' || d.statut === 'execute',
+          )
+          const attentePiece = o.statut === 'en_attente_piece'
+          const qsCommercial = new URLSearchParams()
+          if (o.clientId) qsCommercial.set('client', o.clientId)
+          if (o.chantierId) qsCommercial.set('chantier', o.chantierId)
+          qsCommercial.set('ot', o.id)
           return (
             <div
               key={o.id}
@@ -763,7 +876,11 @@ export function OrdresTravailPage() {
                   <span
                     className={[
                       'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
-                      cloture ? 'bg-emerald-100 text-emerald-900' : 'bg-mist text-muted',
+                      cloture
+                        ? 'bg-emerald-100 text-emerald-900'
+                        : attentePiece
+                          ? 'bg-sky-100 text-sky-950'
+                          : 'bg-mist text-muted',
                     ].join(' ')}
                   >
                     {STATUT_OT_LABELS[o.statut]}
@@ -816,6 +933,32 @@ export function OrdresTravailPage() {
                     <ClipboardList className="h-4 w-4" /> Reprendre parcours
                   </Link>
                 )}
+                {chaineCommerciale && attentePiece && !devisAccepte ? (
+                  <Link
+                    to={`/app/devis?new=1&${qsCommercial.toString()}`}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-3 text-xs font-bold text-sky-950 sm:flex-none"
+                  >
+                    <FileText className="h-4 w-4" /> Créer devis
+                  </Link>
+                ) : null}
+                {chaineCommerciale &&
+                devisAccepte &&
+                (!commandeLiee || commandeLiee.statut === 'annulee') ? (
+                  <Link
+                    to={`/app/commandes?new=1&${qsCommercial.toString()}`}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 text-xs font-bold text-amber-950 sm:flex-none"
+                  >
+                    <Truck className="h-4 w-4" /> Lancer commande
+                  </Link>
+                ) : null}
+                {chaineCommerciale && commandeLiee && commandeLiee.statut !== 'annulee' ? (
+                  <Link
+                    to={`/app/commandes?id=${encodeURIComponent(commandeLiee.id)}`}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold sm:flex-none"
+                  >
+                    <Package className="h-4 w-4" /> Voir commande
+                  </Link>
+                ) : null}
                 <DocsPackButton ot={o} className="flex-1 sm:flex-none" />
                 <Link
                   to={`/app/ot?id=${encodeURIComponent(o.id)}`}
@@ -852,6 +995,8 @@ export function OrdresTravailPage() {
           <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-10 text-center text-sm text-muted">
             {statutFilter === 'clotures'
               ? 'Aucun OT / demande clôturé pour l’instant.'
+              : statutFilter === 'attente_piece'
+                ? 'Aucun OT en attente de pièce.'
               : statutFilter === 'ouverts'
                 ? 'Aucun OT / demande ouvert. Créez-en un depuis Sites & Parc ou « Client appelle ».'
                 : 'Aucun OT / demande. Créez-en un depuis Sites & Parc ou ici.'}
