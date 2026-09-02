@@ -25,6 +25,7 @@ import { ImportLocalBanner } from './ImportLocalBanner'
 import { CloudShareWarningBanner } from './CloudShareWarningBanner'
 import { AideAssistant } from './AideAssistant'
 import { VoiceCommandsFab } from './VoiceCommandsFab'
+import { icon3dForRoute } from '../lib/icons3d'
 import { Nav3dIcon } from './Nav3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
@@ -404,35 +405,41 @@ export function AppLayout() {
                       }}
                     >
                       {(() => {
-                        const threeD = (
-                          <Nav3dIcon
-                            to={to}
-                            size={28}
-                            float
-                            delay={
-                              to === '/app'
-                                ? '0s'
-                                : to === '/app/chantiers'
-                                  ? '0.1s'
-                                  : to === '/app/stock'
-                                    ? '0.2s'
-                                    : to === '/app/stock-pieces'
-                                      ? '0.22s'
-                                    : to === '/app/ot'
-                                      ? '0.25s'
-                                    : to === '/app/clients'
-                                      ? '0.3s'
-                                      : to === '/app/interventions'
-                                        ? '0.4s'
-                                        : to === '/app/equipe'
-                                          ? '0.5s'
-                                          : to === '/app/operateur'
-                                            ? '0.6s'
-                                            : '0.7s'
-                            }
-                          />
-                        )
-                        return threeD || (
+                        if (icon3dForRoute(to)) {
+                          return (
+                            <Nav3dIcon
+                              to={to}
+                              size={28}
+                              float
+                              delay={
+                                to === '/app'
+                                  ? '0s'
+                                  : to === '/app/chantiers'
+                                    ? '0.1s'
+                                    : to === '/app/stock'
+                                      ? '0.2s'
+                                      : to === '/app/stock-pieces'
+                                        ? '0.22s'
+                                      : to === '/app/ot'
+                                        ? '0.25s'
+                                      : to === '/app/devis'
+                                        ? '0.26s'
+                                      : to === '/app/commandes'
+                                        ? '0.27s'
+                                      : to === '/app/clients'
+                                        ? '0.3s'
+                                        : to === '/app/interventions'
+                                          ? '0.4s'
+                                          : to === '/app/equipe'
+                                            ? '0.5s'
+                                            : to === '/app/operateur'
+                                              ? '0.6s'
+                                              : '0.7s'
+                              }
+                            />
+                          )
+                        }
+                        return (
                           <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.9} />
                         )
                       })()}
@@ -680,8 +687,10 @@ export function AppLayout() {
                         style={{ backgroundColor: t.band, color: t.icon }}
                       >
                         {(() => {
-                          const threeD = <Nav3dIcon to={to} size={32} float delay="0.2s" />
-                          return threeD || <Icon className="h-5 w-5" />
+                          if (icon3dForRoute(to)) {
+                            return <Nav3dIcon to={to} size={32} float delay="0.2s" />
+                          }
+                          return <Icon className="h-5 w-5" />
                         })()}
                       </span>
                       {label}
@@ -737,13 +746,13 @@ export function AppLayout() {
                       }
                     >
                       {(() => {
-                        const threeD = (
-                          <Nav3dIcon to={to} size={26} float={isActive} delay="0s" />
-                        )
-                        return (
-                          threeD || (
-                            <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
+                        if (icon3dForRoute(to)) {
+                          return (
+                            <Nav3dIcon to={to} size={26} float={isActive} delay="0s" />
                           )
+                        }
+                        return (
+                          <Icon className="h-5 w-5" strokeWidth={isActive ? 2.25 : 1.75} />
                         )
                       })()}
                     </span>
