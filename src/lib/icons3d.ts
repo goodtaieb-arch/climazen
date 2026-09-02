@@ -10,6 +10,8 @@ import signaturePad from '../assets/icons3d/climazen-signature.png'
 import search from '../assets/icons3d/search.png'
 import maintenance from '../assets/icons3d/maintenance.png'
 import signatureQuick from '../assets/icons3d/signature.png'
+import devis from '../assets/icons3d/climazen-devis.png'
+import commandes from '../assets/icons3d/climazen-commandes.png'
 
 export const ICON3D = {
   sites,
@@ -23,6 +25,8 @@ export const ICON3D = {
   search,
   maintenance,
   signature: signatureQuick,
+  devis,
+  commandes,
 } as const
 
 /** Icône 3D pour une route de navigation (sidebar / bottom). */
@@ -33,6 +37,8 @@ export function icon3dForRoute(to: string): string | null {
   if (to === '/app/stock') return ICON3D.bottle
   if (to === '/app/stock-pieces') return ICON3D.maintenance
   if (to === '/app/ot') return ICON3D.maintenance
+  if (to === '/app/devis') return ICON3D.devis
+  if (to === '/app/commandes') return ICON3D.commandes
   if (to === '/app/contrats') return ICON3D.maintenance
   if (to === '/app/agenda') return ICON3D.search
   if (to === '/app/pointage') return ICON3D.signaturePad
