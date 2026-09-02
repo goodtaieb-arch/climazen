@@ -3,7 +3,7 @@
  * - Bureau / gérant : tout (piloter à distance).
  * - Terrain (opérateur sans accès RH secrétariat) : boutons de boulot seulement.
  *
- * Édition Light : masque équipe, agenda, pointeuse (solo / AE).
+ * Édition Light : masque équipe, pointeuse, devis/commandes (solo / un seul utilisateur).
  * Les pages Pro restent bloquées par route si accès direct par URL.
  */
 

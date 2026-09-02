@@ -113,7 +113,7 @@ export function Dashboard() {
     [isOwner, peutVoirIdentitesRh, appEdition],
   )
   const terrainUi = isTerrainUi(shortcutAccess)
-  const proFeatures = editionHasFeature(appEdition, 'equipe')
+  const teamFeatures = editionHasFeature(appEdition, 'equipe')
   const lightSolo = appEdition === 'light' && !terrainUi
 
   const [shortcutIds, setShortcutIds] = useState<HomeShortcutId[]>(() =>
@@ -345,7 +345,7 @@ export function Dashboard() {
           </label>
         </div>
 
-        {!q.trim() && proFeatures && isOwner && receptionEquipe.length > 0 ? (
+        {!q.trim() && teamFeatures && isOwner && receptionEquipe.length > 0 ? (
           <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
               <ClipboardCheck className="h-4 w-4 shrink-0" />
@@ -371,7 +371,7 @@ export function Dashboard() {
           </div>
         ) : null}
 
-        {!q.trim() && proFeatures && !isOwner && user?.id && receptionPerso.length > 0 ? (
+        {!q.trim() && teamFeatures && !isOwner && user?.id && receptionPerso.length > 0 ? (
           <Link
             to={`/app/equipe/${user.id}`}
             className="block rounded-2xl border border-amber-300 bg-amber-50 p-4"
@@ -433,6 +433,24 @@ export function Dashboard() {
 
             <div className="grid grid-cols-2 gap-2">
               <Link
+                to="/app/ot"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                OT / Demandes
+              </Link>
+              <Link
+                to="/app/agenda"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Agenda
+              </Link>
+              <Link
+                to="/app/contrats"
+                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
+              >
+                Contrats
+              </Link>
+              <Link
                 to="/app/interventions"
                 className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
               >
@@ -450,18 +468,12 @@ export function Dashboard() {
               >
                 Détecteur
               </Link>
-              <Link
-                to="/app/clients"
-                className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
-              >
-                Clients
-              </Link>
             </div>
           </section>
         ) : null}
 
         {/* Bandeau guide 3D — Quick Start (Pro / terrain) */}
-        {!q.trim() && !lightSolo && (
+        {!q.trim() && !terrainUi && (
           <nav
             aria-label="Mode d’emploi rapide"
             className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-600 to-slate-800 p-4 text-white shadow-xl sm:p-6"
@@ -521,7 +533,7 @@ export function Dashboard() {
           </nav>
         )}
 
-        {!q.trim() && !terrainUi && proFeatures ? <DashboardKpiPanel /> : null}
+        {!q.trim() && !terrainUi && (isOwner || teamFeatures) ? <DashboardKpiPanel /> : null}
 
         {q.trim() && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -558,7 +570,7 @@ export function Dashboard() {
         )}
 
         {/* Menu portable — cercles (mobile) / liste (desktop) */}
-        {!q.trim() && !lightSolo && (
+        {!q.trim() && !terrainUi && (
           <>
             <div className="md:hidden">
               <div className="mb-2 flex items-center justify-between gap-2 px-2">
@@ -733,21 +745,32 @@ export function Dashboard() {
                 color="sites"
                 to="/app/scan-equip?camera=1"
               />
-              {proFeatures ? (
-                <TerrainAction
-                  icon={ClipboardList}
-                  img3d={ICON3D.search}
-                  title="Agenda"
-                  subtitle={
-                    agendaAContacter.length
-                      ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
-                      : 'Rappels maintenance & RDV'
-                  }
-                  color="sites"
-                  to="/app/agenda"
-                  badge={agendaAContacter.length || undefined}
-                />
-              ) : null}
+              <TerrainAction
+                icon={ClipboardList}
+                img3d={ICON3D.search}
+                title="Agenda"
+                subtitle={
+                  agendaAContacter.length
+                    ? `${agendaAContacter.length} rappel${agendaAContacter.length > 1 ? 's' : ''} à contacter`
+                    : 'Rappels maintenance & RDV'
+                }
+                color="sites"
+                to="/app/agenda"
+                badge={agendaAContacter.length || undefined}
+              />
+              <TerrainAction
+                icon={ClipboardList}
+                img3d={ICON3D.maintenance}
+                title="OT / Demandes"
+                subtitle={
+                  otAReprendre.length
+                    ? `${otAReprendre.length} à reprendre`
+                    : 'Ordres de travail & demandes'
+                }
+                color="cerfa"
+                to="/app/ot"
+                badge={otAReprendre.length || undefined}
+              />
               <TerrainAction
                 icon={ClipboardList}
                 img3d={ICON3D.cerfa}
@@ -783,19 +806,6 @@ export function Dashboard() {
                     color="cerfa"
                     to="/app/appel"
                   />
-                  <TerrainAction
-                    icon={ClipboardList}
-                    img3d={ICON3D.maintenance}
-                    title="OT / Demandes"
-                    subtitle={
-                      otAReprendre.length
-                        ? `${otAReprendre.length} à reprendre`
-                        : 'Tes ordres de travail'
-                    }
-                    color="cerfa"
-                    to="/app/ot"
-                    badge={otAReprendre.length || undefined}
-                  />
                 </>
               ) : (
                 <TerrainAction
@@ -816,7 +826,7 @@ export function Dashboard() {
         )}
       </section>
 
-      {!q.trim() && proFeatures && rhAlertes.length > 0 && (
+      {!q.trim() && teamFeatures && rhAlertes.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">Documents à renouveler</h2>
@@ -904,7 +914,7 @@ export function Dashboard() {
       )}
 
       {/* OT contrat — fin de mois J-7 */}
-      {!q.trim() && proFeatures && otContratFinMois.length > 0 && (
+      {!q.trim() && !terrainUi && otContratFinMois.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">Maintenance contrat — fin de mois</h2>
@@ -952,7 +962,7 @@ export function Dashboard() {
       )}
 
       {/* Rappels agenda — à contacter */}
-      {!q.trim() && proFeatures && agendaAContacter.length > 0 && (
+      {!q.trim() && !terrainUi && agendaAContacter.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">À contacter (agenda)</h2>
@@ -1008,7 +1018,7 @@ export function Dashboard() {
       )}
 
       {/* À reprendre — OT en cours */}
-      {!q.trim() && !lightSolo && otAReprendre.length > 0 && (
+      {!q.trim() && !terrainUi && otAReprendre.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">OT à reprendre</h2>
@@ -1055,7 +1065,7 @@ export function Dashboard() {
       )}
 
       {/* À reprendre — brouillons CERFA */}
-      {!q.trim() && !lightSolo && aReprendre.length > 0 && (
+      {!q.trim() && !terrainUi && aReprendre.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">À reprendre</h2>
@@ -1125,7 +1135,7 @@ export function Dashboard() {
         </section>
       )}
 
-      {!q.trim() && !lightSolo && recentSites.length > 0 && (
+      {!q.trim() && !terrainUi && recentSites.length > 0 && (
         <section className="hidden md:block">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg font-semibold">Sites récents</h2>
@@ -1166,7 +1176,7 @@ export function Dashboard() {
         </section>
       )}
 
-      {showOnboarding && !terrainUi && !lightSolo && (
+      {showOnboarding && !terrainUi && (
         <section className="rounded-2xl border border-accent/30 bg-accent-soft/50 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1211,24 +1221,8 @@ export function Dashboard() {
         </section>
       )}
 
-      {/* Stock fluides — visible en Light solo (obligatoire CERFA) */}
-      {!q.trim() && lightSolo ? (
-        <div className="hidden md:grid md:grid-cols-1 md:gap-4 lg:max-w-xs">
-          <Stat3d
-            img={ICON3D.bottle}
-            alt="Stock fluides"
-            label="Stock fluides"
-            value={`${stockKg.toFixed(1)}`}
-            unit="kg"
-            to="/app/stock"
-            float
-            floatDelay="0.3s"
-          />
-        </div>
-      ) : null}
-
-      {/* Raccourcis stats 3D — bureau / tablette (masqué sur le téléphone et pour le terrain) */}
-      {!terrainUi && !lightSolo && (
+      {/* Raccourcis stats 3D — bureau / tablette (masqué terrain) */}
+      {!terrainUi && (
       <div className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-4 md:gap-4">
         <Stat3d
           img={ICON3D.sites}

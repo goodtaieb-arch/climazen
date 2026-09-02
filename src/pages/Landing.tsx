@@ -672,10 +672,10 @@ export function Landing() {
               <p className="mt-2 text-sm text-muted">{APP_EDITION_PRICING.light.detail}</p>
               <ul className="mt-5 space-y-2.5 text-sm text-slate">
                 {[
+                  'OT, agenda & contrats maintenance',
                   'CERFA F-Gas & stock fluides (obligatoire)',
                   'Mon entreprise (SIRET, attestation…)',
-                  'Étalonnages & détecteur CERFA',
-                  'Mises à jour incluses',
+                  'Un seul utilisateur — gratuit pour toujours',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
@@ -721,9 +721,9 @@ export function Landing() {
               <ul className="mt-5 space-y-2.5 text-sm text-slate">
                 {[
                   'Tout le plan Light',
-                  'Équipe terrain + compte bureau',
-                  'Agenda, pointeuse & multi-tech',
-                  'Devis / démo sur demande',
+                  'Plusieurs techniciens & comptes opérateurs',
+                  'Pointeuse, RH & pilotage équipe',
+                  'Devis / commandes / magasin pièces',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />

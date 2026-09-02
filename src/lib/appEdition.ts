@@ -1,7 +1,7 @@
 /**
  * Deux éditions ClimaZEN :
- * - Light : auto-entrepreneur / solo — l’essentiel métier sans équipe ni admin lourd.
- * - Pro : PME / TPE — planning, équipe, pointeuse, RH, chaîne commerciale…
+ * - Light : auto-entrepreneur / solo — même métier (OT, agenda, contrats, CERFA…) mais un seul utilisateur.
+ * - Pro : PME / TPE — équipe, multi-techniciens, pointeuse, RH, chaîne commerciale…
  */
 
 export type AppEdition = 'light' | 'pro'
@@ -38,14 +38,18 @@ export const APP_EDITION_PRICING_AFTER_BETA =
 
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
-    'Intervenir : client, site, équipement, stock fluides (CERFA), société et CERFA. Étalonnages et détecteur dans Mon profil.',
+    'OT, agenda, contrats maintenance, stock fluides, CERFA et société — tout le métier, un seul compte utilisateur.',
   pro:
-    'Tout ClimaZEN : équipe, agenda, pointeuse légale, RH, multi-techniciens, agences et pilotage.',
+    'Comme Light + équipe multi-techniciens, pointeuse, RH, agences, devis/commandes et pilotage.',
 }
+
+/** Différence clé affichée aux utilisateurs. */
+export const APP_EDITION_SOLO_HINT =
+  'Édition Light : un seul utilisateur. Passez à Pro pour embaucher et gérer plusieurs techniciens.'
 
 /** Parcours solo AE — une intervention = client → site → équipement → papiers. */
 export const LIGHT_SOLO_FLOW_HINT =
-  'Client, site, stock fluides, équipements et CERFA — l’essentiel réglementaire pour l’auto-entrepreneur.'
+  'OT, contrats, agenda, stock fluides et CERFA — même outil qu’en Pro, en solo.'
 
 /** Fonctionnalités réservées à l’édition Pro. */
 export type EditionFeature =
@@ -58,7 +62,7 @@ export type EditionFeature =
   | 'agences'
   | 'team_kpi'
   | 'create_operator'
-  /** Liste OT / demandes (le solo passe par « Intervenir »). */
+  /** Liste OT / demandes */
   | 'ot_list'
   /** Stock pièces détachées GMAO */
   | 'stock_pieces'
@@ -66,33 +70,26 @@ export type EditionFeature =
 const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'equipe',
   'pointage',
-  'agenda',
   'rh',
   'chaine_commerciale',
   'multi_tech_ot',
   'agences',
   'team_kpi',
   'create_operator',
-  'ot_list',
   'stock_pieces',
 ])
 
 /** Routes Pro ou masquées du menu Light (sous /app). */
 export const PRO_ROUTE_PREFIXES = [
   '/app/equipe',
-  '/app/agenda',
   '/app/pointage',
-  '/app/ot',
   '/app/stock-pieces',
+  '/app/devis',
+  '/app/commandes',
 ] as const
 
 /** Routes Light accessibles via menu « Plus » seulement. */
 export const LIGHT_MORE_ROUTE_PREFIXES = [
-  '/app/clients',
-  '/app/chantiers',
-  '/app/stock',
-  '/app/contrats',
-  '/app/operateur',
   '/app/scan-equip',
 ] as const
 
@@ -102,10 +99,8 @@ export function routeInLightMoreMenu(pathname: string): boolean {
   )
 }
 
-/** Redirections Light → parcours solo. */
-export function lightRouteRedirect(pathname: string, edition: AppEdition): string | null {
-  if (edition !== 'light') return null
-  if (pathname === '/app/ot' || pathname.startsWith('/app/ot/')) return '/app/appel'
+/** Redirections Light → parcours solo (aucune pour OT / agenda : accessibles en Light). */
+export function lightRouteRedirect(_pathname: string, _edition: AppEdition): string | null {
   return null
 }
 

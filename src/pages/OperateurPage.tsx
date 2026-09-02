@@ -14,6 +14,7 @@ import {
   APP_EDITION_DESCRIPTIONS,
   APP_EDITION_PRICING,
   APP_EDITION_PRICING_AFTER_BETA,
+  APP_EDITION_SOLO_HINT,
   APP_EDITION_TAGLINES,
   editionHasFeature,
   type AppEdition,
@@ -266,10 +267,11 @@ export function OperateurPage() {
             bêta — {APP_EDITION_PRICING_AFTER_BETA.toLowerCase()}
           </p>
         ) : null}
+        <p className="mt-3 text-xs text-muted">{APP_EDITION_SOLO_HINT}</p>
         {appEdition === 'light' ? (
-          <p className="mt-3 text-xs text-muted">
-            Besoin d’équipe, agenda ou pointeuse ? Passez à <strong>Pro</strong> quand vous
-            embauchez — vos clients, OT et CERFA restent en place.
+          <p className="mt-2 text-xs text-muted">
+            OT, agenda et contrats maintenance sont inclus. Besoin de plusieurs techniciens,
+            pointeuse ou RH ? Passez à <strong>Pro</strong> — vos données restent en place.
           </p>
         ) : null}
       </section>
