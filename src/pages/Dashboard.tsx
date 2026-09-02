@@ -540,7 +540,9 @@ export function Dashboard() {
           </nav>
         )}
 
-        {!q.trim() && !terrainUi && (isOwner || teamFeatures) ? <DashboardKpiPanel /> : null}
+        {!q.trim() && !terrainUi && !lightEdition && (isOwner || teamFeatures) ? (
+          <DashboardKpiPanel />
+        ) : null}
 
         {q.trim() && (
           <ul className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
