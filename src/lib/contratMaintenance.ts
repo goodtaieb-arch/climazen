@@ -369,6 +369,12 @@ export interface ContratMaintenance {
    * Vide = tous les équipements des sites couverts, même fréquence.
    */
   lignesEquipements?: LigneContratEquipement[]
+  /**
+   * Dates de visite décalées (avancer / retarder un contrôle).
+   * Clé = `siteId:slotKey` (ex. `s1:2026-03`) → date ISO effective.
+   * Le créneau (slot) reste stable : pas de doublon OT.
+   */
+  visiteDateOverrides?: Record<string, string>
   dateDebut: string
   dateFin: string
   dureeLabel: string

@@ -185,6 +185,54 @@ export function slotKeyFromContratOtKey(key: string | undefined): string | undef
   return m ? m[1] : undefined
 }
 
+/** Clé d’override de date : site + créneau registre (ex. s1:2026-03). */
+export function visiteOverrideKey(siteId: string, slotKey: string): string {
+  return `${String(siteId || '').trim()}:${String(slotKey || '').trim()}`
+}
+
+export function dateVisiteEffective(
+  contrat: Pick<ContratMaintenance, 'visiteDateOverrides'>,
+  siteId: string,
+  slotKey: string,
+  dateCalculee: string,
+): string {
+  const key = visiteOverrideKey(siteId, slotKey)
+  const over = (contrat.visiteDateOverrides || {})[key]?.slice(0, 10)
+  if (over && /^\d{4}-\d{2}-\d{2}$/.test(over)) return over
+  return dateCalculee.slice(0, 10)
+}
+
+/**
+ * Avance / retarde une visite (garde le même slot → pas de nouvel OT).
+ * `deltaMonths` : −1 = un mois plus tôt, +1 = un mois plus tard.
+ */
+export function decalerVisiteContrat(
+  contrat: Pick<ContratMaintenance, 'visiteDateOverrides' | 'dateDebut' | 'dateFin'>,
+  opts: {
+    siteId: string
+    slotKey: string
+    dateActuelle: string
+    deltaMonths?: number
+    nouvelleDate?: string
+  },
+): Record<string, string> {
+  const key = visiteOverrideKey(opts.siteId, opts.slotKey)
+  const base = (opts.dateActuelle || '').slice(0, 10)
+  let next =
+    opts.nouvelleDate?.slice(0, 10) ||
+    (opts.deltaMonths != null ? addMonthsIso(base, opts.deltaMonths) : base) ||
+    base
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) next = base
+  const debut = (contrat.dateDebut || '').slice(0, 10)
+  const fin = (contrat.dateFin || '').slice(0, 10)
+  if (debut && next < debut) next = debut
+  if (fin && next > fin) next = fin
+  return {
+    ...(contrat.visiteDateOverrides || {}),
+    [key]: next,
+  }
+}
+
 /**
  * Créneau site déjà couvert : OT regroupé OU au moins un OT scindé / legacy
  * (clé avec équipement) pour le même créneau.
@@ -274,22 +322,29 @@ function visitesPourLigne(
 ): VisiteContratPlanifiee[] {
   const start = (contrat.dateDebut || opts.today).slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return []
+  const finContrat = (contrat.dateFin || '').slice(0, 10)
   const mois = moisCyclePourFrequence(ligne.visitesParAn)
+  /** Marge : une visite calculée un peu après la fenêtre peut être avancée dedans. */
+  const calcCap = addMonthsIso(opts.endExclusive, 3) || opts.endExclusive
   const out: VisiteContratPlanifiee[] = []
   for (let yearOffset = 0; yearOffset < 25; yearOffset++) {
     const cycleStart = addYearsIso(start, yearOffset)
-    if (cycleStart >= opts.endExclusive) break
+    if (cycleStart >= calcCap) break
     const cycleYear = Number(cycleStart.slice(0, 4))
     for (const moisCycle of mois) {
-      const date = addMonthsIso(cycleStart, moisCycle - 1)
-      if (!date) continue
-      if (date < start) continue
-      if (date >= opts.endExclusive) continue
-      if (date < opts.pastFloor || date > opts.horizon) continue
+      const dateCalculee = addMonthsIso(cycleStart, moisCycle - 1)
+      if (!dateCalculee) continue
+      if (dateCalculee < start) continue
+      if (dateCalculee >= calcCap) continue
       const niveau = niveauVisitePourMoisCycle(moisCycle)
       const slotKey = `${cycleYear}-${String(moisCycle).padStart(2, '0')}`
+      const dateEff = dateVisiteEffective(contrat, ligne.site.id, slotKey, dateCalculee)
+      if (dateEff < opts.pastFloor || dateEff > opts.horizon) continue
+      if (dateEff >= opts.endExclusive) continue
+      if (dateEff < start) continue
+      if (finContrat && dateEff > finContrat) continue
       out.push({
-        date,
+        date: dateEff,
         niveau,
         slotKey,
         cycleYear,

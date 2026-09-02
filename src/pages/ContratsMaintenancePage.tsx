@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, FileSignature, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, FileSignature, Plus, Trash2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -30,7 +30,9 @@ import {
 } from '../lib/contratMaintenance'
 import {
   NIVEAU_VISITE_LABELS,
+  decalerVisiteContrat,
   periodiciteDepuisVisites,
+  visiteOverrideKey,
   visitesDepuisContrat,
 } from '../lib/contratOtAuto'
 import { allEquipements } from '../lib/cerfaBatch'
@@ -50,6 +52,7 @@ export function ContratsMaintenancePage() {
     deleteContratMaintenance,
     syncAgendaFromSources,
     syncOtsDepuisContrats,
+    upsertOrdreTravail,
   } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -532,6 +535,25 @@ export function ContratsMaintenancePage() {
                 ots={(data.ordresTravail || []).filter(
                   (o) => existing?.id && o.contratId === existing.id,
                 )}
+                onFormChange={(next) => setForm(next)}
+                onPersistOverrides={(overrides) => {
+                  const nextForm = { ...form, visiteDateOverrides: overrides }
+                  setForm(nextForm)
+                  if (!existing?.id) return
+                  upsertContratMaintenance({ ...nextForm, id: existing.id })
+                  // Mettre à jour la date des OT déjà créés pour ces créneaux
+                  for (const ot of data.ordresTravail || []) {
+                    if (ot.contratId !== existing.id || !ot.contratOtKey) continue
+                    const slot = ot.contratOtKey.match(/:(\d{4}-\d{2})$/)?.[1]
+                    if (!slot || !ot.chantierId) continue
+                    const key = visiteOverrideKey(ot.chantierId, slot)
+                    const d = overrides[key]
+                    if (d && d !== ot.date) {
+                      upsertOrdreTravail({ ...ot, id: ot.id, date: d })
+                    }
+                  }
+                  syncAgendaFromSources()
+                }}
                 onSync={() => {
                   if (!existing?.id) {
                     alert('Enregistrez le contrat avant de générer les OT.')
@@ -844,19 +866,44 @@ function CalendrierVisitesPreview({
   sites,
   ots,
   onSync,
+  onFormChange,
+  onPersistOverrides,
 }: {
   form: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'>
   contratId: string
   sites: { id: string; clientId: string; nom: string; agenceCode?: string }[]
-  ots: { id: string; numero: string; date: string; contratOtKey?: string; statut: string; visiteNiveau?: string }[]
+  ots: {
+    id: string
+    numero: string
+    date: string
+    contratOtKey?: string
+    statut: string
+    visiteNiveau?: string
+    chantierId?: string
+  }[]
   onSync: () => void
+  onFormChange: (next: Omit<ContratMaintenance, 'id' | 'createdAt' | 'updatedAt'>) => void
+  onPersistOverrides: (overrides: Record<string, string>) => void
 }) {
-  const visites = visitesDepuisContrat(
-    { ...form, id: contratId, createdAt: '', updatedAt: '' },
-    sites,
-    { horizonMonths: 14, pastMonths: 1 },
-  )
+  const contratPreview = { ...form, id: contratId, createdAt: '', updatedAt: '' }
+  const visites = visitesDepuisContrat(contratPreview, sites, {
+    horizonMonths: 14,
+    pastMonths: 1,
+  })
   const byKey = new Map(ots.filter((o) => o.contratOtKey).map((o) => [o.contratOtKey!, o]))
+
+  const appliquer = (opts: {
+    siteId: string
+    slotKey: string
+    dateActuelle: string
+    deltaMonths?: number
+    nouvelleDate?: string
+  }) => {
+    const overrides = decalerVisiteContrat(form, opts)
+    onFormChange({ ...form, visiteDateOverrides: overrides })
+    onPersistOverrides(overrides)
+  }
+
   return (
     <div className="rounded-2xl border border-line bg-mist/40 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -867,7 +914,7 @@ function CalendrierVisitesPreview({
             {' · '}
             {PERIODICITE_LABELS[form.periodicite].toLowerCase()}
             {' · '}
-            OT créés mois par mois (pas toute l’année d’un coup)
+            OT mois par mois — avancez / retardez un contrôle (trimestriel, annuel…)
           </p>
         </div>
         {form.statut === 'signe' ? (
@@ -887,35 +934,104 @@ function CalendrierVisitesPreview({
           Aucune visite dans la fenêtre (ajoutez un site et une date de début).
         </p>
       ) : (
-        <ul className="mt-2 max-h-56 space-y-1 overflow-auto text-xs">
-          {visites.slice(0, 24).map((v) => {
+        <ul className="mt-2 max-h-72 space-y-1.5 overflow-auto text-xs">
+          {visites.slice(0, 36).map((v) => {
             const ot =
               (v.contratOtKeyEquipement && byKey.get(v.contratOtKeyEquipement)) ||
               byKey.get(v.contratOtKey) ||
               null
+            const overKey = visiteOverrideKey(v.siteId, v.slotKey)
+            const isOverridden = Boolean((form.visiteDateOverrides || {})[overKey])
+            const canDecaler =
+              v.niveau === 'trimestriel' ||
+              v.niveau === 'semestriel' ||
+              v.niveau === 'annuel' ||
+              v.niveau === 'mensuel'
+            const closed = ot ? isOtCloture(ot.statut) : false
             return (
               <li
                 key={v.contratOtKeyEquipement || `${v.contratOtKey}:${v.equipementId || ''}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2 py-1.5"
+                className="rounded-lg bg-white px-2 py-1.5"
               >
-                <span>
-                  <span className="font-bold">{v.date}</span>
-                  {` · ${NIVEAU_VISITE_LABELS[v.niveau]}`}
-                  {v.equipementNom ? ` · ${v.equipementNom}` : ''}
-                  {sites.length > 1 ? ` · ${v.siteNom}` : ''}
-                  {v.sousTraitant ? ' · sous-traitant' : ''}
-                </span>
-                {ot ? (
-                  <Link
-                    to={`/app/appel?ot=${encodeURIComponent(ot.id)}`}
-                    className="font-semibold text-emerald-800 underline"
-                  >
-                    {formatOtNumero(ot.numero)}
-                    {isOtCloture(ot.statut) ? ' · clôturé' : ''}
-                  </Link>
-                ) : (
-                  <span className="text-muted">OT à générer</span>
-                )}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="font-bold text-ink">{v.date}</span>
+                    {isOverridden ? (
+                      <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-bold text-amber-900">
+                        décalé
+                      </span>
+                    ) : null}
+                    {` · ${NIVEAU_VISITE_LABELS[v.niveau]}`}
+                    {v.equipementNom ? ` · ${v.equipementNom}` : ''}
+                    {sites.length > 1 ? ` · ${v.siteNom}` : ''}
+                    {v.sousTraitant ? ' · sous-traitant' : ''}
+                  </span>
+                  {ot ? (
+                    <Link
+                      to={`/app/appel?ot=${encodeURIComponent(ot.id)}`}
+                      className="shrink-0 font-semibold text-emerald-800 underline"
+                    >
+                      {formatOtNumero(ot.numero)}
+                      {closed ? ' · clôturé' : ''}
+                    </Link>
+                  ) : (
+                    <span className="shrink-0 text-muted">OT à générer</span>
+                  )}
+                </div>
+                {canDecaler && !closed ? (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      title="Avancer d’un mois"
+                      disabled={!form.dateDebut}
+                      onClick={() =>
+                        appliquer({
+                          siteId: v.siteId,
+                          slotKey: v.slotKey,
+                          dateActuelle: v.date,
+                          deltaMonths: -1,
+                        })
+                      }
+                      className="inline-flex h-8 items-center gap-0.5 rounded-lg border border-line bg-mist/60 px-2 text-[11px] font-bold text-ink disabled:opacity-40"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" /> −1 mois
+                    </button>
+                    <button
+                      type="button"
+                      title="Retarder d’un mois"
+                      disabled={!form.dateDebut}
+                      onClick={() =>
+                        appliquer({
+                          siteId: v.siteId,
+                          slotKey: v.slotKey,
+                          dateActuelle: v.date,
+                          deltaMonths: 1,
+                        })
+                      }
+                      className="inline-flex h-8 items-center gap-0.5 rounded-lg border border-line bg-mist/60 px-2 text-[11px] font-bold text-ink disabled:opacity-40"
+                    >
+                      +1 mois <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                    <input
+                      type="date"
+                      value={v.date}
+                      min={form.dateDebut || undefined}
+                      max={form.dateFin || undefined}
+                      onChange={(e) => {
+                        const nouvelleDate = e.target.value
+                        if (!nouvelleDate) return
+                        appliquer({
+                          siteId: v.siteId,
+                          slotKey: v.slotKey,
+                          dateActuelle: v.date,
+                          nouvelleDate,
+                        })
+                      }}
+                      className="h-8 rounded-lg border border-line bg-white px-1.5 text-[11px] font-semibold"
+                      aria-label={`Date ${NIVEAU_VISITE_LABELS[v.niveau]}`}
+                    />
+                  </div>
+                ) : null}
               </li>
             )
           })}

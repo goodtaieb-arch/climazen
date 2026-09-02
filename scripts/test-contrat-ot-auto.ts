@@ -11,6 +11,8 @@ import {
   NIVEAU_VISITE_LABELS,
   alertesOtContratFinMois,
   buildOtDraftsDepuisContrats,
+  dateVisiteEffective,
+  decalerVisiteContrat,
   docsRequisPourFamille,
   joursRestantsDansMois,
   mergeOtsDepuisContrats,
@@ -418,5 +420,33 @@ const pruned = pruneOtsContratHorsFenetre(
 )
 assert.equal(pruned.kept.map((o) => o.id).join(','), 'keep')
 assert.equal(pruned.removed.map((o) => o.id).join(','), 'drop')
+
+const over = decalerVisiteContrat(
+  { dateDebut: '2026-01-15', dateFin: '2027-01-15', visiteDateOverrides: {} },
+  { siteId: 's1', slotKey: '2026-03', dateActuelle: '2026-03-15', deltaMonths: -1 },
+)
+assert.equal(over['s1:2026-03'], '2026-02-15')
+assert.equal(
+  dateVisiteEffective({ visiteDateOverrides: over }, 's1', '2026-03', '2026-03-15'),
+  '2026-02-15',
+)
+const avanceAnnuel = decalerVisiteContrat(
+  { dateDebut: '2026-01-15', dateFin: '2027-01-15', visiteDateOverrides: over },
+  { siteId: 's1', slotKey: '2026-12', dateActuelle: '2026-12-15', nouvelleDate: '2026-11-01' },
+)
+assert.equal(avanceAnnuel['s1:2026-12'], '2026-11-01')
+
+const avecOverride = visitesDepuisContrat(
+  contrat({
+    id: 'cm-dec',
+    visiteDateOverrides: { 's1:2026-03': '2026-02-20' },
+  }),
+  sites,
+  { today: '2026-02-10', horizonMonths: 2, pastMonths: 0 },
+)
+assert.ok(
+  avecOverride.some((v) => v.slotKey === '2026-03' && v.date === '2026-02-20'),
+  'visite trimestrielle avancée visible dans la fenêtre',
+)
 
 console.log('ok test-contrat-ot-auto')
