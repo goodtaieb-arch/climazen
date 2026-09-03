@@ -192,9 +192,57 @@ export function AgendaPage() {
   useEffect(() => {
     if (!existing) return
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = existing
-    setForm({ ...blankAgendaEvent(), ...rest })
+    const heureNorm = formatHeure(rest.heure) || undefined
+    let techId = rest.technicienUserId
+    let techName = rest.technicien || ''
+    // Si nom libre sans id → rattacher au tech de l’équipe (évite de re-chercher)
+    if (!techId && techName.trim() && team.length) {
+      const q = techName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+      const hit = team.find((t) => {
+        const n = (t.fullName || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+        return n === q || n.includes(q) || q.includes(n.split(/\s+/)[0] || '')
+      })
+      if (hit) {
+        techId = hit.id
+        techName = hit.fullName || techName
+      }
+    }
+    // Titre « … — Amelie » sans tech → tenter le match
+    if (!techId && team.length) {
+      const fromTitle = (rest.title || '').match(/—\s*([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+)?)\s*$/)
+      if (fromTitle?.[1]) {
+        const q = fromTitle[1]
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+        const hit = team.find((t) => {
+          const n = (t.fullName || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+          return n.includes(q) || q.includes((n.split(/\s+/)[0] || ''))
+        })
+        if (hit) {
+          techId = hit.id
+          techName = hit.fullName || fromTitle[1]
+        }
+      }
+    }
+    setForm({
+      ...blankAgendaEvent(),
+      ...rest,
+      heure: heureNorm,
+      technicienUserId: techId,
+      technicien: techName,
+    })
     setFormOpen(true)
-  }, [existing?.id, existing?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [existing?.id, existing?.updatedAt, team]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const n = syncAgendaFromSources()
@@ -625,7 +673,9 @@ export function AgendaPage() {
     upsertAgendaEvent({
       ...form,
       id: existing?.id,
-      heure: isIndispoType(form.type) ? undefined : (form.heure || '').trim() || undefined,
+      heure: isIndispoType(form.type)
+        ? undefined
+        : formatHeure(form.heure) || undefined,
       dureeMinutes: isIndispoType(form.type)
         ? undefined
         : dureeMinutesEffectif(form.dureeMinutes),
@@ -2265,7 +2315,7 @@ function OtPlanifierInline({
         <input
           type="time"
           required
-          value={heure}
+          value={formatHeure(heure)}
           onChange={(e) => setHeure(e.target.value)}
           className="h-10 w-full rounded-lg border border-line bg-white px-2 text-sm"
         />

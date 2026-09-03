@@ -307,9 +307,26 @@ export function formatJourCourt(iso: string): string {
 }
 
 export function formatHeure(h?: string): string {
-  const v = (h || '').trim()
-  if (!v) return ''
-  return v.slice(0, 5)
+  const raw = (h || '').trim()
+  if (!raw) return ''
+  // Normalise pour <input type="time"> → toujours HH:mm (sinon « Valeur non valide »)
+  const cleaned = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[．。･]/g, '.')
+    .replace(/,/g, ':')
+    .replace(/\s+/g, '')
+  const m =
+    cleaned.match(/^(\d{1,2})[:hH.](\d{2})(?::\d{2})?$/) ||
+    cleaned.match(/^(\d{1,2})[hH]$/) ||
+    cleaned.match(/^(\d{1,2}):(\d{2})$/) ||
+    cleaned.match(/^(\d{2})(\d{2})$/) ||
+    cleaned.match(/^(\d{1,2})$/)
+  if (!m) return ''
+  const hh = Number(m[1])
+  const mm = m[2] != null ? Number(m[2]) : 0
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh > 23 || mm > 59) return ''
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
 }
 
 /** Tri programme du jour : heure puis titre. */
