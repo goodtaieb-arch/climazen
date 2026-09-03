@@ -7,6 +7,8 @@ import {
   findOtsForTechOnDate,
   wantsOtDeplacerOuDecaler,
   answerOtLookupOuDeplacer,
+  extractDecalerHeures,
+  proposeDecalerOt,
 } from '../src/lib/assistantOtLookup'
 import type { AppData } from '../src/lib/types'
 import { emptyData } from '../src/lib/storage'
@@ -70,10 +72,38 @@ const reply = answerOtLookupOuDeplacer(
 assert.ok(reply.includes('Karim Benali'))
 assert.ok(!/Ben Lai/i.test(reply))
 assert.ok(/OT26090225|26090225/.test(reply))
-assert.ok(/Agenda|décal|deplac|croix/i.test(reply))
+assert.ok(/Agenda|décal|deplac|croix|oui/i.test(reply))
 
 // Hallucinated name must NOT match better than real
 const bad = matchTechInTeam('Karim Ben Lai', team)
 assert.ok(bad[0]!.score < hits[0]!.score)
+
+// Décalage 7h → 9h : proposition concrète (pas ouvrir fiche OT)
+assert.deepEqual(extractDecalerHeures('décale l’OT de 7h à 9h'), {
+  from: '07:00',
+  to: '09:00',
+})
+assert.deepEqual(extractDecalerHeures('de 7h00 a 9h00'), {
+  from: '07:00',
+  to: '09:00',
+})
+
+const prop = proposeDecalerOt(data, 'décale l’OT de 7h à 9h', team)
+assert.equal(prop.ok, true)
+if (prop.ok) {
+  assert.equal(prop.action.kind, 'decaler_ot')
+  assert.equal(prop.action.heureFrom, '07:00')
+  assert.equal(prop.action.heureTo, '09:00')
+  assert.equal(prop.action.otId, 'ot1')
+  assert.ok(/oui/i.test(prop.action.summary))
+  assert.ok(/pas d['’]ouverture|sans ouvrir|Agenda/i.test(prop.action.summary))
+}
+
+const propKarim = proposeDecalerOt(
+  data,
+  'décale l’OT de Karim Benali de 7h00 à 9h00',
+  team,
+)
+assert.equal(propKarim.ok, true)
 
 console.log('test-assistant-ot-lookup: ok')

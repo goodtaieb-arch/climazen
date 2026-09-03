@@ -191,13 +191,211 @@ export function wantsOtDeplacerOuDecaler(raw: string): boolean {
   if (!n) return false
   const move =
     /\b(decal|deplac|retirer?\s+(?:l )?ot|enlev|boug|replan|remet)\w*\b/.test(n) ||
-    /\bot\b.*\b(decal|deplac|vers|a )\b/.test(n)
+    /\bot\b.*\b(decal|deplac|vers|a )\b/.test(n) ||
+    /\bde\s+\d{1,2}\s*[h:.]?\s*\d{0,2}\s*(?:a|vers)\s+\d{1,2}/.test(n)
   if (!move) return false
   return (
     /\b(ot|ordre|intervention|planning|agenda)\b/.test(n) ||
     /\b(de|du|pour)\s+[a-z]/.test(n) ||
-    Boolean(extractTechNameQuery(raw))
+    Boolean(extractTechNameQuery(raw)) ||
+    Boolean(extractDecalerHeures(raw).to)
   )
+}
+
+/** Parse 7h / 7h00 / 07:00 / 7.00 → HH:mm */
+export function parseHeureToken(h: string, m?: string): string {
+  const hh = Math.min(23, Math.max(0, Number(h) || 0))
+  const mm = m != null && m !== '' ? Math.min(59, Math.max(0, Number(m) || 0)) : 0
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+/**
+ * « de 7h à 9h », « de 7:00 a 09:00 », « à 9h », « vers 9h30 ».
+ */
+export function extractDecalerHeures(raw: string): { from?: string; to?: string } {
+  const t = String(raw || '')
+  const range = t.match(
+    /\bde\s+(\d{1,2})\s*[h:.]?\s*(\d{2})?\s*(?:à|a|vers)\s+(\d{1,2})\s*[h:.]?\s*(\d{2})?/i,
+  )
+  if (range) {
+    return {
+      from: parseHeureToken(range[1], range[2]),
+      to: parseHeureToken(range[3], range[4]),
+    }
+  }
+  const toOnly = t.match(
+    /\b(?:passe[rz]?|mets?|mettre|remets?|remettre|pose[rz]?)\s+(?:l['’])?(?:ot|ordre)?\s*(?:a|à|vers)\s+(\d{1,2})\s*[h:.]?\s*(\d{2})?/i,
+  ) || t.match(/\b(?:a|à|vers)\s+(\d{1,2})\s*[h:.]?\s*(\d{2})?\b/i)
+  if (toOnly) {
+    return { to: parseHeureToken(toOnly[1], toOnly[2]) }
+  }
+  return {}
+}
+
+export function extractOtNumeroQuery(raw: string): string {
+  const m =
+    String(raw || '').match(/\bot\s*[-#:]?\s*(\d{6,})\b/i) ||
+    String(raw || '').match(/\b(\d{8})\b/)
+  return m?.[1] || ''
+}
+
+function heureMatches(otHeure: string | undefined, wanted: string): boolean {
+  const a = (otHeure || '').slice(0, 5)
+  const b = wanted.slice(0, 5)
+  if (!a || !b) return false
+  return a === b
+}
+
+export type DecalerOtProposal =
+  | {
+      ok: true
+      action: {
+        kind: 'decaler_ot'
+        otId: string
+        otNumero: string
+        heureFrom: string
+        heureTo: string
+        date: string
+        summary: string
+      }
+    }
+  | { ok: false; message: string }
+
+/**
+ * Propose un décalage d’heure d’OT (validation « oui » ensuite).
+ * Ne navigue PAS vers le formulaire OT — uniquement Agenda après confirmation.
+ */
+export function proposeDecalerOt(
+  data: AppData,
+  raw: string,
+  team: TeamMemberLite[] | undefined,
+): DecalerOtProposal {
+  const heures = extractDecalerHeures(raw)
+  if (!heures.to) {
+    return {
+      ok: false,
+      message: [
+        `Pour décaler un OT, indiquez l’heure cible (ex. « décale l’OT de 7h à 9h » ou « OT de Karim à 9h »).`,
+        `Puis répondez « oui » — je change l’heure sur l’Agenda, sans ouvrir la fiche OT.`,
+      ].join('\n'),
+    }
+  }
+
+  const dateIso = resolveRelativeDate(raw) || todayIsoLocal()
+  const dateLabel =
+    dateIso === todayIsoLocal()
+      ? 'aujourd’hui'
+      : dateIso === addDaysToIso(todayIsoLocal(), 1)
+        ? 'demain'
+        : dateIso
+  const numeroQ = extractOtNumeroQuery(raw)
+  const nameQuery = extractTechNameQuery(raw)
+
+  let candidates = (data.ordresTravail || []).filter((o) => !isOtCloture(o.statut))
+
+  if (numeroQ) {
+    candidates = candidates.filter(
+      (o) =>
+        String(o.numero || '').includes(numeroQ) ||
+        formatOtNumero(o.numero).replace(/\s/g, '').includes(numeroQ),
+    )
+  } else {
+    candidates = candidates.filter((o) => String(o.date || '').slice(0, 10) === dateIso)
+  }
+
+  if (heures.from) {
+    const atFrom = candidates.filter((o) => heureMatches(o.heure, heures.from!))
+    if (atFrom.length) candidates = atFrom
+  }
+
+  if (nameQuery) {
+    const roster = [...(team || []), ...techsFromOts(data)]
+    const byId = new Map<string, TeamMemberLite>()
+    for (const m of roster) {
+      if (!m.id) continue
+      const prev = byId.get(m.id)
+      byId.set(m.id, {
+        id: m.id,
+        fullName: m.fullName || prev?.fullName,
+        email: m.email || prev?.email,
+      })
+    }
+    const matches = matchTechInTeam(nameQuery, [...byId.values()])
+    if (matches.length) {
+      const techId = matches[0].member.id
+      const byTech = candidates.filter((o) => techIdsOt(o).includes(techId))
+      if (byTech.length) candidates = byTech
+      else {
+        const byName = candidates.filter(
+          (o) => scorePersonName(o.technicien || '', nameQuery) >= 55,
+        )
+        if (byName.length) candidates = byName
+      }
+    }
+  }
+
+  // Si pas de « de Xh » mais un seul OT du tech/jour → on le prend
+  if (!heures.from && candidates.length > 1 && nameQuery) {
+    // garder tous — ambigu
+  }
+
+  if (!candidates.length) {
+    return {
+      ok: false,
+      message: [
+        `Aucun OT ouvert trouvé${heures.from ? ` à ${heures.from}` : ''} pour ${dateLabel}${
+          nameQuery ? ` (${nameQuery})` : ''
+        }.`,
+        `Ex. : « décale l’OT de 7h à 9h » ou « OT de Karim Benali de 7h à 9h ».`,
+      ].join('\n'),
+    }
+  }
+
+  if (candidates.length > 1) {
+    const lines = [
+      `Plusieurs OT possibles — précisez le n° ou le tech :`,
+      ``,
+      ...candidates.slice(0, 6).map((o) => formatOtLine(o, data.chantiers, data.clients)),
+      ``,
+      `Ex. : « décale OT${candidates[0].numero} à ${heures.to} ».`,
+    ]
+    return { ok: false, message: lines.join('\n') }
+  }
+
+  const ot = candidates[0]
+  const heureFrom = (ot.heure || '').slice(0, 5) || heures.from || '—'
+  if (heureFrom === heures.to) {
+    return {
+      ok: false,
+      message: `${formatOtNumero(ot.numero)} est déjà à ${heures.to}.`,
+    }
+  }
+
+  const site = data.chantiers?.find((s) => s.id === ot.chantierId)
+  const summary = [
+    `Je propose de décaler l’heure (pas d’ouverture de fiche OT) :`,
+    `• ${formatOtNumero(ot.numero)} — ${(ot.action || '').slice(0, 70)}`,
+    site?.nom ? `• Site : ${site.nom}` : null,
+    ot.technicien ? `• Tech : ${ot.technicien}` : null,
+    `• ${heureFrom} → ${heures.to} (${dateLabel})`,
+    ``,
+    `Répondez « oui » pour appliquer sur l’Agenda, ou « non » pour annuler.`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return {
+    ok: true,
+    action: {
+      kind: 'decaler_ot',
+      otId: ot.id,
+      otNumero: ot.numero,
+      heureFrom,
+      heureTo: heures.to,
+      date: String(ot.date || dateIso).slice(0, 10),
+      summary,
+    },
+  }
 }
 
 export function wantsOtLookup(raw: string): boolean {
@@ -319,11 +517,19 @@ export function answerOtLookupOuDeplacer(
   }
 
   if (wantsMove) {
-    lines.push(
-      ``,
-      `Pour décaler : Agenda → bloc de ${officialName} → recliquer pour reposer à une autre heure / jour, ou croix rouge pour retirer puis reposer.`,
-      `Je ne déplace pas toute seule (validation humaine) — dites « oui » seulement pour créer, pas pour déplacer un OT existant.`,
-    )
+    const heures = extractDecalerHeures(raw)
+    if (heures.to) {
+      lines.push(
+        ``,
+        `Indiquez clairement « de ${heures.from || 'Xh'} à ${heures.to} » avec le tech ou le n° OT — je proposerai le décalage, puis « oui » applique l’heure sur l’Agenda (sans ouvrir la fiche).`,
+      )
+    } else {
+      lines.push(
+        ``,
+        `Pour décaler sans perdre de temps : « décale l’OT de ${officialName} de 7h à 9h » → je propose, vous dites « oui », l’heure change sur l’Agenda.`,
+        `Croix rouge Agenda = retirer du tech (pas supprimer l’OT).`,
+      )
+    }
   }
 
   if (matches.length > 1) {
