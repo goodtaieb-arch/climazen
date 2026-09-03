@@ -11,6 +11,7 @@ import {
   NIVEAU_VISITE_LABELS,
   alertesOtContratFinMois,
   buildOtDraftsDepuisContrats,
+  dateDerniereInterventionPourOt,
   dateVisiteEffective,
   decalerVisiteContrat,
   docsRequisPourFamille,
@@ -447,6 +448,36 @@ const avecOverride = visitesDepuisContrat(
 assert.ok(
   avecOverride.some((v) => v.slotKey === '2026-03' && v.date === '2026-02-20'),
   'visite trimestrielle avancée visible dans la fenêtre',
+)
+
+assert.equal(
+  dateDerniereInterventionPourOt(
+    {
+      id: 'ot-oct',
+      date: '2026-10-02',
+      chantierId: 's1',
+      contratId: 'c1',
+      contratOtKey: 'cm-ot:c1:s1:2026-10',
+      typeOt: 'maintenance',
+      statut: 'pret_a_planifier',
+    },
+    {
+      derniereMaintenanceSite: '2026-09-27',
+      ordresTravail: [
+        {
+          id: 'ot-sep',
+          date: '2026-09-27',
+          chantierId: 's1',
+          contratId: 'c1',
+          contratOtKey: 'cm-ot:c1:s1:2026-09',
+          typeOt: 'maintenance',
+          statut: 'termine',
+          heure: '09:00',
+        },
+      ],
+    },
+  ),
+  '2026-09-27',
 )
 
 console.log('ok test-contrat-ot-auto')
