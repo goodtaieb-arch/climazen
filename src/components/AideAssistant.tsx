@@ -7,6 +7,7 @@ import {
   buildEntityCatalog,
   executeCreateOtCerfa,
   extractActionFromReply,
+  extractCommercialActionFromReply,
   extractEquipementsActionFromReply,
   isCancelPhrase,
   isConfirmPhrase,
@@ -14,6 +15,7 @@ import {
   resolveCreateOtCerfa,
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
+import { catalogSummaryForPrompt, isForbiddenClaim } from '../lib/aiActionCatalog'
 import {
   executeTerrainAction,
   parseTerrainIntent,
@@ -53,7 +55,16 @@ ${aiTierUpsellMessage('none') ?? ''}
 
 Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
   }
-  return 'Bonjour — je peux préparer OT, CERFA, clients, agenda, bouteilles, fiches et détecteurs. Vous validez ensuite.\n\nExemples :\n• « Crée un client Monsieur Albert Dupont, tél 06 15 53 38 54, mail …, adresse … Nice »\n• « Crée une OT pour Mr Martin, site Atelier, contrôle d’étanchéité clim RDC et le CERFA »\n• « Agenda RDV demain 14h pour Mr Martin site Atelier »\n• « Ajoute un détecteur de fuite nom 3 XXXX3, validité 15/03/26 »'
+  return (
+    'Intelligence ClimaZEN — accès A→Z. Je propose, vous validez (obligatoire).\n\n' +
+    catalogSummaryForPrompt() +
+    '\n\nExemples :\n' +
+    '• « Crée un OT pour Mr Martin, site Atelier, contrôle d’étanchéité »\n' +
+    '• « Prépare un devis pour Dupont »\n' +
+    '• « Commande un compresseur chez Daikin »\n' +
+    '• « Agenda RDV demain 14h pour Mr Martin »\n\n' +
+    'Interdit sans vous : signature, clôture OT, PDF CERFA final, suppressions.'
+  )
 }
 
 function stripActionJson(reply: string): string {
@@ -79,6 +90,9 @@ export function AideAssistant() {
     upsertStock,
     upsertFicheMaintenanceClim,
     upsertAgendaEvent,
+    upsertDevis,
+    upsertCommandeFournisseur,
+    upsertPieceDetachee,
     appEdition,
   } = useStore()
   const { user } = useAuth()
@@ -187,6 +201,9 @@ export function AideAssistant() {
         upsertStock,
         upsertFicheMaintenanceClim,
         upsertAgendaEvent,
+        upsertDevis,
+        upsertCommandeFournisseur,
+        upsertPieceDetachee,
       })
       setPendingTerrain(null)
       pushAssistant(result.message)
@@ -290,6 +307,16 @@ export function AideAssistant() {
         return
       }
 
+      const commercial = agentOk ? extractCommercialActionFromReply(reply) : null
+      if (commercial) {
+        const cleaned = stripActionJson(reply)
+        if (cleaned) pushAssistant(cleaned)
+        setPendingCreate(null)
+        setPendingTerrain(commercial)
+        pushAssistant(commercial.summary)
+        return
+      }
+
       const geminiIntent = agentOk ? extractActionFromReply(reply) : null
       if (geminiIntent) {
         const cleaned = stripActionJson(reply)
@@ -298,12 +325,8 @@ export function AideAssistant() {
         return
       }
 
-      // Gemini a parfois dit « c’est fait » sans rien créer → ne pas laisser croire
-      const falseDone =
-        /\bc['’]?est fait\b|\bont bien [eé]t[eé] cr[eé][eé]s?\b|\bont [eé]t[eé] cr[eé][eé]s?\b/i.test(
-          reply,
-        )
-      if (falseDone) {
+      // L’IA a parfois dit « c’est fait » sans rien créer → ne pas laisser croire
+      if (isForbiddenClaim(reply)) {
         const retry = agentOk ? parseTerrainIntent(q) : null
         if (retry) {
           setPendingCreate(null)
@@ -314,7 +337,7 @@ export function AideAssistant() {
           return
         }
         pushAssistant(
-          `${stripActionJson(reply)}\n\n⚠️ Rien n’a encore été enregistré dans l’app. Reformulez clairement (ex. « crée 2 clim monobloc salon et chambre chez Dupont ») puis validez avec « oui ».`,
+          `${stripActionJson(reply)}\n\n⚠️ Rien n’a encore été enregistré. Reformulez clairement puis validez avec « oui » (validation humaine obligatoire).`,
         )
         return
       }
@@ -341,15 +364,18 @@ export function AideAssistant() {
     else if (content.includes('/app/profil')) navigate('/app/profil')
     else if (content.includes('/app/fiche-maintenance')) navigate('/app/fiche-maintenance-clim')
     else if (content.includes('/app/agenda')) navigate('/app/agenda')
+    else if (content.includes('/app/devis')) navigate('/app/devis')
+    else if (content.includes('/app/commandes')) navigate('/app/commandes')
+    else if (content.includes('/app/stock-pieces')) navigate('/app/stock-pieces')
   }
 
   const tierSubtitle =
     aiTier === 'agent'
       ? source === 'api'
-        ? 'Agent IA · OpenAI (clé société)'
+        ? 'Intelligence A→Z · OpenAI · validation humaine'
         : source === 'local'
-          ? 'Agent IA · guide + actions'
-          : 'Agent IA · OT · CERFA · agenda'
+          ? 'Intelligence A→Z · guide + actions'
+          : 'Intelligence A→Z · validation obligatoire'
       : aiTier === 'chatbot'
         ? 'Chatbot · guide ClimaZEN'
         : 'Non activé · édition Light'
@@ -430,14 +456,18 @@ export function AideAssistant() {
           ) : (
             <>
           {hasPending && agentOk ? (
-            <div className="flex gap-2 border-t border-amber-200 bg-amber-50 px-3 py-2">
+            <div className="space-y-2 border-t border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+                Validation humaine obligatoire — rien n’est écrit sans votre OK
+              </p>
+              <div className="flex gap-2">
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void send('oui')}
                 className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-[#0f766e] px-3 text-xs font-extrabold text-white disabled:opacity-50"
               >
-                <Check className="h-3.5 w-3.5" /> Oui, créer
+                <Check className="h-3.5 w-3.5" /> Oui, valider
               </button>
               <button
                 type="button"
@@ -447,6 +477,7 @@ export function AideAssistant() {
               >
                 Annuler
               </button>
+              </div>
             </div>
           ) : null}
 
@@ -477,7 +508,7 @@ export function AideAssistant() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={
                 agentOk
-                  ? 'Ex. ajoute détecteur… / crée OT…'
+                  ? 'Ex. devis Dupont… / commande pièce… / OT…'
                   : 'Question sur l’app ClimaZEN…'
               }
               className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-sm"

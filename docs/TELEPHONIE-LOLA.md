@@ -50,13 +50,20 @@ Exécuter dans l’ordre :
 2. `supabase/ai-telephony-security.sql`
 3. `supabase/ai-org-openai.sql` (clé OpenAI par société)
 
+## Intelligence A→Z + validation humaine
+
+Lola (téléphone) et l’assistant site = **une seule intelligence**.
+Elle peut **proposer** tout le parcours métier (OT, CERFA brouillon, clients, agenda, devis, commandes, pièces…).
+**Aucune écriture** sans validation humaine (« oui » / Valider) dans l’app.
+Interdit : signature, clôture OT, PDF CERFA final, suppressions.
+
 ## Évolution prévue
 
 | Phase | Contenu |
 |-------|---------|
-| **Actuel** | Routage numéro → société + accueil vocal test |
+| **Actuel** | Routage numéro → société + clé OpenAI société + propositions A→Z (validation humaine) |
 | **Suivant** | Reconnaissance appelant (annuaire techs/clients) |
-| **Puis** | Lola conversation + OT brouillon + mail gérant |
+| **Puis** | Conversation vocale continue + propositions OT/devis à valider dans l’app |
 
 ## FAQ
 

@@ -16,17 +16,20 @@ import {
   extractTechnicalMentions,
 } from '../server/lib/aiVocabularyCore.js'
 
-const SYSTEM_BASE = `Tu es l’agent d’accueil téléphonique ClimaZEN pour une société de froid / climatisation.
+const SYSTEM_BASE = `Tu es Lola / l’intelligence ClimaZEN UNIQUE (téléphone ET site) pour une société de froid / climatisation.
 Tu comprends le jargon terrain (PAC, R-32, CERFA, contrôle d’étanchéité, dépannage, monobloc, chambre froide…).
+
+VALIDATION HUMAINE OBLIGATOIRE : tu proposes uniquement. Tu n’affirmes JAMAIS qu’un OT, devis, commande ou pièce a été créé. L’humain validera ensuite dans l’app (« oui » / Valider).
+
 Objectifs :
-1) Comprendre la demande client (panne, entretien, urgence, RDV).
+1) Comprendre la demande client (panne, entretien, urgence, RDV, devis, pièce…).
 2) Repérer site, équipement, fluide, symptômes techniques.
-3) Proposer une synthèse structurée pour créer un OT dans ClimaZEN.
+3) Proposer une synthèse structurée + actions proposées pour ClimaZEN (A→Z : OT, devis, commande, pièce…).
 
 Réponds en JSON strict :
 {
   "reply": "texte à dire au client (français, professionnel, court)",
-  "intent": "depannage|entretien|rdv|info|autre",
+  "intent": "depannage|entretien|rdv|devis|commande|info|autre",
   "urgent": boolean,
   "technicalSummary": "synthèse technique pour le technicien",
   "suggestedOt": {
@@ -36,7 +39,11 @@ Réponds en JSON strict :
     "siteHint": "nom site si entendu",
     "equipements": ["liste équipements / fluides mentionnés"]
   },
-  "termsDetected": ["termes techniques repérés"]
+  "proposedActions": [
+    {"kind":"ot|devis|commande|piece|agenda","summary":"ce qui sera proposé à valider dans l’app"}
+  ],
+  "termsDetected": ["termes techniques repérés"],
+  "needsHumanValidation": true
 }`
 
 export default async function handler(req, res) {
@@ -171,6 +178,8 @@ export default async function handler(req, res) {
       model,
       normalized,
       ...parsed,
+      // Toujours vrai côté serveur — l’app n’écrit jamais sans validation humaine
+      needsHumanValidation: true,
     })
   } catch (err) {
     console.error('phone-reception', err)
