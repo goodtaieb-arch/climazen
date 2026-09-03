@@ -1087,7 +1087,7 @@ export async function executeTerrainAction(
       message: `Veille enregistrée pour « ${action.query} ». Quand la pièce arrivera (commande reçue), Accueil sera notifié${
         deps.userName ? ` (demande de ${deps.userName})` : ''
       }.`,
-      navigateTo: `/app/commandes`,
+      navigateTo: `/app/commandes?veille=${encodeURIComponent(id)}`,
     }
   }
 
