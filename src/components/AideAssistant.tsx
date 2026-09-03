@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Check, Loader2, Send, Sparkles, X } from 'lucide-react'
 import { askAideAssistant, type AideMessage } from '../lib/assistantApi'
@@ -15,11 +15,18 @@ import {
   resolveCreateOtCerfa,
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
-import { catalogSummaryForPrompt, isForbiddenClaim, wantsAnnulerOt, answerAnnulerOtGuide, AI_HOW_I_WORK } from '../lib/aiActionCatalog'
 import {
-  wantsStockPieceQuery,
-  answerStockPieceQuery,
-} from '../lib/assistantStockPieces'
+  catalogSummaryForPrompt,
+  isForbiddenClaim,
+  wantsAnnulerOt,
+  answerAnnulerOtGuide,
+  AI_HOW_I_WORK,
+} from '../lib/aiActionCatalog'
+import { wantsStockPieceQuery, answerStockPieceQuery } from '../lib/assistantStockPieces'
+import {
+  wantsOtLookup,
+  answerOtLookupOuDeplacer,
+} from '../lib/assistantOtLookup'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
@@ -41,6 +48,8 @@ import { APP_IS_BETA } from '../lib/buildStamp'
 import { learnAiVocabulary, learnAiVocabularyCorrection } from '../lib/aiVocabulary'
 import { applySpeechCorrections } from '../lib/speech'
 import { AiLearningInfoNotice } from './AiLearningInfoNotice'
+import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
+import type { UserAccount } from '../lib/auth'
 
 type ChatLine = AideMessage & { id: string }
 
@@ -69,9 +78,9 @@ Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_
     '\n\nExemples :\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
     '• « Préviens-moi quand le compresseur arrive »\n' +
-    '• « Crée un OT pour Mr Martin, site Atelier »\n' +
-    '• « Agenda RDV demain 14h »\n\n' +
-    'Interdit : supprimer un OT. Pour corriger : retirer (croix rouge) ou déplacer.'
+    '• « OT de Karim Benali aujourd’hui — décale-le »\n' +
+    '• « Crée un OT pour Mr Martin, site Atelier »\n\n' +
+    'Je ne déforme jamais un nom. Interdit : supprimer un OT (retirer / déplacer à la place).'
   )
 }
 
@@ -105,11 +114,12 @@ export function AideAssistant() {
     upsertAiPendingValidation,
     appEdition,
   } = useStore()
-  const { user } = useAuth()
+  const { user, listTeam } = useAuth()
   const organizationId = user?.organizationId
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
   const chatbotOk = canUseChatbot(aiTier)
   const agentOk = canUseAgentActions(aiTier)
+  const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -139,6 +149,33 @@ export function AideAssistant() {
     window.addEventListener('climazen:open-aide', openFromVoice)
     return () => window.removeEventListener('climazen:open-aide', openFromVoice)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    listTeam()
+      .then((m) => {
+        if (!cancelled) setRemoteTeam(m || [])
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteTeam([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [listTeam, open])
+
+  const team = useMemo(
+    () =>
+      mergeTeamMembers({
+        user,
+        remote: remoteTeam,
+        dossiers: data.personnelDossiers,
+        extraAssignees: extraAssigneesFromData(data),
+        retiredIds: data.personnelRetiresUserIds,
+        orgId: user?.organizationId,
+      }),
+    [user, remoteTeam, data],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -327,6 +364,15 @@ export function AideAssistant() {
         return
       }
 
+      // Retrouver / décaler OT par tech — lookup local (pas d’hallucination de nom)
+      if (wantsOtLookup(q)) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(answerOtLookupOuDeplacer(data, q, team))
+        return
+      }
+
       // Comment tu marches ?
       if (
         /comment\s+(tu|vous)\s+(marche|fonctionne|travaille)|ce\s+que\s+tu\s+(fais|peux)|comment\s+lola/i.test(
@@ -334,7 +380,10 @@ export function AideAssistant() {
         )
       ) {
         setSource('local')
-        pushAssistant(AI_HOW_I_WORK + '\n\nExemples : « combien de filtre M5 ? » · « préviens-moi quand le M5 arrive » · « crée un OT… »')
+        pushAssistant(
+          AI_HOW_I_WORK +
+            '\n\nExemples : « OT de Karim Benali aujourd’hui » · « combien de filtre M5 ? » · « préviens-moi quand le M5 arrive »',
+        )
         return
       }
 
@@ -386,7 +435,7 @@ export function AideAssistant() {
       const { reply, source: src } = await askAideAssistant({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         pathname: location.pathname,
-        entityCatalog: agentOk ? buildEntityCatalog(data) : undefined,
+        entityCatalog: agentOk ? buildEntityCatalog(data, 40, { team }) : undefined,
         chatbotOnly: !agentOk,
         organizationId,
       })

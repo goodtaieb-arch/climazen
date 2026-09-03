@@ -15,6 +15,7 @@ import {
 } from './ordreTravail'
 import type { PendingTerrainAction } from './assistantTerrainActions'
 import { buildStockPiecesCatalog } from './assistantStockPieces'
+import { buildOtTeamCatalog } from './assistantOtLookup'
 
 export type CreateOtCerfaIntent = {
   kind: 'create_ot_cerfa'
@@ -432,7 +433,11 @@ function eqLabel(e: Equipement): string {
 }
 
 /** Catalogue compact pour OpenAI (contexte). */
-export function buildEntityCatalog(data: AppData, max = 40): string {
+export function buildEntityCatalog(
+  data: AppData,
+  max = 40,
+  opts?: { team?: { id: string; fullName?: string; email?: string }[] },
+): string {
   const clients = (data.clients || []).slice(0, max)
   const lines: string[] = [
     'Clients / sites / équipements (données actuelles).',
@@ -451,6 +456,7 @@ export function buildEntityCatalog(data: AppData, max = 40): string {
   }
   if (clients.length === 0) lines.push('(aucun client encore — création possible depuis la phrase)')
   lines.push('', buildStockPiecesCatalog(data, 20))
+  lines.push('', buildOtTeamCatalog(data, opts?.team, 30))
   return lines.join('\n')
 }
 
