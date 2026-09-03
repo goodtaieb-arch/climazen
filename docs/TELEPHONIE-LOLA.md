@@ -1,50 +1,35 @@
-# Téléphonie Lola — guide gérant ClimaZEN
+# Téléphonie Lola — 2 comptes seulement
+
+Rien d’autre à créer (pas Vapi, pas un 3ᵉ outil).
+
+## Étape 1 — OpenAI (le cerveau)
+
+| Action | Lien (ouvre la page exacte) |
+|--------|-----------------------------|
+| Créer le compte | https://platform.openai.com/signup |
+| Activer le paiement | https://platform.openai.com/settings/organization/billing |
+| Créer la clé `sk-…` | https://platform.openai.com/api-keys |
+
+Puis coller la clé dans ClimaZEN → **Mon entreprise**.
+
+## Étape 2 — Twilio (le numéro)
+
+| Action | Lien (ouvre la page exacte) |
+|--------|-----------------------------|
+| Créer le compte | https://www.twilio.com/try-twilio |
+| Acheter un numéro France (voix) | https://www.twilio.com/console/phone-numbers/search |
+| Mes numéros (coller le webhook) | https://www.twilio.com/console/phone-numbers/incoming |
+
+Webhook à coller sur le numéro (*A call comes in* → Webhook POST) :
+
+`https://climazen.fr/api/telephony-inbound`
+
+Puis coller le `+33…` dans ClimaZEN et activer Lola.
 
 ## Principe sécurité
 
-- **Intelligence partagée** : Lola et l’agent ClimaZEN utilisent le même catalogue d’actions (créer OT, agenda…).
-- **Données isolées** : chaque société a son **propre numéro entrant** → une seule `organization_id` par appel.
-- **Aucun mélange** : le serveur ClimaZEN route **avant** l’IA (table `organization_telephony`).
-
-## Qui doit acheter le numéro ?
-
-**Vous (le gérant / la société Pro)**, pas ClimaZEN aujourd’hui.
-
-ClimaZEN fournit :
-- le webhook : `https://climazen.fr/api/telephony-inbound`
-- l’enregistrement du numéro dans **Mon entreprise**
-- le routage sécurisé vers votre société
-
-Vous devez :
-1. Créer un compte chez un opérateur **voice + webhook HTTP**
-2. Acheter **un numéro français** dédié à votre société
-3. Pointer le webhook « appel entrant » vers ClimaZEN
-4. Saisir le numéro dans l’app (format +33…)
-
-## Fournisseurs compatibles
-
-| Fournisseur | Site | Notes |
-|-------------|------|--------|
-| **Twilio** (recommandé) | twilio.com | Le plus documenté, ~1 €/mois + usage |
-| Vonage | vonage.com | Même principe webhook |
-| Plivo | plivo.com | Idem |
-| Autre | — | Tout service qui envoie un POST HTTP à notre URL (comme Twilio) |
-
-**Orange / Free pro** : souvent pas de webhook simple → préférez Twilio pour Lola.
-
-## Configuration Twilio (exemple)
-
-1. Console Twilio → **Phone Numbers** → Buy a number (France, Voice).
-2. Numéro → **Voice Configuration** :
-   - *A call comes in* → **Webhook**
-   - URL : `https://climazen.fr/api/telephony-inbound`
-   - Method : **POST**
-3. ClimaZEN → **Mon entreprise** → section **Accueil téléphonique Lola** :
-   - Fournisseur : Twilio
-   - Numéro : `+33…` (exactement celui acheté)
-   - Cocher **Activer Lola**
-   - E-mail gérant (accord OT futurs)
-4. Test : appelez le numéro → message d’accueil ClimaZEN pour **votre** société.
+- **Un numéro = une société.** Routage **avant** l’IA (`organization_telephony`).
+- Lola et l’assistant site = **la même clé OpenAI** de la société.
 
 ## Variables Vercel (ClimaZEN — pas le client)
 

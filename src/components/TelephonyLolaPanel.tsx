@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Phone, Shield } from 'lucide-react'
-import {
-  fetchTelephonyConfig,
-  saveTelephonyConfig,
-  TELEPHONY_PROVIDERS,
-  type TelephonyProvider,
-} from '../lib/telephony'
+import { Copy, Loader2 } from 'lucide-react'
+import { fetchTelephonyConfig, saveTelephonyConfig } from '../lib/telephony'
+import { LOLA_SETUP_LINKS, LOLA_WEBHOOK_URL } from '../lib/lolaSetupLinks'
+import { SetupLink } from './SetupLink'
 
 /**
- * Mon entreprise — numéro entrant Lola (1 numéro = 1 société, pas de mélange).
+ * Étape 2 — un numéro Twilio. Liens officiels pile sur la bonne page.
  */
 export function TelephonyLolaPanel() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
-  const [webhookUrl, setWebhookUrl] = useState('https://climazen.fr/api/telephony-inbound')
-  const [setupSteps, setSetupSteps] = useState<string[]>([])
-  const [provider, setProvider] = useState<TelephonyProvider>('twilio')
+  const [copied, setCopied] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState(LOLA_WEBHOOK_URL)
   const [inboundNumber, setInboundNumber] = useState('')
-  const [lolaEnabled, setLolaEnabled] = useState(false)
+  const [lolaEnabled, setLolaEnabled] = useState(true)
   const [managerEmail, setManagerEmail] = useState('')
 
   useEffect(() => {
@@ -28,10 +24,8 @@ export function TelephonyLolaPanel() {
         setLoading(false)
         return
       }
-      setWebhookUrl(res.webhookUrl)
-      setSetupSteps(res.setupSteps || [])
+      setWebhookUrl(res.webhookUrl || LOLA_WEBHOOK_URL)
       if (res.config) {
-        setProvider(res.config.provider)
         setInboundNumber(res.config.inboundE164)
         setLolaEnabled(res.config.lolaEnabled)
         setManagerEmail(res.config.managerNotifyEmail || '')
@@ -40,13 +34,23 @@ export function TelephonyLolaPanel() {
     })
   }, [])
 
+  const copyWebhook = async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setErr('Copie impossible — sélectionnez l’URL à la main.')
+    }
+  }
+
   const save = async () => {
     setBusy(true)
     setErr('')
     setMsg('')
     const result = await saveTelephonyConfig({
       inboundNumber,
-      provider,
+      provider: 'twilio',
       lolaEnabled,
       managerNotifyEmail: managerEmail.trim() || undefined,
     })
@@ -55,14 +59,13 @@ export function TelephonyLolaPanel() {
       setErr(result.error || 'Enregistrement impossible.')
       return
     }
-    if (result.setupSteps) setSetupSteps(result.setupSteps)
-    setMsg(`Numéro enregistré : ${result.inboundE164 || inboundNumber}`)
+    setMsg(`Étape 2 OK — numéro ${result.inboundE164 || inboundNumber}`)
   }
 
   if (loading) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted">
-        <Loader2 className="h-4 w-4 animate-spin" /> Chargement téléphonie…
+        <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
       </p>
     )
   }
@@ -70,60 +73,58 @@ export function TelephonyLolaPanel() {
   return (
     <section className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white">
-          <Phone className="h-5 w-5" />
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-600 text-sm font-extrabold text-white">
+          2
         </span>
         <div>
           <h2 className="font-display text-lg font-semibold text-indigo-950">
-            Accueil téléphonique Lola
+            Numéro Twilio
           </h2>
           <p className="mt-1 text-sm text-indigo-900/85">
-            <strong>Un numéro par société</strong> — les appels sont routés vers votre coffre
-            ClimaZEN uniquement. Lola et l’assistant du site utilisent <strong>la même clé
-            OpenAI</strong> de votre société (collée ci-dessus) — jamais les données d’une autre
-            société.
+            Un numéro France pour recevoir les appels. Rien d’autre à installer.
           </p>
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-        <Shield className="mb-1 inline h-3.5 w-3.5" />{' '}
-        <strong>À votre charge :</strong> acheter un numéro chez Twilio (ou Vonage / Plivo).
-        ClimaZEN ne vend pas encore de ligne — vous gardez le contrôle et l’isolation.
-      </div>
-
-      <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-slate">
-        {(setupSteps.length ? setupSteps : [
-          'Compte Twilio + numéro français (voice).',
-          `Webhook appel entrant → ${webhookUrl}`,
-          'Saisir le numéro ci-dessous et activer Lola.',
-        ]).map((step) => (
-          <li key={step}>{step}</li>
-        ))}
+      <ol className="mt-4 space-y-2 text-sm text-ink">
+        <li>
+          <span className="font-semibold">A.</span>{' '}
+          <SetupLink href={LOLA_SETUP_LINKS.twilioSignup.href}>
+            {LOLA_SETUP_LINKS.twilioSignup.label}
+          </SetupLink>
+        </li>
+        <li>
+          <span className="font-semibold">B.</span>{' '}
+          <SetupLink href={LOLA_SETUP_LINKS.twilioBuyNumber.href}>
+            {LOLA_SETUP_LINKS.twilioBuyNumber.label}
+          </SetupLink>
+          {' — '}pays <strong>France</strong>, case <strong>Voice</strong>, puis Buy.
+        </li>
+        <li>
+          <span className="font-semibold">C.</span>{' '}
+          <SetupLink href={LOLA_SETUP_LINKS.twilioMyNumbers.href}>
+            {LOLA_SETUP_LINKS.twilioMyNumbers.label}
+          </SetupLink>
+          {' — '}cliquez le numéro → <strong>A call comes in</strong> → Webhook → collez
+          l’adresse ci-dessous → Save.
+        </li>
       </ol>
 
-      <p className="mt-3 text-xs text-muted">
-        Webhook ClimaZEN :{' '}
-        <code className="rounded bg-white px-1 py-0.5">{webhookUrl}</code>
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2">
+        <code className="min-w-0 flex-1 break-all text-xs font-semibold text-ink">{webhookUrl}</code>
+        <button
+          type="button"
+          onClick={() => void copyWebhook()}
+          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-line px-2 text-xs font-bold"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {copied ? 'Copié' : 'Copier'}
+        </button>
+      </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="mb-1 block font-semibold text-ink">Fournisseur</span>
-          <select
-            value={provider}
-            onChange={(e) => setProvider(e.target.value as TelephonyProvider)}
-            className="h-11 w-full rounded-xl border border-line bg-white px-3"
-          >
-            {TELEPHONY_PROVIDERS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-semibold text-ink">Numéro entrant (+33…)</span>
+        <label className="block text-sm sm:col-span-2">
+          <span className="mb-1 block font-semibold text-ink">D. Coller le numéro ici (+33…)</span>
           <input
             value={inboundNumber}
             onChange={(e) => setInboundNumber(e.target.value)}
@@ -132,12 +133,12 @@ export function TelephonyLolaPanel() {
           />
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block font-semibold text-ink">E-mail gérant (accord OT Lola)</span>
+          <span className="mb-1 block font-semibold text-ink">E-mail (optionnel)</span>
           <input
             type="email"
             value={managerEmail}
             onChange={(e) => setManagerEmail(e.target.value)}
-            placeholder="gerant@societe.fr"
+            placeholder="vous@societe.fr"
             className="h-11 w-full rounded-xl border border-line bg-white px-3"
           />
         </label>
@@ -150,7 +151,7 @@ export function TelephonyLolaPanel() {
           onChange={(e) => setLolaEnabled(e.target.checked)}
           className="h-4 w-4 rounded border-line"
         />
-        Activer Lola sur ce numéro
+        Activer Lola
       </label>
 
       <button
@@ -160,7 +161,7 @@ export function TelephonyLolaPanel() {
         className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-700 px-5 text-sm font-bold text-white disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Enregistrer le numéro
+        Enregistrer
       </button>
 
       {msg ? <p className="mt-2 text-sm font-semibold text-teal-800">{msg}</p> : null}

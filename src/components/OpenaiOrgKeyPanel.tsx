@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { KeyRound, Loader2, Shield } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { clearOrgOpenaiKey, fetchOrgOpenaiStatus, saveOrgOpenaiKey } from '../lib/orgOpenai'
+import { LOLA_SETUP_LINKS } from '../lib/lolaSetupLinks'
+import { SetupLink } from './SetupLink'
 
 /**
- * Mon entreprise — une clé OpenAI pour le site ET Lola (chaque société paie son usage).
+ * Étape 1 — une clé OpenAI (site + Lola). Liens officiels pile sur la bonne page.
  */
 export function OpenaiOrgKeyPanel() {
   const [loading, setLoading] = useState(true)
@@ -45,13 +47,11 @@ export function OpenaiOrgKeyPanel() {
     setKeyInput('')
     setHasKey(true)
     setHint(result.hint || '')
-    setMsg('Clé enregistrée — Lola et l’assistant du site utilisent OpenAI (votre facture).')
+    setMsg('Étape 1 OK — clé enregistrée.')
   }
 
   const clear = async () => {
-    if (!confirm('Retirer la clé OpenAI de cette société ? L’IA cloud s’arrête jusqu’à une nouvelle clé.')) {
-      return
-    }
+    if (!confirm('Retirer la clé OpenAI de cette société ?')) return
     setBusy(true)
     setErr('')
     setMsg('')
@@ -69,7 +69,7 @@ export function OpenaiOrgKeyPanel() {
   if (loading) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted">
-        <Loader2 className="h-4 w-4 animate-spin" /> Chargement clé OpenAI…
+        <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
       </p>
     )
   }
@@ -77,41 +77,52 @@ export function OpenaiOrgKeyPanel() {
   return (
     <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-5">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-700 text-white">
-          <KeyRound className="h-5 w-5" />
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-700 text-sm font-extrabold text-white">
+          1
         </span>
         <div>
           <h2 className="font-display text-lg font-semibold text-violet-950">
-            Clé OpenAI de la société
+            Compte OpenAI
           </h2>
           <p className="mt-1 text-sm text-violet-900/85">
-            <strong>Une seule intelligence</strong> : OpenAI pour l’assistant dans l’app{' '}
-            <em>et</em> pour Lola au téléphone. Chaque société colle <strong>sa</strong> clé —
-            OpenAI facture <strong>votre</strong> compte, pas ClimaZEN.
+            Une clé pour tout : assistant dans l’app + Lola au téléphone. OpenAI facture{' '}
+            <strong>votre</strong> société.
           </p>
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-        <Shield className="mb-1 inline h-3.5 w-3.5" />{' '}
-        1. Compte sur platform.openai.com → 2. Activer la facturation → 3. Créer une clé API (sk-…)
-        → 4. La coller ici. Ne partagez pas cette clé. Elle n’est jamais réaffichée en entier.
-      </div>
+      <ol className="mt-4 space-y-2 text-sm text-ink">
+        <li>
+          <span className="font-semibold">A.</span>{' '}
+          <SetupLink href={LOLA_SETUP_LINKS.openaiSignup.href}>
+            {LOLA_SETUP_LINKS.openaiSignup.label}
+          </SetupLink>
+        </li>
+        <li>
+          <span className="font-semibold">B.</span>{' '}
+          <SetupLink href={LOLA_SETUP_LINKS.openaiBilling.href}>
+            {LOLA_SETUP_LINKS.openaiBilling.label}
+          </SetupLink>
+        </li>
+        <li>
+          <span className="font-semibold">C.</span>{' '}
+          <SetupLink href={LOLA_SETUP_LINKS.openaiKeys.href}>
+            {LOLA_SETUP_LINKS.openaiKeys.label}
+          </SetupLink>
+          {' — '}cliquez <strong>Create new secret key</strong>, copiez, collez ici.
+        </li>
+      </ol>
 
       {hasKey ? (
         <p className="mt-3 text-sm font-semibold text-teal-800">
-          Clé active {hint ? `· ${hint}` : ''} — site + Lola
+          Clé active {hint ? `· ${hint}` : ''}
         </p>
-      ) : (
-        <p className="mt-3 text-sm text-muted">Aucune clé — l’IA cloud est en guide local uniquement.</p>
-      )}
+      ) : null}
 
       {canEdit ? (
         <>
           <label className="mt-3 block text-sm">
-            <span className="mb-1 block font-semibold text-ink">
-              {hasKey ? 'Remplacer la clé' : 'Coller la clé OpenAI'}
-            </span>
+            <span className="mb-1 block font-semibold text-ink">Coller la clé ici</span>
             <input
               type="password"
               autoComplete="off"
@@ -129,7 +140,7 @@ export function OpenaiOrgKeyPanel() {
               className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-800 px-5 text-sm font-bold text-white disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Enregistrer la clé
+              Enregistrer
             </button>
             {hasKey ? (
               <button
@@ -138,13 +149,13 @@ export function OpenaiOrgKeyPanel() {
                 onClick={() => void clear()}
                 className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-sm font-semibold text-danger"
               >
-                Retirer la clé
+                Retirer
               </button>
             ) : null}
           </div>
         </>
       ) : (
-        <p className="mt-3 text-xs text-muted">Seul le gérant peut coller ou retirer la clé.</p>
+        <p className="mt-3 text-xs text-muted">Seul le gérant peut coller la clé.</p>
       )}
 
       {msg ? <p className="mt-2 text-sm font-semibold text-teal-800">{msg}</p> : null}

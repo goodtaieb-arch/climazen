@@ -336,6 +336,13 @@ export function OperateurPage() {
         </section>
       )}
 
+      {isOwner ? (
+        <p className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-ink">
+          <strong>Lola + IA : 2 comptes seulement.</strong> Pas d’autre outil.{' '}
+          Étape 1 = OpenAI (le cerveau). Étape 2 = Twilio (le numéro). Cliquez les liens bleus :
+          ils ouvrent la page exacte.
+        </p>
+      ) : null}
       {isOwner ? <OpenaiOrgKeyPanel /> : null}
       {isOwner ? <TelephonyLolaPanel /> : null}
       {isOwner ? <GmaoImportPanel /> : null}
