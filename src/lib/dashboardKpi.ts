@@ -74,7 +74,7 @@ export function bucketOt(
     return 'preventif'
   }
   if (PREVENTIF_TYPES.has(o.typeOt)) return 'preventif'
-  if (o.typeOt === 'installation' || o.typeOt === 'demantelement') return 'autre'
+  if (o.typeOt === 'installation' || o.typeOt === 'demantelement' || o.typeOt === 'devis') return 'autre'
   if (o.typeOt === 'depanage' || origine === 'depannage_urgence') return 'curatif'
   return 'autre'
 }

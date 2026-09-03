@@ -92,6 +92,7 @@ function detectTypeOt(q: string): TypeOt {
   if (/demantel|rebut|recuperation definitive|recup definitive/.test(n)) return 'demantelement'
   if (/depan|panne|depannage/.test(n)) return 'depanage'
   if (/install/.test(n)) return 'installation'
+  if (/\bdevis\b|chiffrage|estimation/.test(n)) return 'devis'
   if (/entretien/.test(n)) return 'entretien'
   if (/maintenance|controle|contrat/.test(n)) return 'maintenance'
   return 'controle_etancheite'
@@ -711,6 +712,7 @@ export function extractActionFromReply(reply: string): CreateOtCerfaIntent | nul
       'demantelement',
       'entretien',
       'installation',
+      'devis',
     ]
     const typeOt = (allowed.includes(obj.typeOt as TypeOt)
       ? obj.typeOt

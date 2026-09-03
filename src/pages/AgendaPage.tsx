@@ -1856,6 +1856,7 @@ export function AgendaPage() {
                     'entretien',
                     'controle_etancheite',
                     'demantelement',
+                    'devis',
                   ] as TypeOt[]
                 ).map((t) => (
                   <option key={t} value={t}>

@@ -449,6 +449,15 @@ export const COULEURS_TYPE_OT: Record<string, CouleurSecteur> = {
     row: 'border-orange-300 bg-orange-50',
     dot: 'bg-orange-500',
   },
+  devis: {
+    key: 'ot-devis',
+    bg: 'bg-teal-50',
+    border: 'border-teal-400',
+    badge: 'bg-teal-700 text-white',
+    text: 'text-teal-950',
+    row: 'border-teal-300 bg-teal-50',
+    dot: 'bg-teal-600',
+  },
 }
 
 export function couleurTypeOt(typeOt?: string | null): CouleurSecteur | undefined {

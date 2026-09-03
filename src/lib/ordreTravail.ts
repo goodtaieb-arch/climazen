@@ -22,6 +22,7 @@ export type TypeOt =
   | 'demantelement'
   | 'entretien'
   | 'installation'
+  | 'devis'
 
 export const TYPE_OT_LABELS: Record<TypeOt, string> = {
   controle_etancheite: 'Contrôle d’étanchéité',
@@ -30,6 +31,7 @@ export const TYPE_OT_LABELS: Record<TypeOt, string> = {
   demantelement: 'Démantèlement',
   entretien: 'Entretien',
   installation: 'Installation',
+  devis: 'Devis',
 }
 
 export type StatutOt =
@@ -66,7 +68,8 @@ export function prioriteTypeOt(typeOt?: TypeOt | string | null): number {
   if (t === 'maintenance' || t === 'entretien') return 2
   if (t === 'controle_etancheite') return 3
   if (t === 'demantelement') return 4
-  return 5
+  if (t === 'devis') return 5
+  return 6
 }
 
 export function compareOtPrioritePlanning(
@@ -407,6 +410,7 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
 
 /** Natures CERFA suggérées selon le type d’OT. */
 export function naturesCerfaPourTypeOt(typeOt: TypeOt): string[] {
+  if (typeOt === 'devis') return []
   if (typeOt === 'demantelement') return ['demantelement']
   if (typeOt === 'controle_etancheite') return ['controle_etancheite_periodique']
   if (typeOt === 'maintenance') return ['entretien_reparation', 'controle_etancheite_periodique']

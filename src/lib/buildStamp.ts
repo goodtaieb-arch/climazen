@@ -5,7 +5,7 @@
 export const APP_VERSION = 'v200'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-03-v200-agenda-vacances-tech'
+export const APP_BUILD = '2026-09-03-v200-vacances-devis'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true
