@@ -3,7 +3,7 @@ import {
   extractTechnicalMentions,
   extractCorrectionPair,
   normalizeTechnicalText,
-} from '../api/lib/aiVocabularyCore.js'
+} from '../server/lib/aiVocabularyCore.js'
 
 const mentions = extractTechnicalMentions(
   'Panne clim monobloc R 32 au RDC — contrôle étanchéité et CERFA pour client Dupont',

@@ -7,17 +7,16 @@
  *   action: 'learn' | 'context' | 'correction'
  */
 
-import { getSupabaseConfig } from './lib/supabaseServer.js'
-import { authorizeOrgRequest } from './lib/authorizeOrg.js'
-import { authorizeOrgRequest } from './lib/authorizeOrg.js'
-import { logAiAudit } from './lib/aiAuditLog.js'
+import { getSupabaseConfig } from '../server/lib/supabaseServer.js'
+import { authorizeOrgRequest } from '../server/lib/authorizeOrg.js'
+import { logAiAudit } from '../server/lib/aiAuditLog.js'
 import {
   fetchVocabularyContext,
   learnFromText,
   learnFromCorrection,
   extractTechnicalMentions,
   normalizeTechnicalText,
-} from './lib/aiVocabularyCore.js'
+} from '../server/lib/aiVocabularyCore.js'
 
 async function authorizeOrg(req, orgId) {
   const auth = await authorizeOrgRequest(req, orgId)
