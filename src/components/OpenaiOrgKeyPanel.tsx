@@ -5,15 +5,36 @@ import { LOLA_SETUP_LINKS } from '../lib/lolaSetupLinks'
 import { SetupLink } from './SetupLink'
 import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 
+function explainApiError(raw: string | undefined): string {
+  const e = String(raw || '').trim()
+  if (!e) return ''
+  if (/invalid api key/i.test(e)) {
+    return (
+      'Clé Supabase service_role invalide sur Vercel. ' +
+      'Dans Vercel, SUPABASE_SERVICE_ROLE_KEY doit être la clé « service_role » Supabase (eyJ…), ' +
+      'PAS la clé OpenAI sk-. Puis Redeploy.'
+    )
+  }
+  if (/service role non configur/i.test(e)) {
+    return (
+      'Ajoutez SUPABASE_SERVICE_ROLE_KEY sur Vercel (Supabase → Settings → API → service_role), puis Redeploy.'
+    )
+  }
+  if (/sql_missing|organization_ai_secrets|absente/i.test(e)) {
+    return 'Exécutez supabase/ai-org-openai.sql dans Supabase SQL Editor, puis réessayez.'
+  }
+  return e
+}
+
 /**
  * Étape 1 — une clé OpenAI (site + Lola). Liens officiels pile sur la bonne page.
+ * Affiché uniquement au gérant (OperateurPage).
  */
 export function OpenaiOrgKeyPanel() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [hasKey, setHasKey] = useState(false)
   const [hint, setHint] = useState('')
-  const [canEdit, setCanEdit] = useState(false)
   const [keyInput, setKeyInput] = useState('')
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -21,13 +42,14 @@ export function OpenaiOrgKeyPanel() {
   const reload = async () => {
     const res = await fetchOrgOpenaiStatus()
     if (!res) {
+      setErr('Session requise — reconnectez-vous.')
       setLoading(false)
       return
     }
     setHasKey(res.hasKey)
     setHint(res.hint)
-    setCanEdit(res.canEdit)
-    if (res.error) setErr(res.error)
+    if (res.error) setErr(explainApiError(res.error))
+    else setErr('')
     setLoading(false)
   }
 
@@ -42,13 +64,13 @@ export function OpenaiOrgKeyPanel() {
     const result = await saveOrgOpenaiKey(keyInput)
     setBusy(false)
     if (!result.ok) {
-      setErr(result.error || 'Enregistrement impossible.')
+      setErr(explainApiError(result.error) || 'Enregistrement impossible.')
       return
     }
     setKeyInput('')
     setHasKey(true)
     setHint(result.hint || '')
-    setMsg('Étape 1 OK — clé enregistrée.')
+    setMsg('Étape 1 OK — clé OpenAI enregistrée. Vous pouvez tester l’assistant.')
   }
 
   const clear = async () => {
@@ -59,7 +81,7 @@ export function OpenaiOrgKeyPanel() {
     const result = await clearOrgOpenaiKey()
     setBusy(false)
     if (!result.ok) {
-      setErr(result.error || 'Suppression impossible.')
+      setErr(explainApiError(result.error) || 'Suppression impossible.')
       return
     }
     setHasKey(false)
@@ -112,7 +134,7 @@ export function OpenaiOrgKeyPanel() {
           <SetupLink href={LOLA_SETUP_LINKS.openaiKeys.href}>
             {LOLA_SETUP_LINKS.openaiKeys.label}
           </SetupLink>
-          {' — '}cliquez <strong>Create new secret key</strong>, copiez, collez ici.
+          {' — '}cliquez <strong>Create new secret key</strong>, copiez.
         </li>
       </ol>
 
@@ -122,47 +144,43 @@ export function OpenaiOrgKeyPanel() {
         </p>
       ) : null}
 
-      {canEdit ? (
-        <>
-          <label className="mt-3 block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Coller la clé ici</span>
-            <input
-              type="password"
-              autoComplete="off"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="sk-…"
-              className="h-11 w-full rounded-xl border border-line bg-white px-3 font-mono text-sm"
-            />
-          </label>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy || !keyInput.trim()}
-              onClick={() => void save()}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-800 px-5 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Enregistrer
-            </button>
-            {hasKey ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void clear()}
-                className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-sm font-semibold text-danger"
-              >
-                Retirer
-              </button>
-            ) : null}
-          </div>
-        </>
-      ) : (
-        <p className="mt-3 text-xs text-muted">Seul le gérant peut coller la clé.</p>
-      )}
+      <label className="mt-4 block text-sm">
+        <span className="mb-1 block font-extrabold text-violet-950">
+          ↓ Coller la clé OpenAI ici (sk-…)
+        </span>
+        <input
+          type="password"
+          autoComplete="off"
+          value={keyInput}
+          onChange={(e) => setKeyInput(e.target.value)}
+          placeholder="sk-proj-… ou sk-…"
+          className="h-12 w-full rounded-xl border-2 border-violet-400 bg-white px-3 font-mono text-sm shadow-sm"
+        />
+      </label>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy || !keyInput.trim()}
+          onClick={() => void save()}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-800 px-5 text-sm font-bold text-white disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Enregistrer la clé
+        </button>
+        {hasKey ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void clear()}
+            className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-sm font-semibold text-danger"
+          >
+            Retirer
+          </button>
+        ) : null}
+      </div>
 
       {msg ? <p className="mt-2 text-sm font-semibold text-teal-800">{msg}</p> : null}
-      {err ? <p className="mt-2 text-sm text-rose-700">{err}</p> : null}
+      {err ? <p className="mt-2 text-sm font-semibold text-rose-700">{err}</p> : null}
     </section>
   )
 }
