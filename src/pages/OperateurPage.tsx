@@ -27,6 +27,7 @@ import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 import { TelephonyLolaPanel } from '../components/TelephonyLolaPanel'
+import { GmaoImportPanel } from '../components/GmaoImportPanel'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
   if (operateur.raisonSociale?.trim() || !orgName?.trim()) return operateur
@@ -334,6 +335,7 @@ export function OperateurPage() {
       )}
 
       {isOwner ? <TelephonyLolaPanel /> : null}
+      {isOwner ? <GmaoImportPanel /> : null}
 
       {editionHasFeature(appEdition, 'stock_pieces') ? (
         <section className="rounded-2xl border border-line bg-white p-5">
