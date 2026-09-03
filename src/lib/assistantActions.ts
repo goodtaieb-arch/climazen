@@ -14,6 +14,7 @@ import {
   type TypeOt,
 } from './ordreTravail'
 import type { PendingTerrainAction } from './assistantTerrainActions'
+import { buildStockPiecesCatalog } from './assistantStockPieces'
 
 export type CreateOtCerfaIntent = {
   kind: 'create_ot_cerfa'
@@ -429,7 +430,7 @@ function eqLabel(e: Equipement): string {
   return [e.type, e.marque, e.modele].filter(Boolean).join(' ') || e.id
 }
 
-/** Catalogue compact pour Gemini (contexte). */
+/** Catalogue compact pour OpenAI (contexte). */
 export function buildEntityCatalog(data: AppData, max = 40): string {
   const clients = (data.clients || []).slice(0, max)
   const lines: string[] = [
@@ -448,6 +449,7 @@ export function buildEntityCatalog(data: AppData, max = 40): string {
     }
   }
   if (clients.length === 0) lines.push('(aucun client encore — création possible depuis la phrase)')
+  lines.push('', buildStockPiecesCatalog(data, 20))
   return lines.join('\n')
 }
 

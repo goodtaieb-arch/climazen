@@ -3,7 +3,9 @@
  * Utilisée en local (sans clé API) et comme contexte pour OpenAI.
  */
 
-import { AI_UNIFIED_SYSTEM_RULES, wantsAnnulerOt, answerAnnulerOtGuide } from './aiActionCatalog'
+import { AI_UNIFIED_SYSTEM_RULES, wantsAnnulerOt, answerAnnulerOtGuide, AI_HOW_I_WORK } from './aiActionCatalog'
+import { wantsStockPieceQuery, answerStockPieceQuery } from './assistantStockPieces'
+import type { AppData } from './types'
 
 export type AideTopic = {
   id: string
@@ -34,6 +36,44 @@ Règles stock / CERFA :
 `
 
 export const AIDE_TOPICS: AideTopic[] = [
+  {
+    id: 'comment-lola',
+    title: 'Comment Lola / l’assistant fonctionne',
+    keywords: [
+      'comment tu marches',
+      'comment tu fonctionnes',
+      'comment lola',
+      'ce que tu fais',
+      'ce que tu peux',
+      'aide ia',
+      'comment ca marche',
+      'comment ça marche',
+    ],
+    paths: ['/app'],
+    answer: AI_HOW_I_WORK,
+  },
+  {
+    id: 'stock-pieces-lola',
+    title: 'Stock pièces / arrivée (Lola)',
+    keywords: [
+      'filtre m5',
+      'en stock',
+      'combien de',
+      'est arrive',
+      'est arrivé',
+      'piece arrive',
+      'préviens',
+      'previens',
+      'stock pieces',
+      'stock pièces',
+    ],
+    paths: ['/app/stock-pieces', '/app/commandes'],
+    answer: `Stock pièces (magasin) et commandes fournisseur :
+• « Combien de filtre M5 ? » / « Le compresseur est arrivé ? » → je lis le stock et le statut commande.
+• « Préviens-moi quand le filtre M5 arrive » → veille : Accueil notifié à la réception.
+• Ajout magasin : « ajoute pièce … » puis « oui ».
+Fluides F-Gas restent sur /app/stock (bouteilles).`,
+  },
   {
     id: 'annuler-ot',
     title: 'Annuler / retirer / déplacer un OT',
@@ -341,7 +381,7 @@ export function suggestQuestionsForPath(pathname: string): string[] {
 }
 
 /** Réponse locale (sans API) — matching mots-clés + page courante. */
-export function answerAideLocal(question: string, pathname = ''): string {
+export function answerAideLocal(question: string, pathname = '', data?: AppData): string {
   const q = normalize(question)
   if (!q.trim()) {
     return 'Posez une question sur ClimaZEN (OT, CERFA, stock, bouteilles…).'
@@ -349,6 +389,14 @@ export function answerAideLocal(question: string, pathname = ''): string {
 
   if (wantsAnnulerOt(question)) {
     return `${answerAnnulerOtGuide(question)}\n\n— Assistant ClimaZEN (mode guide)`
+  }
+
+  if (data && wantsStockPieceQuery(question)) {
+    return `${answerStockPieceQuery(data, question)}\n\n— Assistant ClimaZEN (mode guide)`
+  }
+
+  if (/comment\s+(tu|vous)\s+(marche|fonctionne)|ce\s+que\s+tu\s+(fais|peux)|comment\s+lola/.test(q)) {
+    return `${AI_HOW_I_WORK}\n\n— Assistant ClimaZEN (mode guide)`
   }
 
   let best: AideTopic | null = null
@@ -370,14 +418,12 @@ export function answerAideLocal(question: string, pathname = ''): string {
   }
 
   // Accueil générique
-  return `Je peux vous aider sur :
-• Parcours OT / Client appelle
-• CERFA 15497 (récup. temporaire vs définitive, charge)
-• Agenda (RDV, rappels, maintenances)
-• Stock (utilisable vs déchet, A2L, n° série / surnom)
-• Signatures et clôture
+  return `${AI_HOW_I_WORK}
 
-Exemple : « Agenda RDV demain 14h pour Mr Martin »
+Exemples :
+• « Combien de filtre M5 en stock ? »
+• « Préviens-moi quand le compresseur arrive »
+• « Agenda RDV demain 14h pour Mr Martin »
 
 — Assistant ClimaZEN (mode guide)`
 }

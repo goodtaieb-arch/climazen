@@ -88,7 +88,8 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
           </h2>
           <p className="mt-0.5 text-xs text-indigo-900/80">
             Collez ou dictez la transcription — Lola propose, le responsable du secteur valide
-            sur Accueil (rien n’est créé sans OK).
+            sur Accueil. Elle peut aussi répondre sur le stock pièces (« est-ce arrivé ? »,
+            « préviens-moi quand… »).
           </p>
           <AiLearningInfoNotice variant="compact" className="mt-2" />
         </div>
