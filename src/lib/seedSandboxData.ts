@@ -390,6 +390,44 @@ export function seedSandboxData(ownerUserId?: string): AppData {
     },
   ]
 
+  const contactsCarnet = [
+    {
+      id: 'cc001',
+      type: 'fournisseur' as const,
+      nom: 'Daikin France',
+      nomContact: 'SAV pièces',
+      telephone: '01 46 87 00 00',
+      email: 'pieces@exemple-daikin.fr',
+      specialite: 'Clim / pièces détachées',
+      favori: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'cc002',
+      type: 'centre_formation' as const,
+      nom: 'AFPA Froid',
+      nomContact: 'Inscriptions',
+      telephone: '04 72 00 00 00',
+      email: 'formation@exemple-afpa.fr',
+      specialite: 'Attestation d’aptitude',
+      ville: 'Lyon',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'cc003',
+      type: 'sous_traitant' as const,
+      nom: 'Froid Express 69',
+      nomContact: 'Samir',
+      telephone: '06 12 34 56 78',
+      email: 'contact@exemple-froid.fr',
+      specialite: 'Urgences froid commercial',
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]
+
   const stock = [
     {
       id: 'stk001',
@@ -486,6 +524,7 @@ export function seedSandboxData(ownerUserId?: string): AppData {
     contratsMaintenance,
     devis,
     commandesFournisseur,
+    contactsCarnet,
     piecesDetachees,
     piecesMouvements: [],
     factures: [],

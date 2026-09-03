@@ -37,6 +37,7 @@ import { SignerPage } from './pages/SignerPage'
 import { PortailClientPage } from './pages/PortailClientPage'
 import { DevisPage } from './pages/DevisPage'
 import { CommandesPage } from './pages/CommandesPage'
+import { CarnetContactsPage } from './pages/CarnetContactsPage'
 import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages'
 import { Cerfa15497Page, FGasHorsLignePage, LogicielCerfaClimPage } from './pages/SeoPages'
 
@@ -103,6 +104,7 @@ export default function App() {
               >
                 <Route index element={<Dashboard />} />
                 <Route path="clients" element={<ClientsPage />} />
+                <Route path="carnet" element={<CarnetContactsPage />} />
                 <Route path="chantiers" element={<ChantiersPage />} />
                 <Route path="stock" element={<StockPage />} />
                 <Route

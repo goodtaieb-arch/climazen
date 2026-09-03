@@ -33,6 +33,7 @@ export const ICON3D = {
 export function icon3dForRoute(to: string): string | null {
   if (to === '/app' || to === '/app/') return ICON3D.accueil
   if (to === '/app/clients') return ICON3D.clients
+  if (to === '/app/carnet') return ICON3D.clients
   if (to === '/app/chantiers') return ICON3D.sites
   if (to === '/app/stock') return ICON3D.bottle
   if (to === '/app/stock-pieces') return ICON3D.maintenance

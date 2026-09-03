@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
+  BookUser,
   Boxes,
   ClipboardList,
   Clock,
@@ -149,6 +150,7 @@ const baseLinksLightOwner = [
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+  { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -169,6 +171,7 @@ const mobilePrimaryLight = [
 const baseLinksOwner = [
   { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+  { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   magasinPiecesLink,
@@ -187,6 +190,7 @@ const baseLinksOwner = [
 const baseLinksOperator = [
   { to: '/app', end: true, label: 'Accueil terrain', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+  { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   magasinPiecesLink,
@@ -207,6 +211,7 @@ const baseLinksTerrain = [
   { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+  { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
@@ -325,6 +330,7 @@ export function AppLayout() {
   }
 
   const lightMoreLinks = [
+    { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
     { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
     { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
     { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
@@ -341,6 +347,7 @@ export function AppLayout() {
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
           magasinPiecesLink,
           { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+          { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
           ...(user
             ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
@@ -353,6 +360,7 @@ export function AppLayout() {
           { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
           { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
           { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
+          { to: '/app/carnet', label: 'Carnet contacts', icon: BookUser, tone: 'clients' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
           ...(user
             ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]

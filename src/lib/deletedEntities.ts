@@ -14,6 +14,8 @@ export type DeletedEntityIds = {
   /** Pièces détachées GMAO */
   piecesDetachees?: string[]
   piecesMouvements?: string[]
+  /** Carnet contacts (fournisseurs, formation, sous-traitants) */
+  contactsCarnet?: string[]
 }
 
 export function mergeIdLists(...lists: (string[] | undefined)[]): string[] {
@@ -48,6 +50,7 @@ export function pruneTombstones(
     interventions?: { id: string }[]
     piecesDetachees?: { id: string }[]
     piecesMouvements?: { id: string }[]
+    contactsCarnet?: { id: string }[]
   },
 ): DeletedEntityIds {
   const remoteClients = new Set((remote.clients || []).map((c) => c.id))
@@ -58,6 +61,7 @@ export function pruneTombstones(
   const remoteInters = new Set((remote.interventions || []).map((i) => i.id))
   const remotePieces = new Set((remote.piecesDetachees || []).map((p) => p.id))
   const remotePieceMvts = new Set((remote.piecesMouvements || []).map((m) => m.id))
+  const remoteContacts = new Set((remote.contactsCarnet || []).map((c) => c.id))
   return {
     clients: (deleted?.clients || []).filter((id) => remoteClients.has(id)),
     chantiers: (deleted?.chantiers || []).filter((id) => remoteSites.has(id)),
@@ -67,6 +71,7 @@ export function pruneTombstones(
     interventions: (deleted?.interventions || []).filter((id) => remoteInters.has(id)),
     piecesDetachees: (deleted?.piecesDetachees || []).filter((id) => remotePieces.has(id)),
     piecesMouvements: (deleted?.piecesMouvements || []).filter((id) => remotePieceMvts.has(id)),
+    contactsCarnet: (deleted?.contactsCarnet || []).filter((id) => remoteContacts.has(id)),
   }
 }
 
@@ -83,6 +88,7 @@ export function withDeletedIds(
     interventions: mergeIdLists(current?.interventions, patch.interventions),
     piecesDetachees: mergeIdLists(current?.piecesDetachees, patch.piecesDetachees),
     piecesMouvements: mergeIdLists(current?.piecesMouvements, patch.piecesMouvements),
+    contactsCarnet: mergeIdLists(current?.contactsCarnet, patch.contactsCarnet),
   }
 }
 
@@ -96,6 +102,7 @@ export function hasAnyTombstones(deleted: DeletedEntityIds | undefined): boolean
       deleted.ordresTravail?.length ||
       deleted.interventions?.length ||
       deleted.piecesDetachees?.length ||
-      deleted.piecesMouvements?.length,
+      deleted.piecesMouvements?.length ||
+      deleted.contactsCarnet?.length,
   )
 }

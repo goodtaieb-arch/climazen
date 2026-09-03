@@ -10,6 +10,7 @@ export type HomeShortcutId =
   | 'cerfa'
   | 'stock'
   | 'clients'
+  | 'carnet'
   | 'ot'
   | 'appel'
   | 'profil'
@@ -76,6 +77,12 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     to: '/app/clients',
     bureauOnly: true,
   },
+  carnet: {
+    id: 'carnet',
+    title: 'Carnet',
+    img: ICON3D.clients,
+    to: '/app/carnet',
+  },
   ot: {
     id: 'ot',
     title: 'OT / Demandes',
@@ -135,6 +142,7 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'cerfa',
   'stock',
   'clients',
+  'carnet',
   'ot',
   'appel',
   'pointage',
@@ -147,6 +155,7 @@ export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
   'ot',
   'agenda',
   'stock',
+  'carnet',
   'cerfa',
   'contrats',
   'operateur',
@@ -162,6 +171,7 @@ export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
   'ot',
   'cerfa',
   'stock',
+  'carnet',
   'agenda',
   'profil',
 ]
