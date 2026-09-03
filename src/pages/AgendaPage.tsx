@@ -190,6 +190,38 @@ export function AgendaPage() {
   const [form, setForm] = useState(() => blankAgendaEvent())
 
   useEffect(() => {
+    const n = syncAgendaFromSources()
+    if (n > 0) setSyncMsg(`${n} OT / rappel(s) généré(s) depuis les contrats.`)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false
+    void listTeam()
+      .then((members) => {
+        if (!cancelled) setRemoteTeam(members)
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteTeam([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [listTeam])
+
+  const team = useMemo(
+    () =>
+      mergeTeamMembers({
+        user,
+        remote: remoteTeam,
+        dossiers: data.personnelDossiers,
+        extraAssignees: extraAssigneesFromData(data),
+        retiredIds: data.personnelRetiresUserIds,
+        orgId: user?.organizationId,
+      }),
+    [user, remoteTeam, data],
+  )
+
+  useEffect(() => {
     if (!existing) return
     const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = existing
     const heureNorm = formatHeure(rest.heure) || undefined
@@ -243,38 +275,6 @@ export function AgendaPage() {
     })
     setFormOpen(true)
   }, [existing?.id, existing?.updatedAt, team]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const n = syncAgendaFromSources()
-    if (n > 0) setSyncMsg(`${n} OT / rappel(s) généré(s) depuis les contrats.`)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    let cancelled = false
-    void listTeam()
-      .then((members) => {
-        if (!cancelled) setRemoteTeam(members)
-      })
-      .catch(() => {
-        if (!cancelled) setRemoteTeam([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [listTeam])
-
-  const team = useMemo(
-    () =>
-      mergeTeamMembers({
-        user,
-        remote: remoteTeam,
-        dossiers: data.personnelDossiers,
-        extraAssignees: extraAssigneesFromData(data),
-        retiredIds: data.personnelRetiresUserIds,
-        orgId: user?.organizationId,
-      }),
-    [user, remoteTeam, data],
-  )
 
   const pointageEvents = useMemo(
     () => parsePointageEvents(data.pointageEvents),
