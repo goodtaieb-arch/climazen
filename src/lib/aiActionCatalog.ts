@@ -62,11 +62,56 @@ export const AI_FORBIDDEN_ACTIONS = [
   'Signer à la place du tech ou du client',
   'Clôturer / terminer un OT',
   'Générer le PDF CERFA final',
-  'Supprimer client, OT, stock, documents',
+  'Supprimer / annuler définitivement (= effacer) un OT, client, stock ou document',
   'Modifier le SIRET / attestation / facturation société sans demande claire + confirmation',
   'Envoyer un e-mail client sans confirmation',
   'Dépenser / appeler Twilio / facturer OpenAI hors usage conversation',
 ] as const
+
+/**
+ * Réponse type si l’utilisateur dit « annule l’OT… ».
+ * Annuler = supprimer → interdit. Retirer / déplacer sur l’agenda → OK (humain).
+ */
+export const AI_ANNULER_OT_GUIDE = `Je ne peux pas annuler (= supprimer) un OT.
+
+Par contre vous pouvez le corriger vous-même :
+• Agenda → croix rouge sur le bloc = retirer l’OT du tech (il revient dans « OT à poser »)
+• Ou recliquer le bloc / le replacer = déplacer l’heure ou le tech
+• Ordres de travail → ouvrir l’OT pour changer date, tech, type, action
+
+Dites-moi plutôt « retire l’OT de Julie » ou « déplace l’OT demain 14h » et je vous guide — sans rien supprimer.`
+
+/** Détecte une demande d’annulation / suppression d’OT (fautes : anulle, anuller…). */
+export function wantsAnnulerOt(raw: string): boolean {
+  const n = String(raw || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  if (!n) return false
+  // « non / annule » seul = annulation d’une proposition en cours, pas d’un OT
+  if (/^(non|annule|annuler|anulle|anuller|stop|cancel|laisse)[!?.]*$/.test(n)) return false
+  const verbe =
+    /\b(annul|anull|supprim|effac|detrui|supprime|annule|anulle)\w*\b/.test(n) ||
+    /\bmets?\s+a\s+la\s+poubelle\b/.test(n)
+  if (!verbe) return false
+  // « OT », « l’OT », dictée « lot de Julie », « ordre de travail », « intervention »
+  return (
+    /\b(ot|ordre(?:s)?\s+de\s+travail|intervention|interventions)\b/.test(n) ||
+    /\bl['']ot\b/.test(n) ||
+    /\blot\s+(?:de|du|pour|numero|n)\b/.test(n)
+  )
+}
+
+export function answerAnnulerOtGuide(raw?: string): string {
+  const who = String(raw || '').match(
+    /(?:ot|ordre|intervention)\s+(?:de|du|pour)\s+([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+)?)/i,
+  )?.[1]
+  if (who) {
+    return `${AI_ANNULER_OT_GUIDE}\n\nPour l’OT de ${who.trim()} : ouvrez l’Agenda, trouvez le bloc, croix rouge = retirer, ou déplacez-le.`
+  }
+  return AI_ANNULER_OT_GUIDE
+}
 
 export const AI_UNIFIED_SYSTEM_RULES = `${AI_HUMAN_GATE}
 
@@ -80,6 +125,7 @@ Règles d’or :
 4) INTERDIT : ${AI_FORBIDDEN_ACTIONS.join(' ; ')}.
 5) Si info manquante : propose quand même avec ce que tu as, et dis quoi compléter après validation.
 6) Prefère les clients/sites listés dans le contexte.
+7) Si l’utilisateur dit « annule / anulle / supprime l’OT » : réponds EXACTEMENT dans cet esprit — tu ne peux pas annuler (= supprimer), mais il peut RETIRER l’OT du planning (croix rouge Agenda) ou le DÉPLACER (reposer l’heure / autre tech) pour corriger lui-même. Ne dis jamais seulement « je ne peux pas » sans expliquer retirer / déplacer.
 
 Actions JSON (à la FIN de la réponse, un seul bloc) :
 

@@ -3,7 +3,7 @@
  * Utilisée en local (sans clé API) et comme contexte pour OpenAI.
  */
 
-import { AI_UNIFIED_SYSTEM_RULES } from './aiActionCatalog'
+import { AI_UNIFIED_SYSTEM_RULES, wantsAnnulerOt, answerAnnulerOtGuide } from './aiActionCatalog'
 
 export type AideTopic = {
   id: string
@@ -34,6 +34,29 @@ Règles stock / CERFA :
 `
 
 export const AIDE_TOPICS: AideTopic[] = [
+  {
+    id: 'annuler-ot',
+    title: 'Annuler / retirer / déplacer un OT',
+    keywords: [
+      'annule',
+      'annuler',
+      'anulle',
+      'anuller',
+      'supprime',
+      'supprimer',
+      'retirer',
+      'deplacer',
+      'déplacer',
+      'enlever ot',
+    ],
+    paths: ['/app/agenda', '/app/ot', '/app/appel'],
+    answer: `Je ne peux pas annuler (= supprimer) un OT.
+
+Pour corriger le planning :
+• Agenda → croix rouge sur le bloc = retirer l’OT du tech (revient dans « OT à poser »)
+• Recliquer / reposer = déplacer l’heure ou changer de tech
+• Ordres de travail → ouvrir l’OT pour modifier date, tech, action`,
+  },
   {
     id: 'parcours-ot',
     title: 'Parcours OT / Client appelle',
@@ -322,6 +345,10 @@ export function answerAideLocal(question: string, pathname = ''): string {
   const q = normalize(question)
   if (!q.trim()) {
     return 'Posez une question sur ClimaZEN (OT, CERFA, stock, bouteilles…).'
+  }
+
+  if (wantsAnnulerOt(question)) {
+    return `${answerAnnulerOtGuide(question)}\n\n— Assistant ClimaZEN (mode guide)`
   }
 
   let best: AideTopic | null = null

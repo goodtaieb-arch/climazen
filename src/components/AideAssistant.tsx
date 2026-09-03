@@ -15,7 +15,7 @@ import {
   resolveCreateOtCerfa,
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
-import { catalogSummaryForPrompt, isForbiddenClaim } from '../lib/aiActionCatalog'
+import { catalogSummaryForPrompt, isForbiddenClaim, wantsAnnulerOt, answerAnnulerOtGuide } from '../lib/aiActionCatalog'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
@@ -65,7 +65,7 @@ Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_
     '• « Prépare un devis pour Dupont »\n' +
     '• « Commande un compresseur chez Daikin »\n' +
     '• « Agenda RDV demain 14h pour Mr Martin »\n\n' +
-    'Interdit sans vous : signature, clôture OT, PDF CERFA final, suppressions.'
+    'Interdit : supprimer un OT. Pour corriger : retirer (croix rouge Agenda) ou déplacer.'
   )
 }
 
@@ -298,6 +298,15 @@ export function AideAssistant() {
         setPendingCreate(null)
         setPendingTerrain(null)
         pushAssistant('Création annulée.')
+        return
+      }
+
+      // Annuler OT = supprimer → interdit ; expliquer retirer / déplacer
+      if (wantsAnnulerOt(q)) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(answerAnnulerOtGuide(q))
         return
       }
 
