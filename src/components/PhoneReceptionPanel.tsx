@@ -52,7 +52,7 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
           </h2>
           <p className="mt-0.5 text-xs text-indigo-900/80">
             Collez ou dictez la transcription — l’IA repère le jargon (PAC, R-32, CERFA…) et
-            mémorise les termes dans Supabase (partagé avec l’assistant Gemini).
+            mémorise les termes dans Supabase (partagé avec l’assistant site, même clé OpenAI).
           </p>
         </div>
       </div>

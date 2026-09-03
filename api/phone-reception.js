@@ -1,6 +1,6 @@
 /**
  * Vercel — /api/phone-reception
- * Agent d’accueil téléphonique (OpenAI) — partage le vocabulaire Supabase avec Gemini.
+ * Agent d’accueil téléphonique (OpenAI) — même clé société que l’assistant site.
  *
  * POST { transcript, callerContext?, learn? }
  * Authorization: Bearer <session Supabase>
@@ -47,30 +47,44 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(204).end()
 
-    const openaiKey = process.env.OPENAI_API_KEY
-
     if (req.method === 'GET' || req.method === 'HEAD') {
+      const user = await verifySupabaseUser(req)
+      if (!user?.id) {
+        return res.status(200).json({ ok: true, configured: false, provider: 'openai' })
+      }
+      const profile = await userOrgProfile(user.id)
+      let configured = false
+      if (profile?.organization_id) {
+        try {
+          const { fetchOrgOpenaiHint } = await import('../server/lib/orgOpenaiKey.js')
+          configured = (await fetchOrgOpenaiHint(profile.organization_id)).hasKey
+        } catch {
+          configured = false
+        }
+      }
       return res.status(200).json({
         ok: true,
-        configured: Boolean(openaiKey),
+        configured,
         provider: 'openai',
       })
     }
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-    if (!openaiKey) {
-      return res.status(503).json({
-        error: 'openai_not_configured',
-        hint: 'Ajoutez OPENAI_API_KEY sur Vercel pour l’agent d’accueil téléphonique.',
-      })
-    }
-
     const user = await verifySupabaseUser(req)
     if (!user?.id) return res.status(401).json({ error: 'Session requise.' })
     const profile = await userOrgProfile(user.id)
     if (!profile?.organization_id) {
       return res.status(403).json({ error: 'Profil société introuvable.' })
+    }
+
+    const { fetchOrgOpenaiKey } = await import('../server/lib/orgOpenaiKey.js')
+    const openaiKey = await fetchOrgOpenaiKey(profile.organization_id)
+    if (!openaiKey) {
+      return res.status(503).json({
+        error: 'openai_not_configured',
+        hint: 'Collez la clé OpenAI de votre société dans Mon entreprise (même clé pour Lola et l’assistant site).',
+      })
     }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {}
@@ -96,45 +110,40 @@ export default async function handler(req, res) {
       .filter(Boolean)
       .join('\n')
 
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.3,
-        max_tokens: 900,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          {
-            role: 'user',
-            content: `Transcription appel téléphonique :\n${normalized}`,
-          },
-        ],
-      }),
+    const { openaiChatCompletions } = await import('../server/lib/openaiChat.js')
+    const ai = await openaiChatCompletions({
+      apiKey: openaiKey,
+      model,
+      temperature: 0.3,
+      maxTokens: 900,
+      json: true,
+      messages: [
+        { role: 'system', content: system },
+        {
+          role: 'user',
+          content: `Transcription appel téléphonique :\n${normalized}`,
+        },
+      ],
     })
 
-    if (!aiRes.ok) {
-      const errText = await aiRes.text()
-      console.error('OpenAI phone-reception', aiRes.status, errText.slice(0, 400))
+    if (!ai.ok) {
+      console.error('OpenAI phone-reception', ai.status, ai.error)
       const hint =
-        aiRes.status === 429
-          ? 'Quota OpenAI atteint.'
-          : `Erreur OpenAI (${aiRes.status}).`
+        ai.status === 429
+          ? 'Quota OpenAI de votre société atteint.'
+          : ai.status === 401 || ai.status === 403
+            ? 'Clé OpenAI invalide (Mon entreprise).'
+            : `Erreur OpenAI (${ai.status}).`
       return res.status(200).json({
         ok: false,
-        error: `openai_${aiRes.status}`,
+        error: `openai_${ai.status}`,
         hint,
         normalized,
         termsDetected: localTerms.map((t) => t.canonical),
       })
     }
 
-    const data = await aiRes.json()
-    const raw = data?.choices?.[0]?.message?.content || '{}'
+    const raw = ai.content || '{}'
     let parsed
     try {
       parsed = JSON.parse(raw)

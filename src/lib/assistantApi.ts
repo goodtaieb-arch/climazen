@@ -9,22 +9,23 @@ export type AideMessage = {
 export type AideReply = {
   reply: string
   source: 'api' | 'local'
-  /** Raison du fallback local (quota Gemini, clé, etc.) */
+  /** Raison du fallback local (quota OpenAI, clé manquante, etc.) */
+
   fallbackHint?: string
 }
 
 /**
  * Demande une réponse à l’assistant.
- * Essaie /api/assistant (Gemini si clé serveur), sinon guide local.
+ * Essaie /api/assistant (OpenAI si clé société), sinon guide local.
  * @param entityCatalog — liste clients/sites (pour créer OT/CERFA par la voix)
  */
 export async function askAideAssistant(opts: {
   messages: AideMessage[]
   pathname?: string
   entityCatalog?: string
-  /** Chatbot Light : guide local uniquement (pas d’appel Gemini). */
+  /** Chatbot Light : guide local uniquement (pas d’appel OpenAI). */
   chatbotOnly?: boolean
-  /** Société — vocabulaire technique Supabase injecté dans Gemini. */
+  /** Société — vocabulaire technique Supabase injecté dans OpenAI. */
   organizationId?: string
 }): Promise<AideReply> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')

@@ -34,7 +34,7 @@ export const AI_LIGHT_PRICING = {
   },
   agentAfterBeta: {
     price: 'À définir',
-    detail: 'Option payante — création OT/CERFA, actions terrain et Gemini cloud.',
+    detail: 'Option payante — création OT/CERFA, actions terrain (OpenAI, clé de la société).',
   },
 } as const
 
@@ -61,9 +61,12 @@ export function canUseAgentActions(tier: AiTier): boolean {
   return tier === 'agent'
 }
 
-export function canCallGemini(tier: AiTier): boolean {
+export function canCallCloudAi(tier: AiTier): boolean {
   return tier === 'agent'
 }
+
+/** @deprecated alias — l’IA site est OpenAI, plus Gemini. */
+export const canCallGemini = canCallCloudAi
 
 export function aiTierUpsellMessage(tier: AiTier, isBeta?: boolean): string | null {
   if (tier === 'agent') return null

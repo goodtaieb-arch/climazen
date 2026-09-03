@@ -50,15 +50,20 @@ Vous devez :
 
 ```
 SUPABASE_SERVICE_ROLE_KEY=…
-OPENAI_API_KEY=…          # Lola (phase conversation)
 TWILIO_AUTH_TOKEN=…       # optionnel — validation signature Twilio
+OPENAI_MODEL=gpt-4o-mini  # optionnel — nom du modèle uniquement
 ```
+
+**Plus de clé OpenAI / Gemini globale pour les sociétés.**  
+Chaque gérant colle **sa** clé OpenAI dans **Mon entreprise** (`organization_ai_secrets`).  
+Cette clé paie **l’assistant du site et Lola**. SQL : `supabase/ai-org-openai.sql`.
 
 ## SQL Supabase (admin ClimaZEN)
 
 Exécuter dans l’ordre :
 1. `supabase/ai-vocabulary.sql`
 2. `supabase/ai-telephony-security.sql`
+3. `supabase/ai-org-openai.sql` (clé OpenAI par société)
 
 ## Évolution prévue
 
@@ -77,4 +82,4 @@ Non recommandé. **Un numéro par société** = zéro confusion.
 Possible plus tard (addon Pro). Aujourd’hui : **vous procurez** le numéro.
 
 **Les données passent-elles chez OpenAI / Google ?**  
-Uniquement le **strict nécessaire** pour la phrase en cours, jamais la base complète d’une autre société.
+OpenAI uniquement (plus Gemini). Uniquement le **strict nécessaire** pour la phrase en cours, avec **la clé de votre société**. Jamais la base complète d’une autre société.

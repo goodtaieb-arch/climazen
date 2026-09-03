@@ -1,11 +1,11 @@
 /**
  * Extraction + apprentissage vocabulaire technique (froid / clim / CERFA).
- * Partagé : Gemini (site), OpenAI (accueil téléphone), tickets, e-mails, voix.
+ * Partagé : OpenAI (site + accueil téléphone), tickets, e-mails, voix.
  */
 
 import { supabaseRpc } from './supabaseServer.js'
 
-/** @typedef {'gemini'|'phone'|'email'|'ticket'|'voice'|'manual'|'seed'} AiVocabSource */
+/** @typedef {'gemini'|'openai'|'phone'|'email'|'ticket'|'voice'|'manual'|'seed'} AiVocabSource */
 
 const FLUID_RE = /\bR[-\s]?(\d{2,3}[a-z]?)\b/gi
 const FLUID_WORD_RE = /\b(erre|air)\s+(\d{3})\b/gi

@@ -27,6 +27,7 @@ import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 import { TelephonyLolaPanel } from '../components/TelephonyLolaPanel'
+import { OpenaiOrgKeyPanel } from '../components/OpenaiOrgKeyPanel'
 import { GmaoImportPanel } from '../components/GmaoImportPanel'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
@@ -329,11 +330,13 @@ export function OperateurPage() {
         <section className="rounded-2xl border border-line bg-white p-5">
           <h2 className="font-display text-lg font-semibold">Assistant IA</h2>
           <p className="mt-1 text-sm text-muted">
-            Édition Pro : {AI_TIER_LABELS.agent} inclus (OT, CERFA, agenda, Gemini cloud).
+            Édition Pro : {AI_TIER_LABELS.agent} inclus (OT, CERFA, agenda). L’IA cloud utilise
+            la clé OpenAI de votre société.
           </p>
         </section>
       )}
 
+      {isOwner ? <OpenaiOrgKeyPanel /> : null}
       {isOwner ? <TelephonyLolaPanel /> : null}
       {isOwner ? <GmaoImportPanel /> : null}
 

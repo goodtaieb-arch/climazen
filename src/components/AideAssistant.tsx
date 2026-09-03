@@ -219,7 +219,7 @@ export function AideAssistant() {
       void learnAiVocabulary({
         organizationId,
         text: q,
-        agent: 'gemini',
+        agent: 'openai',
       })
     }
 
@@ -346,7 +346,7 @@ export function AideAssistant() {
   const tierSubtitle =
     aiTier === 'agent'
       ? source === 'api'
-        ? 'Agent IA · Gemini cloud'
+        ? 'Agent IA · OpenAI (clé société)'
         : source === 'local'
           ? 'Agent IA · guide + actions'
           : 'Agent IA · OT · CERFA · agenda'

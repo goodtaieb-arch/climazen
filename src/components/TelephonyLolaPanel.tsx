@@ -79,8 +79,9 @@ export function TelephonyLolaPanel() {
           </h2>
           <p className="mt-1 text-sm text-indigo-900/85">
             <strong>Un numéro par société</strong> — les appels sont routés vers votre coffre
-            ClimaZEN uniquement. Lola (OpenAI) et l’agent site (Gemini) partagent les mêmes actions,
-            jamais les données d’une autre société.
+            ClimaZEN uniquement. Lola et l’assistant du site utilisent <strong>la même clé
+            OpenAI</strong> de votre société (collée ci-dessus) — jamais les données d’une autre
+            société.
           </p>
         </div>
       </div>

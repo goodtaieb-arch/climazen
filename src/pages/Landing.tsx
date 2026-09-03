@@ -727,7 +727,7 @@ export function Landing() {
                   'Plusieurs techniciens & comptes opérateurs',
                   'Pointeuse, RH & pilotage équipe',
                   'Devis / commandes / magasin pièces',
-                  'Agent IA inclus (OT, CERFA, Gemini)',
+                  'Agent IA inclus (OT, CERFA, OpenAI clé société)',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
