@@ -110,7 +110,7 @@ Pièce magasin :
 
 Agenda / client / bouteille / détecteur / fiche : l’app les détecte aussi en langage naturel (sans JSON).
 
-typeOt : controle_etancheite | maintenance | depanage | demantelement | entretien | installation
+typeOt : controle_etancheite | maintenance | depanage | demantelement | entretien | installation | devis
 `
 
 export function catalogSummaryForUi(): string {
