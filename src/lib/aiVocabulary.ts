@@ -1,10 +1,10 @@
 /**
- * Vocabulaire technique IA — client (apprentissage Supabase partagé Gemini + OpenAI).
+ * Vocabulaire technique IA — client (apprentissage Supabase, OpenAI site + Lola).
  */
 
 import { getSupabase, isSupabaseConfigured } from './supabase'
 
-export type AiVocabAgent = 'gemini' | 'phone' | 'email' | 'ticket' | 'voice'
+export type AiVocabAgent = 'gemini' | 'openai' | 'phone' | 'email' | 'ticket' | 'voice'
 
 async function authHeaders(): Promise<Record<string, string>> {
   if (!isSupabaseConfigured()) return {}

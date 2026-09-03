@@ -759,7 +759,7 @@ export interface BonRemiseMateriel {
 /** Édition produit : Light (solo / AE) ou Pro (PME / TPE). */
 export type AppEdition = import('./appEdition').AppEdition
 
-/** Option IA souscrite (Light) — Agent complet OT/CERFA/Gemini. */
+/** Option IA souscrite (Light) — Agent complet OT/CERFA (OpenAI, clé société). */
 export type AiPlan = import('./aiAccess').AiPlan
 
 export interface AppData {

@@ -31,7 +31,7 @@ export async function logAiAudit(opts) {
   }
 }
 
-const SENSITIVE_KEYS = /email|telephone|tel|siret|adresse|password|token|secret|signature/i
+const SENSITIVE_KEYS = /email|telephone|tel|siret|adresse|password|token|secret|signature|openai|api.?key/i
 
 function sanitizeAuditDetail(detail) {
   const out = {}

@@ -731,3 +731,119 @@ export function extractActionFromReply(reply: string): CreateOtCerfaIntent | nul
     return null
   }
 }
+
+const HUMAN_GATE_FOOTER =
+  `Rien n’est encore enregistré. Répondez « oui » pour créer, ou « non » pour annuler.`
+
+/** Extrait devis / commande / pièce depuis une réponse OpenAI (JSON propose_create_*). */
+export function extractCommercialActionFromReply(
+  reply: string,
+): PendingTerrainAction | null {
+  const fenced = reply.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  const raw = fenced?.[1] || reply
+  const m = raw.match(
+    /\{[\s\S]*"action"\s*:\s*"propose_create_(?:devis|commande|piece)"[\s\S]*\}/,
+  )
+  if (!m) return null
+  try {
+    const obj = JSON.parse(m[0]) as {
+      action?: string
+      clientQuery?: string
+      siteQuery?: string
+      libelle?: string
+      montantHt?: number
+      fournisseur?: string
+      referencePiece?: string
+      quantite?: number
+      reference?: string
+      designation?: string
+      emplacement?: string
+    }
+    if (obj.action === 'propose_create_devis') {
+      const clientQuery = (obj.clientQuery || '').trim()
+      if (!clientQuery) return null
+      const siteQuery = (obj.siteQuery || '').trim()
+      const libelle = (obj.libelle || 'Devis').trim().slice(0, 160)
+      const montantHt =
+        typeof obj.montantHt === 'number' && Number.isFinite(obj.montantHt)
+          ? obj.montantHt
+          : undefined
+      return {
+        kind: 'devis',
+        clientQuery,
+        siteQuery,
+        libelle,
+        montantHt,
+        summary: [
+          `Je propose un devis brouillon :`,
+          `• Client : ${clientQuery}`,
+          siteQuery ? `• Site : ${siteQuery}` : null,
+          `• Libellé : ${libelle}`,
+          montantHt != null ? `• Montant HT : ${montantHt} €` : null,
+          ``,
+          HUMAN_GATE_FOOTER,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      }
+    }
+    if (obj.action === 'propose_create_commande') {
+      const fournisseur = (obj.fournisseur || 'Fournisseur').trim().slice(0, 80)
+      const libelle = (obj.libelle || obj.referencePiece || 'Commande pièce')
+        .trim()
+        .slice(0, 160)
+      const quantite = Math.max(1, Number(obj.quantite) || 1)
+      return {
+        kind: 'commande',
+        fournisseur,
+        libelle,
+        referencePiece: (obj.referencePiece || '').trim() || undefined,
+        quantite,
+        summary: [
+          `Je propose une commande fournisseur :`,
+          `• Fournisseur : ${fournisseur}`,
+          `• Libellé : ${libelle}`,
+          obj.referencePiece ? `• Réf. : ${obj.referencePiece}` : null,
+          `• Qté : ${quantite}`,
+          ``,
+          HUMAN_GATE_FOOTER,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      }
+    }
+    if (obj.action === 'propose_create_piece') {
+      const reference = (obj.reference || '').trim()
+      const designation = (obj.designation || reference || 'Pièce').trim()
+      if (!reference && !designation) return null
+      const quantite = Math.max(0, Number(obj.quantite) || 1)
+      const empRaw = (obj.emplacement || 'atelier').toLowerCase()
+      const emplacement =
+        empRaw === 'depot' || empRaw === 'dépôt'
+          ? ('depot' as const)
+          : empRaw === 'vehicule' || empRaw === 'véhicule'
+            ? ('vehicule' as const)
+            : ('atelier' as const)
+      return {
+        kind: 'piece',
+        reference: reference || designation.slice(0, 40),
+        designation,
+        quantite,
+        emplacement,
+        summary: [
+          `Je propose d’ajouter une pièce magasin :`,
+          `• Réf. : ${reference || designation.slice(0, 40)}`,
+          `• Désignation : ${designation}`,
+          `• Qté : ${quantite} · ${emplacement}`,
+          ``,
+          HUMAN_GATE_FOOTER,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}

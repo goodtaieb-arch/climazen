@@ -51,7 +51,7 @@ export default async function handler(req, res) {
               updatedAt: row.updated_at,
             }
           : null,
-        setupSteps: buildSetupSteps(row?.provider || 'twilio'),
+        setupSteps: buildSetupSteps(),
       })
     }
 
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
       ok: true,
       inboundE164,
       webhookUrl: WEBHOOK_URL,
-      setupSteps: buildSetupSteps(provider),
+      setupSteps: buildSetupSteps(),
     })
   } catch (err) {
     console.error('telephony-config', err)
@@ -131,13 +131,11 @@ export default async function handler(req, res) {
   }
 }
 
-function buildSetupSteps(provider) {
-  const name =
-    provider === 'vonage' ? 'Vonage' : provider === 'plivo' ? 'Plivo' : 'Twilio'
+function buildSetupSteps() {
   return [
-    `1. Créez un compte ${name} et achetez un numéro français (voice).`,
-    `2. Configurez le webhook « appel entrant » → POST ${WEBHOOK_URL}`,
-    '3. Collez le numéro acheté ci-dessous (format +33…) et activez Lola.',
-    '4. Chaque société a son propre numéro — aucun mélange entre clients ClimaZEN.',
+    '1. Compte Twilio : https://www.twilio.com/try-twilio',
+    '2. Acheter un numéro France (voix) : https://www.twilio.com/console/phone-numbers/search',
+    `3. Coller le webhook sur le numéro : POST ${WEBHOOK_URL} — liste : https://www.twilio.com/console/phone-numbers/incoming`,
+    '4. Coller le numéro dans ClimaZEN et activer Lola.',
   ]
 }

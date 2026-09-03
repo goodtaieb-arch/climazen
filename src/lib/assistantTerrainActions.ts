@@ -92,6 +92,9 @@ export type TerrainActionKind =
   | 'agenda'
   | 'client'
   | 'equipements'
+  | 'devis'
+  | 'commande'
+  | 'piece'
 
 export type PendingTerrainAction =
   | {
@@ -146,6 +149,30 @@ export type PendingTerrainAction =
       clientQuery: string
       siteQuery: string
       notes?: string
+      summary: string
+    }
+  | {
+      kind: 'devis'
+      clientQuery: string
+      siteQuery: string
+      libelle: string
+      montantHt?: number
+      summary: string
+    }
+  | {
+      kind: 'commande'
+      fournisseur: string
+      libelle: string
+      referencePiece?: string
+      quantite: number
+      summary: string
+    }
+  | {
+      kind: 'piece'
+      reference: string
+      designation: string
+      quantite: number
+      emplacement: 'atelier' | 'depot' | 'vehicule'
       summary: string
     }
 
@@ -500,11 +527,127 @@ export function parseTerrainIntent(text: string): PendingTerrainAction | null {
     }
   }
 
-  // Bouteille / stock
-  if (
-    /\bbouteille\b|\bstock\b|remplir\s+(la\s+)?bouteille|ajoute\s+(une\s+)?bouteille|creer\s+(une\s+)?bouteille|cr[eé]e\s+(une\s+)?bouteille/.test(
-      n,
+  // Devis / commande / pièce AVANT bouteille (sinon « stock magasin pièce » → fausse bouteille)
+  if (/\bdevis\b/.test(n) && /(?:cree|creer|prepare|preparer|fais|faire|nouveau)\b/.test(n)) {
+    const clientQuery =
+      raw.match(/(?:mr|m\.|monsieur|mme|madame|client|pour)\s+([A-Za-zÀ-ÿ0-9'’\-\s]{2,40}?)(?:\s+site|\s+devis|\s+\d|$)/i)?.[1]?.trim() ||
+      raw.match(/devis\s+(?:pour|client)\s+([A-Za-zÀ-ÿ0-9'’\-\s]{2,40}?)(?:\s+site|,|$)/i)?.[1]?.trim() ||
+      ''
+    const siteQuery =
+      raw.match(/site\s+(?:de\s+|du\s+)?(.+?)(?:\s+devis|\s+\d|\s*$)/i)?.[1]?.trim() || ''
+    const montantHt = Number(
+      raw.match(/(\d+(?:[.,]\d+)?)\s*(?:€|eur|euros?|ht)\b/i)?.[1]?.replace(',', '.') || '',
     )
+    const libelle =
+      raw.match(/(?:libelle|libellé|intitule|intitulé|objet)\s*[:=]?\s*(.+)$/i)?.[1]?.trim() ||
+      `Devis${clientQuery ? ` — ${clientQuery}` : ''}`
+    if (!clientQuery) return null
+    return {
+      kind: 'devis',
+      clientQuery,
+      siteQuery,
+      libelle: libelle.slice(0, 120),
+      montantHt: Number.isFinite(montantHt) && montantHt > 0 ? montantHt : undefined,
+      summary: [
+        `⚠️ Validation humaine obligatoire — rien n’est créé tant que vous ne dites pas « oui ».`,
+        ``,
+        `Je propose un devis brouillon :`,
+        `• Client : ${clientQuery}`,
+        siteQuery ? `• Site : ${siteQuery}` : null,
+        `• Libellé : ${libelle.slice(0, 120)}`,
+        Number.isFinite(montantHt) && montantHt > 0 ? `• Montant HT : ${montantHt} €` : `• Montant : à compléter`,
+        ``,
+        `Répondez « oui » pour créer, ou « non » pour annuler.`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  }
+
+  if (
+    /\bcommande\b|demande\s+de\s+devis\s+(?:piece|pi[eè]ce|fournisseur)/.test(n) &&
+    /(?:cree|creer|passe|passer|commande|commander|demande)\b/.test(n)
+  ) {
+    const fournisseur =
+      raw.match(/(?:chez|fournisseur)\s+([A-Za-zÀ-ÿ0-9'’\-\s]{2,40}?)(?:\s+ref|\s+pi[eè]ce|,|$)/i)?.[1]?.trim() ||
+      'Fournisseur'
+    const referencePiece =
+      raw.match(/(?:ref|réf\.?|reference|référence)\s*[:=]?\s*([A-Za-z0-9][A-Za-z0-9\-_/]{1,40})/i)?.[1] ||
+      undefined
+    const quantite = Number(raw.match(/\b(\d+)\s*(?:u|pcs?|pieces?|pi[eè]ces?)\b/i)?.[1] || '1')
+    const libelle =
+      raw.match(/(?:piece|pi[eè]ce|commande)\s+([A-Za-zÀ-ÿ0-9'’\-\s]{3,60}?)(?:\s+chez|\s+ref|\s+\d|$)/i)?.[1]?.trim() ||
+      referencePiece ||
+      'Commande pièce'
+    return {
+      kind: 'commande',
+      fournisseur,
+      libelle: libelle.slice(0, 120),
+      referencePiece,
+      quantite: Number.isFinite(quantite) && quantite > 0 ? quantite : 1,
+      summary: [
+        `⚠️ Validation humaine obligatoire — rien n’est créé tant que vous ne dites pas « oui ».`,
+        ``,
+        `Je propose une commande fournisseur :`,
+        `• Fournisseur : ${fournisseur}`,
+        `• Libellé : ${libelle.slice(0, 120)}`,
+        referencePiece ? `• Réf. : ${referencePiece}` : null,
+        `• Quantité : ${Number.isFinite(quantite) && quantite > 0 ? quantite : 1}`,
+        ``,
+        `Répondez « oui » pour créer, ou « non » pour annuler.`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  }
+
+  if (
+    /\bpiece\b|\bpi[eè]ce\b/.test(n) &&
+    /(?:ajoute|ajouter|cree|creer|stock\s+piece|magasin)/.test(n) &&
+    !/\bcommande\b/.test(n) &&
+    !/\bbouteille\b/.test(n)
+  ) {
+    const reference =
+      raw.match(/(?:ref|réf\.?|reference|référence)\s*[:=]?\s*([A-Za-z0-9][A-Za-z0-9\-_/]{1,40})/i)?.[1] ||
+      raw.match(/\b([A-Z]{2,}[-_/]?[A-Z0-9]{1,20})\b/)?.[1] ||
+      `PIE-${Date.now().toString(36).slice(-5).toUpperCase()}`
+    const designation =
+      raw.match(/(?:designation|désignation|nom)\s*[:=]?\s*(.+?)(?:\s+ref|\s+\d+\s*u|$)/i)?.[1]?.trim() ||
+      raw.match(/pi[eè]ce\s+([A-Za-zÀ-ÿ0-9'’\-\s]{3,60}?)(?:\s+ref|\s+stock|\s+\d|$)/i)?.[1]?.trim() ||
+      reference
+    const quantite = Number(raw.match(/\b(\d+)\s*(?:u|pcs?|en\s+stock)?\b/i)?.[1] || '1')
+    const emplacement: 'atelier' | 'depot' | 'vehicule' = /vehicule|camion/.test(n)
+      ? 'vehicule'
+      : /depot|dépôt/.test(n)
+        ? 'depot'
+        : 'atelier'
+    return {
+      kind: 'piece',
+      reference,
+      designation: designation.slice(0, 120),
+      quantite: Number.isFinite(quantite) && quantite > 0 ? quantite : 1,
+      emplacement,
+      summary: [
+        `⚠️ Validation humaine obligatoire — rien n’est créé tant que vous ne dites pas « oui ».`,
+        ``,
+        `Je propose une pièce magasin :`,
+        `• Réf. : ${reference}`,
+        `• Désignation : ${designation.slice(0, 120)}`,
+        `• Qté : ${Number.isFinite(quantite) && quantite > 0 ? quantite : 1}`,
+        `• Emplacement : ${emplacement}`,
+        ``,
+        `Répondez « oui » pour créer, ou « non » pour annuler.`,
+      ].join('\n'),
+    }
+  }
+
+  // Bouteille / stock fluides (pas pièces magasin)
+  if (
+    (/\bbouteille\b|remplir\s+(la\s+)?bouteille|ajoute\s+(une\s+)?bouteille|creer\s+(une\s+)?bouteille|cr[eé]e\s+(une\s+)?bouteille/.test(
+      n,
+    ) ||
+      (/\bstock\b/.test(n) && /\b(r-?\d{2,4}|fluide|gaz)\b/.test(n))) &&
+    !/\bpiece\b|\bpi[eè]ce\b/.test(n)
   ) {
     const fluide =
       raw.match(/\b(R-?\d{2,4}[A-Za-z]?)\b/i)?.[1]?.toUpperCase().replace(/^R/, 'R-').replace(/R--/, 'R-') ||
@@ -663,6 +806,26 @@ export type TerrainDeps = {
   upsertAgendaEvent: (
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
+  upsertDevis?: (
+    d: Omit<import('./chaineCommerciale').Devis, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
+      id?: string
+      numero?: string
+    },
+  ) => { id: string; numero: string }
+  upsertCommandeFournisseur?: (
+    c: Omit<
+      import('./chaineCommerciale').CommandeFournisseur,
+      'id' | 'createdAt' | 'updatedAt' | 'numero'
+    > & {
+      id?: string
+      numero?: string
+    },
+  ) => { id: string; numero: string }
+  upsertPieceDetachee?: (
+    p: Omit<import('./piecesDetachees').PieceDetachee, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
+  ) => string
 }
 
 export async function executeTerrainAction(
@@ -813,6 +976,71 @@ export async function executeTerrainAction(
       message: `Agenda : « ${action.title} » ajouté pour le ${when}. Vérifiez dans Agenda.`,
       navigateTo: `/app/agenda?id=${encodeURIComponent(id)}`,
     }
+  }
+
+  if (action.kind === 'devis') {
+    if (!deps.upsertDevis) throw new Error('Création devis indisponible.')
+    const { blankDevis } = await import('./chaineCommerciale')
+    const clients = deps.data.clients || []
+    const qClient = normalize(action.clientQuery)
+    const client = clients.find((c) => normalize(clientDisplayName(c)).includes(qClient))
+    if (!client) {
+      throw new Error(
+        `Client « ${action.clientQuery} » introuvable. Créez d’abord le client, puis redemandez le devis.`,
+      )
+    }
+    const sites = (deps.data.chantiers || []).filter((s) => s.clientId === client.id)
+    const qSite = normalize(action.siteQuery)
+    const site =
+      (qSite && sites.find((s) => normalize(s.nom).includes(qSite))) ||
+      (sites.length === 1 ? sites[0] : undefined)
+    const base = blankDevis(client.id, {
+      chantierId: site?.id,
+      libelle: action.libelle,
+      montantHt: action.montantHt,
+    })
+    const { id } = deps.upsertDevis(base)
+    return {
+      message: `Devis brouillon créé pour ${clientDisplayName(client)}. Complétez les lignes et le montant.`,
+      navigateTo: `/app/devis?id=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind === 'commande') {
+    if (!deps.upsertCommandeFournisseur) throw new Error('Création commande indisponible.')
+    const { id } = deps.upsertCommandeFournisseur({
+      fournisseur: action.fournisseur,
+      statut: 'demande_devis',
+      libelle: action.libelle,
+      referencePiece: action.referencePiece,
+      quantite: action.quantite,
+      destination: 'stock',
+    })
+    return {
+      message: `Commande / demande devis créée (${action.fournisseur}). Vérifiez puis passez en commandée.`,
+      navigateTo: `/app/commandes?id=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind === 'piece') {
+    if (!deps.upsertPieceDetachee) throw new Error('Création pièce indisponible.')
+    const { blankPiece } = await import('./piecesDetachees')
+    const base = blankPiece()
+    const id = deps.upsertPieceDetachee({
+      ...base,
+      reference: action.reference,
+      designation: action.designation,
+      quantite: action.quantite,
+      emplacement: action.emplacement,
+    })
+    return {
+      message: `Pièce « ${action.reference} » ajoutée au magasin (${action.emplacement}).`,
+      navigateTo: `/app/stock-pieces?id=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind !== 'fiche_maintenance') {
+    throw new Error('Action non supportée.')
   }
 
   // fiche
