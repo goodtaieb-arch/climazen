@@ -27,6 +27,7 @@ import {
   wantsOtLookup,
   answerOtLookupOuDeplacer,
 } from '../lib/assistantOtLookup'
+import { wantsCarnetContactQuery, answerCarnetContactQuery } from '../lib/carnetContacts'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
@@ -364,6 +365,15 @@ export function AideAssistant() {
         return
       }
 
+      // Carnet fournisseurs / formation / sous-traitants
+      if (wantsCarnetContactQuery(q)) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(answerCarnetContactQuery(data.contactsCarnet, q))
+        return
+      }
+
       // Retrouver / décaler OT par tech — lookup local (pas d’hallucination de nom)
       if (wantsOtLookup(q)) {
         setSource('local')
@@ -382,7 +392,7 @@ export function AideAssistant() {
         setSource('local')
         pushAssistant(
           AI_HOW_I_WORK +
-            '\n\nExemples : « OT de Karim Benali aujourd’hui » · « combien de filtre M5 ? » · « préviens-moi quand le M5 arrive »',
+            '\n\nExemples : « OT de Karim Benali aujourd’hui » · « combien de filtre M5 ? » · « contact Daikin » · « préviens-moi quand le M5 arrive »',
         )
         return
       }

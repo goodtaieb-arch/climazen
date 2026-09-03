@@ -184,6 +184,12 @@ type Store = {
     },
   ) => { id: string; numero: string }
   deleteCommandeFournisseur: (id: string) => void
+  upsertContactCarnet: (
+    c: Omit<import('./carnetContacts').ContactCarnet, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
+  ) => string
+  deleteContactCarnet: (id: string) => void
   upsertFacture: (
     f: Omit<import('./chaineCommerciale').Facture, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
       id?: string
@@ -1525,6 +1531,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({
       ...d,
       commandesFournisseur: (d.commandesFournisseur || []).filter((x) => x.id !== id),
+    }))
+  }, [])
+
+  const upsertContactCarnet = useCallback(
+    (
+      raw: Omit<import('./carnetContacts').ContactCarnet, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+      },
+    ) => {
+      const id = raw.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.contactsCarnet || []
+        const existing = list.find((x) => x.id === id)
+        const next: import('./carnetContacts').ContactCarnet = {
+          ...raw,
+          id,
+          nom: (raw.nom || '').trim(),
+          nomContact: (raw.nomContact || '').trim() || undefined,
+          telephone: (raw.telephone || '').trim(),
+          email: (raw.email || '').trim(),
+          adresse: (raw.adresse || '').trim() || undefined,
+          codePostal: (raw.codePostal || '').trim() || undefined,
+          ville: (raw.ville || '').trim() || undefined,
+          specialite: (raw.specialite || '').trim() || undefined,
+          notes: (raw.notes || '').trim() || undefined,
+          favori: Boolean(raw.favori),
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          contactsCarnet: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const deleteContactCarnet = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      contactsCarnet: (d.contactsCarnet || []).filter((x) => x.id !== id),
+      deletedEntityIds: withDeletedIds(d.deletedEntityIds, { contactsCarnet: [id] }),
     }))
   }, [])
 
@@ -3469,6 +3522,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteDevis,
       upsertCommandeFournisseur,
       deleteCommandeFournisseur,
+      upsertContactCarnet,
+      deleteContactCarnet,
       upsertFacture,
       genererDevisReguleDepuisOt,
       genererFactureDepuisOt,
@@ -3556,6 +3611,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteDevis,
       upsertCommandeFournisseur,
       deleteCommandeFournisseur,
+      upsertContactCarnet,
+      deleteContactCarnet,
       upsertFacture,
       genererDevisReguleDepuisOt,
       genererFactureDepuisOt,

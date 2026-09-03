@@ -16,6 +16,7 @@ import {
 import type { PendingTerrainAction } from './assistantTerrainActions'
 import { buildStockPiecesCatalog } from './assistantStockPieces'
 import { buildOtTeamCatalog } from './assistantOtLookup'
+import { buildCarnetContactsCatalog } from './carnetContacts'
 
 export type CreateOtCerfaIntent = {
   kind: 'create_ot_cerfa'
@@ -457,6 +458,7 @@ export function buildEntityCatalog(
   if (clients.length === 0) lines.push('(aucun client encore — création possible depuis la phrase)')
   lines.push('', buildStockPiecesCatalog(data, 20))
   lines.push('', buildOtTeamCatalog(data, opts?.team, 30))
+  lines.push('', buildCarnetContactsCatalog(data.contactsCarnet, 30))
   return lines.join('\n')
 }
 

@@ -834,6 +834,11 @@ export function resolveRemoteVsLocal(
     local.commandesFournisseur,
     preferOnTie,
   )
+  let contactsCarnet = mergeByIdLatest(
+    remote.contactsCarnet,
+    local.contactsCarnet,
+    preferOnTie,
+  )
   let piecesDetachees = mergeByIdLatest(
     remote.piecesDetachees,
     local.piecesDetachees,
@@ -919,6 +924,10 @@ export function resolveRemoteVsLocal(
         remote.deletedEntityIds?.piecesMouvements,
         local.deletedEntityIds?.piecesMouvements,
       ),
+      contactsCarnet: mergeIdLists(
+        remote.deletedEntityIds?.contactsCarnet,
+        local.deletedEntityIds?.contactsCarnet,
+      ),
     },
     {
       clients,
@@ -929,6 +938,7 @@ export function resolveRemoteVsLocal(
       interventions,
       piecesDetachees,
       piecesMouvements,
+      contactsCarnet,
     },
   )
   clients = applyTombstones(clients, deletedEntityIds.clients)
@@ -943,6 +953,7 @@ export function resolveRemoteVsLocal(
   piecesMouvements = piecesMouvements.filter(
     (m) => !(deletedEntityIds.piecesDetachees || []).includes(m.pieceId),
   )
+  contactsCarnet = applyTombstones(contactsCarnet, deletedEntityIds.contactsCarnet)
 
   const base = localW > remoteW ? local : remote
   const merged: AppData = {
@@ -965,6 +976,7 @@ export function resolveRemoteVsLocal(
     commandesFournisseur,
     piecesDetachees,
     piecesMouvements,
+    contactsCarnet,
     factures,
     agendaEvents,
     pointageRegles,

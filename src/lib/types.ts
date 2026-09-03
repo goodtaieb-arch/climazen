@@ -797,6 +797,11 @@ export interface AppData {
   devis?: import('./chaineCommerciale').Devis[]
   /** Commandes fournisseur (pièces) — OT en attente de réception */
   commandesFournisseur?: import('./chaineCommerciale').CommandeFournisseur[]
+  /**
+   * Carnet contacts société — fournisseurs habituels, centres de formation,
+   * sous-traitants (téléphone / e-mail pour devis, commande…).
+   */
+  contactsCarnet?: import('./carnetContacts').ContactCarnet[]
   /** Stock pièces détachées GMAO */
   piecesDetachees?: import('./piecesDetachees').PieceDetachee[]
   /** Mouvements stock pièces (entrées, sorties OT, inventaire…) */
