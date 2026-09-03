@@ -519,11 +519,10 @@ export function AgendaPage() {
     })
   }
 
-  /** Clique sur un tech : reste en vue jour, tous les techs visibles, surlignage optionnel. */
+  /** Clique sur un tech : filtre la frise sur ce tech (jour ou semaine). */
   const focusTechJour = (techId: string) => {
     setFilterTechId(techId)
     setFilterSecteur('tous')
-    setView('jour')
   }
 
   const placerOtSurCreneau = (techId: string, heureH: number, dateIso: string) => {
@@ -1272,8 +1271,12 @@ export function AgendaPage() {
       team,
       posteOf,
       taskTechIds: items.flatMap((it) => itemTechIds(it)),
-      // Bureau : toujours tous les techs (métier / région filtrent seuls).
-      filterTechId: bureau ? undefined : user?.id,
+      // Bureau : filtre tech du sélecteur (sinon tous + métier / région).
+      filterTechId: bureau
+        ? filterTechId && filterTechId !== 'tous'
+          ? filterTechId
+          : undefined
+        : user?.id,
       filterSecteur: bureau ? filterSecteur : undefined,
       filterAgenceCodes: bureau ? filterAgences : undefined,
       agenceOf: agenceOfTech,
@@ -1795,11 +1798,12 @@ export function AgendaPage() {
             value={filterTechId}
             onChange={(e) => {
               setFilterTechId(e.target.value)
-              setView('jour')
+              // Ne pas forcer la vue Jour : utile pour planifier la semaine d’un seul tech.
             }}
             className="h-10 min-w-[12rem] rounded-xl border border-line bg-white px-3 text-sm font-semibold"
+            title="Filtrer la frise sur un technicien"
           >
-            <option value="tous">Tous les techs (recommandé)</option>
+            <option value="tous">Tous les techs</option>
             {team.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.fullName || t.email}
@@ -2098,13 +2102,20 @@ export function AgendaPage() {
             <h2 className="font-display text-lg font-semibold">
               Programme · {formatJourCourt(cursorDate)}
             </h2>
-            <button
-              type="button"
-              onClick={() => openNew(cursorDate)}
-              className="inline-flex min-h-10 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-900"
-            >
-              <Plus className="h-3.5 w-3.5" /> Ajouter ce jour
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {bureau && filterTechId && filterTechId !== 'tous' ? (
+                <p className="text-xs font-semibold text-teal-800">
+                  Filtré : {team.find((t) => t.id === filterTechId)?.fullName || '1 tech'}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => openNew(cursorDate)}
+                className="inline-flex min-h-10 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-900"
+              >
+                <Plus className="h-3.5 w-3.5" /> Ajouter ce jour
+              </button>
+            </div>
           </div>
           {renderLignesTechJour(cursorDate)}
           {!bureau ? (
@@ -2123,7 +2134,22 @@ export function AgendaPage() {
 
       {view === 'semaine' && (
         <section className="space-y-4">
-          <h2 className="font-display text-lg font-semibold">Programme de la semaine</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">Programme de la semaine</h2>
+            {bureau && filterTechId && filterTechId !== 'tous' ? (
+              <p className="text-xs font-semibold text-teal-800">
+                Filtré : {team.find((t) => t.id === filterTechId)?.fullName || '1 tech'}
+                {' · '}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setFilterTechId('tous')}
+                >
+                  Voir tous les techs
+                </button>
+              </p>
+            ) : null}
+          </div>
           {weekDates.map((day) => {
             const items = programmeForDate(day)
             const isToday = day === todayIsoLocal()
