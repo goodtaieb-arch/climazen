@@ -353,6 +353,8 @@ async function processTicket(ticketId) {
     },
   })
 
+  void learnTicketVocabulary(ticket, ticket.organization_id)
+
   return {
     ok: true,
     otId,
@@ -360,6 +362,23 @@ async function processTicket(ticketId) {
     ot,
     ticketId: ticket.id,
     email: mail,
+  }
+}
+
+async function learnTicketVocabulary(ticket, orgId) {
+  const text = [ticket.localisation, ticket.description].filter(Boolean).join(' — ')
+  if (!text.trim() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
+  try {
+    const { learnFromText, normalizeTechnicalText } = await import('./lib/aiVocabularyCore.js')
+    await learnFromText({
+      orgId,
+      text,
+      agent: 'ticket',
+      normalizedText: normalizeTechnicalText(text),
+      metadata: { ticketId: ticket.id, siteId: ticket.site_id },
+    })
+  } catch (err) {
+    console.warn('learnTicketVocabulary', err instanceof Error ? err.message : err)
   }
 }
 
