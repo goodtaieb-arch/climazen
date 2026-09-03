@@ -6,10 +6,10 @@
  * POST — { inboundNumber, provider, lolaEnabled, managerNotifyEmail, notes }
  */
 
-import { authorizeOrgRequest } from './lib/authorizeOrg.js'
-import { supabaseRest, getSupabaseConfig } from './lib/supabaseServer.js'
-import { logAiAudit } from './lib/aiAuditLog.js'
-import { normalizeInboundE164 } from './lib/phoneE164.js'
+import { authorizeOrgRequest } from '../server/authorizeOrg.js'
+import { supabaseRest, getSupabaseConfig } from '../server/supabaseServer.js'
+import { logAiAudit } from '../server/aiAuditLog.js'
+import { normalizeInboundE164 } from '../server/phoneE164.js'
 
 const WEBHOOK_URL = 'https://climazen.fr/api/telephony-inbound'
 

@@ -8,13 +8,13 @@
  * OPENAI_API_KEY requis. Modèle par défaut : gpt-4o-mini
  */
 
-import { verifySupabaseUser, userOrgProfile } from './lib/supabaseServer.js'
+import { verifySupabaseUser, userOrgProfile } from '../server/supabaseServer.js'
 import {
   fetchVocabularyContext,
   learnFromText,
   normalizeTechnicalText,
   extractTechnicalMentions,
-} from './lib/aiVocabularyCore.js'
+} from '../server/aiVocabularyCore.js'
 
 const SYSTEM_BASE = `Tu es l’agent d’accueil téléphonique ClimaZEN pour une société de froid / climatisation.
 Tu comprends le jargon terrain (PAC, R-32, CERFA, contrôle d’étanchéité, dépannage, monobloc, chambre froide…).

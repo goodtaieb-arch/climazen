@@ -9,9 +9,9 @@ import {
   fetchVocabularyContext,
   learnFromText,
   normalizeTechnicalText,
-} from './lib/aiVocabularyCore.js'
-import { authorizeOrgRequest } from './lib/authorizeOrg.js'
-import { logAiAudit } from './lib/aiAuditLog.js'
+} from '../server/aiVocabularyCore.js'
+import { authorizeOrgRequest } from '../server/authorizeOrg.js'
+import { logAiAudit } from '../server/aiAuditLog.js'
 
 const DEFAULT_MODELS = [
   'gemini-2.5-flash',

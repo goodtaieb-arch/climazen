@@ -1,7 +1,7 @@
 /**
- * Supabase REST (service role) — partagé par les routes API serveur.
+ * Helpers serveur — hors /api pour que Vercel ne les déploie pas comme des fonctions.
+ * Importés par les routes /api/*.js.
  */
-
 export function getSupabaseConfig() {
   const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/$/, '')
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
