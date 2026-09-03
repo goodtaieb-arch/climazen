@@ -147,6 +147,19 @@ assert.deepEqual(
   }),
   ['t2'],
 )
+// Filtre un seul tech (planning semaine d’un tech) — ignore les autres même avec tâches
+assert.deepEqual(
+  techsLignesJour({
+    team: [
+      { id: 't1', role: 'operateur' },
+      { id: 't2', role: 'operateur' },
+    ],
+    posteOf: (id) => postes[id],
+    taskTechIds: ['t1', 't2'],
+    filterTechId: 't1',
+  }),
+  ['t1'],
+)
 
 const agences: Record<string, string | undefined> = { t1: '06', t2: '13' }
 assert.deepEqual(
