@@ -60,6 +60,7 @@ import {
 } from '../lib/homeShortcuts'
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
+import { AiValidationInbox } from '../components/AiValidationInbox'
 import { isTerrainUi } from '../lib/uiMode'
 import { editionHasFeature, isLightEdition, LIGHT_SOLO_FLOW_HINT } from '../lib/appEdition'
 import { AppEditionBadge } from '../components/AppEditionBadge'
@@ -297,6 +298,7 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 lg:max-w-none lg:space-y-8">
+      <AiValidationInbox />
       <section className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>

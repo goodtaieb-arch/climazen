@@ -2,21 +2,26 @@ import { useState } from 'react'
 import { Loader2, Phone, Sparkles } from 'lucide-react'
 import { analyzePhoneReception } from '../lib/aiVocabulary'
 import { VoiceDictationButton } from './VoiceDictationButton'
+import { useStore } from '../lib/store'
+import { buildAiPendingValidation } from '../lib/aiPendingValidation'
+import { fetchTelephonyConfig } from '../lib/telephony'
 
 type Props = {
   onApplyOtAction?: (action: string, localisation?: string) => void
 }
 
 /**
- * Agent d’accueil téléphonique (OpenAI) — analyse transcription et apprend le vocabulaire Supabase.
+ * Agent d’accueil téléphonique (OpenAI) — analyse + notif responsable secteur.
  */
 export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
+  const { data, upsertAiPendingValidation } = useStore()
   const [transcript, setTranscript] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Awaited<ReturnType<typeof analyzePhoneReception>> | null>(
     null,
   )
   const [error, setError] = useState('')
+  const [notifMsg, setNotifMsg] = useState('')
 
   const analyze = async () => {
     const text = transcript.trim()
@@ -24,6 +29,7 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
     setBusy(true)
     setError('')
     setResult(null)
+    setNotifMsg('')
     try {
       const res = await analyzePhoneReception({ transcript: text })
       if (!res.ok) {
@@ -31,6 +37,35 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
         return
       }
       setResult(res)
+
+      const tel = await fetchTelephonyConfig().catch(() => null)
+      const summary =
+        res.technicalSummary ||
+        res.suggestedOt?.action ||
+        res.reply ||
+        'Proposition Lola à valider'
+      const pending = buildAiPendingValidation({
+        source: 'phone',
+        kind: 'ot',
+        title: `Appel Lola — ${res.intent || 'demande'}`,
+        summary,
+        textForInfer: text,
+        clientHint: res.suggestedOt?.clientHint,
+        siteHint: res.suggestedOt?.siteHint,
+        callerHint: text.slice(0, 240),
+        dossiers: data.personnelDossiers,
+        retiresUserIds: data.personnelRetiresUserIds,
+        notifyEmailFallback:
+          tel?.config?.managerNotifyEmail || data.operateur.email || undefined,
+      })
+      upsertAiPendingValidation(pending)
+      setNotifMsg(
+        pending.assigneeName
+          ? `Notification → responsable ${pending.assigneeName}${
+              pending.secteur ? ` (secteur ${pending.secteur})` : ''
+            }. Validation sur Accueil.`
+          : `Notification créée pour le gérant (e-mail ${pending.notifyEmail || 'Mon entreprise'}). Validation sur Accueil.`,
+      )
     } catch {
       setError('Analyse impossible pour le moment.')
     } finally {
@@ -51,8 +86,8 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
             Agent accueil téléphone (OpenAI)
           </h2>
           <p className="mt-0.5 text-xs text-indigo-900/80">
-            Collez ou dictez la transcription — l’IA repère le jargon (PAC, R-32, CERFA…) et
-            mémorise les termes dans Supabase (partagé avec l’assistant site, même clé OpenAI).
+            Collez ou dictez la transcription — Lola propose, le responsable du secteur valide
+            sur Accueil (rien n’est créé sans OK).
           </p>
         </div>
       </div>
@@ -85,6 +120,7 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
       </button>
 
       {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
+      {notifMsg ? <p className="mt-2 text-sm font-semibold text-amber-900">{notifMsg}</p> : null}
 
       {result?.ok ? (
         <div className="mt-3 space-y-2 rounded-xl border border-indigo-200 bg-white p-3 text-sm">

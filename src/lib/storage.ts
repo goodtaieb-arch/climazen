@@ -43,6 +43,7 @@ export function emptyData(): AppData {
     personnelDossiers: [],
     personnelRhAccesUserIds: [],
     personnelRetiresUserIds: [],
+    aiPendingValidations: [],
     deletedEntityIds: {
       clients: [],
       chantiers: [],

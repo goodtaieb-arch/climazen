@@ -16,6 +16,7 @@ import {
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
 import { catalogSummaryForPrompt, isForbiddenClaim } from '../lib/aiActionCatalog'
+import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
   parseTerrainIntent,
@@ -93,6 +94,7 @@ export function AideAssistant() {
     upsertDevis,
     upsertCommandeFournisseur,
     upsertPieceDetachee,
+    upsertAiPendingValidation,
     appEdition,
   } = useStore()
   const { user } = useAuth()
@@ -150,6 +152,38 @@ export function AideAssistant() {
     setLines((prev) => [...prev, { id: newId(), role: 'assistant', content }])
   }
 
+  /** Notifie le responsable du secteur — validation humaine hors chat. */
+  const notifyResponsable = (opts: {
+    title: string
+    summary: string
+    kind?: import('../lib/aiPendingValidation').AiPendingKind
+    source?: import('../lib/aiPendingValidation').AiPendingSource
+    textForInfer?: string
+  }) => {
+    const pending = buildAiPendingValidation({
+      source: opts.source || 'assistant',
+      kind: opts.kind,
+      title: opts.title,
+      summary: opts.summary,
+      textForInfer: opts.textForInfer || `${opts.title} ${opts.summary}`,
+      dossiers: data.personnelDossiers,
+      retiresUserIds: data.personnelRetiresUserIds,
+      notifyEmailFallback: data.operateur.email || undefined,
+    })
+    upsertAiPendingValidation(pending)
+    if (pending.assigneeName) {
+      pushAssistant(
+        `Notification envoyée au responsable secteur${
+          pending.secteur ? ` (${pending.secteur})` : ''
+        } : ${pending.assigneeName}. Il valide sur Accueil.`,
+      )
+    } else {
+      pushAssistant(
+        `Notification créée pour validation humaine (aucun responsable secteur trouvé — visible du gérant sur Accueil).`,
+      )
+    }
+  }
+
   const tryProposeFromIntent = (intent: ReturnType<typeof parseCreateOtCerfaIntent>) => {
     if (!intent) return false
     const resolved = resolveCreateOtCerfa(data, intent)
@@ -161,6 +195,12 @@ export function AideAssistant() {
     setPendingTerrain(null)
     setPendingCreate(resolved.resolved)
     pushAssistant(resolved.resolved.summary)
+    notifyResponsable({
+      title: `Proposition OT — ${resolved.resolved.summary.split('\n')[0] || 'OT'}`,
+      summary: resolved.resolved.summary,
+      kind: 'ot',
+      textForInfer: `${intent.actionText} ${intent.clientQuery} ${intent.siteQuery} ${intent.typeOt}`,
+    })
     return true
   }
 
@@ -271,6 +311,21 @@ export function AideAssistant() {
         setPendingCreate(null)
         setPendingTerrain(terrain)
         pushAssistant(terrain.summary)
+        notifyResponsable({
+          title: `Proposition ${terrain.kind}`,
+          summary: terrain.summary,
+          kind:
+            terrain.kind === 'devis'
+              ? 'devis'
+              : terrain.kind === 'commande' || terrain.kind === 'piece'
+                ? 'commande'
+                : terrain.kind === 'agenda'
+                  ? 'agenda'
+                  : terrain.kind === 'client'
+                    ? 'client'
+                    : 'autre',
+          textForInfer: q,
+        })
         return
       }
 
@@ -304,6 +359,12 @@ export function AideAssistant() {
         setPendingCreate(null)
         setPendingTerrain(geminiEquips)
         pushAssistant(geminiEquips.summary)
+        notifyResponsable({
+          title: 'Proposition équipements',
+          summary: geminiEquips.summary,
+          kind: 'autre',
+          textForInfer: q,
+        })
         return
       }
 
@@ -314,6 +375,17 @@ export function AideAssistant() {
         setPendingCreate(null)
         setPendingTerrain(commercial)
         pushAssistant(commercial.summary)
+        notifyResponsable({
+          title: `Proposition ${commercial.kind}`,
+          summary: commercial.summary,
+          kind:
+            commercial.kind === 'devis'
+              ? 'devis'
+              : commercial.kind === 'commande' || commercial.kind === 'piece'
+                ? 'commande'
+                : 'autre',
+          textForInfer: q,
+        })
         return
       }
 
