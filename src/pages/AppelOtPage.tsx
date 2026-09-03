@@ -97,6 +97,7 @@ import { dossierForUser } from '../lib/rhDocuments'
 import { secteurOtDepuisPoste } from '../lib/postePersonnel'
 import { AgenceSelect } from '../components/AgenceSelect'
 import { agenceDepuisCodePostal, agenceEffective } from '../lib/agences'
+import { labelIndispoCourte, premierTechIndispo } from '../lib/agendaPlanning'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -422,6 +423,26 @@ export function AppelOtPage() {
       data.clients.find(
         (c) => c.id === (patch.clientId || otForm.clientId || site?.clientId),
       ) || undefined
+    const touchePlanning =
+      patch.heure !== undefined ||
+      patch.date !== undefined ||
+      patch.technicienUserId !== undefined ||
+      patch.technicienUserIds !== undefined
+    if (touchePlanning) {
+      const merged = { ...otForm, ...patch }
+      const day = String(merged.date || '').slice(0, 10)
+      const heureOk = Boolean(String(merged.heure || '').trim())
+      if (day && heureOk) {
+        const ids = techIdsOt(merged)
+        const block = premierTechIndispo(data.agendaEvents, ids, day)
+        if (block) {
+          alert(
+            `Impossible : ce tech est en ${labelIndispoCourte(block.absence)} le ${day}. Retirez l’heure ou choisissez un autre jour / tech (Agenda → Vacances).`,
+          )
+          return idOverride || otId || existing?.id || ''
+        }
+      }
+    }
     const id = upsertOrdreTravail({
       ...otForm,
       ...patch,
@@ -1426,7 +1447,24 @@ export function AppelOtPage() {
               <input
                 type="date"
                 value={otForm.date}
-                onChange={(e) => setOtForm({ ...otForm, date: e.target.value })}
+                onChange={(e) => {
+                  const date = e.target.value
+                  const next = { ...otForm, date }
+                  if (String(next.heure || '').trim()) {
+                    const block = premierTechIndispo(
+                      data.agendaEvents,
+                      techIdsOt(next),
+                      date,
+                    )
+                    if (block) {
+                      alert(
+                        `Ce tech est en ${labelIndispoCourte(block.absence)} le ${date}. Changez de date ou retirez l’heure planning.`,
+                      )
+                      return
+                    }
+                  }
+                  setOtForm(next)
+                }}
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
               {parseNiveauVisite(otForm.visiteNiveau) ? (
@@ -1441,9 +1479,23 @@ export function AppelOtPage() {
               <input
                 type="time"
                 value={(otForm.heure || '').slice(0, 5)}
-                onChange={(e) =>
-                  setOtForm({ ...otForm, heure: e.target.value || undefined })
-                }
+                onChange={(e) => {
+                  const heure = e.target.value || undefined
+                  if (heure) {
+                    const block = premierTechIndispo(
+                      data.agendaEvents,
+                      techIdsOt(otForm),
+                      otForm.date,
+                    )
+                    if (block) {
+                      alert(
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’OT (Agenda → Vacances).`,
+                      )
+                      return
+                    }
+                  }
+                  setOtForm({ ...otForm, heure })
+                }}
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
             </label>
@@ -1537,10 +1589,26 @@ export function AppelOtPage() {
                 onChange={(next) => {
                   const poste = dossierForUser(data.personnelDossiers, next.technicienUserId)?.poste
                   const auto = secteurOtDepuisPoste(poste)
-                  setOtForm({
-                    ...otForm,
+                  const patch = {
                     ...next,
                     secteur: otForm.secteur || auto,
+                  }
+                  if (String(otForm.heure || '').trim()) {
+                    const block = premierTechIndispo(
+                      data.agendaEvents,
+                      techIdsOt({ ...otForm, ...patch }),
+                      otForm.date,
+                    )
+                    if (block) {
+                      alert(
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} ce jour-là. Choisissez un autre tech ou retirez l’heure.`,
+                      )
+                      return
+                    }
+                  }
+                  setOtForm({
+                    ...otForm,
+                    ...patch,
                   })
                 }}
               />
@@ -1948,6 +2016,19 @@ export function AppelOtPage() {
                   value={(otForm.heure || '').slice(0, 5)}
                   onChange={(e) => {
                     const heure = e.target.value || undefined
+                    if (heure) {
+                      const block = premierTechIndispo(
+                        data.agendaEvents,
+                        techIdsOt(otForm),
+                        otForm.date,
+                      )
+                      if (block) {
+                        alert(
+                          `Impossible : tech en ${labelIndispoCourte(block.absence)} — ouvrez l’Agenda pour poser les vacances / changer de jour.`,
+                        )
+                        return
+                      }
+                    }
                     setOtForm({ ...otForm, heure })
                     persistOt({ heure })
                   }}
@@ -1970,6 +2051,19 @@ export function AppelOtPage() {
                   const patch = {
                     ...next,
                     secteur: otForm.secteur || auto,
+                  }
+                  if (String(otForm.heure || '').trim()) {
+                    const block = premierTechIndispo(
+                      data.agendaEvents,
+                      techIdsOt({ ...otForm, ...patch }),
+                      otForm.date,
+                    )
+                    if (block) {
+                      alert(
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} ce jour-là. Choisissez un autre tech ou retirez l’heure.`,
+                      )
+                      return
+                    }
                   }
                   setOtForm({ ...otForm, ...patch })
                   persistOt(patch)
@@ -2405,6 +2499,19 @@ export function AppelOtPage() {
                 value={otForm.date}
                 onChange={(e) => {
                   const date = e.target.value
+                  if (String(otForm.heure || '').trim()) {
+                    const block = premierTechIndispo(
+                      data.agendaEvents,
+                      techIdsOt(otForm),
+                      date,
+                    )
+                    if (block) {
+                      alert(
+                        `Ce tech est en ${labelIndispoCourte(block.absence)} le ${date}. Changez de date ou retirez l’heure.`,
+                      )
+                      return
+                    }
+                  }
                   setOtForm({ ...otForm, date })
                   persistOt({ date })
                 }}
@@ -2418,6 +2525,19 @@ export function AppelOtPage() {
                 value={(otForm.heure || '').slice(0, 5)}
                 onChange={(e) => {
                   const heure = e.target.value || undefined
+                  if (heure) {
+                    const block = premierTechIndispo(
+                      data.agendaEvents,
+                      techIdsOt(otForm),
+                      otForm.date,
+                    )
+                    if (block) {
+                      alert(
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’OT.`,
+                      )
+                      return
+                    }
+                  }
                   setOtForm({ ...otForm, heure })
                   persistOt({ heure })
                 }}

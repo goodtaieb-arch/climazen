@@ -27,8 +27,10 @@ import {
   compareProgrammeHeure,
   formatHeure,
   formatJourCourt,
+  agendaCouvreDate,
   isAgendaDueSoon,
   isAgendaOverdue,
+  isIndispoType,
   mailtoHref,
   startOfWeekMonday,
   telHref,
@@ -73,7 +75,10 @@ import {
   heuresFriseJour,
   isHorsOtType,
   labelDureeMinutes,
+  labelIndispoCourte,
   otSansCreneau,
+  techEstIndispo,
+  indisposTechSurDate,
   techsLignesJour,
   timelinePlacement,
   titreDefautHorsOt,
@@ -456,8 +461,15 @@ export function AgendaPage() {
     setDureePose(dureeMinutesEffectif(otAPlacer.dureeMinutes))
   }, [otAPlacer?.id, otAPlacer?.dureeMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const programmeForDate = (iso: string) =>
-    programmeVisible.filter((p) => p.date === iso.slice(0, 10))
+  const programmeForDate = (iso: string) => {
+    const day = iso.slice(0, 10)
+    return programmeVisible.filter((p) => {
+      if (p.kind === 'agenda' && isIndispoType(p.event.type)) {
+        return agendaCouvreDate(p.event, day)
+      }
+      return p.date === day
+    })
+  }
 
   /** Clique sur un tech : reste en vue jour, tous les techs visibles, surlignage optionnel. */
   const focusTechJour = (techId: string) => {
@@ -468,6 +480,14 @@ export function AgendaPage() {
 
   const placerOtSurCreneau = (techId: string, heureH: number, dateIso: string) => {
     if (!otAPlacer || !bureau) return
+    const day = dateIso.slice(0, 10)
+    if (techEstIndispo(data.agendaEvents, techId, day)) {
+      const abs = indisposTechSurDate(data.agendaEvents, techId, day)[0]
+      setSyncMsg(
+        `Impossible : tech en ${labelIndispoCourte(abs || { type: 'vacances', title: 'vacances' })} — ne pas poser d’OT.`,
+      )
+      return
+    }
     const heure = `${String(heureH).padStart(2, '0')}:00`
     const noms: Record<string, string> = {}
     for (const t of team) noms[t.id] = t.fullName || t.email || ''
@@ -475,7 +495,7 @@ export function AgendaPage() {
     const ids = existing.includes(techId) ? existing : [...existing, techId]
     const primary = ids[0] || techId
     planifierOt(otAPlacer, {
-      date: dateIso.slice(0, 10),
+      date: day,
       heure,
       dureeMinutes: dureeMinutesEffectif(dureePose),
       technicienUserIds: ids,
@@ -567,6 +587,11 @@ export function AgendaPage() {
     if (typePrefill) {
       base.type = typePrefill
       base.title = titreDefautHorsOt(typePrefill)
+      if (isIndispoType(typePrefill)) {
+        base.heure = undefined
+        base.dureeMinutes = undefined
+        base.dateFin = datePrefill || base.date
+      }
     }
     if (!bureau && user?.id) {
       base.technicienUserId = user.id
@@ -587,11 +612,24 @@ export function AgendaPage() {
       alert('Indiquez un titre.')
       return
     }
+    if (isIndispoType(form.type) && !form.technicienUserId) {
+      alert('Choisissez le technicien concerné par les vacances / congés.')
+      return
+    }
+    const dateFin =
+      isIndispoType(form.type) && form.dateFin && form.dateFin >= form.date
+        ? form.dateFin
+        : isIndispoType(form.type)
+          ? form.date
+          : undefined
     upsertAgendaEvent({
       ...form,
       id: existing?.id,
-      heure: (form.heure || '').trim() || undefined,
-      dureeMinutes: dureeMinutesEffectif(form.dureeMinutes),
+      heure: isIndispoType(form.type) ? undefined : (form.heure || '').trim() || undefined,
+      dureeMinutes: isIndispoType(form.type)
+        ? undefined
+        : dureeMinutesEffectif(form.dureeMinutes),
+      dateFin,
       dateRappel: form.dateRappel || form.date,
       createdByUserId: form.createdByUserId || user?.id,
       technicienUserId: form.technicienUserId || (!bureau ? user?.id : form.technicienUserId),
@@ -604,9 +642,11 @@ export function AgendaPage() {
     setFormOpen(false)
     navigate('/app/agenda', { replace: true })
     setSyncMsg(
-      isHorsOtType(form.type)
-        ? 'Action hors OT enregistrée.'
-        : 'Intervention enregistrée dans le programme.',
+      isIndispoType(form.type)
+        ? 'Vacances / congé enregistrés — aucun OT ne pourra être posé sur ces jours.'
+        : isHorsOtType(form.type)
+          ? 'Action hors OT enregistrée.'
+          : 'Intervention enregistrée dans le programme.',
     )
     setView('jour')
   }
@@ -637,6 +677,21 @@ export function AgendaPage() {
             technicienUserId: patch.technicienUserId ?? ot.technicienUserId,
             technicienUserIds: ot.technicienUserIds,
           })
+    const day = String(patch.date ?? ot.date ?? '').slice(0, 10)
+    const heureVal = patch.heure !== undefined ? patch.heure : ot.heure
+    if (day && String(heureVal || '').trim()) {
+      for (const tid of ids) {
+        if (techEstIndispo(data.agendaEvents, tid, day)) {
+          const abs = indisposTechSurDate(data.agendaEvents, tid, day)[0]
+          setSyncMsg(
+            `OT non planifié : ${noms[tid] || 'tech'} est en ${labelIndispoCourte(
+              abs || { type: 'vacances', title: 'vacances' },
+            )}.`,
+          )
+          return
+        }
+      }
+    }
     const synced = syncTechsOt({
       technicienUserIds: ids,
       noms,
@@ -712,7 +767,9 @@ export function AgendaPage() {
           </label>
           <div className="grid gap-3 sm:grid-cols-4">
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Jour d’intervention</span>
+              <span className="mb-1 block font-semibold text-ink">
+                {isIndispoType(form.type) ? 'Début' : 'Jour d’intervention'}
+              </span>
               <input
                 type="date"
                 value={form.date}
@@ -720,40 +777,64 @@ export function AgendaPage() {
                 className="h-11 w-full rounded-xl border border-line px-3"
               />
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Heure (optionnel)</span>
-              <input
-                type="time"
-                value={formatHeure(form.heure)}
-                onChange={(e) => setForm({ ...form, heure: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Durée</span>
-              <select
-                value={dureeMinutesEffectif(form.dureeMinutes)}
-                onChange={(e) =>
-                  setForm({ ...form, dureeMinutes: Number(e.target.value) || DUREE_PLANNING_DEFAUT })
-                }
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                {DUREES_PLANNING_PRESETS.map((m) => (
-                  <option key={m} value={m}>
-                    {labelDureeMinutes(m)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Rappel appel</span>
-              <input
-                type="date"
-                value={form.dateRappel || form.date}
-                onChange={(e) => setForm({ ...form, dateRappel: e.target.value })}
-                className="h-11 w-full rounded-xl border border-line px-3"
-              />
-            </label>
+            {isIndispoType(form.type) ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Fin (incluse)</span>
+                <input
+                  type="date"
+                  value={form.dateFin || form.date}
+                  min={form.date}
+                  onChange={(e) => setForm({ ...form, dateFin: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-line px-3"
+                />
+              </label>
+            ) : (
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Heure (optionnel)</span>
+                <input
+                  type="time"
+                  value={formatHeure(form.heure)}
+                  onChange={(e) => setForm({ ...form, heure: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-line px-3"
+                />
+              </label>
+            )}
+            {!isIndispoType(form.type) ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Durée</span>
+                <select
+                  value={dureeMinutesEffectif(form.dureeMinutes)}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      dureeMinutes: Number(e.target.value) || DUREE_PLANNING_DEFAUT,
+                    })
+                  }
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                >
+                  {DUREES_PLANNING_PRESETS.map((m) => (
+                    <option key={m} value={m}>
+                      {labelDureeMinutes(m)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="flex items-end pb-2 text-xs font-semibold text-amber-900 sm:col-span-1">
+                Journée(s) bloquée(s) — aucun OT posable.
+              </p>
+            )}
+            {!isIndispoType(form.type) ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Rappel appel</span>
+                <input
+                  type="date"
+                  value={form.dateRappel || form.date}
+                  onChange={(e) => setForm({ ...form, dateRappel: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-line px-3"
+                />
+              </label>
+            ) : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
@@ -766,7 +847,23 @@ export function AgendaPage() {
                     !form.title.trim() || form.title === titreDefautHorsOt(form.type)
                       ? titreDefautHorsOt(type)
                       : form.title
-                  setForm({ ...form, type, title: nextTitle })
+                  if (isIndispoType(type)) {
+                    setForm({
+                      ...form,
+                      type,
+                      title: nextTitle || AGENDA_TYPE_LABELS[type],
+                      heure: undefined,
+                      dureeMinutes: undefined,
+                      dateFin: form.dateFin || form.date,
+                    })
+                    return
+                  }
+                  setForm({
+                    ...form,
+                    type,
+                    title: nextTitle,
+                    dateFin: undefined,
+                  })
                 }}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3"
               >
@@ -794,7 +891,11 @@ export function AgendaPage() {
           </div>
           {bureau ? (
             <TechnicienAssignField
-              label="Technicien (secteur)"
+              label={
+                isIndispoType(form.type)
+                  ? 'Technicien en absence *'
+                  : 'Technicien (secteur)'
+              }
               technicien={form.technicien || ''}
               technicienUserId={form.technicienUserId}
               onChange={(next) =>
@@ -1356,6 +1457,11 @@ export function AgendaPage() {
                 journee,
               })
               const avLabel = labelAvancementTech(av)
+              const absences = indisposTechSurDate(data.agendaEvents, id, iso)
+              const enVacances = absences.length > 0
+              const labelVac = enVacances
+                ? labelIndispoCourte(absences[0])
+                : ''
               return (
                 <div
                   key={id}
@@ -1365,11 +1471,11 @@ export function AgendaPage() {
                     <button
                       type="button"
                       onClick={() => focusTechJour(id)}
-                      className={`flex w-36 shrink-0 flex-col justify-center gap-0.5 border-r border-line px-2 py-2 text-left sm:w-44 ${col.bg}`}
+                      className={`flex w-36 shrink-0 flex-col justify-center gap-0.5 border-r border-line px-2 py-2 text-left sm:w-44 ${enVacances ? 'bg-amber-50' : col.bg}`}
                     >
                       <span className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${col.dot}`} />
-                        <span className={`truncate text-xs font-bold ${col.text}`}>
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${enVacances ? 'bg-amber-600' : col.dot}`} />
+                        <span className={`truncate text-xs font-bold ${enVacances ? 'text-amber-950' : col.text}`}>
                           {t?.fullName || nomTech(id)}
                         </span>
                       </span>
@@ -1387,33 +1493,56 @@ export function AgendaPage() {
                       </span>
                       <span
                         className={`text-[9px] font-bold uppercase ${
-                          av.enRetard ? 'text-amber-800' : 'text-muted'
+                          enVacances
+                            ? 'text-amber-800'
+                            : av.enRetard
+                              ? 'text-amber-800'
+                              : 'text-muted'
                         }`}
                       >
-                        {avLabel}
-                        {av.statutLabel && av.statutLabel !== 'Libre'
-                          ? ` · ${av.statutLabel}`
-                          : ''}
+                        {enVacances
+                          ? labelVac
+                          : `${avLabel}${
+                              av.statutLabel && av.statutLabel !== 'Libre'
+                                ? ` · ${av.statutLabel}`
+                                : ''
+                            }`}
                       </span>
                     </button>
                     <div
                       className={[
                         'relative h-[4.75rem] flex-1 bg-[linear-gradient(to_right,rgb(15_23_42_/_0.04)_1px,transparent_1px)] bg-[length:calc(100%/12)_100%]',
-                        otAPlacer ? 'cursor-cell' : '',
+                        otAPlacer && !enVacances ? 'cursor-cell' : '',
+                        enVacances ? 'bg-amber-100/80' : '',
                       ].join(' ')}
                     >
+                      {enVacances ? (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-2">
+                          <span className="rounded-lg border border-amber-500 bg-amber-50 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-amber-950">
+                            {labelVac} — OT bloqués
+                          </span>
+                        </div>
+                      ) : null}
                       {heures.map((h) => (
                         <button
                           key={`g-${id}-${h}`}
                           type="button"
-                          disabled={!otAPlacer}
-                          title={otAPlacer ? `Placer à ${String(h).padStart(2, '0')}:00` : undefined}
+                          disabled={!otAPlacer || enVacances}
+                          title={
+                            enVacances
+                              ? labelVac
+                              : otAPlacer
+                                ? `Placer à ${String(h).padStart(2, '0')}:00`
+                                : undefined
+                          }
                           onClick={() => {
-                            if (otAPlacer) placerOtSurCreneau(id, h, iso)
+                            if (otAPlacer && !enVacances) placerOtSurCreneau(id, h, iso)
                           }}
                           className={[
                             'absolute top-0 bottom-0 border-l border-line/40',
-                            otAPlacer ? 'z-[5] hover:bg-teal-400/25' : 'pointer-events-none',
+                            otAPlacer && !enVacances
+                              ? 'z-[5] hover:bg-teal-400/25'
+                              : 'pointer-events-none',
                           ].join(' ')}
                           style={{
                             left: `${((h - JOUR_PLANNING_DEBUT_H) / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%`,
@@ -1429,7 +1558,7 @@ export function AgendaPage() {
                           title="Maintenant"
                         />
                       ) : null}
-                      {timed.length === 0 && !otAPlacer ? (
+                      {timed.length === 0 && !otAPlacer && !enVacances ? (
                         <p className="pointer-events-none absolute inset-0 flex items-center px-3 text-[11px] text-muted">
                           Libre — sélectionnez un OT ci-dessus puis cliquez une heure.
                         </p>
@@ -1662,6 +1791,9 @@ export function AgendaPage() {
         <div className="flex flex-wrap gap-1.5">
           {(
             [
+              ['vacances', 'Vacances'],
+              ['conge', 'Congé'],
+              ['maladie', 'Maladie'],
               ['formation', 'Formation'],
               ['rdv_garage', 'RDV garage'],
               ['hors_ot_libre', 'Événement libre'],
@@ -1671,7 +1803,12 @@ export function AgendaPage() {
               key={type}
               type="button"
               onClick={() => openNew(cursorDate, type)}
-              className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold"
+              className={[
+                'rounded-full border px-3 py-1.5 text-xs font-bold',
+                type === 'vacances' || type === 'conge' || type === 'maladie'
+                  ? 'border-amber-400 bg-amber-50 text-amber-950'
+                  : 'border-line bg-white',
+              ].join(' ')}
             >
               + {label}
             </button>

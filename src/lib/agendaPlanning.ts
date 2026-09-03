@@ -3,7 +3,12 @@
  */
 
 import type { AgendaEvent, AgendaEventType } from './agenda'
-import { AGENDA_TYPE_LABELS, formatHeure } from './agenda'
+import {
+  AGENDA_TYPE_LABELS,
+  agendaCouvreDate,
+  formatHeure,
+  isIndispoType,
+} from './agenda'
 import type { OrdreTravail } from './ordreTravail'
 import { isOtCloture, techIdsOt } from './ordreTravail'
 import { isPosteBureau, isPosteTerrain, parsePostePersonnel } from './postePersonnel'
@@ -99,6 +104,9 @@ export const HORS_OT_BUREAU: AgendaEventType[] = [
   'formation',
   'rdv_garage',
   'hors_ot_libre',
+  'vacances',
+  'conge',
+  'maladie',
 ]
 
 export const HORS_OT_ALL: AgendaEventType[] = [...HORS_OT_TECH, ...HORS_OT_BUREAU]
@@ -306,6 +314,33 @@ export const COULEURS_HORS_OT: Record<string, CouleurSecteur> = {
     text: 'text-pink-950',
     row: 'border-pink-300 bg-pink-50',
     dot: 'bg-pink-600',
+  },
+  vacances: {
+    key: 'vac',
+    bg: 'bg-amber-50',
+    border: 'border-amber-500',
+    badge: 'bg-amber-700 text-white',
+    text: 'text-amber-950',
+    row: 'border-amber-400 bg-amber-50',
+    dot: 'bg-amber-600',
+  },
+  conge: {
+    key: 'conge',
+    bg: 'bg-orange-50',
+    border: 'border-orange-400',
+    badge: 'bg-orange-700 text-white',
+    text: 'text-orange-950',
+    row: 'border-orange-300 bg-orange-50',
+    dot: 'bg-orange-600',
+  },
+  maladie: {
+    key: 'mal',
+    bg: 'bg-rose-50',
+    border: 'border-rose-400',
+    badge: 'bg-rose-700 text-white',
+    text: 'text-rose-950',
+    row: 'border-rose-300 bg-rose-50',
+    dot: 'bg-rose-600',
   },
 }
 
@@ -533,4 +568,52 @@ export function visibleAgendaPour(
 
 export function eventAgendaPourTech(e: AgendaEvent, userId?: string | null): boolean {
   return estPourTech(e, userId)
+}
+
+/** Absences qui bloquent la pose d’OT pour ce tech à cette date. */
+export function indisposTechSurDate(
+  events: AgendaEvent[] | undefined,
+  techUserId: string,
+  dateIso: string,
+): AgendaEvent[] {
+  const uid = String(techUserId || '').trim()
+  const d = String(dateIso || '').slice(0, 10)
+  if (!uid || !d) return []
+  return (events || []).filter((e) => {
+    if (!isIndispoType(e.type)) return false
+    if (e.statut === 'annule') return false
+    if (String(e.technicienUserId || '').trim() !== uid) return false
+    return agendaCouvreDate(e, d)
+  })
+}
+
+export function techEstIndispo(
+  events: AgendaEvent[] | undefined,
+  techUserId: string,
+  dateIso: string,
+): boolean {
+  return indisposTechSurDate(events, techUserId, dateIso).length > 0
+}
+
+export function labelIndispoCourte(e: Pick<AgendaEvent, 'type' | 'title'>): string {
+  if (e.title?.trim()) return e.title.trim()
+  return AGENDA_TYPE_LABELS[e.type as AgendaEventType] || 'Indisponible'
+}
+
+/**
+ * Premier tech bloqué (vacances / congé / maladie) pour une date OT.
+ * Retourne null si tous sont dispo ou si date / techs vides.
+ */
+export function premierTechIndispo(
+  events: AgendaEvent[] | undefined,
+  techUserIds: string[],
+  dateIso: string,
+): { techId: string; absence: AgendaEvent } | null {
+  const d = String(dateIso || '').slice(0, 10)
+  if (!d) return null
+  for (const tid of techUserIds) {
+    const abs = indisposTechSurDate(events, tid, d)[0]
+    if (abs) return { techId: tid, absence: abs }
+  }
+  return null
 }

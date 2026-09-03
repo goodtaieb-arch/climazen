@@ -18,6 +18,9 @@ export type AgendaEventType =
   | 'formation'
   | 'rdv_garage'
   | 'hors_ot_libre'
+  | 'vacances'
+  | 'conge'
+  | 'maladie'
 
 export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   maintenance: 'Maintenance',
@@ -32,6 +35,9 @@ export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   formation: 'Formation',
   rdv_garage: 'RDV garage',
   hors_ot_libre: 'Hors OT (libre)',
+  vacances: 'Vacances',
+  conge: 'Congé',
+  maladie: 'Maladie / arrêt',
 }
 
 export type AgendaStatut = 'a_faire' | 'contacte' | 'rdv_pris' | 'fait' | 'annule'
@@ -47,8 +53,13 @@ export const AGENDA_STATUT_LABELS: Record<AgendaStatut, string> = {
 export interface AgendaEvent {
   id: string
   title: string
-  /** Jour de l’échéance / visite prévue */
+  /** Jour de l’échéance / visite prévue (ou début d’absence). */
   date: string
+  /**
+   * Fin d’absence inclusive (vacances / congé / maladie).
+   * Si absent = journée unique (`date`).
+   */
+  dateFin?: string
   /**
    * Jour où il faut appeler le client pour prendre RDV (souvent avant `date`).
    * Si absent = même jour que `date`.
@@ -72,6 +83,27 @@ export interface AgendaEvent {
   autoKey?: string
   createdAt: string
   updatedAt: string
+}
+
+/** Types qui bloquent la pose d’OT sur le tech. */
+export const AGENDA_INDISPO_TYPES: AgendaEventType[] = ['vacances', 'conge', 'maladie']
+
+export function isIndispoType(t: string | undefined): boolean {
+  return Boolean(t && (AGENDA_INDISPO_TYPES as string[]).includes(t))
+}
+
+/** `date` … `dateFin` (inclusive). Sans dateFin = jour unique. */
+export function agendaCouvreDate(
+  e: Pick<AgendaEvent, 'date' | 'dateFin'>,
+  dateIso: string,
+): boolean {
+  const d = String(dateIso || '').slice(0, 10)
+  const start = String(e.date || '').slice(0, 10)
+  if (!d || !start) return false
+  const end = String(e.dateFin || e.date || '').slice(0, 10)
+  const lo = start <= end ? start : end
+  const hi = start <= end ? end : start
+  return d >= lo && d <= hi
 }
 
 export function monthsForPeriodicite(p: PeriodiciteContrat): number {

@@ -18,8 +18,12 @@ import {
   titreDefautHorsOt,
   typesAgendaPourSaisie,
   visibleAgendaPour,
+  indisposTechSurDate,
+  techEstIndispo,
+  premierTechIndispo,
+  labelIndispoCourte,
 } from '../src/lib/agendaPlanning'
-import { AGENDA_TYPE_LABELS } from '../src/lib/agenda'
+import { AGENDA_TYPE_LABELS, agendaCouvreDate, isIndispoType } from '../src/lib/agenda'
 import { syncTechsOt, techIdsOt } from '../src/lib/ordreTravail'
 
 assert.equal(isHorsOtType('pause_repas'), true)
@@ -205,6 +209,38 @@ assert.equal(typesTech.includes('formation'), false)
 const typesBureau = typesAgendaPourSaisie({ bureau: true })
 assert.equal(typesBureau.includes('formation'), true)
 assert.equal(typesBureau.includes('hors_ot_libre'), true)
+assert.equal(typesBureau.includes('vacances'), true)
+assert.equal(HORS_OT_BUREAU.includes('conge'), true)
+assert.equal(HORS_OT_BUREAU.includes('maladie'), true)
+assert.equal(isIndispoType('vacances'), true)
+assert.equal(isIndispoType('rdv'), false)
+assert.equal(agendaCouvreDate({ date: '2026-08-01', dateFin: '2026-08-05' }, '2026-08-03'), true)
+assert.equal(agendaCouvreDate({ date: '2026-08-01', dateFin: '2026-08-05' }, '2026-08-06'), false)
+assert.equal(agendaCouvreDate({ date: '2026-08-01' }, '2026-08-01'), true)
+assert.equal(agendaCouvreDate({ date: '2026-08-01' }, '2026-08-02'), false)
+
+const absences = [
+  {
+    id: 'a1',
+    title: 'Congés août',
+    date: '2026-08-10',
+    dateFin: '2026-08-20',
+    type: 'vacances' as const,
+    statut: 'a_faire' as const,
+    technicienUserId: 't1',
+    createdAt: '',
+    updatedAt: '',
+  },
+]
+assert.equal(techEstIndispo(absences, 't1', '2026-08-15'), true)
+assert.equal(techEstIndispo(absences, 't1', '2026-08-21'), false)
+assert.equal(techEstIndispo(absences, 't2', '2026-08-15'), false)
+assert.equal(indisposTechSurDate(absences, 't1', '2026-08-12').length, 1)
+assert.equal(labelIndispoCourte(absences[0]), 'Congés août')
+assert.equal(AGENDA_TYPE_LABELS.vacances, 'Vacances')
+const block = premierTechIndispo(absences, ['t2', 't1'], '2026-08-12')
+assert.equal(block?.techId, 't1')
+assert.equal(premierTechIndispo(absences, ['t2'], '2026-08-12'), null)
 
 assert.equal(parseHeureToMinutes('08:30'), 8 * 60 + 30)
 assert.equal(parseHeureToMinutes(''), null)
