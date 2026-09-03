@@ -5,9 +5,11 @@ import {
   Clock,
   Coffee,
   Flag,
+  Home,
   MapPin,
   Navigation,
   Package,
+  UtensilsCrossed,
   Wrench,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -16,6 +18,9 @@ import { formatOtNumero, isOtCloture, techIdsOt } from '../lib/ordreTravail'
 import {
   POINTAGE_ACTION_HINTS,
   POINTAGE_ACTION_LABELS,
+  POINTAGE_ACTIONS_HORS_OT,
+  POINTAGE_ACTIONS_PARCOURS,
+  POINTAGE_CIBLE_LABELS,
   actionAutorisee,
   actionsSuivantes,
   arrondirDate,
@@ -30,18 +35,22 @@ import {
   parsePointageEvents,
   parsePointageRegles,
   pointageEstActif,
+  statutOtDepuisAction,
   type PointageAction,
   type PointageActionCanon,
   type PointageCible,
 } from '../lib/pointage'
 
 const ACTION_ICON: Record<PointageActionCanon, typeof Navigation> = {
+  sortie_domicile: Home,
   deplacement: Navigation,
   intervention_en_cours: Wrench,
   fin_intervention: Flag,
   fournisseur: Package,
   bureau: Building2,
   pause: Coffee,
+  pause_repas: UtensilsCrossed,
+  retour_domicile: Home,
   fin_journee: Clock,
 }
 
@@ -53,7 +62,7 @@ type Props = {
 }
 
 export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className = '' }: Props) {
-  const { data, addPointageEvent } = useStore()
+  const { data, addPointageEvent, upsertOrdreTravail } = useStore()
   const { user } = useAuth()
   const events = useMemo(() => parsePointageEvents(data.pointageEvents), [data.pointageEvents])
   const regles = useMemo(() => parsePointageRegles(data.pointageRegles), [data.pointageRegles])
@@ -77,7 +86,10 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
   const effectiveOtId =
     otIdProp && !deplacementSuivant ? otIdProp : otId || otIdProp
   const showCiblePicker = deplacementSuivant
-  const showOtPicker = deplacementSuivant && cibleDeplacement === 'ot'
+  const showOtPicker =
+    (deplacementSuivant && cibleDeplacement === 'ot') ||
+    ((next.includes('intervention_en_cours') || next.includes('fin_intervention')) &&
+      !effectiveOtId)
 
   const maJournee = user?.id
     ? calculerJournee({ events, userId: user.id, date: today, regles })
@@ -114,6 +126,10 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     let cible: PointageCible | undefined
     let otForEvent = effectiveOtId
 
+    if (canon === 'sortie_domicile' || canon === 'retour_domicile') {
+      cible = 'domicile'
+      otForEvent = ''
+    }
     if (canon === 'deplacement') {
       cible = cibleDeplacement
       if (cible === 'ot' && !otForEvent) {
@@ -147,14 +163,21 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
         userName: user.fullName || user.email || 'Technicien',
         action,
         at,
-        date: at.slice(0, 10),
+        date: datePointageLocale(),
         geo: geoRes.ok ? geoRes.geo : undefined,
         geoRefused: !geoRes.ok && geoRes.refused,
         geoError: geoRes.ok ? undefined : geoRes.message,
         otId: otForEvent || undefined,
         chantierId: chantierId || otCourant?.chantierId,
-        cible: canon === 'deplacement' ? cible : undefined,
+        cible,
       })
+      const nextStatut = statutOtDepuisAction(action, cible)
+      if (nextStatut && otForEvent) {
+        const ot = (data.ordresTravail || []).find((o) => o.id === otForEvent)
+        if (ot && !isOtCloture(ot.statut) && ot.statut !== nextStatut) {
+          upsertOrdreTravail({ ...ot, statut: nextStatut })
+        }
+      }
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)} — heures mises à jour.`)
     } finally {
       setBusy(false)
@@ -174,6 +197,40 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     )
   }
 
+  const parcoursBtns = next.filter((a) =>
+    (POINTAGE_ACTIONS_PARCOURS as readonly string[]).includes(a),
+  )
+  const horsOtBtns = next.filter((a) =>
+    (POINTAGE_ACTIONS_HORS_OT as readonly string[]).includes(a),
+  )
+
+  const renderBtn = (action: PointageActionCanon) => {
+    const Icon = ACTION_ICON[action]
+    const label =
+      action === 'deplacement'
+        ? POINTAGE_CIBLE_LABELS[cibleDeplacement] === POINTAGE_CIBLE_LABELS.ot
+          ? 'En déplacement'
+          : POINTAGE_CIBLE_LABELS[cibleDeplacement]
+        : POINTAGE_ACTION_LABELS[action]
+    return (
+      <button
+        key={action}
+        type="button"
+        disabled={busy}
+        onClick={() => void punch(action)}
+        className="flex min-h-[4rem] flex-col items-start justify-center rounded-2xl border border-sky-300 bg-white px-3 py-2 text-left shadow-sm active:scale-[0.99]"
+      >
+        <span className="inline-flex items-center gap-1 text-xs font-extrabold uppercase text-sky-950">
+          <Icon className="h-3.5 w-3.5" />
+          {label}
+        </span>
+        <span className="mt-0.5 text-[11px] leading-snug text-muted">
+          {POINTAGE_ACTION_HINTS[action]}
+        </span>
+      </button>
+    )
+  }
+
   return (
     <section
       className={['space-y-3 rounded-2xl border border-sky-200 bg-sky-50/80 p-4', className].join(
@@ -182,22 +239,26 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Pointage OT</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-sky-900">
+            Pointage porte-à-porte
+          </p>
           <p className="font-display text-base font-semibold text-ink">
             {last
               ? `${POINTAGE_ACTION_LABELS[last.action]} · ${formatHeureIso(last.at)}`
-              : 'Démarrez par un déplacement vers votre OT'}
+              : 'Démarrez par le trajet début de journée (sortie domicile)'}
           </p>
           {maJournee ? (
             <p className="text-xs text-muted">
-              Payé {formatMinutesHhMm(maJournee.payeMin)}
+              {maJournee.porteAPorteMin > 0
+                ? `Porte-à-porte ${formatMinutesHhMm(maJournee.porteAPorteMin)}`
+                : 'Pas encore sorti'}
               {maJournee.interventionMin > 0
-                ? ` · intervention ${formatMinutesHhMm(maJournee.interventionMin)}`
+                ? ` · OT ${formatMinutesHhMm(maJournee.interventionMin)}`
                 : ''}
               {maJournee.deplacementMin > 0
                 ? ` · route ${formatMinutesHhMm(maJournee.deplacementMin)}`
                 : ''}
-              {maJournee.ouvert ? ' · en cours' : ''}
+              {maJournee.ouvert ? ' · en cours' : ' · journée close'}
             </p>
           ) : null}
         </div>
@@ -210,7 +271,22 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
 
       {showOtPicker || showCiblePicker ? (
         <div className="grid gap-2 sm:grid-cols-2">
-          {showOtPicker ? (
+          {showCiblePicker ? (
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block font-semibold text-ink">Type d’activité / destination</span>
+              <select
+                value={cibleDeplacement}
+                onChange={(e) => setCibleDeplacement(e.target.value as PointageCible)}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="ot">{POINTAGE_CIBLE_LABELS.ot}</option>
+                <option value="hors_ot">{POINTAGE_CIBLE_LABELS.hors_ot}</option>
+                <option value="fournisseur">{POINTAGE_CIBLE_LABELS.fournisseur}</option>
+                <option value="bureau">{POINTAGE_CIBLE_LABELS.bureau}</option>
+              </select>
+            </label>
+          ) : null}
+          {showOtPicker && (!showCiblePicker || cibleDeplacement === 'ot') ? (
             <label className="block text-sm sm:col-span-2">
               <span className="mb-1 block font-semibold text-ink">
                 OT du déplacement / intervention *
@@ -229,20 +305,6 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
               </select>
             </label>
           ) : null}
-          {showCiblePicker ? (
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-semibold text-ink">Destination du déplacement</span>
-              <select
-                value={cibleDeplacement}
-                onChange={(e) => setCibleDeplacement(e.target.value as PointageCible)}
-                className="h-11 w-full rounded-xl border border-line bg-white px-3"
-              >
-                <option value="ot">Vers le site / OT</option>
-                <option value="fournisseur">Vers un fournisseur</option>
-                <option value="bureau">Vers le bureau / atelier</option>
-              </select>
-            </label>
-          ) : null}
         </div>
       ) : otCourant ? (
         <p className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm">
@@ -251,34 +313,23 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
-        {next.map((action) => {
-          const Icon = ACTION_ICON[action]
-          const label =
-            action === 'deplacement' && cibleDeplacement === 'fournisseur'
-              ? 'Déplacement → fournisseur'
-              : action === 'deplacement' && cibleDeplacement === 'bureau'
-                ? 'Déplacement → bureau'
-                : POINTAGE_ACTION_LABELS[action]
-          return (
-            <button
-              key={action}
-              type="button"
-              disabled={busy}
-              onClick={() => void punch(action)}
-              className="flex min-h-[4rem] flex-col items-start justify-center rounded-2xl border border-sky-300 bg-white px-3 py-2 text-left shadow-sm active:scale-[0.99]"
-            >
-              <span className="inline-flex items-center gap-1 text-xs font-extrabold uppercase text-sky-950">
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </span>
-              <span className="mt-0.5 text-[11px] leading-snug text-muted">
-                {POINTAGE_ACTION_HINTS[action]}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      {parcoursBtns.length > 0 ? (
+        <div>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
+            Parcours du jour
+          </p>
+          <div className="grid grid-cols-2 gap-2">{parcoursBtns.map(renderBtn)}</div>
+        </div>
+      ) : null}
+
+      {horsOtBtns.length > 0 ? (
+        <div>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
+            Hors OT
+          </p>
+          <div className="grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>
+        </div>
+      ) : null}
 
       {msg ? (
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
@@ -287,8 +338,8 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
       ) : null}
 
       <p className="text-[11px] text-muted">
-        Une seule action à la fois : le temps se calcule automatiquement jusqu’à la suivante, rattaché
-        à l’OT.
+        Les heures comptent de la sortie domicile jusqu’au retour. Une action à la fois : le temps
+        se calcule jusqu’à la suivante.
       </p>
     </section>
   )

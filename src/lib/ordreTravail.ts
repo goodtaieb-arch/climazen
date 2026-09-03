@@ -34,6 +34,7 @@ export const TYPE_OT_LABELS: Record<TypeOt, string> = {
 
 export type StatutOt =
   | 'brouillon'
+  | 'en_deplacement'
   | 'en_cours'
   | 'en_attente_piece'
   | 'pret_a_planifier'
@@ -42,6 +43,7 @@ export type StatutOt =
 
 export const STATUT_OT_LABELS: Record<StatutOt, string> = {
   brouillon: 'Brouillon',
+  en_deplacement: 'En déplacement',
   en_cours: 'En cours',
   en_attente_piece: 'En attente de pièce',
   pret_a_planifier: 'Prêt à planifier',

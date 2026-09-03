@@ -13,6 +13,7 @@ import {
   POINTAGE_SEGMENT_LABELS,
   blankPointageRegles,
   calculerJourneePourUser,
+  datePointageLocale,
   datesSemaine,
   exportBureauJoursCsv,
   exportEvenementsCsv,
@@ -30,6 +31,13 @@ import {
   telechargerCsv,
   type PointageRegles,
 } from '../lib/pointage'
+import {
+  STATUT_LIVE_OT_CLASS,
+  avancementTechVsPlanning,
+  blocsPlanifiesDuTech,
+  labelAvancementTech,
+} from '../lib/pointageAvancement'
+import { isPosteTerrain } from '../lib/postePersonnel'
 
 export function PointagePage() {
   const { data, upsertPointageRegles, annulerPointageEvent, peutVoirIdentitesRh } = useStore()
@@ -60,7 +68,7 @@ export function PointagePage() {
           <p className="text-sm text-muted">
             {mode === 'bureau'
               ? 'Personnel bureau — heure de début, de fin et pause.'
-              : 'Technicien terrain — pointage lié à l’OT (déplacement, intervention…). Heures calculées automatiquement.'}
+              : 'Technicien terrain — de la sortie domicile jusqu’au retour. Heures porte-à-porte calculées automatiquement.'}
           </p>
         </div>
       </div>
@@ -97,7 +105,14 @@ export function PointagePage() {
       )}
 
       {bureau && actif ? (
-        <BureauExport
+        <>
+          <AvancementEquipe
+            events={events}
+            regles={regles}
+            ots={data.ordresTravail || []}
+            dossiers={data.personnelDossiers || []}
+          />
+          <BureauExport
           events={events}
           bureauJours={bureauJours}
           regles={regles}
@@ -110,8 +125,74 @@ export function PointagePage() {
           }
           onAnnuler={annulerPointageEvent}
         />
+        </>
       ) : null}
     </div>
+  )
+}
+
+function AvancementEquipe({
+  events,
+  regles,
+  ots,
+  dossiers,
+}: {
+  events: ReturnType<typeof parsePointageEvents>
+  regles: PointageRegles
+  ots: import('../lib/ordreTravail').OrdreTravail[]
+  dossiers: import('../lib/rhDocuments').PersonnelDossier[]
+}) {
+  const today = datePointageLocale()
+  const ids = [
+    ...new Set([
+      ...dossiers.filter((d) => isPosteTerrain(d.poste)).map((d) => d.userId),
+      ...events.filter((e) => e.date === today).map((e) => e.userId),
+      ...ots
+        .filter((o) => (o.date || '').slice(0, 10) === today)
+        .flatMap((o) => [o.technicienUserId, ...(o.technicienUserIds || [])].filter(Boolean) as string[]),
+    ]),
+  ]
+  if (ids.length === 0) return null
+  return (
+    <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
+      <h2 className="font-display text-lg font-semibold">Avancement vs planning</h2>
+      <p className="text-xs text-muted">
+        Temps réel pointé (porte-à-porte) comparé aux OT posés sur l’agenda du jour.
+      </p>
+      <ul className="space-y-2">
+        {ids.map((uid) => {
+          const av = avancementTechVsPlanning({
+            userId: uid,
+            date: today,
+            events,
+            blocs: blocsPlanifiesDuTech(ots, { userId: uid, date: today }),
+            regles,
+          })
+          if (av.planifieMin <= 0 && av.porteAPorteMin <= 0) return null
+          const nom =
+            events.find((e) => e.userId === uid)?.userName ||
+            dossiers.find((d) => d.userId === uid)?.userName ||
+            uid
+          const cls = av.enRetard
+            ? STATUT_LIVE_OT_CLASS.en_retard
+            : av.ouvert
+              ? STATUT_LIVE_OT_CLASS.en_cours
+              : STATUT_LIVE_OT_CLASS.planifie
+          return (
+            <li
+              key={uid}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm"
+            >
+              <span className="font-semibold text-ink">{nom}</span>
+              <span className="text-muted">{labelAvancementTech(av)}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${cls}`}>
+                {av.statutLabel}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -128,7 +209,7 @@ function MaJourneeDetail({
   regles: PointageRegles
   mode: ReturnType<typeof pointageModePourUser>
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = datePointageLocale()
   const maJournee = calculerJourneePourUser({
     mode,
     events,
@@ -141,6 +222,19 @@ function MaJourneeDetail({
   return (
     <section className="space-y-2 rounded-2xl border border-line bg-white p-4">
       <h2 className="font-display text-lg font-semibold">Créneaux du jour</h2>
+      {mode !== 'bureau' && maJournee.porteAPorteMin > 0 ? (
+        <p className="text-sm text-muted">
+          Porte-à-porte {formatMinutesHhMm(maJournee.porteAPorteMin)}
+          {maJournee.departDomicileIso
+            ? ` · sortie ${formatHeureIso(maJournee.departDomicileIso)}`
+            : ''}
+          {maJournee.retourDomicileIso
+            ? ` → retour ${formatHeureIso(maJournee.retourDomicileIso)}`
+            : maJournee.ouvert
+              ? ' · en cours'
+              : ''}
+        </p>
+      ) : null}
       {mode === 'bureau' ? (
         <p className="text-sm text-muted">
           Début, fin et pause enregistrés — {formatMinutesHhMm(maJournee.payeMin)} payé

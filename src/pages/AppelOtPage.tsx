@@ -42,6 +42,7 @@ import { clientDisplayName, equipAvecFluideFrigorigene, syncClientRaisonSociale 
 import {
   TYPE_OT_LABELS,
   PARCOURS_APPEL_STEPS,
+  STATUT_OT_LABELS,
   blankOrdreTravail,
   nextNumeroOt,
   naturesCerfaPourTypeOt,
@@ -1276,6 +1277,7 @@ export function AppelOtPage() {
           <p className="truncate text-xs text-muted">
             {otForm.numero ? formatOtNumero(otForm.numero) : 'Nouvel OT'} · date {otForm.date || '—'}
             {otForm.heure ? ` · ${otForm.heure.slice(0, 5)}` : ''}
+            {otForm.statut ? ` · ${STATUT_OT_LABELS[otForm.statut] || otForm.statut}` : ''}
             {!isOwner
               ? ' · OT & CERFA synchronisés sur le compte société'
               : ''}

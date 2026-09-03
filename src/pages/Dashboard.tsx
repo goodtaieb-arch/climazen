@@ -156,7 +156,7 @@ export function Dashboard() {
 
   const otAReprendre = useMemo(() => {
     return [...(data.ordresTravail || [])]
-      .filter((o) => o.statut === 'brouillon' || o.statut === 'en_cours')
+      .filter((o) => o.statut === 'brouillon' || o.statut === 'en_cours' || o.statut === 'en_deplacement')
       .filter(
         (o) =>
           !terrainUi ||

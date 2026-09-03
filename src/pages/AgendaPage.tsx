@@ -41,6 +41,7 @@ import {
 } from '../lib/agenda'
 import {
   TYPE_OT_LABELS,
+  STATUT_OT_LABELS,
   compareOtPrioritePlanning,
   formatOtAvancement,
   formatOtNumero,
@@ -50,6 +51,7 @@ import {
   syncTechsOt,
   techIdsOt,
   type OrdreTravail,
+  type StatutOt,
   type TypeOt,
 } from '../lib/ordreTravail'
 import {
@@ -80,6 +82,19 @@ import {
 } from '../lib/agendaPlanning'
 import { alertesOtContratFinMois, dateDerniereInterventionPourOt, NIVEAU_VISITE_LABELS, type NiveauVisite } from '../lib/contratOtAuto'
 import { dossierForUser } from '../lib/rhDocuments'
+import {
+  calculerJournee,
+  parsePointageEvents,
+  parsePointageRegles,
+} from '../lib/pointage'
+import {
+  STATUT_LIVE_OT_CLASS,
+  avancementTechVsPlanning,
+  blocsPlanifiesDuTech,
+  labelAvancementTech,
+  nowMarkerPct,
+  statutLiveOtPourTech,
+} from '../lib/pointageAvancement'
 import {
   labelSecteurCourt,
   secteursOt,
@@ -207,6 +222,20 @@ export function AgendaPage() {
       }),
     [user, remoteTeam, data],
   )
+
+  const pointageEvents = useMemo(
+    () => parsePointageEvents(data.pointageEvents),
+    [data.pointageEvents],
+  )
+  const pointageRegles = useMemo(
+    () => parsePointageRegles(data.pointageRegles),
+    [data.pointageRegles],
+  )
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 60_000)
+    return () => window.clearInterval(t)
+  }, [])
 
   const posteOf = (userId?: string) =>
     dossierForUser(data.personnelDossiers, userId)?.poste
@@ -845,6 +874,25 @@ export function AgendaPage() {
     )
   }
 
+  const liveOtFor = (
+    otId: string,
+    techId: string,
+    heure?: string,
+    dureeMinutes?: number,
+    otStatut?: string,
+    date = cursorDate,
+  ) =>
+    statutLiveOtPourTech({
+      otId,
+      otStatut,
+      heure,
+      dureeMinutes,
+      events: pointageEvents,
+      userId: techId,
+      date,
+      now: new Date(nowTick),
+    })
+
   const renderProgrammeCard = (item: ProgrammeItem) => {
     if (item.kind === 'ot') {
       const client = data.clients.find((c) => c.id === item.clientId)
@@ -892,6 +940,28 @@ export function AgendaPage() {
             {item.avancement ? (
               <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-amber-950">
                 {item.avancement}
+              </span>
+            ) : null}
+            {user?.id ? (
+              (() => {
+                const live = liveOtFor(
+                  item.otId,
+                  user.id,
+                  item.heure,
+                  item.dureeMinutes,
+                  item.statut,
+                )
+                return (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUT_LIVE_OT_CLASS[live.statut]}`}
+                  >
+                    {live.label}
+                  </span>
+                )
+              })()
+            ) : item.statut ? (
+              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase text-ink">
+                {STATUT_OT_LABELS[item.statut as StatutOt] || item.statut}
               </span>
             ) : null}
           </div>
@@ -1059,6 +1129,7 @@ export function AgendaPage() {
     })
     const unassigned = items.filter((it) => itemTechIds(it).length === 0)
     const heures = heuresFriseJour()
+    const nowPct = nowMarkerPct(iso, new Date(nowTick))
     const ids = [...idsRaw].sort((a, b) => {
       const ca = items.filter((it) => itemTechIds(it).includes(a)).length
       const cb = items.filter((it) => itemTechIds(it).includes(b)).length
@@ -1113,14 +1184,24 @@ export function AgendaPage() {
         it.kind === 'ot'
           ? data.chantiers.find((c) => c.id === it.chantierId)?.nom
           : undefined
+      const live =
+        it.kind === 'ot'
+          ? liveOtFor(it.otId, techId, it.heure, it.dureeMinutes, it.statut, iso)
+          : null
       return (
         <div
           key={it.id}
           style={{ left: `${place.leftPct}%`, width: `${place.widthPct}%`, zIndex: selected ? 25 : 10 - prio }}
           className={`absolute top-1 bottom-1 overflow-hidden rounded-lg border shadow-sm transition hover:z-20 hover:brightness-95 ${c.border} ${c.bg} ${
             selected ? 'ring-2 ring-teal-600' : ''
-          }`}
+          } ${live?.statut === 'en_retard' ? 'ring-1 ring-amber-500' : ''}`}
         >
+          {live && live.pctRempli > 0 ? (
+            <span
+              className="pointer-events-none absolute inset-y-0 left-0 bg-black/15"
+              style={{ width: `${Math.min(100, live.pctRempli)}%` }}
+            />
+          ) : null}
           {bureau && it.kind === 'ot' ? (
             <button
               type="button"
@@ -1139,8 +1220,8 @@ export function AgendaPage() {
             type="button"
             title={
               bureau && it.kind === 'ot'
-                ? `${formatHeure(it.heure) || ''} · ${labelDureeMinutes(it.dureeMinutes)} — ${label}. Cliquez pour déplacer / ajouter un tech.`
-                : `${formatHeure(it.heure) || ''} · ${labelDureeMinutes(it.dureeMinutes)} — ${label}`
+                ? `${formatHeure(it.heure) || ''} · ${labelDureeMinutes(it.dureeMinutes)} — ${label}${live ? ` · ${live.label}` : ''}. Cliquez pour déplacer / ajouter un tech.`
+                : `${formatHeure(it.heure) || ''} · ${labelDureeMinutes(it.dureeMinutes)} — ${label}${live ? ` · ${live.label}` : ''}`
             }
             onClick={(e) => {
               e.stopPropagation()
@@ -1165,7 +1246,14 @@ export function AgendaPage() {
               {it.kind === 'ot' ? `${formatOtNumero(it.numero)} · ` : ''}
               {it.title}
             </span>
-            {clientNom || siteNom ? (
+            {live ? (
+              <span
+                className={`mt-0.5 inline-block truncate rounded px-1 text-[8px] font-extrabold uppercase ${STATUT_LIVE_OT_CLASS[live.statut]}`}
+              >
+                {live.label}
+                {live.pctRempli > 0 && live.statut !== 'planifie' ? ` ${live.pctRempli}%` : ''}
+              </span>
+            ) : clientNom || siteNom ? (
               <span className="block truncate text-[9px] font-medium text-muted">
                 {[clientNom, siteNom].filter(Boolean).join(' · ')}
               </span>
@@ -1248,6 +1336,26 @@ export function AgendaPage() {
                 })
               const untimed = mine.filter((it) => !formatHeure(it.heure))
               const highlighted = filterTechId === id
+              const journee = calculerJournee({
+                events: pointageEvents,
+                userId: id,
+                date: iso,
+                regles: pointageRegles,
+                now: new Date(nowTick).toISOString(),
+              })
+              const av = avancementTechVsPlanning({
+                userId: id,
+                date: iso,
+                events: pointageEvents,
+                blocs: blocsPlanifiesDuTech(data.ordresTravail || [], {
+                  userId: id,
+                  date: iso,
+                }),
+                regles: pointageRegles,
+                now: new Date(nowTick).toISOString(),
+                journee,
+              })
+              const avLabel = labelAvancementTech(av)
               return (
                 <div
                   key={id}
@@ -1277,25 +1385,20 @@ export function AgendaPage() {
                           </span>
                         ) : null}
                       </span>
-                      <span className="text-[9px] font-bold uppercase text-muted">
-                        {mine.length === 0
-                          ? 'Libre'
-                          : timed.length === 0
-                            ? `${mine.length} sans heure`
-                            : `${timed.length} · ${labelDureeMinutes(
-                                Math.max(
-                                  15,
-                                  timed.reduce(
-                                    (s, it) => s + dureeMinutesEffectif(it.dureeMinutes),
-                                    0,
-                                  ),
-                                ),
-                              )}`}
+                      <span
+                        className={`text-[9px] font-bold uppercase ${
+                          av.enRetard ? 'text-amber-800' : 'text-muted'
+                        }`}
+                      >
+                        {avLabel}
+                        {av.statutLabel && av.statutLabel !== 'Libre'
+                          ? ` · ${av.statutLabel}`
+                          : ''}
                       </span>
                     </button>
                     <div
                       className={[
-                        'relative h-16 flex-1 bg-[linear-gradient(to_right,rgb(15_23_42_/_0.04)_1px,transparent_1px)] bg-[length:calc(100%/12)_100%]',
+                        'relative h-[4.75rem] flex-1 bg-[linear-gradient(to_right,rgb(15_23_42_/_0.04)_1px,transparent_1px)] bg-[length:calc(100%/12)_100%]',
                         otAPlacer ? 'cursor-cell' : '',
                       ].join(' ')}
                     >
@@ -1319,6 +1422,13 @@ export function AgendaPage() {
                         />
                       ))}
                       {timed.map((it) => renderBlock(it, id))}
+                      {nowPct != null ? (
+                        <span
+                          className="pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 bg-rose-600"
+                          style={{ left: `${nowPct}%` }}
+                          title="Maintenant"
+                        />
+                      ) : null}
                       {timed.length === 0 && !otAPlacer ? (
                         <p className="pointer-events-none absolute inset-0 flex items-center px-3 text-[11px] text-muted">
                           Libre — sélectionnez un OT ci-dessus puis cliquez une heure.
@@ -1808,17 +1918,18 @@ export function AgendaPage() {
               <Plus className="h-3.5 w-3.5" /> Ajouter ce jour
             </button>
           </div>
-          {bureau ? (
-            renderLignesTechJour(cursorDate)
-          ) : programmeForDate(cursorDate).length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
-              Rien de prévu ce jour. Ajoute une intervention ou un OT daté aujourd’hui.
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {programmeForDate(cursorDate).map(renderProgrammeCard)}
-            </div>
-          )}
+          {renderLignesTechJour(cursorDate)}
+          {!bureau ? (
+            programmeForDate(cursorDate).length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
+                Rien de prévu ce jour. Ajoute une intervention ou un OT daté aujourd’hui.
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {programmeForDate(cursorDate).map(renderProgrammeCard)}
+              </div>
+            )
+          ) : null}
         </section>
       )}
 

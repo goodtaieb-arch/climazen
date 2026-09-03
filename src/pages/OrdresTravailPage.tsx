@@ -880,7 +880,9 @@ export function OrdresTravailPage() {
                         ? 'bg-emerald-100 text-emerald-900'
                         : attentePiece
                           ? 'bg-sky-100 text-sky-950'
-                          : 'bg-mist text-muted',
+                          : o.statut === 'en_deplacement'
+                            ? 'bg-violet-100 text-violet-950'
+                            : 'bg-mist text-muted',
                     ].join(' ')}
                   >
                     {STATUT_OT_LABELS[o.statut]}

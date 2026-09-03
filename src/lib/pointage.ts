@@ -8,13 +8,34 @@ import { isPosteBureau, isPosteTerrain } from './postePersonnel'
 
 /** Actions métier (2026+) — liées à l’OT quand pertinent. */
 export const POINTAGE_ACTIONS = [
+  'sortie_domicile',
   'deplacement',
   'intervention_en_cours',
   'fin_intervention',
   'fournisseur',
   'bureau',
   'pause',
+  'pause_repas',
+  'retour_domicile',
   'fin_journee',
+] as const
+
+/** Parcours terrain : domicile → OT → retour. */
+export const POINTAGE_ACTIONS_PARCOURS = [
+  'sortie_domicile',
+  'deplacement',
+  'intervention_en_cours',
+  'fin_intervention',
+  'retour_domicile',
+  'fin_journee',
+] as const
+
+/** Entrées hors OT (pause, atelier, fournisseur…). */
+export const POINTAGE_ACTIONS_HORS_OT = [
+  'pause',
+  'pause_repas',
+  'bureau',
+  'fournisseur',
 ] as const
 
 /** Anciennes actions — toujours lues pour l’historique. */
@@ -29,15 +50,26 @@ export type PointageActionCanon = (typeof POINTAGE_ACTIONS)[number]
 export type PointageActionLegacy = (typeof LEGACY_POINTAGE_ACTIONS)[number]
 export type PointageAction = PointageActionCanon | PointageActionLegacy
 
-export type PointageCible = 'ot' | 'fournisseur' | 'bureau'
+export type PointageCible = 'ot' | 'fournisseur' | 'bureau' | 'domicile' | 'hors_ot'
+
+export const POINTAGE_CIBLE_LABELS: Record<PointageCible, string> = {
+  ot: 'Vers le site / OT',
+  hors_ot: 'Déplacement hors OT',
+  fournisseur: 'Fournisseur / extérieur',
+  bureau: 'Bureau / atelier',
+  domicile: 'Domicile',
+}
 
 export const POINTAGE_ACTION_LABELS: Record<PointageAction, string> = {
-  deplacement: 'Déplacement en cours',
+  sortie_domicile: 'Trajet début de journée',
+  deplacement: 'En déplacement',
   intervention_en_cours: 'Intervention en cours',
   fin_intervention: 'Fin d’intervention',
-  fournisseur: 'Fournisseur',
-  bureau: 'Bureau',
+  fournisseur: 'Fournisseur / extérieur',
+  bureau: 'Bureau / atelier',
   pause: 'Pause',
+  pause_repas: 'Pause repas',
+  retour_domicile: 'Trajet fin / retour domicile',
   fin_journee: 'Fin de journée',
   prise_vehicule: 'Prise du véhicule',
   trajet: 'Trajet',
@@ -46,13 +78,16 @@ export const POINTAGE_ACTION_LABELS: Record<PointageAction, string> = {
 }
 
 export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
-  deplacement: 'En route vers l’OT, le fournisseur ou le bureau',
-  intervention_en_cours: 'Sur le site — OT en cours',
+  sortie_domicile: 'Vous quittez le domicile — le compteur porte-à-porte démarre',
+  deplacement: 'En route vers l’OT, hors OT, un fournisseur ou le bureau',
+  intervention_en_cours: 'Arrivé sur site — OT en cours',
   fin_intervention: 'Intervention terminée sur cet OT',
   fournisseur: 'Chez le fournisseur (pièces, gaz…)',
   bureau: 'Au bureau / atelier',
-  pause: 'Pause repas ou personnelle',
-  fin_journee: 'Fin de tournée — les heures sont calculées',
+  pause: 'Pause personnelle',
+  pause_repas: 'Pause repas',
+  retour_domicile: 'Vous rentrez au domicile — trajet retour',
+  fin_journee: 'Arrivé à la maison — les heures porte-à-porte sont figées',
 }
 
 export type PointageSegmentKind =
@@ -61,13 +96,15 @@ export type PointageSegmentKind =
   | 'fournisseur'
   | 'bureau'
   | 'pause'
+  | 'trajet_domicile'
 
 export const POINTAGE_SEGMENT_LABELS: Record<PointageSegmentKind, string> = {
-  deplacement: 'Déplacement',
+  deplacement: 'En déplacement',
   intervention: 'Intervention (OT)',
   fournisseur: 'Fournisseur',
-  bureau: 'Bureau',
+  bureau: 'Bureau / atelier',
   pause: 'Pause',
+  trajet_domicile: 'Trajet domicile',
 }
 
 export const POINTAGE_CNIL_NOTICE =
@@ -171,6 +208,17 @@ export function otIdObligatoire(action: PointageAction, cible?: PointageCible): 
   return false
 }
 
+/** Statut OT à poser au punch (sans clôturer). */
+export function statutOtDepuisAction(
+  action: PointageAction,
+  cible?: PointageCible,
+): 'en_deplacement' | 'en_cours' | null {
+  const n = normaliserAction(action)
+  if (n === 'deplacement' && (cible || 'ot') === 'ot') return 'en_deplacement'
+  if (n === 'intervention_en_cours') return 'en_cours'
+  return null
+}
+
 function parseHeureHm(raw: unknown, fallback: string): string {
   const v = String(raw || '').trim()
   if (/^\d{1,2}:\d{2}$/.test(v)) {
@@ -220,7 +268,13 @@ export function parsePointageRegles(raw: unknown): PointageRegles {
 
 function parseCible(raw: unknown): PointageCible | undefined {
   const v = String(raw || '').trim()
-  return v === 'ot' || v === 'fournisseur' || v === 'bureau' ? v : undefined
+  return v === 'ot' ||
+    v === 'fournisseur' ||
+    v === 'bureau' ||
+    v === 'domicile' ||
+    v === 'hors_ot'
+    ? v
+    : undefined
 }
 
 export function parsePointageEvents(raw: unknown): PointageEvent[] {
@@ -351,30 +405,50 @@ function dernierEtat(last?: PointageEvent): PointageActionCanon | 'fin_intervent
   return normaliserAction(last.action)
 }
 
+const HORS_OT_EN_COURS: PointageActionCanon[] = [
+  'pause',
+  'pause_repas',
+  'fournisseur',
+  'bureau',
+]
+
 export function actionsSuivantes(last?: PointageEvent): PointageActionCanon[] {
   const etat = dernierEtat(last)
   if (!etat || etat === 'fin_journee') {
-    return ['deplacement']
+    return ['sortie_domicile', 'deplacement']
+  }
+  if (etat === 'sortie_domicile') {
+    return ['deplacement', 'intervention_en_cours', ...HORS_OT_EN_COURS, 'retour_domicile']
   }
   if (etat === 'deplacement') {
-    return ['intervention_en_cours', 'fournisseur', 'bureau']
+    return ['intervention_en_cours', ...HORS_OT_EN_COURS, 'retour_domicile']
   }
   if (etat === 'intervention_en_cours') {
-    return ['fin_intervention', 'pause']
+    return ['fin_intervention', 'pause', 'pause_repas']
   }
   if (etat === 'fin_intervention') {
-    return ['deplacement', 'fournisseur', 'bureau', 'fin_journee', 'pause']
+    return ['deplacement', ...HORS_OT_EN_COURS, 'retour_domicile', 'fin_journee']
   }
   if (etat === 'fournisseur') {
-    return ['deplacement', 'bureau', 'fin_journee', 'pause']
+    return ['deplacement', 'bureau', 'pause', 'pause_repas', 'retour_domicile', 'fin_journee']
   }
   if (etat === 'bureau') {
-    return ['deplacement', 'fin_journee', 'pause']
+    return ['deplacement', 'pause', 'pause_repas', 'retour_domicile', 'fin_journee']
   }
-  if (etat === 'pause') {
-    return ['deplacement', 'intervention_en_cours', 'fournisseur', 'bureau', 'fin_journee']
+  if (etat === 'pause' || etat === 'pause_repas') {
+    return [
+      'deplacement',
+      'intervention_en_cours',
+      'fournisseur',
+      'bureau',
+      'retour_domicile',
+      'fin_journee',
+    ]
   }
-  return ['deplacement']
+  if (etat === 'retour_domicile') {
+    return ['fin_journee', 'pause', 'pause_repas']
+  }
+  return ['sortie_domicile', 'deplacement']
 }
 
 export function actionAutorisee(last: PointageEvent | undefined, next: PointageAction): boolean {
@@ -388,11 +462,12 @@ export function actionAutorisee(last: PointageEvent | undefined, next: PointageA
 export function segmentDepuisAction(action: PointageAction): PointageSegmentKind | null {
   const n = normaliserAction(action)
   if (n === 'fin_intervention' || n === 'fin_journee') return null
+  if (n === 'sortie_domicile' || n === 'retour_domicile') return 'trajet_domicile'
   if (n === 'deplacement') return 'deplacement'
   if (n === 'intervention_en_cours') return 'intervention'
   if (n === 'fournisseur') return 'fournisseur'
   if (n === 'bureau') return 'bureau'
-  if (n === 'pause') return 'pause'
+  if (n === 'pause' || n === 'pause_repas') return 'pause'
   return null
 }
 
@@ -455,12 +530,19 @@ export type JourneePointage = {
   fournisseurMin: number
   bureauMin: number
   pauseMin: number
-  /** @deprecated compat export — = deplacementMin */
+  /** Trajet matin domicile → 1er site (inclus dans deplacementMin + trajet_domicile). */
+  trajetMatinMin: number
+  /** Trajet retour vers domicile. */
+  retourMin: number
+  /** Sortie domicile → retour / fin (ou maintenant si journée ouverte). */
+  porteAPorteMin: number
+  departDomicileIso?: string
+  retourDomicileIso?: string
+  /** @deprecated compat export — = deplacementMin + trajet domicile */
   trajetMin: number
   /** @deprecated compat export — = interventionMin */
   chantierMin: number
   vehiculeMin: number
-  retourMin: number
   pauseAutoMin: number
   payeMin: number
   heuresJour: number
@@ -474,16 +556,58 @@ export type JourneePointage = {
 function addSegmentKind(
   acc: Pick<
     JourneePointage,
-    'deplacementMin' | 'interventionMin' | 'fournisseurMin' | 'bureauMin' | 'pauseMin'
+    | 'deplacementMin'
+    | 'interventionMin'
+    | 'fournisseurMin'
+    | 'bureauMin'
+    | 'pauseMin'
+    | 'trajetMatinMin'
+    | 'retourMin'
   >,
   kind: PointageSegmentKind,
   minutes: number,
+  action?: PointageAction,
 ) {
   if (kind === 'deplacement') acc.deplacementMin += minutes
-  else if (kind === 'intervention') acc.interventionMin += minutes
+  else if (kind === 'trajet_domicile') {
+    acc.deplacementMin += minutes
+    const n = action ? normaliserAction(action) : undefined
+    if (n === 'retour_domicile') acc.retourMin += minutes
+    else acc.trajetMatinMin += minutes
+  } else if (kind === 'intervention') acc.interventionMin += minutes
   else if (kind === 'fournisseur') acc.fournisseurMin += minutes
   else if (kind === 'bureau') acc.bureauMin += minutes
   else acc.pauseMin += minutes
+}
+
+export function blankJourneePointage(opts: {
+  date: string
+  userId: string
+  userName?: string
+  heuresJour?: number
+}): JourneePointage {
+  return {
+    date: opts.date.slice(0, 10),
+    userId: opts.userId,
+    userName: opts.userName || '',
+    deplacementMin: 0,
+    interventionMin: 0,
+    fournisseurMin: 0,
+    bureauMin: 0,
+    pauseMin: 0,
+    trajetMatinMin: 0,
+    retourMin: 0,
+    porteAPorteMin: 0,
+    trajetMin: 0,
+    chantierMin: 0,
+    vehiculeMin: 0,
+    pauseAutoMin: 0,
+    payeMin: 0,
+    heuresJour: opts.heuresJour ?? 7,
+    heuresSupMin: 0,
+    ouvert: false,
+    segments: [],
+  }
 }
 
 export function calculerJournee(opts: {
@@ -502,6 +626,8 @@ export function calculerJournee(opts: {
     fournisseurMin: 0,
     bureauMin: 0,
     pauseMin: 0,
+    trajetMatinMin: 0,
+    retourMin: 0,
   }
   const segments: PointageSegment[] = []
   const last = list[list.length - 1]
@@ -516,7 +642,7 @@ export function calculerJournee(opts: {
     if (!nextAt) continue
     const minutes = minutesEntre(cur.at, nextAt)
     if (minutes <= 0) continue
-    addSegmentKind(totals, kind, minutes)
+    addSegmentKind(totals, kind, minutes, cur.action)
     segments.push({
       kind,
       from: cur.at,
@@ -527,6 +653,17 @@ export function calculerJournee(opts: {
       cible: cur.cible,
     })
   }
+
+  const sortieEv = list.find((e) => normaliserAction(e.action) === 'sortie_domicile')
+  const retourEv = list.find((e) => normaliserAction(e.action) === 'retour_domicile')
+  const finEv = list.find((e) => normaliserAction(e.action) === 'fin_journee')
+  const departDomicileIso = sortieEv?.at || list[0]?.at
+  const retourDomicileIso = finEv?.at || retourEv?.at
+  const finPorteAPorte = finEv?.at || (ouvert ? now : last?.at)
+  const porteAPorteMin =
+    departDomicileIso && finPorteAPorte
+      ? minutesEntre(departDomicileIso, finPorteAPorte)
+      : 0
 
   let pauseAutoMin = 0
   if (
@@ -555,10 +692,12 @@ export function calculerJournee(opts: {
     userId: opts.userId,
     userName: last?.userName || list[0]?.userName || '',
     ...totals,
+    porteAPorteMin,
+    departDomicileIso,
+    retourDomicileIso,
     trajetMin: totals.deplacementMin,
     chantierMin: totals.interventionMin,
     vehiculeMin: 0,
-    retourMin: 0,
     pauseAutoMin,
     payeMin,
     heuresJour: r.heuresJour,
@@ -627,11 +766,14 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
   const header = [
     'Date',
     'Technicien',
+    'Porte-à-porte (min)',
+    'Trajet matin (min)',
     'Déplacement (min)',
     'Intervention OT (min)',
     'Fournisseur (min)',
     'Bureau (min)',
     'Pause (min)',
+    'Retour domicile (min)',
     'Pause auto (min)',
     'Temps payé (min)',
     'Temps payé',
@@ -645,11 +787,14 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
       [
         j.date,
         csvEscape(j.userName),
+        j.porteAPorteMin,
+        j.trajetMatinMin,
         j.deplacementMin,
         j.interventionMin,
         j.fournisseurMin,
         j.bureauMin,
         j.pauseMin,
+        j.retourMin,
         j.pauseAutoMin,
         j.payeMin,
         formatMinutesHhMm(j.payeMin),
@@ -905,10 +1050,14 @@ export function calculerJourneeBureau(
     fournisseurMin: 0,
     bureauMin: travailMin,
     pauseMin,
+    trajetMatinMin: 0,
+    retourMin: 0,
+    porteAPorteMin: brutMin,
+    departDomicileIso: debutIso,
+    retourDomicileIso: j.heureFin ? finIso : undefined,
     trajetMin: 0,
     chantierMin: 0,
     vehiculeMin: 0,
-    retourMin: 0,
     pauseAutoMin: 0,
     payeMin,
     heuresJour: r.heuresJour,
@@ -930,26 +1079,11 @@ export function calculerJourneePourUser(opts: {
   if (opts.mode === 'bureau') {
     const bj = bureauJourDu(opts.bureauJours, { userId: opts.userId, date: opts.date })
     if (bj) return calculerJourneeBureau(bj, opts.regles, opts.now)
-    return {
-      date: opts.date.slice(0, 10),
+    return blankJourneePointage({
+      date: opts.date,
       userId: opts.userId,
-      userName: '',
-      deplacementMin: 0,
-      interventionMin: 0,
-      fournisseurMin: 0,
-      bureauMin: 0,
-      pauseMin: 0,
-      trajetMin: 0,
-      chantierMin: 0,
-      vehiculeMin: 0,
-      retourMin: 0,
-      pauseAutoMin: 0,
-      payeMin: 0,
       heuresJour: parsePointageRegles(opts.regles).heuresJour,
-      heuresSupMin: 0,
-      ouvert: false,
-      segments: [],
-    }
+    })
   }
   return calculerJournee({
     events: opts.events,

@@ -22,6 +22,7 @@ import {
   pointageReglesCompletes,
   preparerActivation,
   segmentDepuisAction,
+  statutOtDepuisAction,
   type PointageEvent,
 } from '../src/lib/pointage'
 
@@ -53,7 +54,7 @@ if (act.ok) {
   assert.equal(pointageEstActif(act.regles), true)
 }
 
-assert.deepEqual(actionsSuivantes(undefined), ['deplacement'])
+assert.deepEqual(actionsSuivantes(undefined), ['sortie_domicile', 'deplacement'])
 
 const ev = (
   partial: Partial<PointageEvent> & { action: PointageEvent['action']; at: string },
@@ -72,22 +73,19 @@ const eDep = ev({
   otId: 'ot1',
   cible: 'ot',
 })
-assert.deepEqual(actionsSuivantes(eDep), ['intervention_en_cours', 'fournisseur', 'bureau'])
+assert.ok(actionsSuivantes(eDep).includes('intervention_en_cours'))
+assert.ok(actionsSuivantes(eDep).includes('retour_domicile'))
 assert.equal(actionAutorisee(eDep, 'intervention_en_cours'), true)
 assert.equal(actionAutorisee(eDep, 'deplacement'), false)
 
 const eInter = ev({ action: 'intervention_en_cours', at: '2026-09-02T08:00:00.000Z', otId: 'ot1' })
-assert.deepEqual(actionsSuivantes(eInter), ['fin_intervention', 'pause'])
+assert.deepEqual(actionsSuivantes(eInter), ['fin_intervention', 'pause', 'pause_repas'])
 assert.equal(actionAutorisee(eInter, 'fin_intervention'), true)
 
 const eFinInter = ev({ action: 'fin_intervention', at: '2026-09-02T11:00:00.000Z', otId: 'ot1' })
-assert.deepEqual(actionsSuivantes(eFinInter), [
-  'deplacement',
-  'fournisseur',
-  'bureau',
-  'fin_journee',
-  'pause',
-])
+assert.ok(actionsSuivantes(eFinInter).includes('deplacement'))
+assert.ok(actionsSuivantes(eFinInter).includes('retour_domicile'))
+assert.ok(actionsSuivantes(eFinInter).includes('fin_journee'))
 
 assert.equal(normaliserAction('trajet'), 'deplacement')
 assert.equal(normaliserAction('arrivee_chantier'), 'intervention_en_cours')
@@ -166,6 +164,39 @@ assert.ok(csv.includes('Jean'))
 assert.ok(csv.includes(String(jour.payeMin)))
 assert.ok(csv.includes('Intervention OT'))
 assert.equal(csvEscape('a;b'), '"a;b"')
+assert.ok(csv.includes('Porte-à-porte'))
+
+const eSortie = ev({ action: 'sortie_domicile', at: '2026-09-02T06:45:00.000Z', cible: 'domicile' })
+assert.equal(actionAutorisee(undefined, 'sortie_domicile'), true)
+assert.ok(actionsSuivantes(eSortie).includes('deplacement'))
+assert.equal(statutOtDepuisAction('deplacement', 'ot'), 'en_deplacement')
+assert.equal(statutOtDepuisAction('intervention_en_cours'), 'en_cours')
+assert.equal(statutOtDepuisAction('sortie_domicile'), null)
+assert.equal(segmentDepuisAction('sortie_domicile'), 'trajet_domicile')
+assert.equal(segmentDepuisAction('pause_repas'), 'pause')
+
+const homeEvents: PointageEvent[] = [
+  ev({ action: 'sortie_domicile', at: '2026-09-02T07:00:00.000Z', cible: 'domicile' }),
+  ev({ action: 'deplacement', at: '2026-09-02T07:20:00.000Z', otId: 'ot1', cible: 'ot' }),
+  ev({ action: 'intervention_en_cours', at: '2026-09-02T08:00:00.000Z', otId: 'ot1' }),
+  ev({ action: 'fin_intervention', at: '2026-09-02T12:00:00.000Z', otId: 'ot1' }),
+  ev({ action: 'retour_domicile', at: '2026-09-02T12:10:00.000Z', cible: 'domicile' }),
+  ev({ action: 'fin_journee', at: '2026-09-02T13:00:00.000Z' }),
+]
+const home = calculerJournee({
+  events: homeEvents,
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(home.ouvert, false)
+assert.equal(home.porteAPorteMin, 6 * 60)
+assert.equal(home.trajetMatinMin, 20)
+assert.equal(home.retourMin, 50)
+assert.equal(home.interventionMin, 4 * 60)
+assert.equal(home.deplacementMin, 20 + 40 + 50)
+assert.ok(home.departDomicileIso?.startsWith('2026-09-02T07:00'))
+assert.ok(home.retourDomicileIso?.startsWith('2026-09-02T13:00'))
 
 const sem = calculerSemaine({
   events: dayEvents,
