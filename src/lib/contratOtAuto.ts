@@ -838,3 +838,55 @@ export function ligneContratVide(
 ): LigneContratEquipement {
   return { siteId, equipementId, visitesParAn, sousTraitant: false }
 }
+
+/**
+ * Date de la dernière intervention sur le même site (avant l’OT courant).
+ * Sert au planning : éviter un écart trop court entre deux mois (ex. 27 puis 3).
+ */
+export function dateDerniereInterventionPourOt(
+  ot: Pick<OrdreTravail, 'id' | 'date' | 'chantierId' | 'contratId' | 'contratOtKey' | 'typeOt' | 'statut'>,
+  opts: {
+    ordresTravail?: Array<
+      Pick<
+        OrdreTravail,
+        'id' | 'date' | 'chantierId' | 'contratId' | 'contratOtKey' | 'typeOt' | 'statut' | 'heure'
+      >
+    >
+    derniereMaintenanceSite?: string
+  },
+): string | undefined {
+  const siteId = String(ot.chantierId || '').trim()
+  if (!siteId) return undefined
+
+  const before = (ot.date || '').slice(0, 10)
+  const candidates: string[] = []
+
+  const siteLast = (opts.derniereMaintenanceSite || '').slice(0, 10)
+  if (siteLast && (!before || siteLast < before)) candidates.push(siteLast)
+
+  for (const o of opts.ordresTravail || []) {
+    if (o.id === ot.id) continue
+    if (String(o.chantierId || '').trim() !== siteId) continue
+    const d = (o.date || '').slice(0, 10)
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) continue
+    if (before && d >= before) continue
+
+    const sameContrat =
+      Boolean(ot.contratId && o.contratId && ot.contratId === o.contratId) ||
+      Boolean(ot.contratOtKey && o.contratOtKey)
+    const maintenanceLike =
+      o.typeOt === 'maintenance' ||
+      o.typeOt === 'entretien' ||
+      o.typeOt === 'controle_etancheite' ||
+      Boolean(o.contratOtKey)
+    const done = isOtCloture(o.statut) || Boolean((o.heure || '').trim())
+
+    if (sameContrat || maintenanceLike || done) {
+      candidates.push(d)
+    }
+  }
+
+  if (!candidates.length) return undefined
+  return candidates.sort().at(-1)
+}
+

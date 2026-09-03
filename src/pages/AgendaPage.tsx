@@ -78,7 +78,7 @@ import {
   typesAgendaPourSaisie,
   visibleAgendaPour,
 } from '../lib/agendaPlanning'
-import { alertesOtContratFinMois, NIVEAU_VISITE_LABELS, type NiveauVisite } from '../lib/contratOtAuto'
+import { alertesOtContratFinMois, dateDerniereInterventionPourOt, NIVEAU_VISITE_LABELS, type NiveauVisite } from '../lib/contratOtAuto'
 import { dossierForUser } from '../lib/rhDocuments'
 import {
   labelSecteurCourt,
@@ -393,6 +393,24 @@ export function AgendaPage() {
       return true
     })
   }, [otsSansPlanningBase, filterTypeOt, filterSiteId])
+
+  /** Dernière intervention par OT (bande à poser) — surtout contrats mensuels. */
+  const derniereIntervParOtId = useMemo(() => {
+    const map = new Map<string, string>()
+    const ots = data.ordresTravail || []
+    const sitesById = new Map((data.chantiers || []).map((s) => [s.id, s]))
+    for (const ot of otsSansPlanning) {
+      if (!ot.contratOtKey && ot.typeOt !== 'maintenance' && ot.typeOt !== 'entretien') {
+        continue
+      }
+      const d = dateDerniereInterventionPourOt(ot, {
+        ordresTravail: ots,
+        derniereMaintenanceSite: sitesById.get(ot.chantierId || '')?.derniereMaintenanceDate,
+      })
+      if (d) map.set(ot.id, d)
+    }
+    return map
+  }, [otsSansPlanning, data.ordresTravail, data.chantiers])
 
   const otContratFinMois = useMemo(
     () => alertesOtContratFinMois(data.ordresTravail || []),
@@ -1633,7 +1651,7 @@ export function AgendaPage() {
             <>
               <p className="mt-2 text-[11px] text-muted">
                 {bureau
-                  ? 'Sans créneau · priorité dépannage → install → maintenance. Cliquez un OT, durée, puis une heure. Bloc posé : clic = déplacer / + tech ; croix rouge = retirer.'
+                  ? 'Sans créneau · priorité dépannage → install → maintenance. Cliquez un OT, durée, puis une heure. Sur Maint. contrat : « dern. » = dernière intervention du site (pour caler un intervalle régulier). Bloc posé : clic = déplacer / + tech ; croix rouge = retirer.'
                   : 'OT affectés à vous, pas encore calés.'}
               </p>
               {otsSansPlanning.length === 0 ? (
@@ -1657,10 +1675,12 @@ export function AgendaPage() {
                             ? 'Maint.'
                             : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'OT'
                     const action = (ot.action || '').trim()
+                    const derniereInterv = derniereIntervParOtId.get(ot.id)
                     const titleLine = [
                       typeCourt,
                       formatOtNumero(ot.numero),
                       ot.date ? formatFr(ot.date) : '',
+                      derniereInterv ? `dern. interv. ${formatFr(derniereInterv)}` : '',
                       clientNom,
                       siteNom,
                       action,
@@ -1694,6 +1714,14 @@ export function AgendaPage() {
                         {ot.date ? (
                           <span className="hidden shrink-0 font-semibold text-muted sm:inline">
                             {formatFr(ot.date)}
+                          </span>
+                        ) : null}
+                        {derniereInterv ? (
+                          <span
+                            className="shrink-0 rounded bg-white/70 px-1 py-0.5 text-[10px] font-bold text-amber-900"
+                            title={`Dernière intervention sur ce site : ${formatFr(derniereInterv)} — caler le prochain créneau à un intervalle comparable.`}
+                          >
+                            dern. {formatFr(derniereInterv)}
                           </span>
                         ) : null}
                         <span className={`min-w-0 truncate font-semibold ${col.text}`}>
