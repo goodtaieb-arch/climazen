@@ -133,14 +133,20 @@ export function TelephonyLolaPanel() {
           />
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block font-semibold text-ink">E-mail (optionnel)</span>
+          <span className="mb-1 block font-semibold text-ink">
+            E-mail fallback gérant (si aucun responsable secteur)
+          </span>
           <input
             type="email"
             value={managerEmail}
             onChange={(e) => setManagerEmail(e.target.value)}
-            placeholder="vous@societe.fr"
+            placeholder="responsable@societe.fr"
             className="h-11 w-full rounded-xl border border-line bg-white px-3"
           />
+          <span className="mt-1 block text-[11px] text-muted">
+            Sinon la notification part au responsable / pilote dont les métiers couvrent le
+            secteur de l’appel (Équipe → poste + métiers couverts).
+          </span>
         </label>
       </div>
 

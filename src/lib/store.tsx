@@ -218,6 +218,19 @@ type Store = {
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deleteAgendaEvent: (id: string) => void
+  /** Crée / met à jour une validation humaine IA (notif responsable secteur). */
+  upsertAiPendingValidation: (
+    v: Omit<import('./aiPendingValidation').AiPendingValidation, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+      createdAt?: string
+    },
+  ) => string
+  /** Valide ou refuse une proposition IA. */
+  decideAiPendingValidation: (
+    id: string,
+    decision: 'validee' | 'refusee',
+    opts?: { userId?: string; userName?: string },
+  ) => void
   upsertPointageRegles: (r: import('./pointage').PointageRegles) => void
   addPointageEvent: (
     e: Omit<import('./pointage').PointageEvent, 'id' | 'createdAt'> & { id?: string },
@@ -1796,6 +1809,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const upsertAiPendingValidation = useCallback(
+    (
+      v: Omit<import('./aiPendingValidation').AiPendingValidation, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+        createdAt?: string
+      },
+    ) => {
+      const id = v.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.aiPendingValidations || []
+        const existing = list.find((x) => x.id === id)
+        const next: import('./aiPendingValidation').AiPendingValidation = {
+          ...v,
+          id,
+          createdAt: existing?.createdAt ?? v.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          aiPendingValidations: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [next, ...list].slice(0, 200),
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const decideAiPendingValidation = useCallback(
+    (id: string, decision: 'validee' | 'refusee', opts?: { userId?: string; userName?: string }) => {
+      const now = new Date().toISOString()
+      setData((d) => ({
+        ...d,
+        aiPendingValidations: (d.aiPendingValidations || []).map((x) =>
+          x.id === id
+            ? {
+                ...x,
+                statut: decision,
+                decidedAt: now,
+                updatedAt: now,
+                decidedByUserId: opts?.userId,
+                decidedByName: opts?.userName,
+              }
+            : x,
+        ),
+      }))
+    },
+    [],
+  )
+
   const upsertPointageRegles = useCallback((r: PointageRegles) => {
     const now = new Date().toISOString()
     setData((d) => ({
@@ -3303,6 +3368,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
+      upsertAiPendingValidation,
+      decideAiPendingValidation,
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,
@@ -3387,6 +3454,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
+      upsertAiPendingValidation,
+      decideAiPendingValidation,
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,

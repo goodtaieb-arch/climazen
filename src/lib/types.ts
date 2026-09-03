@@ -827,6 +827,11 @@ export interface AppData {
    */
   personnelRetiresUserIds?: string[]
   /**
+   * Validations humaines en attente (Lola / assistant) —
+   * notifiées au responsable du secteur.
+   */
+  aiPendingValidations?: import('./aiPendingValidation').AiPendingValidation[]
+  /**
    * Ids supprimés (tombstones) — la sync ne doit pas les réimporter depuis le cloud.
    */
   deletedEntityIds?: import('./deletedEntities').DeletedEntityIds

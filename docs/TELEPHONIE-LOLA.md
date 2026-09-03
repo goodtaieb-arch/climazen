@@ -57,6 +57,23 @@ Elle peut **proposer** tout le parcours métier (OT, CERFA brouillon, clients, a
 **Aucune écriture** sans validation humaine (« oui » / Valider) dans l’app.
 Interdit : signature, clôture OT, PDF CERFA final, suppressions.
 
+### Notification au responsable de secteur
+
+Quand Lola / l’assistant propose une action :
+1. ClimaZEN déduit le **secteur** (CVC, frigo, multi…) depuis l’appel.
+2. Une **notification Accueil** est créée pour le **responsable / pilote** dont les métiers couverts matchent ce secteur (Équipe).
+3. Fallback : e-mail gérant (`manager_notify_email` dans Mon entreprise).
+
+### Voix & latence (sans Vapi)
+
+Un pipeline batch Twilio → STT → OpenAI → TTS fait **3–5 s de blanc** : peu utilisable en appel.
+Pour devenir plus fluide **petit à petit** (sans Vapi) :
+- vocabulaire / intentions déjà vues → réponses plus courtes ;
+- accueil court + prise de besoin, validation humaine hors appel ;
+- plus tard : streaming STT/LLM/TTS (fait maison ou Vapi).
+
+L’apprentissage (vocabulaire Supabase) **améliore la compréhension**, pas la physique réseau. La fluidité vocale demande le streaming.
+
 ## Évolution prévue
 
 | Phase | Contenu |
