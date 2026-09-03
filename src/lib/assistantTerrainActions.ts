@@ -4,7 +4,7 @@
  */
 
 import type { AgendaEvent, AgendaEventType } from './agenda'
-import { AGENDA_TYPE_LABELS, addDaysToIso, todayIsoLocal } from './agenda'
+import { AGENDA_TYPE_LABELS, addDaysToIso, formatHeure, todayIsoLocal } from './agenda'
 import type { AppData, ContenantType, DetecteurManuel, Equipement, Site, StockItem } from './types'
 import { blankFicheMaintenanceClim } from './ficheMaintenanceClim'
 import { clientDisplayName } from './types'
@@ -16,6 +16,7 @@ import {
   summarizePieceVeilleProposal,
   wantsStockPieceVeille,
 } from './assistantStockPieces'
+import { matchTechInTeam, techsFromOts } from './assistantOtLookup'
 
 function normalize(s: string): string {
   return (s || '')
@@ -66,7 +67,7 @@ export function parseAgendaDate(text: string): string | null {
   return null
 }
 
-/** 14h / 14h30 / 14:30 / à 9 h → HH:mm */
+/** 14h / 14h30 / 14:30 / à 9 h → HH:mm (toujours 2 chiffres). */
 export function parseAgendaHeure(text: string): string | undefined {
   const m =
     text.match(/\b(\d{1,2})\s*[h:]\s*(\d{2})\b/i) ||
@@ -76,6 +77,33 @@ export function parseAgendaHeure(text: string): string | undefined {
   const h = Math.min(23, Math.max(0, Number(m[1])))
   const min = m[2] != null ? Math.min(59, Math.max(0, Number(m[2]))) : 0
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+/** « pour Amélie », « tech Karim Benali », « visite Amélie » → nom tech. */
+export function extractAgendaTechQuery(raw: string): string {
+  const t = String(raw || '').trim()
+  const patterns = [
+    /(?:tech(?:nicien)?|a\s+(?:la\s+)?charge\s+de)\s+([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+){0,2})/i,
+    /(?:visite|rdv|intervention|entretien|maintenance)\s+(?:pour|de|avec)\s+([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+){0,2})/i,
+    /\bpour\s+(?:le\s+)?(?:tech(?:nicien)?\s+)?([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+){0,2})/i,
+  ]
+  for (const re of patterns) {
+    const m = t.match(re)
+    if (!m?.[1]) continue
+    let name = m[1]
+      .replace(
+        /\b(demain|aujourd|auj|hier|le|la|les|un|une|ot|visite|rdv)\b/gi,
+        ' ',
+      )
+      .replace(/\s+/g, ' ')
+      .trim()
+    // Couper avant une heure « à 9h » / « 9h » / date
+    name = name.split(/\s+(?:à|a)\s+\d/i)[0].trim()
+    name = name.split(/\b\d{1,2}\s*[h:.]/)[0].trim()
+    name = name.replace(/\s+(?:à|a)$/i, '').trim()
+    if (name.length >= 2 && !/^\d+$/.test(name)) return name
+  }
+  return ''
 }
 
 function detectAgendaType(n: string): AgendaEventType {
@@ -156,6 +184,8 @@ export type PendingTerrainAction =
       type: AgendaEventType
       clientQuery: string
       siteQuery: string
+      /** Nom tech dit à Lola (ex. Amélie) — résolu à l’exécution. */
+      techQuery?: string
       notes?: string
       summary: string
     }
@@ -762,12 +792,25 @@ export function parseTerrainIntent(text: string, data?: AppData): PendingTerrain
     const type = detectAgendaType(n)
     const date = parseAgendaDate(raw) || todayIsoLocal()
     const heure = parseAgendaHeure(raw)
-    const clientQuery =
-      raw.match(/(?:mr|m\.|monsieur|mme|madame|client|pour)\s+([A-Za-zÀ-ÿ0-9'’\-]+)/i)?.[1] || ''
+    const techQuery = extractAgendaTechQuery(raw)
+    let clientQuery =
+      raw.match(/(?:mr|m\.|monsieur|mme|madame|client)\s+([A-Za-zÀ-ÿ0-9'’\-]+)/i)?.[1] || ''
+    // « pour X » = souvent le tech : ne pas le prendre comme client si déjà techQuery
+    if (!clientQuery && !techQuery) {
+      clientQuery =
+        raw.match(/\bpour\s+([A-Za-zÀ-ÿ0-9'’\-]+)/i)?.[1] || ''
+    }
+    if (
+      techQuery &&
+      clientQuery &&
+      normalize(clientQuery) === normalize(techQuery.split(/\s+/)[0] || '')
+    ) {
+      clientQuery = ''
+    }
     const siteQuery =
       raw
         .match(
-          /site\s+(?:de\s+|du\s+)?(.+?)(?:\s+le\s+\d|\s+a\s+\d|\s+demain|\s+aujourd|\s+a\s+\d|\s*$)/i,
+          /\bsite\s+(?:de\s+|du\s+)?(.+?)(?:\s+le\s+\d|\s+a\s+\d|\s+à\s+\d|\s+demain|\s+aujourd|\s*$)/i,
         )?.[1]
         ?.trim()
         .replace(/[,.]$/, '') || ''
@@ -779,7 +822,7 @@ export function parseTerrainIntent(text: string, data?: AppData): PendingTerrain
       titleFrom ||
       [
         AGENDA_TYPE_LABELS[type],
-        clientQuery ? `— ${clientQuery}` : null,
+        techQuery ? `— ${techQuery}` : clientQuery ? `— ${clientQuery}` : null,
         siteQuery ? `(${siteQuery})` : null,
       ]
         .filter(Boolean)
@@ -795,16 +838,18 @@ export function parseTerrainIntent(text: string, data?: AppData): PendingTerrain
       type,
       clientQuery,
       siteQuery,
+      techQuery: techQuery || undefined,
       notes,
       summary: [
         `Je peux ajouter à l’agenda :`,
         `• ${title}`,
         `• Type : ${AGENDA_TYPE_LABELS[type]}`,
         `• Date : ${date}${heure ? ` à ${heure}` : ''}`,
+        techQuery ? `• Technicien : ${techQuery}` : null,
         clientQuery ? `• Client : ${clientQuery}` : null,
         siteQuery ? `• Site : ${siteQuery}` : null,
         ``,
-        `Répondez « oui » pour créer, ou « non » pour annuler.`,
+        `Répondez « oui » pour créer (tech déjà affecté si reconnu), ou « non » pour annuler.`,
       ]
         .filter(Boolean)
         .join('\n'),
@@ -818,6 +863,8 @@ export type TerrainDeps = {
   data: AppData
   userId?: string
   userName?: string
+  /** Équipe (pour résoudre un tech nommé dans une phrase Lola). */
+  team?: { id: string; fullName?: string; email?: string }[]
   upsertClient: (
     c: Omit<import('./types').Client, 'id' | 'createdAt'> & { id?: string },
   ) => string
@@ -992,21 +1039,49 @@ export async function executeTerrainAction(
     const site =
       (qSite && siteList.find((s) => normalize(s.nom).includes(qSite))) || undefined
 
+    const heure = formatHeure(action.heure) || undefined
+
+    let technicienUserId: string | undefined
+    let technicien: string | undefined
+    const techQ = (action.techQuery || '').trim()
+    if (techQ) {
+      const roster = [...(deps.team || []), ...techsFromOts(deps.data)]
+      const hits = matchTechInTeam(techQ, roster)
+      if (hits[0]) {
+        technicienUserId = hits[0].member.id
+        technicien = (hits[0].member.fullName || techQ).trim()
+      } else {
+        technicien = techQ
+      }
+    }
+
+    const title =
+      technicien && !/—/.test(action.title)
+        ? `${action.title} — ${technicien}`
+        : action.title
+
     const id = deps.upsertAgendaEvent({
-      title: action.title,
+      title,
       date: action.date,
       dateRappel: action.date,
-      heure: action.heure,
+      heure,
       type: action.type,
       clientId: client?.id,
       chantierId: site?.id,
       notes: action.notes,
       statut: 'a_faire',
+      technicienUserId,
+      technicien,
     })
 
-    const when = action.heure ? `${action.date} à ${action.heure}` : action.date
+    const when = heure ? `${action.date} à ${heure}` : action.date
+    const techLine = technicien
+      ? technicienUserId
+        ? ` Technicien : ${technicien}.`
+        : ` Tech nommé « ${technicien} » (pas trouvé dans l’équipe — à choisir dans la liste).`
+      : ''
     return {
-      message: `Agenda : « ${action.title} » ajouté pour le ${when}. Vérifiez dans Agenda.`,
+      message: `Agenda : « ${title} » ajouté pour le ${when}.${techLine} Vérifiez dans Agenda.`,
       navigateTo: `/app/agenda?id=${encodeURIComponent(id)}`,
     }
   }

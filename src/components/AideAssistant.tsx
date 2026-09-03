@@ -280,6 +280,7 @@ export function AideAssistant() {
         data,
         userId: user?.id,
         userName: user?.fullName || user?.email,
+        team,
         upsertClient,
         upsertChantier,
         upsertDetecteur,
