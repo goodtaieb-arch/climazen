@@ -84,12 +84,18 @@ export function CommandesPage() {
   const catFromQuery = params.get('cat') || ''
   const fournisseurFromQuery = params.get('fournisseur') || ''
   const seuilFromQuery = params.get('seuil') || ''
+  const veilleId = params.get('veille') || ''
   const [q, setQ] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
   const [preview, setPreview] = useState<{ url: string; fileName: string; title: string } | null>(
     null,
   )
   const [saveMsg, setSaveMsg] = useState('')
+  const [veilleMsg] = useState(() =>
+    veilleId
+      ? 'Veille stock enregistrée — Accueil sera notifié à la réception de la pièce.'
+      : '',
+  )
 
   if (!editionHasFeature(appEdition, 'chaine_commerciale')) {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />
@@ -731,6 +737,11 @@ export function CommandesPage() {
           <Plus className="h-4 w-4" /> Nouvelle
         </Link>
       </div>
+      {veilleMsg ? (
+        <p className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-950">
+          {veilleMsg}
+        </p>
+      ) : null}
       <SearchField value={q} onChange={setQ} placeholder="Client, site, n° commande…" />
       {list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">

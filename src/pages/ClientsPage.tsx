@@ -1,5 +1,5 @@
-import { type FormEvent, useMemo, useState, type HTMLAttributes } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { type FormEvent, useEffect, useMemo, useState, type HTMLAttributes } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Building2,
   Copy,
@@ -59,6 +59,7 @@ export function ClientsPage() {
   const { data, upsertClient, deleteClient } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState(blank())
   const [editId, setEditId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -66,6 +67,25 @@ export function ClientsPage() {
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const hid = searchParams.get('highlight') || ''
+    if (!hid) return
+    const c = data.clients.find((x) => x.id === hid)
+    if (c) {
+      setHighlightId(hid)
+      setQ(clientDisplayName(c))
+      setTimeout(() => {
+        document
+          .querySelector(`[data-client-id="${hid}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 80)
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('highlight')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, data.clients, setSearchParams])
 
   const plateformeId = data.operateur.facturationPlateforme || 'tiime'
   const plateforme =
@@ -414,7 +434,11 @@ export function ClientsPage() {
           return (
             <article
               key={c.id}
-              className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition hover:border-accent/25 hover:shadow-md"
+              data-client-id={c.id}
+              className={[
+                'rounded-2xl border bg-white p-4 shadow-sm transition hover:border-accent/25 hover:shadow-md',
+                highlightId === c.id ? 'border-teal-400 ring-2 ring-teal-500/40' : 'border-[#E5E7EB]',
+              ].join(' ')}
             >
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_auto] lg:items-start lg:gap-3">
                 <div className="min-w-0">

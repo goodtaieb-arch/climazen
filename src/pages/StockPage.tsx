@@ -459,6 +459,27 @@ export function StockPage() {
     setSearchParams(next, { replace: true })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lola / deep-link → ouvrir la bouteille créée
+  useEffect(() => {
+    const hid = searchParams.get('highlight') || ''
+    if (!hid) return
+    const item = data.stock.find((s) => s.id === hid)
+    if (item) {
+      setExpandedId(hid)
+      setEditId(hid)
+      setForm({ ...blank(), ...item })
+      setOpen(true)
+      setTimeout(() => {
+        document
+          .querySelector(`[data-stock-id="${hid}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 80)
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('highlight')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, data.stock, setSearchParams])
+
   const actifStock = useMemo(
     () =>
       data.stock.filter(
@@ -2006,7 +2027,7 @@ export function StockPage() {
                     s.contenantType === 'recuperation' && current > 0 && !isBouteilleRetournee(s)
                   const canTransfer = !isBouteilleRetournee(s)
                   return (
-                    <li key={s.id} className="min-w-0">
+                    <li key={s.id} data-stock-id={s.id} className="min-w-0">
                       <div className="flex min-w-0 flex-col gap-2 px-3 py-2.5 sm:px-4">
                         <button
                           type="button"

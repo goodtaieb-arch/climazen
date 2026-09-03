@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { formatHeure } from '../lib/agenda'
 import { ArrowLeft, ClipboardList, FileText, Package, Plus, Trash2, Truck } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -386,7 +387,7 @@ export function OrdresTravailPage() {
               <span className="mb-1 block font-semibold text-ink">Heure planning</span>
               <input
                 type="time"
-                value={(form.heure || '').slice(0, 5)}
+                value={formatHeure(form.heure)}
                 onChange={(e) => setForm({ ...form, heure: e.target.value || undefined })}
                 className="h-11 w-full rounded-xl border border-line px-3"
               />

@@ -1,5 +1,5 @@
-import { type FormEvent, useMemo, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -64,6 +64,7 @@ export function StockPiecesPage() {
   } = useStore()
   const { user, isOwner } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [q, setQ] = useState('')
   const [filtreCat, setFiltreCat] = useState<FiltreCategorie>('toutes')
@@ -83,6 +84,22 @@ export function StockPiecesPage() {
   const [mouvementEmp, setMouvementEmp] = useState<PieceEmplacement>('atelier')
   const [mouvementTechId, setMouvementTechId] = useState('')
   const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    const id = searchParams.get('id') || ''
+    if (!id) return
+    const piece = (data.piecesDetachees || []).find((p) => p.id === id)
+    if (piece) {
+      setDetailId(id)
+      setEditId(id)
+      setForm({ ...blankPiece(), ...piece })
+      setOpen(true)
+      setQ(piece.reference || piece.designation || '')
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('id')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, data.piecesDetachees, setSearchParams])
 
   if (!editionHasFeature(appEdition, 'stock_pieces')) {
     return <Navigate to="/app" replace state={{ editionBlocked: true }} />

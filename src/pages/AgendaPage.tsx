@@ -727,7 +727,12 @@ export function AgendaPage() {
             technicienUserIds: ot.technicienUserIds,
           })
     const day = String(patch.date ?? ot.date ?? '').slice(0, 10)
-    const heureVal = patch.heure !== undefined ? patch.heure : ot.heure
+    const heureVal =
+      patch.heure !== undefined
+        ? patch.heure
+          ? formatHeure(patch.heure) || undefined
+          : ''
+        : ot.heure
     if (day && String(heureVal || '').trim()) {
       for (const tid of ids) {
         if (techEstIndispo(data.agendaEvents, tid, day)) {
@@ -2318,7 +2323,7 @@ function OtPlanifierInline({
         }
         onPlan({
           date: date || ot.date,
-          heure: heure.trim(),
+          heure: formatHeure(heure) || undefined,
           dureeMinutes: duree,
           technicien: tech,
           technicienUserId: techId,

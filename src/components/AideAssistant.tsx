@@ -534,7 +534,15 @@ export function AideAssistant() {
   }
 
   const goIfMentioned = (content: string) => {
-    if (content.includes('/app/stock')) navigate('/app/stock')
+    const m = content.match(/\/app\/[a-z0-9\-]+(?:\/[a-z0-9\-]+)*(?:\?[^\s)\]\"']*)?/i)
+    if (m?.[0]) {
+      navigate(m[0])
+      return
+    }
+    if (content.includes('/app/chantiers') || content.includes('/app/sites')) navigate('/app/chantiers')
+    else if (content.includes('/app/clients')) navigate('/app/clients')
+    else if (content.includes('/app/stock-pieces')) navigate('/app/stock-pieces')
+    else if (content.includes('/app/stock')) navigate('/app/stock')
     else if (content.includes('/app/appel')) navigate('/app/appel')
     else if (content.includes('/app/ot')) navigate('/app/ot')
     else if (content.includes('/app/interventions')) navigate('/app/interventions')
@@ -544,7 +552,7 @@ export function AideAssistant() {
     else if (content.includes('/app/agenda')) navigate('/app/agenda')
     else if (content.includes('/app/devis')) navigate('/app/devis')
     else if (content.includes('/app/commandes')) navigate('/app/commandes')
-    else if (content.includes('/app/stock-pieces')) navigate('/app/stock-pieces')
+    else if (content.includes('/app/carnet')) navigate('/app/carnet')
   }
 
   const tierSubtitle =

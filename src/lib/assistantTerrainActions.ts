@@ -978,7 +978,7 @@ export async function executeTerrainAction(
       message: `${newEqs.length} équipement${newEqs.length > 1 ? 's' : ''} créé${
         newEqs.length > 1 ? 's' : ''
       } sur « ${site.nom} » :\n${list}\n\nComplétez marque / fluide / photos sur chaque fiche.`,
-      navigateTo: `/app/sites?id=${encodeURIComponent(site.id)}`,
+      navigateTo: `/app/chantiers?site=${encodeURIComponent(site.id)}`,
     }
   }
 

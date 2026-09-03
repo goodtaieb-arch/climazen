@@ -98,6 +98,7 @@ import { secteurOtDepuisPoste } from '../lib/postePersonnel'
 import { AgenceSelect } from '../components/AgenceSelect'
 import { agenceDepuisCodePostal, agenceEffective } from '../lib/agences'
 import { labelIndispoCourte, premierTechIndispo } from '../lib/agendaPlanning'
+import { formatHeure } from '../lib/agenda'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -1478,7 +1479,7 @@ export function AppelOtPage() {
               <span className="mb-1 block font-semibold text-ink">Heure planning</span>
               <input
                 type="time"
-                value={(otForm.heure || '').slice(0, 5)}
+                value={formatHeure(otForm.heure)}
                 onChange={(e) => {
                   const heure = e.target.value || undefined
                   if (heure) {
@@ -2013,7 +2014,7 @@ export function AppelOtPage() {
                 <span className="mb-1 block font-semibold text-ink">Heure sur l’agenda</span>
                 <input
                   type="time"
-                  value={(otForm.heure || '').slice(0, 5)}
+                  value={formatHeure(otForm.heure)}
                   onChange={(e) => {
                     const heure = e.target.value || undefined
                     if (heure) {
@@ -2522,7 +2523,7 @@ export function AppelOtPage() {
               <span className="mb-1 block font-semibold text-ink">Heure planning</span>
               <input
                 type="time"
-                value={(otForm.heure || '').slice(0, 5)}
+                value={formatHeure(otForm.heure)}
                 onChange={(e) => {
                   const heure = e.target.value || undefined
                   if (heure) {
