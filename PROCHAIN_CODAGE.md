@@ -1,0 +1,291 @@
+# Prochain codage ClimaZEN (Issam)
+
+**Ne pas tout coder d’un coup.** Points 1–4 : attendre qu’Issam dise de lancer. **Demain 31/08/2026 : points 5 et 6.**
+
+Sauvegardé le 29/08/2026, complété le 30/08/2026. Feuille de route — **ne pas tout coder d’un coup**.
+
+**Demain (31/08/2026) :**
+- **5** — tâches sous-traitant / réglementaires + registre de sécurité
+- **6** — Accueil : courbes et indicateurs (préventif / curatif + vue société)
+
+Les points 1–4 restent en attente d’un « lance » explicite (sauf si Issam dit autrement).
+**Point 7** (recherche type d’outillage) : **prochainement**, dès que 5 et 6 sont faits (ou si Issam dit de le glisser).
+**Point 8** (compte client du bâtiment) : **prochainement** — faisable, vrai bout produit, **pas** un compte opérateur.
+**Point 9** (plusieurs techs sur le même OT) : **prochainement** — un tech saisit tout ; le rapport OT liste les noms pour la traçabilité.
+
+---
+
+## Titres clairs (anti-flou)
+
+| # | En une phrase |
+|---|---|
+| **1** | Coller un QR **du bâtiment** (pas de la machine) pour ouvrir le parc du site ou un ticket panne. |
+| **2** | Le tech **pointe** sa journée (départ, trajet, site, pause, retour) + GPS au clic → heures pour la paie. |
+| **3** | Si le tech **tombe** ou ne bouge plus (toit, local), l’app alerte l’astreinte (PTI). |
+| **4** | Contrat **P1 à P4** avec le client, PDF signé, et visites qui se créent toutes seules 30 j avant. |
+| **5** | Sur le contrat : ramonage, disconnecteur, etc. (souvent **sous-traitant**) + rappel **registre de sécurité**. |
+| **6** | Accueil gérant : **graphiques** préventif vs dépannage et chiffres de la société. |
+| **7** | Dans « type d’outillage », **taper** « cam » au lieu de scroller toute la liste. |
+| **8** | Le **client du site** a un login : il voit ses OT / docs et envoie « bureau 17 plus de clim ». |
+| **9** | **2 techs** (ou plus) sur le **même OT** : un seul remplit rapport + signatures ; le PDF OT **nomme tous les intervenants**. |
+
+---
+
+## 1. QR du bâtiment (en plus du QR déjà collé sur chaque machine)
+
+### QR équipement — existe déjà
+
+Raccourci tech **au pied de la machine** :
+
+- Accueil → Scanner QR
+- Scan de l’étiquette collée sur l’équipement
+- Reprend un OT ouvert sur cette machine, sinon ouvre un OT « Client appelle » prérempli (client, site, équipement)
+- Enchaîne CERFA / rapport / historique
+
+Fichiers : `src/pages/ScanEquipementPage.tsx`, `src/lib/equipementQr.ts`, impression depuis Sites & Parc.
+
+### À ajouter — QR Code Site
+
+Collé au **local technique / accueil** du bâtiment.
+
+- **Client / syndic** : voir tout le parc du site + ouvrir un ticket de panne rapidement
+- **Tech** : voir tout le parc du site d’un scan (pas une seule machine)
+
+Pas encore dans le code (aujourd’hui le QR ne pointe que vers un `eq=`).
+
+---
+
+## 2. Pointage des heures (trajets / chantier / pauses) pour la pré-paie
+
+De la **prise du véhicule** au **retour chez soi**.
+
+- Validation début de journée / démarrage véhicule
+- Temps de trajet, temps sur site / intervention, pauses, trajet retour domicile
+- Export propre des heures pour la **pré-paie**
+
+**Rappel produit / légal :** pas de tracking GPS 24/7. Pointage volontaire + GPS **au moment du pointage** (CNIL / France). Issam devait encore préciser les règles métier — les demander avant de coder.
+
+---
+
+## 3. Alerte si le tech est seul et ne répond plus (chute / malaise)
+
+- Détection perte de verticalité ou immobilité prolongée (chute, malaise en local technique ou toiture-terrasse)
+- Alarme sonore locale
+- Relais d’alerte SMS / serveur vers l’astreinte ou le responsable
+- Doit rester utilisable **hors réseau / mode déconnecté**
+
+Pas encore dans le code.
+
+---
+
+## 4. Contrat d’entretien P1–P4 : cocher avec le client, PDF, visites auto
+
+C’est le chantier annoncé avec le tableau « tous types de contrats / grands établissements ».
+
+### Saisie guidée avec le client
+
+- Niveaux **P1 / P2 / P3 / P4** (énergie, main-d’œuvre, pièces, gros travaux)
+- Fréquences mensuelle / trimestrielle / **custom** (mensuel et trimestriel existent déjà sur le contrat ; custom non)
+- Machines couvertes **explicitement** (aujourd’hui : client + sites seulement, pas d’IDs équipements)
+
+### Signature écran → PDF contrat immédiat
+
+Aujourd’hui :
+
+1. Texte de contrat signable **dans l’app**, **sans export PDF contrat**
+2. PDF de **fiche visite** (clim/PAC, chaufferie P2/P3 registre, CTA/VMC)
+
+**3ᵉ PDF à faire :** quand tous les points du contrat sont cochés avec le client → PDF contrat complet pré-rempli (opérateur, client, sites, périodicité, P1–P4, machines, prestations, signatures).
+
+### OT préventifs auto
+
+- Générer les OT de visite **J-30** dans l’agenda des techs
+- Aujourd’hui : rappel agenda « prendre RDV » ~14 jours, **pas d’OT auto**
+
+Fichiers actuels : `src/lib/contratMaintenance.ts`, `src/pages/ContratsMaintenancePage.tsx`, `src/lib/agenda.ts`.
+
+---
+
+## 5. Ramonage, disconnecteur, etc. : qui le fait + rappel registre de sécurité
+
+Demandé le 30/08/2026 : à coder **prochainement (demain)**.
+
+### Ce qu’Issam veut
+
+Sur les **contrats de maintenance**, une **configuration propre** des tâches souvent faites par un **sous-traitant** (pas le tech ClimaZEN) :
+
+- Contrôle **disconnecteur** (eau potable)
+- **Ramonage** (corps de chauffe, carneaux — ramoneur)
+- Et le reste du même type : attestations réglementaires (gaz, électriques, analyses d’eau / légionelle, extincteurs, etc. — catalogue configurable, pas une liste figée dans le contrat texte)
+
+Ces tâches **réglementaires** doivent s’afficher **proprement sur le dossier maintenance** (site / contrat) : qui les fait (nous / sous-traitant), périodicité, dernière date, prochaine échéance, pièce jointe (attestation).
+
+Pour **ces tâches-là**, **avertir le tech** qu’il doit **remplir le registre de sécurité** (ERP / copro) — pas seulement cocher la fiche visite.
+
+### État actuel (ne pas confondre)
+
+- Fiche chaufferie : points **disconnecteur** (inspection visuelle semestrielle) et **ramonage** (annuel) = checklist **faite par le tech** sur la visite P2/P3. Ce n’est **pas** une config contrat « sous-traitant + attestation + registre ».
+- Contrats : liste de **prestations en texte libre**, pas de type de tâche, pas de sous-traitant, pas de registre.
+- OT : origine « sous-traitance » = **donneur d’ordre / client payeur**, pas un ramoneur / contrôleur disconnecteur.
+- **Aucun** écran « registre de sécurité » ni alerte dédiée au tech.
+
+### À construire (demain)
+
+1. **Catalogue de tâches réglementaires** (config gérant) : disconnecteur, ramonage, + autres (extensible). Pour chaque : périodicité, **exécutant = nous | sous-traitant**, obligatoire registre de sécurité oui/non.
+2. **Lier au contrat / dossier maintenance du site** : affichage clair (pas noyé dans le texte du contrat).
+3. **Alerte tech** quand une de ces tâches est due ou vient d’être faite : « Pensez à remplir le **registre de sécurité** du site » (bandeau + sur l’OT / fiche).
+4. Pouvoir noter le sous-traitant (nom, date, n° attestation) sans inventer un module facture.
+
+Ne pas mélanger avec P1–P4 / PDF contrat (point 4) : ici c’est le **suivi d’obligations** et le **registre**, pas le niveau de prestation.
+
+---
+
+## 6. Accueil gérant : graphiques préventif / dépannage et chiffres de la boîte
+
+Demandé le 30/08/2026 : améliorer la **page Accueil** pour une **vue globale** qui facilite le pilotage de la société — **pas seulement des raccourcis**.
+
+### Ce qu’Issam veut
+
+- **Courbes et graphiques** lisibles (mobile + bureau)
+- Avancement du travail **préventif** vs **curatif** (dépannage)
+- Tous les **indicateurs utiles** pour le gérant : charge, retards, contrats, stock, équipe — une photo de l’activité, pas une liste d’OT à reprendre
+
+### État actuel (v140)
+
+L’accueil (`src/pages/Dashboard.tsx`) est opérationnel terrain :
+- icônes / raccourcis
+- bandeaux alertes (RH, étalonnage, matériel à réceptionner, agenda)
+- OT / CERFA à reprendre
+
+**Aucun graphique.** Pas de split préventif / curatif. L’avancement existe **par OT** (`avancementPct`), pas en courbe société. Les OT ont une origine commerciale (`depannage_urgence`, contrat, etc. dans `chaineCommerciale.ts`) — on pourra s’en servir pour classer curatif vs préventif, mais ce n’est pas agrégé aujourd’hui.
+
+Pas de librairie de charts dans le projet (pas de Recharts / Chart.js).
+
+### À construire (demain)
+
+Tableau de bord gérant sur l’Accueil (ou bloc dédié au-dessus des icônes) :
+
+1. **Préventif vs curatif** — part des OT / visites (camembert ou barres), et **avancement** des maintenances sous contrat (fait / dû / en retard).
+2. **Courbe dans le temps** — volume d’interventions sur 4–12 semaines (préventif / curatif empilé).
+3. **Indicateurs utiles** (cartes chiffrées, cliquables) :
+   - OT ouverts / en retard / clôturés (semaine / mois)
+   - visites contrat à venir (J-30) vs déjà faites
+   - CERFA brouillons
+   - stock fluide (kg, consignes, alertes)
+   - étalonnage outillage bientôt / expiré
+   - docs RH bientôt / expirés
+   - charge par tech (si simple à dériver des OT)
+4. Vue **gérant = toute la société** ; tech = **ses** chiffres seulement.
+5. Reste lisible au téléphone (pas un écran Excel).
+
+Ne pas attendre le point 4 (OT auto J-30) pour afficher le préventif : s’appuyer sur les contrats signés + OT existants.
+
+---
+
+## 7. Trouver un type d’outillage en tapant le début du nom
+
+Demandé le 30/08/2026. La liste du menu **Type d’outillage** est devenue **longue** (frigoriste + CVC + étalonnage). Le `<select>` actuel oblige à scroller.
+
+### Ce qu’Issam veut
+
+Champ unique, comme maintenant visuellement, mais en **combobox** :
+
+1. L’utilisateur **écrit le début** du nom (ex. « cam », « combu », « pompe ») → l’app **propose** uniquement les types de **notre catalogue** qui correspondent (pas d’invention, pas Google).
+2. S’il appuie sur les **2 flèches** (comme aujourd’hui) → la **liste s’ouvre en entier**, groupée comme maintenant (obligatoires / mesure / CVC / terrain).
+
+Gagner du temps à l’ajout d’outillage, sans perdre le menu complet.
+
+### État actuel
+
+`src/components/OutillageParc.tsx` : `<select>` natif + `outillageCatalogParGroupe()`. Pas de filtre au clavier (sauf la recherche native du navigateur, peu fiable sur mobile).
+
+### À construire
+
+- Input + liste filtrée (accents FR : « etalon » trouve « étalonnage », « anem » trouve « anémomètre »)
+- Clic / tap sur les 2 flèches = tout le catalogue
+- Uniquement les types du catalogue ClimaZEN
+- Doigt-friendly (téléphone)
+
+---
+
+## 8. Compte client du bâtiment : tickets panne + voir les docs de SON site
+
+Demandé le 30/08/2026. **Faisable.** Ne pas coder tant qu’Issam n’a pas dit de lancer. Discussion seulement jusqu’ici.
+
+### Ce qu’Issam veut
+
+Sur un **grand site**, la société de maintenance **installe l’app pour le client** (syndic, gardien, facility) :
+
+- **Identifiant + mot de passe**
+- **Pas** pour faire la maintenance
+- **Surveiller** ce qui a été fait sur **son** site
+- **Lancer une demande de panne** (ex. « bureau 17, plus de clim »)
+- La société **reçoit** la demande
+- Le client **accède aux documents de maintenance et aux OT de son site uniquement**
+
+### Règle dure (sécurité)
+
+Aujourd’hui seuls **gérant** et **opérateur** existent (`src/lib/auth.ts`). Les clients sont des **fiches**, pas des comptes.
+
+**Interdit** de lui donner un compte opérateur dans la société : il verrait tous les autres clients, le stock, l’équipe, les CERFA.
+
+Il faut un rôle du type **`client_site`** (ou équivalent) + **filtre dur** : uniquement le(s) chantier(s) liés. Rien d’autre.
+
+### Lien avec le point 1 (QR site)
+
+- **QR collé au local** = ticket rapide **sans** compte
+- **Login client** = suivi + documents + historique
+
+Les deux se complètent.
+
+### À construire (quand Issam lance)
+
+| Client site | Société de maintenance |
+|---|---|
+| Accueil simple : son site, tickets, historique | Accueil tech actuel |
+| « Signaler une panne » → ticket | Arrive en OT (comme « Client appelle ») |
+| Lecture OT, rapports, fiches (et CERFA du parc **s’il est calé**) | Travail + clôture |
+| Pas de stock, pas d’autres clients, pas d’équipe, pas d’outillage | Coffre société intact |
+
+### À caler avant de coder
+
+1. Un login par syndic / gardien / plusieurs personnes du même site ?
+2. Un site ou tous les sites du même client ?
+3. Il **voit** CERFA / photos, ou seulement le rapport « ce qu’on a fait » ?
+4. Lecture seule + création de ticket, ou aussi commenter / valider une présence ?
+
+Chantier **plus gros** que 5–7 : comptes, droits, écran dédié. Ne pas le mélanger avec le tableau de bord Accueil (point 6).
+
+---
+
+## 9. Plusieurs techs sur le même OT — un saisit tout, le rapport nomme les intervenants *(prochainement)*
+
+Demandé le 30/08/2026. **Faisable.** Ne pas coder tant qu’Issam n’a pas dit de lancer.
+
+### Ce qu’Issam veut
+
+On peut **envoyer un ou plusieurs techs** sur le **même** OT (binôme, renfort).
+
+- **Un seul** tech peut tout **valider** : saisie du **rapport**, **signatures**, **tous les docs** (CERFA, fiches, clôture).
+- Le 2ᵉ **n’a pas** à retaper ni à re-signer le dossier.
+- Sur le **rapport OT**, on **indique le nom de chaque tech présent** sur l’intervention → **traçabilité des intervenants** (qui était là), pas deux dossiers.
+
+### État actuel
+
+Un OT = **un** `technicien` + **un** `technicienUserId`. L’autre tech **ne voit pas** l’OT dans sa liste. Un rapport, une signature tech.
+
+### À construire
+
+1. Liste d’intervenants sur l’OT (Tech A, Tech B, …) — pas un seul menu.
+2. Les **deux** voient le même n° OT.
+3. **N’importe lequel** (en pratique le chef de binôme) remplit rapport + docs + signatures + clôture.
+4. Le **PDF / rapport OT** affiche clairement : « Intervenants : … / … » (traçabilité).
+5. Ce n’est **pas** un 2ᵉ CERFA ni un 2ᵉ pointage automatique (le pointage heures = point 2, autre sujet).
+
+---
+
+## Hors scope de cette liste (ne pas mélanger)
+
+- Ne pas merger une PR sans **« lance maj »**
+- Loula / Vapi : autre sujet, seulement si Issam le demande
+- GPS / PTI : attendre les règles métier + unités renouvelées
