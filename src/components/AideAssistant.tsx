@@ -26,6 +26,8 @@ import { wantsStockPieceQuery, answerStockPieceQuery } from '../lib/assistantSto
 import {
   wantsOtLookup,
   answerOtLookupOuDeplacer,
+  wantsOtDeplacerOuDecaler,
+  proposeDecalerOt,
 } from '../lib/assistantOtLookup'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
@@ -78,9 +80,10 @@ Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_
     '\n\nExemples :\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
     '• « Préviens-moi quand le compresseur arrive »\n' +
-    '• « OT de Karim Benali aujourd’hui — décale-le »\n' +
+    '• « Décale l’OT de 7h à 9h » (puis « oui »)\n' +
+    '• « OT de Karim Benali aujourd’hui »\n' +
     '• « Crée un OT pour Mr Martin, site Atelier »\n\n' +
-    'Je ne déforme jamais un nom. Interdit : supprimer un OT (retirer / déplacer à la place).'
+    'Je ne déforme jamais un nom. Interdit : supprimer un OT (croix rouge Agenda = retirer).'
   )
 }
 
@@ -111,6 +114,7 @@ export function AideAssistant() {
     upsertCommandeFournisseur,
     upsertPieceDetachee,
     upsertPieceVeille,
+    upsertOrdreTravail,
     upsertAiPendingValidation,
     appEdition,
   } = useStore()
@@ -291,6 +295,7 @@ export function AideAssistant() {
         upsertCommandeFournisseur,
         upsertPieceDetachee,
         upsertPieceVeille,
+        upsertOrdreTravail,
       })
       setPendingTerrain(null)
       pushAssistant(result.message)
@@ -365,10 +370,21 @@ export function AideAssistant() {
         return
       }
 
-      // Retrouver / décaler OT par tech — lookup local (pas d’hallucination de nom)
+      // Retrouver / décaler OT — si heures fournies → proposition (oui = applique Agenda)
       if (wantsOtLookup(q)) {
         setSource('local')
         setPendingCreate(null)
+        if (wantsOtDeplacerOuDecaler(q)) {
+          const proposal = proposeDecalerOt(data, q, team)
+          if (proposal.ok) {
+            setPendingTerrain(proposal.action)
+            pushAssistant(proposal.action.summary)
+            return
+          }
+          setPendingTerrain(null)
+          pushAssistant(proposal.message)
+          return
+        }
         setPendingTerrain(null)
         pushAssistant(answerOtLookupOuDeplacer(data, q, team))
         return
@@ -383,7 +399,7 @@ export function AideAssistant() {
         setSource('local')
         pushAssistant(
           AI_HOW_I_WORK +
-            '\n\nExemples : « OT de Karim Benali aujourd’hui » · « combien de filtre M5 ? » · « préviens-moi quand le M5 arrive »',
+            '\n\nExemples : « décale l’OT de 7h à 9h » · « OT de Karim Benali aujourd’hui » · « combien de filtre M5 ? »',
         )
         return
       }

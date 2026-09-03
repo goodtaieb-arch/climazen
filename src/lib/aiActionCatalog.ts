@@ -62,6 +62,11 @@ export const AI_ACTION_DOMAINS = [
       'Préviens-moi quand le filtre M5 arrive',
     ],
   },
+  {
+    id: 'decaler_ot',
+    label: 'Décaler heure OT (Agenda)',
+    examples: ['Décale l’OT de 7h à 9h', 'OT de Karim de 7h00 à 9h00'],
+  },
 ] as const
 
 export type AiActionDomainId = (typeof AI_ACTION_DOMAINS)[number]['id']
@@ -124,12 +129,13 @@ export function answerAnnulerOtGuide(raw?: string): string {
 
 export const AI_HOW_I_WORK = `Comment je fonctionne (à retenir) :
 1) Je PROPOSE — je n’écris rien toute seule.
-2) Vous dites « oui » (ou Valider sur Accueil) → alors l’app crée.
+2) Vous dites « oui » (ou Valider sur Accueil) → alors l’app crée / applique.
 3) Je peux LIRE le stock pièces et les commandes fournisseur (ex. « combien de filtre M5 ? », « le compresseur est arrivé ? »).
 4) « Préviens-moi quand le filtre M5 arrive » → veille : Accueil est notifié à la réception.
-5) Je ne SUPPRIME pas (annuler OT = interdit). Pour corriger un planning : retirer (croix rouge Agenda) ou déplacer.
+5) Je ne SUPPRIME pas (annuler OT = interdit). Croix rouge Agenda = retirer du tech.
 6) Je retrouve un OT par le nom EXACT du tech (équipe) — je ne déforme jamais un nom.
-7) Signature, clôture OT, PDF CERFA final = toujours vous.`
+7) Décaler l’heure : « décale l’OT de 7h à 9h » → je propose → « oui » = heure changée sur l’Agenda (sans ouvrir la fiche OT).
+8) Signature, clôture OT, PDF CERFA final = toujours vous.`
 
 export const AI_UNIFIED_SYSTEM_RULES = `${AI_HUMAN_GATE}
 
@@ -147,8 +153,9 @@ Règles d’or :
 6) Prefère les clients/sites/pièces listés dans le contexte.
 7) Si l’utilisateur dit « annule / anulle / supprime l’OT » : tu ne peux pas annuler (= supprimer), mais il peut RETIRER (croix rouge Agenda) ou DÉPLACER. Explique toujours les deux.
 8) Questions stock / arrivée pièce : réponds avec les quantités et le statut commande du contexte (reçue vs commandée). Si « préviens-moi », propose une veille.
+9) « Décale l’OT de 7h à 9h » : l’app locale propose le décalage d’heure ; après « oui » l’heure change sur l’Agenda — NE PAS ouvrir la fiche OT complète, NE PAS inventer de navigation formulaire.
 10) NOMS DE PERSONNES : INTERDIT d’inventer, corriger ou découper un nom (ex. « Benali » → « Ben Lai »). Copie EXACTEMENT le nom du message utilisateur OU le nom officiel de la liste Équipe / OT du contexte. Si tu ne trouves pas, dis « je ne trouve pas X » avec le même orthographe, et propose les techs proches de la liste.
-11) « Décale / déplace l’OT de [tech] aujourd’hui » : cherche dans le contexte OT + équipe. Si trouvé, cite le n° OT officiel et explique Agenda (reposer / croix rouge). Ne dis pas « introuvable » si le tech et l’OT sont dans le contexte.
+11) « OT de [tech] aujourd’hui » : cherche dans le contexte OT + équipe. Si trouvé, cite le n° OT officiel. Pour décaler avec heures précises, l’app locale gère ; sinon cite le n° et l’heure actuelle.
 
 Actions JSON (à la FIN de la réponse, un seul bloc) :
 
@@ -177,7 +184,7 @@ Pièce magasin :
 {"action":"propose_create_piece","reference":"FILTRE-M5","designation":"Filtre plissé M5","quantite":10,"emplacement":"atelier"}
 \`\`\`
 
-Agenda / client / bouteille / détecteur / fiche / stock lecture : l’app les détecte aussi en langage naturel (sans JSON).
+Agenda / client / bouteille / détecteur / fiche / stock lecture / décalage heure OT : l’app les détecte aussi en langage naturel (sans JSON).
 
 typeOt : controle_etancheite | maintenance | depanage | demantelement | entretien | installation | devis
 `

@@ -17,6 +17,7 @@ import {
   wantsStockPieceVeille,
 } from './assistantStockPieces'
 import { matchTechInTeam, techsFromOts } from './assistantOtLookup'
+import { formatOtNumero } from './ordreTravail'
 
 function normalize(s: string): string {
   return (s || '')
@@ -131,6 +132,7 @@ export type TerrainActionKind =
   | 'commande'
   | 'piece'
   | 'piece_veille'
+  | 'decaler_ot'
 
 export type PendingTerrainAction =
   | {
@@ -218,6 +220,15 @@ export type PendingTerrainAction =
       query: string
       pieceId?: string
       commandeId?: string
+      summary: string
+    }
+  | {
+      kind: 'decaler_ot'
+      otId: string
+      otNumero: string
+      heureFrom: string
+      heureTo: string
+      date: string
       summary: string
     }
 
@@ -906,6 +917,11 @@ export type TerrainDeps = {
   upsertPieceVeille?: (
     v: Omit<import('./assistantStockPieces').PieceVeille, 'id'> & { id?: string },
   ) => string
+  upsertOrdreTravail?: (
+    o: Omit<import('./ordreTravail').OrdreTravail, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
+  ) => string
 }
 
 export async function executeTerrainAction(
@@ -1163,6 +1179,23 @@ export async function executeTerrainAction(
         deps.userName ? ` (demande de ${deps.userName})` : ''
       }.`,
       navigateTo: `/app/commandes?veille=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind === 'decaler_ot') {
+    if (!deps.upsertOrdreTravail) throw new Error('Décalage OT indisponible.')
+    const ot = (deps.data.ordresTravail || []).find((o) => o.id === action.otId)
+    if (!ot) throw new Error(`OT ${action.otNumero} introuvable.`)
+    const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = ot
+    deps.upsertOrdreTravail({
+      ...rest,
+      id: ot.id,
+      heure: action.heureTo,
+      date: action.date || ot.date,
+    })
+    return {
+      message: `${formatOtNumero(ot.numero)} décalé : ${action.heureFrom} → ${action.heureTo}. Agenda mis à jour.`,
+      navigateTo: `/app/agenda`,
     }
   }
 
