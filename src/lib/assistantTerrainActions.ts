@@ -9,6 +9,13 @@ import type { AppData, ContenantType, DetecteurManuel, Equipement, Site, StockIt
 import { blankFicheMaintenanceClim } from './ficheMaintenanceClim'
 import { clientDisplayName } from './types'
 import { allEquipements } from './cerfaBatch'
+import {
+  extractPieceQuery,
+  findCommandesMatching,
+  findPiecesMatching,
+  summarizePieceVeilleProposal,
+  wantsStockPieceVeille,
+} from './assistantStockPieces'
 
 function normalize(s: string): string {
   return (s || '')
@@ -95,6 +102,7 @@ export type TerrainActionKind =
   | 'devis'
   | 'commande'
   | 'piece'
+  | 'piece_veille'
 
 export type PendingTerrainAction =
   | {
@@ -173,6 +181,13 @@ export type PendingTerrainAction =
       designation: string
       quantite: number
       emplacement: 'atelier' | 'depot' | 'vehicule'
+      summary: string
+    }
+  | {
+      kind: 'piece_veille'
+      query: string
+      pieceId?: string
+      commandeId?: string
       summary: string
     }
 
@@ -472,7 +487,7 @@ function parseCreateClientIntent(raw: string, n: string): PendingTerrainAction |
   }
 }
 
-export function parseTerrainIntent(text: string): PendingTerrainAction | null {
+export function parseTerrainIntent(text: string, data?: AppData): PendingTerrainAction | null {
   const raw = (text || '').trim()
   const n = normalize(raw)
   if (!raw) return null
@@ -528,6 +543,21 @@ export function parseTerrainIntent(text: string): PendingTerrainAction | null {
   }
 
   // Devis / commande / pièce AVANT bouteille (sinon « stock magasin pièce » → fausse bouteille)
+  // Veille « préviens-moi quand X arrive »
+  if (wantsStockPieceVeille(raw)) {
+    const query = extractPieceQuery(raw) || raw.trim().slice(0, 60)
+    if (query.length >= 2) {
+      const pieceHit = findPiecesMatching(data?.piecesDetachees, query)[0]?.piece
+      const commandeHit = findCommandesMatching(data?.commandesFournisseur, query)[0]?.commande
+      return {
+        kind: 'piece_veille',
+        query,
+        pieceId: pieceHit?.id,
+        commandeId: commandeHit?.id,
+        summary: summarizePieceVeilleProposal({ query, pieceHit, commandeHit }),
+      }
+    }
+  }
   if (/\bdevis\b/.test(n) && /(?:cree|creer|prepare|preparer|fais|faire|nouveau)\b/.test(n)) {
     const clientQuery =
       raw.match(/(?:mr|m\.|monsieur|mme|madame|client|pour)\s+([A-Za-zÀ-ÿ0-9'’\-\s]{2,40}?)(?:\s+site|\s+devis|\s+\d|$)/i)?.[1]?.trim() ||
@@ -826,6 +856,9 @@ export type TerrainDeps = {
       id?: string
     },
   ) => string
+  upsertPieceVeille?: (
+    v: Omit<import('./assistantStockPieces').PieceVeille, 'id'> & { id?: string },
+  ) => string
 }
 
 export async function executeTerrainAction(
@@ -1036,6 +1069,25 @@ export async function executeTerrainAction(
     return {
       message: `Pièce « ${action.reference} » ajoutée au magasin (${action.emplacement}).`,
       navigateTo: `/app/stock-pieces?id=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind === 'piece_veille') {
+    if (!deps.upsertPieceVeille) throw new Error('Veille stock indisponible.')
+    const id = deps.upsertPieceVeille({
+      query: action.query,
+      pieceId: action.pieceId,
+      commandeId: action.commandeId,
+      demandeurUserId: deps.userId,
+      demandeurName: deps.userName,
+      statut: 'active',
+      createdAt: new Date().toISOString(),
+    })
+    return {
+      message: `Veille enregistrée pour « ${action.query} ». Quand la pièce arrivera (commande reçue), Accueil sera notifié${
+        deps.userName ? ` (demande de ${deps.userName})` : ''
+      }.`,
+      navigateTo: `/app/commandes`,
     }
   }
 

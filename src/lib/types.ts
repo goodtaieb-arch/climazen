@@ -832,6 +832,11 @@ export interface AppData {
    */
   aiPendingValidations?: import('./aiPendingValidation').AiPendingValidation[]
   /**
+   * Veilles stock pièces — « préviens-moi quand X arrive » (tech / Lola).
+   * Notifie Accueil quand la commande passe en reçue / la pièce entre.
+   */
+  pieceVeilles?: import('./assistantStockPieces').PieceVeille[]
+  /**
    * Ids supprimés (tombstones) — la sync ne doit pas les réimporter depuis le cloud.
    */
   deletedEntityIds?: import('./deletedEntities').DeletedEntityIds

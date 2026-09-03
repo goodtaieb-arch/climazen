@@ -114,6 +114,7 @@ import {
   type PieceDetachee,
   type PieceMouvementKind,
 } from './piecesDetachees'
+import { veillesANotifier, type PieceVeille } from './assistantStockPieces'
 
 type Store = {
   data: AppData
@@ -199,6 +200,9 @@ type Store = {
   marquerCommandeRecue: (commandeId: string) => void
   upsertPieceDetachee: (
     p: Omit<PieceDetachee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  upsertPieceVeille: (
+    v: Omit<PieceVeille, 'id'> & { id?: string },
   ) => string
   deletePieceDetachee: (id: string) => void
   enregistrerMouvementPiece: (opts: {
@@ -1409,6 +1413,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         let pieces = [...(d.piecesDetachees || [])]
         let pieceMvts = [...(d.piecesMouvements || [])]
         const devientRecue = next.statut === 'recue' && existing?.statut !== 'recue'
+        let aiPending = [...(d.aiPendingValidations || [])]
+        let pieceVeilles = [...(d.pieceVeilles || [])]
         if (devientRecue) {
           try {
             const result = receptionCommandeEnStock({
@@ -1421,6 +1427,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (result.created) pieces.push(result.piece)
             else pieces = pieces.map((p) => (p.id === result.piece.id ? result.piece : p))
             pieceMvts.push(result.mouvement)
+
+            const hits = veillesANotifier(pieceVeilles, {
+              piece: result.piece,
+              commande: next,
+            })
+            for (const v of hits) {
+              pieceVeilles = pieceVeilles.map((x) =>
+                x.id === v.id ? { ...x, statut: 'notifiee' as const, notifiedAt: now } : x,
+              )
+              const pendingId = uuid()
+              aiPending = [
+                {
+                  id: pendingId,
+                  createdAt: now,
+                  updatedAt: now,
+                  source: 'system' as const,
+                  kind: 'commande' as const,
+                  title: `Pièce arrivée — ${v.query}`,
+                  summary: [
+                    `La pièce / commande « ${v.query} » est reçue en stock.`,
+                    `Commande ${next.numero} · ${next.libelle}`,
+                    v.demandeurName ? `Demandé par : ${v.demandeurName}` : null,
+                    `Magasin : ${result.piece.designation} → ${result.piece.quantite} ${result.piece.unite || 'u'}`,
+                  ]
+                    .filter(Boolean)
+                    .join('\n'),
+                  callerHint: v.demandeurName,
+                  statut: 'a_valider' as const,
+                  assigneeUserId: v.demandeurUserId,
+                  assigneeName: v.demandeurName,
+                },
+                ...aiPending,
+              ]
+            }
           } catch {
             /* référence manquante */
           }
@@ -1468,6 +1508,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...d,
           piecesDetachees: pieces,
           piecesMouvements: pieceMvts,
+          pieceVeilles,
+          aiPendingValidations: aiPending,
           commandesFournisseur: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
@@ -1652,6 +1694,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         let pieces = [...(d.piecesDetachees || [])]
         let mouvements = [...(d.piecesMouvements || [])]
+        let aiPending = [...(d.aiPendingValidations || [])]
+        let pieceVeilles = [...(d.pieceVeilles || [])]
+        let pieceRecue: PieceDetachee | undefined
 
         if (cmd.statut !== 'recue') {
           try {
@@ -1668,8 +1713,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               pieces = pieces.map((p) => (p.id === result.piece.id ? result.piece : p))
             }
             mouvements.push(result.mouvement)
+            pieceRecue = result.piece
           } catch {
             /* commande sans référence exploitable — on marque quand même reçue */
+          }
+        }
+
+        if (pieceRecue || cmd.statut !== 'recue') {
+          const nextCmd = { ...cmd, statut: 'recue' as const, recueAt: now, updatedAt: now }
+          const hits = veillesANotifier(pieceVeilles, {
+            piece: pieceRecue,
+            commande: nextCmd,
+          })
+          for (const v of hits) {
+            pieceVeilles = pieceVeilles.map((x) =>
+              x.id === v.id ? { ...x, statut: 'notifiee' as const, notifiedAt: now } : x,
+            )
+            aiPending = [
+              {
+                id: uuid(),
+                createdAt: now,
+                updatedAt: now,
+                source: 'system' as const,
+                kind: 'commande' as const,
+                title: `Pièce arrivée — ${v.query}`,
+                summary: [
+                  `La pièce / commande « ${v.query} » est reçue en stock.`,
+                  `Commande ${nextCmd.numero} · ${nextCmd.libelle}`,
+                  v.demandeurName ? `Demandé par : ${v.demandeurName}` : null,
+                  pieceRecue
+                    ? `Magasin : ${pieceRecue.designation} → ${pieceRecue.quantite} ${pieceRecue.unite || 'u'}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join('\n'),
+                callerHint: v.demandeurName,
+                statut: 'a_valider' as const,
+                assigneeUserId: v.demandeurUserId,
+                assigneeName: v.demandeurName,
+              },
+              ...aiPending,
+            ]
           }
         }
 
@@ -1677,6 +1761,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...d,
           piecesDetachees: pieces,
           piecesMouvements: mouvements,
+          pieceVeilles,
+          aiPendingValidations: aiPending,
           commandesFournisseur: (d.commandesFournisseur || []).map((c) =>
             c.id === commandeId
               ? { ...c, statut: 'recue' as const, recueAt: now, updatedAt: now }
@@ -1713,6 +1799,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return {
           ...d,
           piecesDetachees: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [...list, next],
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const upsertPieceVeille = useCallback(
+    (raw: Omit<PieceVeille, 'id'> & { id?: string }) => {
+      const id = raw.id ?? uuid()
+      setData((d) => {
+        const list = d.pieceVeilles || []
+        const existing = list.find((x) => x.id === id)
+        const next: PieceVeille = {
+          ...raw,
+          id,
+          query: (raw.query || '').trim(),
+          statut: raw.statut || 'active',
+          createdAt: existing?.createdAt ?? raw.createdAt ?? new Date().toISOString(),
+        }
+        return {
+          ...d,
+          pieceVeilles: existing
             ? list.map((x) => (x.id === id ? next : x))
             : [...list, next],
         }
@@ -3364,6 +3475,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       creerOtDepuisDevis,
       marquerCommandeRecue,
       upsertPieceDetachee,
+      upsertPieceVeille,
       deletePieceDetachee,
       enregistrerMouvementPiece,
       upsertAgendaEvent,
@@ -3450,6 +3562,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       creerOtDepuisDevis,
       marquerCommandeRecue,
       upsertPieceDetachee,
+      upsertPieceVeille,
       deletePieceDetachee,
       enregistrerMouvementPiece,
       upsertAgendaEvent,

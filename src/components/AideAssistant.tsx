@@ -15,7 +15,11 @@ import {
   resolveCreateOtCerfa,
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
-import { catalogSummaryForPrompt, isForbiddenClaim } from '../lib/aiActionCatalog'
+import { catalogSummaryForPrompt, isForbiddenClaim, wantsAnnulerOt, answerAnnulerOtGuide, AI_HOW_I_WORK } from '../lib/aiActionCatalog'
+import {
+  wantsStockPieceQuery,
+  answerStockPieceQuery,
+} from '../lib/assistantStockPieces'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
@@ -58,14 +62,16 @@ ${aiTierUpsellMessage('none') ?? ''}
 Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
   }
   return (
-    'Intelligence ClimaZEN — accès A→Z. Je propose, vous validez (obligatoire).\n\n' +
+    'Intelligence ClimaZEN — je propose, vous validez.\n\n' +
+    AI_HOW_I_WORK +
+    '\n\nJe peux notamment :\n' +
     catalogSummaryForPrompt() +
     '\n\nExemples :\n' +
-    '• « Crée un OT pour Mr Martin, site Atelier, contrôle d’étanchéité »\n' +
-    '• « Prépare un devis pour Dupont »\n' +
-    '• « Commande un compresseur chez Daikin »\n' +
-    '• « Agenda RDV demain 14h pour Mr Martin »\n\n' +
-    'Interdit sans vous : signature, clôture OT, PDF CERFA final, suppressions.'
+    '• « Combien de filtre M5 en stock ? »\n' +
+    '• « Préviens-moi quand le compresseur arrive »\n' +
+    '• « Crée un OT pour Mr Martin, site Atelier »\n' +
+    '• « Agenda RDV demain 14h »\n\n' +
+    'Interdit : supprimer un OT. Pour corriger : retirer (croix rouge) ou déplacer.'
   )
 }
 
@@ -95,6 +101,7 @@ export function AideAssistant() {
     upsertDevis,
     upsertCommandeFournisseur,
     upsertPieceDetachee,
+    upsertPieceVeille,
     upsertAiPendingValidation,
     appEdition,
   } = useStore()
@@ -245,6 +252,7 @@ export function AideAssistant() {
         upsertDevis,
         upsertCommandeFournisseur,
         upsertPieceDetachee,
+        upsertPieceVeille,
       })
       setPendingTerrain(null)
       pushAssistant(result.message)
@@ -301,8 +309,37 @@ export function AideAssistant() {
         return
       }
 
+      // Annuler OT = supprimer → interdit ; expliquer retirer / déplacer
+      if (wantsAnnulerOt(q)) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(answerAnnulerOtGuide(q))
+        return
+      }
+
+      // Lecture stock pièces / arrivée (temps réel, sans écriture)
+      if (wantsStockPieceQuery(q)) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(answerStockPieceQuery(data, q))
+        return
+      }
+
+      // Comment tu marches ?
+      if (
+        /comment\s+(tu|vous)\s+(marche|fonctionne|travaille)|ce\s+que\s+tu\s+(fais|peux)|comment\s+lola/i.test(
+          q,
+        )
+      ) {
+        setSource('local')
+        pushAssistant(AI_HOW_I_WORK + '\n\nExemples : « combien de filtre M5 ? » · « préviens-moi quand le M5 arrive » · « crée un OT… »')
+        return
+      }
+
       // 1) Actions terrain (détecteur, bouteille, fiche, agenda) — Agent IA uniquement
-      const terrain = parseTerrainIntent(q)
+      const terrain = parseTerrainIntent(q, data)
       if (terrain) {
         if (!agentOk) {
           pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
@@ -318,7 +355,9 @@ export function AideAssistant() {
           kind:
             terrain.kind === 'devis'
               ? 'devis'
-              : terrain.kind === 'commande' || terrain.kind === 'piece'
+              : terrain.kind === 'commande' ||
+                  terrain.kind === 'piece' ||
+                  terrain.kind === 'piece_veille'
                 ? 'commande'
                 : terrain.kind === 'agenda'
                   ? 'agenda'
@@ -400,7 +439,7 @@ export function AideAssistant() {
 
       // L’IA a parfois dit « c’est fait » sans rien créer → ne pas laisser croire
       if (isForbiddenClaim(reply)) {
-        const retry = agentOk ? parseTerrainIntent(q) : null
+        const retry = agentOk ? parseTerrainIntent(q, data) : null
         if (retry) {
           setPendingCreate(null)
           setPendingTerrain(retry)
