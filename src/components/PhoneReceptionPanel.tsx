@@ -5,6 +5,7 @@ import { VoiceDictationButton } from './VoiceDictationButton'
 import { useStore } from '../lib/store'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import { fetchTelephonyConfig } from '../lib/telephony'
+import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 
 type Props = {
   onApplyOtAction?: (action: string, localisation?: string) => void
@@ -89,6 +90,7 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
             Collez ou dictez la transcription — Lola propose, le responsable du secteur valide
             sur Accueil (rien n’est créé sans OK).
           </p>
+          <AiLearningInfoNotice variant="compact" className="mt-2" />
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { clearOrgOpenaiKey, fetchOrgOpenaiStatus, saveOrgOpenaiKey } from '../lib/orgOpenai'
 import { LOLA_SETUP_LINKS } from '../lib/lolaSetupLinks'
 import { SetupLink } from './SetupLink'
+import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 
 /**
  * Étape 1 — une clé OpenAI (site + Lola). Liens officiels pile sur la bonne page.
@@ -90,6 +91,8 @@ export function OpenaiOrgKeyPanel() {
           </p>
         </div>
       </div>
+
+      <AiLearningInfoNotice variant="full" className="mt-3" dismissible />
 
       <ol className="mt-4 space-y-2 text-sm text-ink">
         <li>

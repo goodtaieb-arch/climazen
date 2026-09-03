@@ -36,6 +36,7 @@ import {
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { learnAiVocabulary, learnAiVocabularyCorrection } from '../lib/aiVocabulary'
 import { applySpeechCorrections } from '../lib/speech'
+import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 
 type ChatLine = AideMessage & { id: string }
 
@@ -479,6 +480,7 @@ export function AideAssistant() {
           </div>
 
           <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+            {chatbotOk ? <AiLearningInfoNotice variant="compact" /> : null}
             {lines.map((m) => (
               <div
                 key={m.id}

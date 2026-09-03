@@ -1,11 +1,15 @@
 /**
  * Extraction + apprentissage vocabulaire technique (froid / clim / CERFA).
+ * Collecte UNIQUEMENT du jargon métier — jamais les données confidentielles brutes.
  * Partagé : OpenAI (site + accueil téléphone), tickets, e-mails, voix.
  */
 
 import { supabaseRpc } from './supabaseServer.js'
 
 /** @typedef {'gemini'|'openai'|'phone'|'email'|'ticket'|'voice'|'manual'|'seed'} AiVocabSource */
+
+export const AI_LEARNING_INFO_FR =
+  'ClimaZEN apprend uniquement le vocabulaire technique (PAC, R-32, CERFA…) pour mieux comprendre votre métier. Les données confidentielles (noms, téléphones, adresses, e-mails, SIRET…) ne sont pas enregistrées pour cet apprentissage.'
 
 const FLUID_RE = /\bR[-\s]?(\d{2,3}[a-z]?)\b/gi
 const FLUID_WORD_RE = /\b(erre|air)\s+(\d{3})\b/gi
@@ -33,6 +37,57 @@ const KEYWORD_TERMS = [
   { re: /\bclim\b/i, canonical: 'climatisation', domain: 'metier' },
   { re: /\bpompe\s+[àa]\s+chaleur\b/i, canonical: 'PAC', domain: 'equipement' },
 ]
+
+/**
+ * Retire e-mails, tél, SIRET, adresses approximatives, civilités+noms
+ * avant tout journal d’apprentissage.
+ * @param {string} text
+ */
+export function anonymizeForLearning(text) {
+  let out = String(text || '')
+  if (!out.trim()) return ''
+
+  out = out.replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi, '[email]')
+  out = out.replace(
+    /(?:\+33|0033|0)\s*[1-9](?:[\s./-]?\d{2}){4}|\+\d{1,3}[\s./-]?\d[\d\s./-]{6,14}\d/g,
+    '[tel]',
+  )
+  out = out.replace(/\b\d{3}\s?\d{3}\s?\d{3}\s?\d{5}\b/g, '[siret]')
+  out = out.replace(/\b\d{3}\s?\d{3}\s?\d{3}\b/g, '[siren]')
+  out = out.replace(/\b\d{5}\b/g, '[cp]')
+  out = out.replace(
+    /\b\d{1,4}\s*(?:bis|ter)?\s*(?:rue|av\.?|avenue|bd|boulevard|impasse|all[ée]e|chemin|place|route)\s+[A-Za-zÀ-ÿ0-9'’\-]{1,40}(?:\s+[A-Za-zÀ-ÿ0-9'’\-]{1,40}){0,4}/gi,
+    '[adresse]',
+  )
+  out = out.replace(
+    /\b(?:m\.|mr|mme|madame|monsieur|mlle)\s+[A-Za-zÀ-ÿ'’\-]{2,40}(?:\s+[A-Za-zÀ-ÿ'’\-]{2,40})?/gi,
+    '[client]',
+  )
+  out = out.replace(
+    /\b(?:client|chez|pour)\s+[A-Za-zÀ-ÿ'’\-]{2,40}(?:\s+[A-Za-zÀ-ÿ'’\-]{2,40})?/gi,
+    (m) => {
+      const head = m.split(/\s+/)[0]
+      return `${head} [client]`
+    },
+  )
+
+  return out.replace(/\s{2,}/g, ' ').trim().slice(0, 4000)
+}
+
+/**
+ * Métadonnées sans champs sensibles.
+ * @param {object} [metadata]
+ */
+export function sanitizeLearningMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object') return {}
+  const allowed = ['intent', 'agent', 'source', 'urgent', 'termsFromModel', 'pathname', 'termsCount']
+  /** @type {Record<string, unknown>} */
+  const out = { anonymized: true }
+  for (const k of allowed) {
+    if (metadata[k] !== undefined) out[k] = metadata[k]
+  }
+  return out
+}
 
 /**
  * @param {string} text
@@ -77,7 +132,6 @@ export function extractTechnicalMentions(text) {
 }
 
 /**
- * Détecte une correction vocale / reformulation pour apprendre un alias.
  * @param {string} before
  * @param {string} after
  */
@@ -93,10 +147,13 @@ export function extractCorrectionPair(before, after) {
   const lastAfter = termsAfter[termsAfter.length - 1]
   const aliasFromBefore = termsBefore.find((t) => t.canonical !== lastAfter.canonical)
   if (aliasFromBefore) {
-    return { canonical: lastAfter.canonical, alias: aliasFromBefore.alias || aliasFromBefore.canonical, domain: lastAfter.domain }
+    return {
+      canonical: lastAfter.canonical,
+      alias: aliasFromBefore.alias || aliasFromBefore.canonical,
+      domain: lastAfter.domain,
+    }
   }
 
-  // Mot remplacé en fin de phrase
   const bWords = b.split(/\s+/).filter(Boolean)
   const aWords = a.split(/\s+/).filter(Boolean)
   if (bWords.length >= 2 && aWords.length >= 1) {
@@ -134,6 +191,7 @@ export async function fetchVocabularyContext(orgId, limit = 80) {
 }
 
 /**
+ * Apprend UNIQUEMENT les termes techniques. Le journal stocke une version anonymisée.
  * @param {object} opts
  * @param {string} opts.orgId
  * @param {string} opts.text
@@ -142,7 +200,7 @@ export async function fetchVocabularyContext(orgId, limit = 80) {
  * @param {object} [opts.metadata]
  */
 export async function learnFromText({ orgId, text, agent, normalizedText, metadata }) {
-  if (!orgId || !text?.trim()) return { learned: 0, terms: [] }
+  if (!orgId || !text?.trim()) return { learned: 0, terms: [], anonymized: true }
 
   const mentions = extractTechnicalMentions(text)
   let learned = 0
@@ -163,20 +221,31 @@ export async function learnFromText({ orgId, text, agent, normalizedText, metada
     }
   }
 
+  const safeText = anonymizeForLearning(text)
+  const safeNorm = anonymizeForLearning(normalizedText || normalizeTechnicalText(text))
+  const journalText =
+    mentions.length > 0
+      ? `Vocabulaire: ${mentions.map((m) => m.canonical).join(', ')}. Contexte: ${safeText.slice(0, 500)}`
+      : safeText
+  const safeMeta = sanitizeLearningMetadata({
+    ...(metadata || {}),
+    termsCount: mentions.length,
+  })
+
   try {
     await supabaseRpc('log_ai_agent_interaction', {
       p_org_id: orgId,
       p_agent: agent,
-      p_raw_text: text.slice(0, 8000),
-      p_normalized_text: (normalizedText || text).slice(0, 8000),
+      p_raw_text: journalText.slice(0, 4000),
+      p_normalized_text: (mentions.length ? journalText : safeNorm).slice(0, 4000),
       p_terms_found: mentions,
-      p_metadata: metadata || {},
+      p_metadata: safeMeta,
     })
   } catch (err) {
     console.warn('log_ai_agent_interaction', err instanceof Error ? err.message : err)
   }
 
-  return { learned, terms: mentions }
+  return { learned, terms: mentions, anonymized: true }
 }
 
 /**
@@ -206,7 +275,6 @@ export async function learnFromCorrection({ orgId, before, after, agent }) {
 }
 
 /**
- * Normalise le texte avec les alias connus (best-effort, côté serveur sans DB lookup complet).
  * @param {string} text
  */
 export function normalizeTechnicalText(text) {

@@ -50,6 +50,12 @@ Exécuter dans l’ordre :
 2. `supabase/ai-telephony-security.sql`
 3. `supabase/ai-org-openai.sql` (clé OpenAI par société)
 
+### Apprentissage vocabulaire (anonymisé)
+
+ClimaZEN collecte **uniquement** le jargon technique (PAC, R-32, CERFA…) pour améliorer
+la compréhension. **Noms, tél, adresses, e-mails, SIRET** sont retirés avant journalisation.
+Un message d’information est affiché dans l’assistant, l’accueil téléphone et Mon entreprise.
+
 ## Intelligence A→Z + validation humaine
 
 Lola (téléphone) et l’assistant site = **une seule intelligence**.
