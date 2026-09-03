@@ -11,9 +11,9 @@
  *   TWILIO_AUTH_TOKEN (optionnel — validation signature)
  */
 
-import { supabaseRpc, supabaseRest } from './lib/supabaseServer.js'
-import { logAiAudit } from './lib/aiAuditLog.js'
-import { normalizeInboundE164 } from './lib/phoneE164.js'
+import { supabaseRpc, supabaseRest } from '../server/lib/supabaseServer.js'
+import { logAiAudit } from '../server/lib/aiAuditLog.js'
+import { normalizeInboundE164 } from '../server/lib/phoneE164.js'
 
 function parseBody(req) {
   const b = req.body

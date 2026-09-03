@@ -369,7 +369,7 @@ async function learnTicketVocabulary(ticket, orgId) {
   const text = [ticket.localisation, ticket.description].filter(Boolean).join(' — ')
   if (!text.trim() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
   try {
-    const { learnFromText, normalizeTechnicalText } = await import('./lib/aiVocabularyCore.js')
+    const { learnFromText, normalizeTechnicalText } = await import('../server/lib/aiVocabularyCore.js')
     await learnFromText({
       orgId,
       text,
