@@ -66,6 +66,59 @@ function cleanupSpeechFillers(raw: string): string {
 }
 
 /**
+ * Corrige les fluides mal dictés (iPhone / Safari découpe souvent R-410A → « R. 4 110 »).
+ * À appliquer après chaque dictée — pas un problème micro, c’est la reconnaissance.
+ */
+export function normalizeSpeechFluides(raw: string): string {
+  let t = String(raw || '')
+  if (!t.trim()) return t
+
+  // Formes orales FR fréquentes
+  const spoken: Array<[RegExp, string]> = [
+    [/\b(?:erre|air|r)\s+trente[- ]?deux\b/gi, 'R-32'],
+    [/\b(?:erre|air|r)\s+quatre[- ]?cent[- ]?dix\s*[aA]?\b/gi, 'R-410A'],
+    [/\b(?:erre|air|r)\s+quatre[- ]?cent[- ]?sept\s*[cC]?\b/gi, 'R-407C'],
+    [/\b(?:erre|air|r)\s+cent[- ]?trente[- ]?quatre\s*[aA]?\b/gi, 'R-134a'],
+    [/\b(?:erre|air|r)\s+quatre[- ]?cent[- ]?cinquante\s*[aA]?\b/gi, 'R-450A'],
+    [/\b(?:erre|air|r)\s+quatre[- ]?cent[- ]?cinquante[- ]?quatre\s*[bB]?\b/gi, 'R-454B'],
+    [/\b(?:erre|air|r)\s+quatre[- ]?cent[- ]?quarante[- ]?huit\s*[aA]?\b/gi, 'R-448A'],
+    [/\b(?:erre|air|r)\s+quatre[- ]?cent[- ]?cinquante[- ]?deux\s*[aA]?\b/gi, 'R-452A'],
+  ]
+  for (const [re, rep] of spoken) t = t.replace(re, rep)
+
+  // Dictée iOS : points / espaces entre R et chiffres (« R. 4 110 », « R 4 10 A »)
+  const dotted: Array<[RegExp, string]> = [
+    // R. 4 110 / R 4110 / R.4110A → R-410A
+    [/\b[Rr]\s*[.\u2026]?\s*4\s*1\s*1\s*0\s*[aA]?\b/g, 'R-410A'],
+    [/\b[Rr]\s*[.\u2026]?\s*4110\s*[aA]?\b/g, 'R-410A'],
+    [/\b[Rr]\s*[.\u2026]?\s*4\s*10\s*[aA]\b/g, 'R-410A'],
+    [/\b[Rr]\s*[.\u2026]?\s*410\s*[aA]\b/g, 'R-410A'],
+    [/\b[Rr]\s*[.\u2026]?\s*410\b/g, 'R-410A'],
+    // R-32
+    [/\b[Rr]\s*[.\u2026]?\s*3\s*2\b/g, 'R-32'],
+    [/\b[Rr]\s*[.\u2026]?\s*32\b/g, 'R-32'],
+    // R-134a
+    [/\b[Rr]\s*[.\u2026]?\s*1\s*3\s*4\s*[aA]\b/g, 'R-134a'],
+    [/\b[Rr]\s*[.\u2026]?\s*134\s*[aA]\b/g, 'R-134a'],
+    // R-407C
+    [/\b[Rr]\s*[.\u2026]?\s*4\s*0\s*7\s*[cC]?\b/g, 'R-407C'],
+    [/\b[Rr]\s*[.\u2026]?\s*407\s*[cC]\b/g, 'R-407C'],
+    // R-448A / R-449A / R-452A / R-454B
+    [/\b[Rr]\s*[.\u2026]?\s*448\s*[aA]\b/g, 'R-448A'],
+    [/\b[Rr]\s*[.\u2026]?\s*449\s*[aA]\b/g, 'R-449A'],
+    [/\b[Rr]\s*[.\u2026]?\s*452\s*[aA]\b/g, 'R-452A'],
+    [/\b[Rr]\s*[.\u2026]?\s*454\s*[bB]\b/g, 'R-454B'],
+    // R410A collé sans tiret
+    [/\bR410\s*[aA]\b/g, 'R-410A'],
+    [/\bR32\b/g, 'R-32'],
+    [/\bR134\s*[aA]\b/g, 'R-134a'],
+  ]
+  for (const [re, rep] of dotted) t = t.replace(re, rep)
+
+  return t.replace(/\s+/g, ' ').trim()
+}
+
+/**
  * Comprend les corrections à la voix :
  * « non plutôt… », « je veux dire… », « en fait… », « pardon… », « correction… »
  * → garde le sens corrigé au lieu d’empiler l’erreur.
@@ -74,12 +127,14 @@ export function applySpeechCorrections(raw: string): string {
   let text = cleanupSpeechFillers(raw)
   if (!text) return ''
 
+  const finish = (s: string) => normalizeSpeechFluides(cleanupSpeechFillers(s))
+
   // Recommencer / effacer
   const restart = text.match(
     /(?:^|\s)(?:recommence(?:r)?|efface(?:r)?(?:\s+tout)?|annule(?:r)?(?:\s+tout)?|recommen[cç]ons)\s*[:,.]?\s*(.*)$/i,
   )
   if (restart) {
-    return cleanupSpeechFillers(restart[1] || '')
+    return finish(restart[1] || '')
   }
 
   const markerRe =
@@ -91,18 +146,18 @@ export function applySpeechCorrections(raw: string): string {
   while ((m = re.exec(text)) !== null) {
     lastMatch = m
   }
-  if (!lastMatch) return text
+  if (!lastMatch) return finish(text)
 
   const after = text.slice(lastMatch.index + lastMatch[0].length).trim()
   const before = text.slice(0, lastMatch.index).trim()
-  if (!after) return cleanupSpeechFillers(before)
+  if (!after) return finish(before)
 
   // Garder le début d’action (« ajoute détecteur ») + la correction
   const lead = before.match(
     /^((?:ajoute[rz]?|cr[eé]e[rz]?|creer|cree|planifie|programme|agenda)\b(?:\s+(?:un|une|le|la|les|des|du|de|d)\b)?(?:\s+[A-Za-zÀ-ÿ0-9'’-]+)?)/i,
   )
   if (lead?.[1]) {
-    return cleanupSpeechFillers(`${lead[1]} ${after}`)
+    return finish(`${lead[1]} ${after}`)
   }
 
   // Sinon : enlever la fin erronée (derniers mots)
@@ -118,7 +173,7 @@ export function applySpeechCorrections(raw: string): string {
     kept = clause
   }
 
-  return cleanupSpeechFillers([kept, after].filter(Boolean).join(' '))
+  return finish([kept, after].filter(Boolean).join(' '))
 }
 
 /**

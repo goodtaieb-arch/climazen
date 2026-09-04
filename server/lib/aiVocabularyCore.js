@@ -284,6 +284,10 @@ export function normalizeTechnicalText(text) {
     [/\bR\s*134\s*a?\b/gi, 'R-134a'],
     [/\bR\s*410\s*A?\b/gi, 'R-410A'],
     [/\bR\s*407\s*C?\b/gi, 'R-407C'],
+    // Dictée iPhone : « R. 4 110 », « R 4110 »
+    [/\bR\s*[.]?\s*4\s*1\s*1\s*0\s*A?\b/gi, 'R-410A'],
+    [/\bR\s*[.]?\s*4110\s*A?\b/gi, 'R-410A'],
+    [/\bR\s*[.]?\s*4\s*10\s*A\b/gi, 'R-410A'],
     [/\bcerfa\b/gi, 'CERFA 15497'],
     [/\bpompe\s+[àa]\s+chaleur\b/gi, 'PAC'],
   ]
