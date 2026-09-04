@@ -64,6 +64,7 @@ import { AiValidationInbox } from '../components/AiValidationInbox'
 import { isTerrainUi } from '../lib/uiMode'
 import { editionHasFeature, isLightEdition, LIGHT_SOLO_FLOW_HINT } from '../lib/appEdition'
 import { AppEditionBadge } from '../components/AppEditionBadge'
+import { TerrainAccueilPointage } from '../components/TerrainAccueilPointage'
 
 const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 
@@ -307,7 +308,7 @@ export function Dashboard() {
             </h1>
             {terrainUi ? (
               <p className="mt-1 text-sm font-medium text-muted">
-                Client appelle, scan QR, sites, OT, CERFA.
+                INT affectées, pointage, scan QR, nouvelle intervention.
               </p>
             ) : appEdition === 'light' ? (
               <p className="mt-1 text-sm font-medium text-muted">{LIGHT_SOLO_FLOW_HINT}</p>
@@ -329,7 +330,7 @@ export function Dashboard() {
               </div>
             ) : null}
           </div>
-          <label className={`relative block w-full md:w-80 ${lightSolo ? 'hidden' : ''}`}>
+          <label className={`relative block w-full md:w-80 ${lightSolo || terrainUi ? 'hidden' : ''}`}>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
             <input
               value={q}
@@ -580,10 +581,12 @@ export function Dashboard() {
           </ul>
         )}
 
-        {/* Menu portable — cercles (mobile) / liste (desktop) */}
-        {!q.trim() && !terrainUi && (
+        {/* Menu portable — cercles (mobile bureau + tech) / liste (desktop bureau) */}
+        {!q.trim() && terrainUi ? <TerrainAccueilPointage /> : null}
+
+        {!q.trim() && !lightSolo && (
           <>
-            <div className="md:hidden">
+            <div className={terrainUi ? '' : 'md:hidden'}>
               <div className="mb-2 flex items-center justify-between gap-2 px-2">
                 <p className="text-xs font-semibold text-muted">
                   {editShortcuts
@@ -735,6 +738,7 @@ export function Dashboard() {
               ) : null}
             </div>
 
+            {!terrainUi ? (
             <nav className="hidden space-y-3 md:block" aria-label="Actions terrain">
               {lightEdition ? (
                 <TerrainAction
@@ -848,6 +852,7 @@ export function Dashboard() {
                 />
               )}
             </nav>
+            ) : null}
           </>
         )}
       </section>

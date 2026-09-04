@@ -38,6 +38,19 @@ export const POINTAGE_ACTIONS_HORS_OT = [
   'fournisseur',
 ] as const
 
+/** Menu « nouvelle entrée hors intervention » (n’clôture pas l’OT). */
+export const POINTAGE_HORS_INT_MENU: {
+  action: PointageActionCanon
+  cible?: PointageCible
+  label: string
+}[] = [
+  { action: 'deplacement', cible: 'hors_ot', label: 'Déplacement hors INT' },
+  { action: 'fournisseur', label: 'Fournisseur' },
+  { action: 'bureau', label: 'Bureau / atelier' },
+  { action: 'pause', label: 'Pause' },
+  { action: 'pause_repas', label: 'Pause repas' },
+]
+
 /** Anciennes actions — toujours lues pour l’historique. */
 export const LEGACY_POINTAGE_ACTIONS = [
   'prise_vehicule',
@@ -424,16 +437,31 @@ export function actionsSuivantes(last?: PointageEvent): PointageActionCanon[] {
     return ['intervention_en_cours', ...HORS_OT_EN_COURS, 'retour_domicile']
   }
   if (etat === 'intervention_en_cours') {
-    return ['fin_intervention', 'pause', 'pause_repas']
+    return ['fin_intervention', 'deplacement', ...HORS_OT_EN_COURS]
   }
   if (etat === 'fin_intervention') {
     return ['deplacement', ...HORS_OT_EN_COURS, 'retour_domicile', 'fin_journee']
   }
   if (etat === 'fournisseur') {
-    return ['deplacement', 'bureau', 'pause', 'pause_repas', 'retour_domicile', 'fin_journee']
+    return [
+      'deplacement',
+      'intervention_en_cours',
+      'bureau',
+      'pause',
+      'pause_repas',
+      'retour_domicile',
+      'fin_journee',
+    ]
   }
   if (etat === 'bureau') {
-    return ['deplacement', 'pause', 'pause_repas', 'retour_domicile', 'fin_journee']
+    return [
+      'deplacement',
+      'intervention_en_cours',
+      'pause',
+      'pause_repas',
+      'retour_domicile',
+      'fin_journee',
+    ]
   }
   if (etat === 'pause' || etat === 'pause_repas') {
     return [

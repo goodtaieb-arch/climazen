@@ -339,6 +339,25 @@ export function OrdresTravailPage() {
 
   const showForm = !!editId || params.get('new') === '1'
 
+  if (!bureau && !showForm) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        <h1 className="font-display text-2xl font-bold">Nouvelle intervention</h1>
+        <p className="text-sm text-muted">
+          Les INT qui vous sont affectées sont sur l’accueil (pointage). Ici vous ouvrez seulement
+          une nouvelle intervention : client, site, et un équipement s’il n’est pas déjà sur la
+          liste.
+        </p>
+        <Link
+          to="/app/appel"
+          className="flex min-h-12 items-center justify-center rounded-2xl bg-accent px-4 text-sm font-bold text-ink"
+        >
+          Nouvelle intervention
+        </Link>
+      </div>
+    )
+  }
+
   if (showForm) {
     return (
       <div className="mx-auto max-w-3xl space-y-5">

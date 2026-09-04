@@ -21,6 +21,7 @@ import {
   POINTAGE_ACTIONS_HORS_OT,
   POINTAGE_ACTIONS_PARCOURS,
   POINTAGE_CIBLE_LABELS,
+  POINTAGE_HORS_INT_MENU,
   actionAutorisee,
   actionsSuivantes,
   arrondirDate,
@@ -111,7 +112,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
       ? otsOuverts.find((o) => o.id === maJournee.otIdCourant)
       : undefined
 
-  const punch = async (action: PointageAction) => {
+  const punch = async (action: PointageAction, cibleOverride?: PointageCible) => {
     if (!user?.id) return
     if (!actif) {
       setMsg('Pointeuse inactive — le bureau doit activer les règles.')
@@ -131,7 +132,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
       otForEvent = ''
     }
     if (canon === 'deplacement') {
-      cible = cibleDeplacement
+      cible = cibleOverride || cibleDeplacement
       if (cible === 'ot' && !otForEvent) {
         setMsg('Choisissez l’OT vers lequel vous vous déplacez.')
         return
@@ -322,12 +323,33 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
         </div>
       ) : null}
 
-      {horsOtBtns.length > 0 ? (
+      {horsOtBtns.length > 0 || next.includes('deplacement') ? (
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
-            Hors OT
+            Nouvelle entrée hors intervention
           </p>
-          <div className="grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>
+          <select
+            disabled={busy}
+            defaultValue=""
+            onChange={(e) => {
+              const v = e.target.value
+              e.target.value = ''
+              const item = POINTAGE_HORS_INT_MENU.find((m) => `${m.action}:${m.cible || ''}` === v)
+              if (!item) return
+              void punch(item.action, item.cible)
+            }}
+            className="h-11 w-full rounded-xl border border-line bg-white px-3 text-sm font-semibold"
+          >
+            <option value="">Choisir (pièce, gasoil, bureau…)</option>
+            {POINTAGE_HORS_INT_MENU.map((m) => (
+              <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          {horsOtBtns.length > 0 ? (
+            <div className="mt-2 grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>
+          ) : null}
         </div>
       ) : null}
 

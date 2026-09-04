@@ -79,8 +79,16 @@ assert.equal(actionAutorisee(eDep, 'intervention_en_cours'), true)
 assert.equal(actionAutorisee(eDep, 'deplacement'), false)
 
 const eInter = ev({ action: 'intervention_en_cours', at: '2026-09-02T08:00:00.000Z', otId: 'ot1' })
-assert.deepEqual(actionsSuivantes(eInter), ['fin_intervention', 'pause', 'pause_repas'])
+assert.ok(actionsSuivantes(eInter).includes('fin_intervention'))
+assert.ok(actionsSuivantes(eInter).includes('deplacement'))
+assert.ok(actionsSuivantes(eInter).includes('fournisseur'))
+assert.ok(actionsSuivantes(eInter).includes('bureau'))
 assert.equal(actionAutorisee(eInter, 'fin_intervention'), true)
+assert.equal(actionAutorisee(eInter, 'fournisseur'), true)
+
+const eFourDuringOt = ev({ action: 'fournisseur', at: '2026-09-02T09:00:00.000Z' })
+assert.ok(actionsSuivantes(eFourDuringOt).includes('intervention_en_cours'))
+assert.ok(actionsSuivantes(eFourDuringOt).includes('deplacement'))
 
 const eFinInter = ev({ action: 'fin_intervention', at: '2026-09-02T11:00:00.000Z', otId: 'ot1' })
 assert.ok(actionsSuivantes(eFinInter).includes('deplacement'))
