@@ -26,7 +26,7 @@ export type HistoriqueEntree = {
 }
 
 const KIND_LABELS: Record<HistoriqueKind, string> = {
-  ot: 'Ordre de travail',
+  ot: 'Intervention',
   cerfa: 'CERFA / intervention',
   fiche_clim: 'Fiche maintenance clim',
   fiche_chaufferie: 'Fiche chaufferie',

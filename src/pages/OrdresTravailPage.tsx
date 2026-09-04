@@ -351,7 +351,7 @@ export function OrdresTravailPage() {
             <ArrowLeft className="h-4 w-4" /> Liste OT
           </button>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
-            {form.numero ? formatOtNumero(form.numero) : 'Nouvel OT / demande'}
+            {form.numero ? formatOtNumero(form.numero) : OT_LABEL.newItem}
           </span>
         </div>
 

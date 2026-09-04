@@ -309,7 +309,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
       ) : otCourant ? (
         <p className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm">
           <MapPin className="mr-1 inline h-4 w-4 text-sky-700" />
-          OT {formatOtNumero(otCourant.numero)} — {otCourant.action || otCourant.typeOt}
+          INT {formatOtNumero(otCourant.numero)} — {otCourant.action || otCourant.typeOt}
         </p>
       ) : null}
 

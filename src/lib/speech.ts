@@ -236,19 +236,21 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
     },
     {
       id: 'appel',
-      label: 'Nouvel appel / OT',
+      label: 'Nouvel appel / intervention',
       path: '/app/appel',
       test: (s) =>
         /\b(appel|panne|urgence)\b/.test(s) ||
-        (/\b(creer|nouveau|nouvelle)\b/.test(s) && /\b(ot|ordre)\b/.test(s)),
+        (/\b(creer|nouveau|nouvelle)\b/.test(s) &&
+          /\b(ot|int|di|ordre|intervention)\b/.test(s)),
     },
     {
       id: 'ot',
-      label: 'OT / Demandes',
+      label: 'Interventions',
       path: '/app/ot',
       test: (s) =>
-        /\b(ordres? de travail|demandes? d['’ ]?intervention|liste ot|\bot\b)\b/.test(s) &&
-        !/\b(creer|nouveau|nouvelle)\b/.test(s),
+        /\b(ordres? de travail|demandes? d['’ ]?intervention|liste (?:ot|int)|interventions?|\bot\b|\bint\b|\bdi\b)\b/.test(
+          s,
+        ) && !/\b(creer|nouveau|nouvelle)\b/.test(s),
     },
     {
       id: 'stock',
@@ -258,9 +260,9 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
     },
     {
       id: 'cerfa',
-      label: 'CERFA / interventions',
+      label: 'CERFA',
       path: '/app/interventions',
-      test: (s) => /\b(cerfa|intervention|fiche)\b/.test(s),
+      test: (s) => /\b(cerfa|fiches?(?:\s+cerfa)?)\b/.test(s),
     },
     {
       id: 'sites',

@@ -224,8 +224,8 @@ export function buildChainePieceProposal(
     return {
       ok: false,
       message: [
-        `Aucun OT avec pièce HS / à commander trouvé dans les rapports.`,
-        `Indiquez le n° OT (ex. « analyse OT26090401 ») ou notez dans Observations : « Ventilo fait bruit — à changer ».`,
+        `Aucune intervention avec pièce HS / à commander trouvée dans les rapports.`,
+        `Indiquez le n° (ex. « analyse INT26090401 » ou « OT26090401 ») ou notez dans Observations : « Ventilo fait bruit — à changer ».`,
       ].join('\n'),
     }
   }
@@ -270,7 +270,7 @@ export function buildChainePieceProposal(
     ),
     ``,
     `Actions (après votre « oui ») :`,
-    `1) Demande de devis fournisseur « ${fournisseur} » (liée à l’OT)`,
+    `1) Demande de devis fournisseur « ${fournisseur} » (liée à l’intervention)`,
     `2) Devis client brouillon (pièce + marge ×${coef}) pour acceptation`,
     `3) Quand le client accepte le devis → passez en commande fournisseur (bouton / assistant)`,
     ``,
@@ -304,7 +304,7 @@ export function summarizeOtsAvecPiecesHs(data: AppData, max = 8): string {
     .slice(0, max)
   if (!hits.length) return ''
   const lines = [
-    '— OT avec pièces HS / à commander (détectés dans rapports) —',
+    '— Interventions avec pièces HS / à commander (détectés dans rapports) —',
     ...hits.map(
       (h) =>
         `• ${formatOtNumero(h.o.numero)} : ${h.pieces.map((p) => p.designation).join(', ')}`,

@@ -1973,7 +1973,7 @@ export function ChantiersPage() {
                     </div>
                     <p className="mb-3 text-xs text-muted">
                       Le client voit les interventions clôturées et peut ouvrir un ticket (ex. fuite
-                      Bureau 117) → ordre de travail pour le bureau.
+                      Bureau 117) → intervention pour le bureau.
                     </p>
                     {c.portailToken && c.portailActif !== false ? (
                       <div className="space-y-2">

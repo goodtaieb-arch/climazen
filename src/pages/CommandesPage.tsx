@@ -496,7 +496,7 @@ export function CommandesPage() {
 
           {destination === 'ot' ? (
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold">Ordre de travail</span>
+              <span className="mb-1 block font-semibold">Intervention</span>
               <select
                 value={form.otId || ''}
                 onChange={(e) => {
@@ -521,7 +521,7 @@ export function CommandesPage() {
                   .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
                   .map((o) => (
                     <option key={o.id} value={o.id}>
-                      {formatOtNumero(o.numero)} · {o.action || o.typeOt || 'OT'}
+                      {formatOtNumero(o.numero)} · {o.action || o.typeOt || 'INT'}
                     </option>
                   ))}
               </select>
@@ -770,7 +770,7 @@ export function CommandesPage() {
                         <p className="text-xs text-muted">
                           {c.fournisseur || '—'} · {STATUT_COMMANDE_FOURNISSEUR_LABELS[c.statut]}
                           {' · '}
-                          {c.destination === 'ot' || c.otId ? 'OT' : 'Stock'}
+                          {c.destination === 'ot' || c.otId ? 'INT' : 'Stock'}
                         </p>
                       </div>
                     </Link>

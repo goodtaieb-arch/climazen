@@ -28,6 +28,7 @@ import { CloudShareWarningBanner } from './CloudShareWarningBanner'
 import { AideAssistant } from './AideAssistant'
 import { VoiceCommandsFab } from './VoiceCommandsFab'
 import { icon3dForRoute } from '../lib/icons3d'
+import { OT_LABEL } from '../lib/ordreTravail'
 import { Nav3dIcon } from './Nav3dIcon'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
@@ -147,7 +148,7 @@ const tones: Record<
 const baseLinksLightOwner = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
-  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: OT_LABEL.nav, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
@@ -157,10 +158,10 @@ const baseLinksLightOwner = [
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
-/** Nav mobile Light : OT + agenda au centre. */
+/** Nav mobile Light : Interventions + agenda au centre. */
 const mobilePrimaryLight = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
-  { to: '/app/ot', label: 'OT', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: OT_LABEL.navShort, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Profil', icon: User, tone: 'equipe' },
@@ -172,13 +173,13 @@ const baseLinksOwner = [
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   magasinPiecesLink,
-  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: OT_LABEL.nav, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/devis', label: 'Devis', icon: FileText, tone: 'dashboard' },
   { to: '/app/commandes', label: 'Commandes', icon: Truck, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-  { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
@@ -190,13 +191,13 @@ const baseLinksOperator = [
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   magasinPiecesLink,
-  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: OT_LABEL.nav, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/devis', label: 'Devis', icon: FileText, tone: 'dashboard' },
   { to: '/app/commandes', label: 'Commandes', icon: Truck, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-  { to: '/app/interventions', label: 'CERFA / Interventions', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
@@ -204,7 +205,7 @@ const baseLinksOperator = [
 const baseLinksTerrain = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
-  { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: OT_LABEL.nav, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
@@ -220,11 +221,11 @@ const mobilePrimaryBureau = [
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
-/** Nav mobile terrain : Accueil, site, OT, CERFA */
+/** Nav mobile terrain : Accueil, site, Interventions, CERFA */
 const mobilePrimaryTerrain = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
-  { to: '/app/ot', label: 'OT', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/ot', label: OT_LABEL.navShort, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
@@ -350,7 +351,7 @@ export function AppLayout() {
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
           { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
           magasinPiecesLink,
-          { to: '/app/ot', label: 'OT / Demandes', icon: ClipboardList, tone: 'cerfa' },
+          { to: '/app/ot', label: OT_LABEL.nav, icon: ClipboardList, tone: 'cerfa' },
           { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
           { to: '/app/clients', label: 'Clients', icon: Building2, tone: 'clients' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },

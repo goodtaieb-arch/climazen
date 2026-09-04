@@ -265,7 +265,7 @@ export function FicheMaintenanceCtaVmcPage() {
               }}
               className="text-sm font-semibold text-accent hover:underline"
             >
-              ← Retour à l’{formatOtNumero(linkedOt?.numero) || 'OT'}
+              ← Retour à l’{formatOtNumero(linkedOt?.numero) || 'INT'}
             </button>
           ) : (
             <Link

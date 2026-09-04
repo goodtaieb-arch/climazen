@@ -120,9 +120,9 @@ export function Cerfa15497Page() {
           items={[
             'Moins d’erreurs de saisie (coordonnées client, n° de série, fluide déjà en base)',
             'Gain de temps sur chaque intervention',
-            'Historique des CERFA par client / chantier / ordre de travail',
+            'Historique des CERFA par client / chantier / intervention',
             'Saisie possible sur téléphone, même hors réseau (puis synchronisation)',
-            'Envoi groupé (ZIP / e-mail) pour un lot annuel ou un OT multi-équipements',
+            'Envoi groupé (ZIP / e-mail) pour un lot annuel ou une intervention multi-équipements',
           ]}
         />
       </section>
@@ -130,7 +130,7 @@ export function Cerfa15497Page() {
       <section className="space-y-3">
         <H2>Comment ClimaZEN gère le CERFA 15497</H2>
         <p>
-          Depuis un <strong>ordre de travail</strong> ou une intervention, vous ouvrez le CERFA
+          Depuis une <strong>intervention</strong>, vous ouvrez le CERFA
           lié à l’équipement. Les informations société, détenteur, site et plaque signalétique
           sont reprises automatiquement. Pour plusieurs équipements, ClimaZEN enchaîne les pages
           (page 1/2, 2/2…) sans perdre le contexte.
@@ -178,7 +178,7 @@ export function FGasHorsLignePage() {
         <H2>Ce que vous pouvez faire hors ligne</H2>
         <Ul
           items={[
-            'Ouvrir un appel / ordre de travail déjà synchronisé',
+            'Ouvrir un appel / intervention déjà synchronisé',
             'Saisir ou compléter un CERFA 15497-04',
             'Remplir une fiche de maintenance clim',
             'Consulter clients, sites et équipements en cache',
@@ -213,7 +213,7 @@ export function LogicielCerfaClimPage() {
       path="/logiciel-cerfa-clim"
       eyebrow="Logiciel métier"
       title="Logiciel CERFA clim pour frigoristes"
-      description="ClimaZEN centralise clients, sites, parc équipements, stock fluides, ordres de travail et CERFA 15497 — un seul outil pour la clim et le froid."
+      description="ClimaZEN centralise clients, sites, parc équipements, stock fluides, interventions et CERFA 15497 — un seul outil pour la clim et le froid."
     >
       <section className="space-y-3">
         <H2>Un logiciel, tout le parcours</H2>
@@ -221,7 +221,7 @@ export function LogicielCerfaClimPage() {
           Au lieu de jongler entre Excel, PDF et mails, ClimaZEN relie le{' '}
           <strong>parc client</strong>, les <strong>travaux</strong>, le <strong>stock de
           bouteilles</strong> et les <strong>documents réglementaires</strong> (CERFA, fiches
-          maintenance, rapports d’OT).
+          maintenance, rapports d’intervention).
         </p>
       </section>
 
@@ -230,7 +230,7 @@ export function LogicielCerfaClimPage() {
         <Ul
           items={[
             'Fiches clients & sites avec équipements et plaques',
-            'Ordres de travail et appels terrain',
+            'Interventions et appels terrain',
             'CERFA 15497-04 prérempli (multi-équipements)',
             'Fiches de maintenance clim',
             'Stock fluides / bouteilles (traçabilité)',
@@ -252,7 +252,7 @@ export function LogicielCerfaClimPage() {
       <section className="space-y-3">
         <H2>Essayer sans engagement</H2>
         <p>
-          Créez un compte, ajoutez un client test, lancez un OT et générez un CERFA pour voir le
+          Créez un compte, ajoutez un client test, lancez une intervention et générez un CERFA pour voir le
           flux complet en quelques minutes. Une question ?{' '}
           <Link to="/contact" className="font-semibold text-accent hover:underline">
             Contactez-nous

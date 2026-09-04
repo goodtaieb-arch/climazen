@@ -1362,7 +1362,7 @@ export function InterventionFormPage() {
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink"
         >
           <ArrowLeft className="h-4 w-4" />
-          {otReturnHref ? `Retour ${formatOtNumero(linkedOt?.numero) || 'OT'}`.trim() : 'Interventions'}
+          {otReturnHref ? `Retour ${formatOtNumero(linkedOt?.numero) || 'INT'}`.trim() : 'Interventions'}
         </button>
         {hasPdf && pdfUrl && (
           <button
@@ -1402,7 +1402,7 @@ export function InterventionFormPage() {
           <div className="min-w-0">
             <p className="text-sm font-extrabold">Retour signatures OT</p>
             <p className="text-xs text-white/85">
-              {formatOtNumero(linkedOt?.numero) || 'OT'} — signez et clôturez après le CERFA
+              {formatOtNumero(linkedOt?.numero) || 'INT'} — signez et clôturez après le CERFA
             </p>
           </div>
           <button
@@ -2327,7 +2327,7 @@ export function InterventionFormPage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">N° OT (ordre de travail)</span>
+              <span className="mb-1 block font-semibold text-ink">N° intervention (INT)</span>
               <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
                 <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
                   OT

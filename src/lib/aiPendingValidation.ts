@@ -207,7 +207,7 @@ export function pendingValidationsForUser(
 export function labelAiPendingKind(kind: AiPendingKind): string {
   switch (kind) {
     case 'ot':
-      return 'OT'
+      return 'Intervention'
     case 'devis':
       return 'Devis'
     case 'commande':

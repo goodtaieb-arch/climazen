@@ -184,12 +184,12 @@ export function PortailClientPage() {
           <h2 className="font-display text-sm font-bold">Signaler un problème</h2>
         </div>
         <p className="mb-4 text-xs text-muted">
-          Exemple : fuite dans le Bureau 117 — un ordre de travail sera créé pour votre prestataire.
+          Exemple : fuite dans le Bureau 117 — une intervention sera créée pour votre prestataire.
         </p>
         {sent ? (
           <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             <Check className="h-4 w-4 shrink-0" />
-            Signalement envoyé — un ordre de travail est créé pour votre prestataire, qui reçoit
+            Signalement envoyé — une intervention est créée pour votre prestataire, qui reçoit
             aussi une notification e-mail.
           </div>
         ) : null}

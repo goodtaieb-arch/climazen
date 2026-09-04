@@ -284,7 +284,7 @@ export function DevisPage() {
                 .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
                 .map((o) => (
                   <option key={o.id} value={o.id}>
-                    {formatOtNumero(o.numero)} · {o.action || o.typeOt || 'OT'}
+                    {formatOtNumero(o.numero)} · {o.action || o.typeOt || 'INT'}
                   </option>
                 ))}
             </select>

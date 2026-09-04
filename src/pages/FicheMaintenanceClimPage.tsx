@@ -592,7 +592,7 @@ export function FicheMaintenanceClimPage() {
               }}
               className="text-sm font-semibold text-accent hover:underline"
             >
-              ← Retour à l’{formatOtNumero(linkedOt?.numero) || 'OT'}
+              ← Retour à l’{formatOtNumero(linkedOt?.numero) || 'INT'}
             </button>
           ) : (
             <Link
@@ -620,7 +620,7 @@ export function FicheMaintenanceClimPage() {
           <div className="min-w-0">
             <p className="text-sm font-extrabold">Retour signatures OT</p>
             <p className="text-xs text-white/85">
-              {formatOtNumero(linkedOt?.numero) || 'OT'} — signez et clôturez après la fiche checklist
+              {formatOtNumero(linkedOt?.numero) || 'INT'} — signez et clôturez après la fiche checklist
             </p>
           </div>
           <button

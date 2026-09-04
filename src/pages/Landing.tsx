@@ -32,7 +32,7 @@ const LANDING_PHONE_TILES = [
   { title: 'CERFA', img: ICON3D.cerfa, delay: '0.3s' },
   { title: 'Stock fluides', img: ICON3D.bottle, delay: '0.45s' },
   { title: 'Clients', img: ICON3D.clients, delay: '0.6s' },
-  { title: 'Ordres de travail', img: ICON3D.maintenance, delay: '0.75s' },
+  { title: 'Interventions', img: ICON3D.maintenance, delay: '0.75s' },
 ] as const
 
 const LANDING_PHONE_NAV = [

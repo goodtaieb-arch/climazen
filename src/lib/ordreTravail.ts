@@ -1,18 +1,26 @@
-/** Ordre de travail (OT) — n° unique aammjjxx (ex. 26081501), un seul par intervention. */
+/** Intervention (INT, anciennement OT) — n° unique aammjjxx (ex. 26081501), un seul par action terrain. */
 
 /**
- * Libellés UI — certaines sociétés disent « demande d’intervention » pour le même document.
- * On garde OT partout (n°) et on affiche les deux mots pour ne perdre personne.
+ * Libellés UI — le document s’appelle Intervention (code INT).
+ * L’assistant comprend encore OT, DI, « ordre de travail », « demande d’intervention ».
  */
 export const OT_LABEL = {
   /** Titre page / menu long */
-  title: 'Ordres de travail',
+  title: 'Interventions',
   /** Sous-titre court sous le titre */
-  alsoCalled: 'Aussi appelés demandes d’intervention',
+  alsoCalled: 'Aussi appelés OT ou demandes d’intervention',
   /** Menu / tuile compacte */
-  nav: 'OT / Demandes',
+  nav: 'Interventions',
+  /** Nav mobile (3 lettres) */
+  navShort: 'INT',
+  /** Code préfixe n° */
+  code: 'INT',
+  /** Singulier */
+  singular: 'Intervention',
+  /** Bouton / titre création */
+  newItem: 'Nouvelle intervention',
   /** Explication une ligne */
-  hint: 'OT = demande d’intervention — un n° unique par action terrain + docs groupés (ZIP / envoi client).',
+  hint: 'INT = intervention — un n° unique par action terrain + docs groupés (ZIP / envoi client).',
 } as const
 
 export type TypeOt =
@@ -418,23 +426,23 @@ export function naturesCerfaPourTypeOt(typeOt: TypeOt): string[] {
 }
 
 /**
- * N° OT « de base » : enlève préfixe OT et suffixe historique -1, -2…
- * (anciens CERFA multi-équipements). Le n° OT reste unique par intervention.
+ * N° intervention « de base » : enlève préfixe INT / OT / DI et suffixe historique -1, -2…
+ * (anciens CERFA multi-équipements). Le n° reste unique par intervention.
  */
 export function otBaseNumero(raw?: string | null): string {
   let v = (raw || '').trim()
   if (!v) return ''
-  v = v.replace(/^OT\s*/i, '')
+  v = v.replace(/^(?:INT|OT|DI)\s*/i, '')
   return v.replace(/-\d+$/, '')
 }
 
 /**
- * Affichage utilisateur : OT26081702 (toujours avec le préfixe OT).
- * Accepte un n° brut ou déjà préfixé.
+ * Affichage utilisateur : INT26081702 (toujours avec le préfixe INT).
+ * Accepte un n° brut, ou déjà préfixé OT… / INT… / DI… (legacy).
  */
 export function formatOtNumero(raw?: string | null): string {
   const base = otBaseNumero(raw)
-  return base ? `OT${base}` : ''
+  return base ? `${OT_LABEL.code}${base}` : ''
 }
 
 /** True si deux n° désignent la même intervention OT (avec ou sans suffixe -N). */
@@ -475,9 +483,9 @@ function maxSeqDay(dayKey: string, values: (string | undefined)[]): number {
 }
 
 /**
- * Prochain n° OT unique.
+ * Prochain n° intervention unique.
  * Format stocké : aammjjxx — ex. 26081501 (année, mois, jour, séquence du jour).
- * Affichage : OT26081501 via formatOtNumero().
+ * Affichage : INT26081501 via formatOtNumero().
  * Un seul n° par intervention, même multi-équipements / multi-jours.
  */
 export function nextNumeroOt(

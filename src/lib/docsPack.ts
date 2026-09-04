@@ -533,7 +533,7 @@ export async function collectOtDocsPack(opts: {
 }
 
 export function packZipFileName(otNumero: string, clientName?: string): string {
-  const parts = ['ClimaZEN', safeName(otNumero, 'OT')]
+  const parts = ['ClimaZEN', safeName(otNumero, 'INT')]
   if (clientName?.trim()) parts.push(safeName(clientName))
   return `${parts.join('-')}-docs.zip`
 }

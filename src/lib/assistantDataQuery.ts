@@ -45,7 +45,10 @@ const STOP = new Set(
 )
 
 export function normalizeOtTypos(raw: string): string {
-  return String(raw || '').replace(/\b(or|ots|o\.t\.?|odi)\b/gi, 'OT')
+  return String(raw || '').replace(
+    /\b(or|ots|o\.t\.?|odi|int|ints|i\.n\.t\.?|di|dis|d\.i\.?)\b/gi,
+    'INT',
+  )
 }
 
 function monthPrefix(iso = todayIsoLocal()): string {
