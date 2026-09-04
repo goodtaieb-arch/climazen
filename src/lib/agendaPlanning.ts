@@ -86,6 +86,38 @@ export function timelinePlacement(
   }
 }
 
+/**
+ * Première heure pile où poser un OT sur une ligne tech (évite de recouvrir un bloc).
+ * Préfère 8 h ; si occupé, avance ; sinon reprend dès 7 h.
+ */
+export function premiereHeureLibre(opts: {
+  occupied: Array<{ heure?: string; dureeMinutes?: number | null }>
+  dureeMinutes?: number | null
+  preferH?: number
+}): number {
+  const duree = dureeMinutesEffectif(opts.dureeMinutes)
+  const ranges: { start: number; end: number }[] = []
+  for (const o of opts.occupied) {
+    const start = parseHeureToMinutes(o.heure)
+    if (start == null) continue
+    ranges.push({ start, end: start + dureeMinutesEffectif(o.dureeMinutes) })
+  }
+  const prefer = opts.preferH ?? 8
+  const fits = (h: number) => {
+    const start = h * 60
+    const end = start + duree
+    if (end > JOUR_PLANNING_FIN_H * 60) return false
+    return !ranges.some((r) => start < r.end && end > r.start)
+  }
+  for (let h = prefer; h < JOUR_PLANNING_FIN_H; h++) {
+    if (fits(h)) return h
+  }
+  for (let h = JOUR_PLANNING_DEBUT_H; h < prefer; h++) {
+    if (fits(h)) return h
+  }
+  return prefer
+}
+
 /** Graduations horaires de la frise (7 … 18). */
 export function heuresFriseJour(): number[] {
   const out: number[] = []

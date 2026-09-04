@@ -13,6 +13,7 @@ import {
   labelDureeMinutes,
   otSansCreneau,
   parseHeureToMinutes,
+  premiereHeureLibre,
   techsLignesJour,
   timelinePlacement,
   titreDefautHorsOt,
@@ -259,6 +260,25 @@ assert.equal(AGENDA_TYPE_LABELS.rtt, 'RTT')
 const block = premierTechIndispo(absences, ['t2', 't1'], '2026-08-12')
 assert.equal(block?.techId, 't1')
 assert.equal(premierTechIndispo(absences, ['t2'], '2026-08-12'), null)
+
+assert.equal(premiereHeureLibre({ occupied: [], dureeMinutes: 60 }), 8)
+assert.equal(
+  premiereHeureLibre({
+    occupied: [{ heure: '08:00', dureeMinutes: 60 }],
+    dureeMinutes: 60,
+  }),
+  9,
+)
+assert.equal(
+  premiereHeureLibre({
+    occupied: [
+      { heure: '08:00', dureeMinutes: 240 },
+      { heure: '12:00', dureeMinutes: 60 },
+    ],
+    dureeMinutes: 60,
+  }),
+  13,
+)
 
 assert.equal(parseHeureToMinutes('08:30'), 8 * 60 + 30)
 assert.equal(parseHeureToMinutes(''), null)

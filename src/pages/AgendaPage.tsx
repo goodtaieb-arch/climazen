@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -78,6 +78,7 @@ import {
   labelDureeMinutes,
   labelIndispoCourte,
   otSansCreneau,
+  premiereHeureLibre,
   techEstIndispo,
   indisposTechSurDate,
   techsLignesJour,
@@ -175,8 +176,17 @@ export function AgendaPage() {
   const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
   /** OT sélectionné pour pose / déplacement / multi-tech sur la frise. */
   const [otAPlacerId, setOtAPlacerId] = useState<string | null>(null)
+  /** Ref synchrone : clic INT puis clic tech immédiat (avant re-render). */
+  const otAPlacerIdRef = useRef<string | null>(null)
   /** Durée choisie avant pose (2 h / ½ jour / 1 jour…). */
   const [dureePose, setDureePose] = useState(DUREE_PLANNING_DEFAUT)
+  const dureePoseRef = useRef(dureePose)
+  dureePoseRef.current = dureePose
+
+  const choisirOtAPlacer = (id: string | null) => {
+    otAPlacerIdRef.current = id
+    setOtAPlacerId(id)
+  }
   /** Bande OT ouverte par défaut — reste visible quel que soit le jour. */
   const [otPoolOpen, setOtPoolOpen] = useState(true)
   /** Filtres bande OT à poser. */
@@ -527,7 +537,13 @@ export function AgendaPage() {
   }
 
   const placerOtSurCreneau = (techId: string, heureH: number, dateIso: string) => {
-    if (!otAPlacer || !bureau) return
+    if (!bureau) return
+    const otId = otAPlacerIdRef.current
+    const ot = otId ? (data.ordresTravail || []).find((o) => o.id === otId) : null
+    if (!ot) {
+      setSyncMsg('Sélectionnez d’abord une intervention dans la liste, puis cliquez le tech.')
+      return
+    }
     const day = dateIso.slice(0, 10)
     if (techEstIndispo(data.agendaEvents, techId, day)) {
       const abs = indisposTechSurDate(data.agendaEvents, techId, day)[0]
@@ -539,18 +555,18 @@ export function AgendaPage() {
     const heure = `${String(heureH).padStart(2, '0')}:00`
     const noms: Record<string, string> = {}
     for (const t of team) noms[t.id] = t.fullName || t.email || ''
-    const existing = techIdsOt(otAPlacer)
+    const existing = techIdsOt(ot)
     const ids = existing.includes(techId) ? existing : [...existing, techId]
     const primary = ids[0] || techId
-    planifierOt(otAPlacer, {
+    planifierOt(ot, {
       date: day,
       heure,
-      dureeMinutes: dureeMinutesEffectif(dureePose),
+      dureeMinutes: dureeMinutesEffectif(dureePoseRef.current),
       technicienUserIds: ids,
       technicienUserId: primary,
       technicien: noms[primary] || '',
     })
-    setOtAPlacerId(null)
+    choisirOtAPlacer(null)
   }
 
   /** Croix rouge : retire le tech, ou enlève l’heure (OT revient dans la bande). */
@@ -573,7 +589,7 @@ export function AgendaPage() {
     }
     planifierOt(ot, { heure: '' })
     setSyncMsg(`${formatOtNumero(ot.numero)} retiré du planning (sans heure).`)
-    if (otAPlacerId === otId) setOtAPlacerId(null)
+    if (otAPlacerId === otId) choisirOtAPlacer(null)
   }
 
   const appliquerDureePose = (minutes: number) => {
@@ -1410,7 +1426,7 @@ export function AgendaPage() {
             onClick={(e) => {
               e.stopPropagation()
               if (bureau && it.kind === 'ot') {
-                setOtAPlacerId(selected ? null : it.otId)
+                choisirOtAPlacer(selected ? null : it.otId)
                 setOtPoolOpen(true)
                 return
               }
@@ -1455,9 +1471,9 @@ export function AgendaPage() {
               {(otAPlacer.heure || '').trim() ? 'Déplacez / prolongez' : 'Posez'}{' '}
               <strong>{formatOtNumero(otAPlacer.numero)}</strong> (
               {TYPE_OT_LABELS[otAPlacer.typeOt] || otAPlacer.typeOt}
-              ) : cliquez une <strong>heure</strong> sur la ligne du tech (plusieurs techs
-              possibles) ·{' '}
-              <button type="button" className="underline" onClick={() => setOtAPlacerId(null)}>
+              ) : cliquez le <strong>tech</strong> (1re heure libre) ou une{' '}
+              <strong>heure</strong> (plusieurs techs possibles) ·{' '}
+              <button type="button" className="underline" onClick={() => choisirOtAPlacer(null)}>
                 Annuler
               </button>
             </p>
@@ -1553,7 +1569,27 @@ export function AgendaPage() {
                   <div className="flex">
                     <button
                       type="button"
-                      onClick={() => focusTechJour(id)}
+                      onClick={() => {
+                        if (bureau && otAPlacerIdRef.current && enVacances) {
+                          setSyncMsg(
+                            `Impossible : ${t?.fullName || 'ce tech'} est en ${labelVac} — OT bloqués.`,
+                          )
+                          return
+                        }
+                        if (bureau && otAPlacerIdRef.current && !enVacances) {
+                          const occupied = timed.map((it) => ({
+                            heure: it.heure,
+                            dureeMinutes: it.dureeMinutes,
+                          }))
+                          const h = premiereHeureLibre({
+                            occupied,
+                            dureeMinutes: dureePoseRef.current,
+                          })
+                          placerOtSurCreneau(id, h, iso)
+                          return
+                        }
+                        focusTechJour(id)
+                      }}
                       className={`flex w-36 shrink-0 flex-col justify-center gap-0.5 border-r border-line px-2 py-2 text-left sm:w-44 ${enVacances ? 'bg-amber-50' : col.bg}`}
                     >
                       <span className="flex items-center gap-1.5">
@@ -1610,22 +1646,24 @@ export function AgendaPage() {
                         <button
                           key={`g-${id}-${h}`}
                           type="button"
-                          disabled={!otAPlacer || enVacances}
+                          disabled={enVacances}
                           title={
                             enVacances
                               ? labelVac
-                              : otAPlacer
+                              : otAPlacer || otAPlacerIdRef.current
                                 ? `Placer à ${String(h).padStart(2, '0')}:00`
-                                : undefined
+                                : 'Sélectionnez une INT puis cliquez ici'
                           }
                           onClick={() => {
-                            if (otAPlacer && !enVacances) placerOtSurCreneau(id, h, iso)
+                            if (enVacances) return
+                            placerOtSurCreneau(id, h, iso)
                           }}
                           className={[
                             'absolute top-0 bottom-0 border-l border-line/40',
-                            otAPlacer && !enVacances
-                              ? 'z-[5] hover:bg-teal-400/25'
-                              : 'pointer-events-none',
+                            enVacances
+                              ? 'pointer-events-none'
+                              : 'z-[5] hover:bg-teal-400/25',
+                            otAPlacer && !enVacances ? 'cursor-cell' : '',
                           ].join(' ')}
                           style={{
                             left: `${((h - JOUR_PLANNING_DEBUT_H) / (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H)) * 100}%`,
@@ -1643,7 +1681,7 @@ export function AgendaPage() {
                       ) : null}
                       {timed.length === 0 && !otAPlacer && !enVacances ? (
                         <p className="pointer-events-none absolute inset-0 flex items-center px-3 text-[11px] text-muted">
-                          Libre — sélectionnez un OT ci-dessus puis cliquez une heure.
+                          Libre — sélectionnez une INT ci-dessus puis cliquez le tech (ou une heure).
                         </p>
                       ) : null}
                     </div>
@@ -1663,7 +1701,7 @@ export function AgendaPage() {
                             type="button"
                             onClick={() => {
                               if (bureau && it.kind === 'ot') {
-                                setOtAPlacerId(it.otId)
+                                choisirOtAPlacer(it.otId)
                                 setOtPoolOpen(true)
                                 return
                               }
@@ -1705,7 +1743,7 @@ export function AgendaPage() {
             <h1 className="font-display text-3xl font-bold tracking-tight">Agenda</h1>
             <p className="mt-0.5 text-sm text-muted">
               {bureau
-                ? 'Vue jour : techs filtrés par métier / région. Sélectionnez un OT (bande compacte) puis cliquez une heure. Priorité : dépannage → installation → maintenance.'
+                ? 'Vue jour : techs filtrés par métier / région. Sélectionnez une INT puis cliquez le tech (ou une heure). Priorité : dépannage → installation → maintenance.'
                 : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
             </p>
           </div>
@@ -1747,7 +1785,7 @@ export function AgendaPage() {
                   type="button"
                   className="font-bold underline"
                   onClick={() => {
-                    setOtAPlacerId(a.otId)
+                    choisirOtAPlacer(a.otId)
                     setOtPoolOpen(true)
                     setView('jour')
                     if (a.date) setCursorDate(a.date.slice(0, 10))
@@ -1970,7 +2008,7 @@ export function AgendaPage() {
             {otAPlacer ? (
               <button
                 type="button"
-                onClick={() => setOtAPlacerId(null)}
+                onClick={() => choisirOtAPlacer(null)}
                 className="rounded-full border border-teal-300 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-950"
               >
                 Annuler pose {formatOtNumero(otAPlacer.numero)}
@@ -1981,7 +2019,7 @@ export function AgendaPage() {
             <>
               <p className="mt-2 text-[11px] text-muted">
                 {bureau
-                  ? 'Sans créneau · priorité dépannage → install → maintenance. Cliquez un OT, durée, puis une heure. Sur Maint. contrat : « dern. » = dernière intervention du site (pour caler un intervalle régulier). Bloc posé : clic = déplacer / + tech ; croix rouge = retirer.'
+                  ? 'Sans créneau · priorité dépannage → install → maintenance. Cliquez une INT puis le tech (1re heure libre) ou une heure. Sur Maint. contrat : « dern. » = dernière intervention du site. Bloc posé : clic = déplacer / + tech ; croix rouge = retirer.'
                   : 'OT affectés à vous, pas encore calés.'}
               </p>
               {otsSansPlanning.length === 0 ? (
@@ -2041,7 +2079,7 @@ export function AgendaPage() {
                                 navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
                                 return
                               }
-                              setOtAPlacerId(selected ? null : ot.id)
+                              choisirOtAPlacer(selected ? null : ot.id)
                               setOtPoolOpen(true)
                               setView('jour')
                             }}
