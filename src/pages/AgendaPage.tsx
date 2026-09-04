@@ -27,7 +27,6 @@ import {
   compareProgrammeHeure,
   formatHeure,
   formatJourCourt,
-  isWeekendIso,
   agendaCouvreDate,
   isAgendaDueSoon,
   isAgendaOverdue,
@@ -42,6 +41,7 @@ import {
   type AgendaEventType,
   type AgendaStatut,
 } from '../lib/agenda'
+import { infoJourNonOuvre } from '../lib/joursFeries'
 import {
   TYPE_OT_LABELS,
   STATUT_OT_LABELS,
@@ -343,6 +343,7 @@ export function AgendaPage() {
   const matchAgence = (agence?: string) => matchAgenceFilter(agence, filterAgences)
 
   const weekDates = useMemo(() => weekDatesFrom(cursorDate), [cursorDate])
+  const nonOuvreCursor = useMemo(() => infoJourNonOuvre(cursorDate), [cursorDate])
 
   const agencesDispo = useMemo(() => {
     const set = new Set<string>(mesAgences)
@@ -2185,16 +2186,17 @@ export function AgendaPage() {
           <div
             className={[
               'flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-3 py-2',
-              isWeekendIso(cursorDate)
+              nonOuvreCursor.nonOuvre
                 ? 'border-slate-300 bg-slate-100/90'
                 : 'border-transparent bg-transparent px-0',
             ].join(' ')}
           >
             <h2 className="font-display text-lg font-semibold">
               Programme · {formatJourCourt(cursorDate)}
-              {isWeekendIso(cursorDate) ? (
+              {nonOuvreCursor.badge ? (
                 <span className="ml-2 rounded-md border border-slate-400/60 bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-800">
-                  Week-end
+                  {nonOuvreCursor.badge}
+                  {nonOuvreCursor.nomFerie ? ` · ${nonOuvreCursor.nomFerie}` : ''}
                 </span>
               ) : null}
             </h2>
@@ -2213,10 +2215,8 @@ export function AgendaPage() {
               </button>
             </div>
           </div>
-          {isWeekendIso(cursorDate) ? (
-            <p className="text-[11px] font-semibold text-slate-600">
-              Jour non ouvré (week-end) — à planifier seulement si astreinte / urgence.
-            </p>
+          {nonOuvreCursor.hint ? (
+            <p className="text-[11px] font-semibold text-slate-600">{nonOuvreCursor.hint}</p>
           ) : null}
           {renderLignesTechJour(cursorDate)}
           {!bureau ? (
@@ -2254,7 +2254,7 @@ export function AgendaPage() {
           {weekDates.map((day) => {
             const items = programmeForDate(day)
             const isToday = day === todayIsoLocal()
-            const weekend = isWeekendIso(day)
+            const nonOuvre = infoJourNonOuvre(day)
             return (
               <div
                 key={day}
@@ -2262,12 +2262,12 @@ export function AgendaPage() {
                   'rounded-2xl border p-3',
                   isToday
                     ? 'border-teal-300 bg-teal-50/40'
-                    : weekend
+                    : nonOuvre.nonOuvre
                       ? 'border-slate-300 bg-slate-100/90'
                       : 'border-line bg-white',
                 ].join(' ')}
                 style={
-                  weekend && !isToday
+                  nonOuvre.nonOuvre && !isToday
                     ? {
                         backgroundImage:
                           'repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(100,116,139,0.07) 8px, rgba(100,116,139,0.07) 16px)',
@@ -2287,14 +2287,15 @@ export function AgendaPage() {
                     <span
                       className={[
                         'font-display text-base font-bold',
-                        weekend ? 'text-slate-800' : 'text-ink',
+                        nonOuvre.nonOuvre ? 'text-slate-800' : 'text-ink',
                       ].join(' ')}
                     >
                       {formatJourCourt(day)}
                     </span>
-                    {weekend ? (
+                    {nonOuvre.badge ? (
                       <span className="ml-2 rounded-md border border-slate-400/60 bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-800">
-                        Week-end
+                        {nonOuvre.badge}
+                        {nonOuvre.nomFerie ? ` · ${nonOuvre.nomFerie}` : ''}
                       </span>
                     ) : null}
                     {isToday ? (
@@ -2311,7 +2312,7 @@ export function AgendaPage() {
                     onClick={() => openNew(day)}
                     className={[
                       'inline-flex min-h-9 items-center gap-1 rounded-full border px-2.5 text-[11px] font-bold',
-                      weekend
+                      nonOuvre.nonOuvre
                         ? 'border-slate-400 bg-white/80 text-slate-800'
                         : 'border-line',
                     ].join(' ')}
@@ -2319,10 +2320,8 @@ export function AgendaPage() {
                     <Plus className="h-3 w-3" /> Planifier
                   </button>
                 </div>
-                {weekend ? (
-                  <p className="mb-2 text-[11px] font-semibold text-slate-600">
-                    Jour non ouvré — à planifier seulement si astreinte / urgence.
-                  </p>
+                {nonOuvre.hint ? (
+                  <p className="mb-2 text-[11px] font-semibold text-slate-600">{nonOuvre.hint}</p>
                 ) : null}
                 {bureau ? (
                   renderLignesTechJour(day)
