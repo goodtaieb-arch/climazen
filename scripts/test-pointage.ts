@@ -24,6 +24,7 @@ import {
   preparerActivation,
   segmentDepuisAction,
   statutOtDepuisAction,
+  trajetDomicileRetenuMin,
   type PointageEvent,
 } from '../src/lib/pointage'
 
@@ -152,10 +153,12 @@ assert.equal(jour.interventionMin, 180 + 180)
 assert.equal(jour.fournisseurMin, 30)
 assert.equal(jour.trajetMin, jour.deplacementMin)
 assert.equal(jour.chantierMin, jour.interventionMin)
-assert.equal(jour.payeMin, jour.deplacementMin + jour.interventionMin + jour.fournisseurMin - 30)
-assert.equal(jour.abattementDomicileMin, 30)
 assert.equal(jour.trajetMatinMin, 60)
-assert.equal(jour.heuresSupMin, Math.max(0, jour.payeMin - 7 * 60))
+assert.equal(jour.travailMin, 180 + 25 + 30 + 60 + 180)
+assert.equal(jour.trajetRetenuMin, 30)
+assert.equal(jour.abattementDomicileMin, 30)
+assert.equal(jour.payeMin, jour.travailMin + jour.trajetRetenuMin)
+assert.equal(jour.heuresSupMin, Math.max(0, jour.travailMin - 7 * 60))
 assert.equal(jour.segments.filter((s) => s.otId === 'ot1').length, 2)
 assert.equal(jour.segments.filter((s) => s.otId === 'ot2').length, 2)
 
@@ -186,8 +189,12 @@ const auto = calculerJournee({
 })
 assert.equal(auto.pauseMin, 0)
 assert.equal(auto.pauseAutoMin, 30)
+assert.equal(auto.trajetMatinMin, 60)
+assert.equal(auto.travailMin, 360)
+assert.equal(auto.trajetRetenuMin, 30)
 assert.equal(auto.abattementDomicileMin, 30)
-assert.equal(auto.payeMin, 60 + 360 - 30 - 30)
+assert.equal(auto.payeMin, 360 - 30 + 30)
+assert.equal(auto.heuresSupMin, 0)
 
 const csv = exportJourneesCsv([jour])
 assert.ok(csv.startsWith('Date;'))
@@ -222,12 +229,15 @@ const home = calculerJournee({
 })
 assert.equal(home.ouvert, false)
 assert.equal(home.porteAPorteMin, 6 * 60)
-assert.equal(home.trajetMatinMin, 20)
+assert.equal(home.trajetMatinMin, 60)
 assert.equal(home.retourMin, 50)
 assert.equal(home.interventionMin, 4 * 60)
-assert.equal(home.deplacementMin, 20 + 40 + 50)
-assert.equal(home.abattementDomicileMin, 20 + 30)
-assert.equal(home.payeMin, home.deplacementMin + home.interventionMin - home.abattementDomicileMin)
+assert.equal(home.travailMin, 4 * 60)
+assert.equal(home.deplacementMin, 60 + 50)
+assert.equal(home.abattementDomicileMin, 30 + 30)
+assert.equal(home.trajetRetenuMin, 30 + 20)
+assert.equal(home.payeMin, home.travailMin + home.trajetRetenuMin)
+assert.equal(home.heuresSupMin, 0)
 assert.ok(home.departDomicileIso?.startsWith('2026-09-02T07:00'))
 assert.ok(home.retourDomicileIso?.startsWith('2026-09-02T13:00'))
 
@@ -255,13 +265,34 @@ assert.equal(mixJour.trajetMatinMin, 40)
 assert.equal(mixJour.retourMin, 45)
 assert.equal(mixJour.horsOtMin, 25)
 assert.equal(mixJour.abattementDomicileMin, 30 + 30)
-assert.equal(
-  mixJour.payeMin,
-  mixJour.deplacementMin + mixJour.interventionMin + mixJour.fournisseurMin - 60,
-)
+assert.equal(mixJour.trajetRetenuMin, 10 + 15)
+assert.equal(mixJour.travailMin, 30 + 20 + 90 + 25 + 15 + 20 + 60)
+assert.equal(mixJour.payeMin, mixJour.travailMin + mixJour.trajetRetenuMin)
 const mixCsv = exportJourneesCsv([mixJour])
 assert.ok(mixCsv.includes('Déplacement hors OT'))
-assert.ok(mixCsv.includes('Abattement domicile'))
+assert.ok(mixCsv.includes('Franchise domicile'))
+assert.ok(mixCsv.includes('Travail (min)'))
+
+const courtTrajet: PointageEvent[] = [
+  ev({ action: 'deplacement', at: '2026-09-02T07:00:00.000Z', otId: 'ot1', cible: 'ot' }),
+  ev({ action: 'intervention_en_cours', at: '2026-09-02T07:15:00.000Z', otId: 'ot1' }),
+  ev({ action: 'fin_intervention', at: '2026-09-02T11:15:00.000Z', otId: 'ot1' }),
+  ev({ action: 'retour_domicile', at: '2026-09-02T11:15:00.000Z', cible: 'domicile' }),
+  ev({ action: 'fin_journee', at: '2026-09-02T11:25:00.000Z' }),
+]
+const court = calculerJournee({
+  events: courtTrajet,
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(court.trajetMatinMin, 15)
+assert.equal(trajetDomicileRetenuMin(court.trajetMatinMin), 0)
+assert.equal(court.retourMin, 10)
+assert.equal(trajetDomicileRetenuMin(court.retourMin), 0)
+assert.equal(court.travailMin, 4 * 60)
+assert.equal(court.payeMin, 4 * 60)
+assert.equal(court.heuresSupMin, 0)
 
 const sem = calculerSemaine({
   events: dayEvents,

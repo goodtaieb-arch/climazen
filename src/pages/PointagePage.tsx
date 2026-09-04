@@ -225,6 +225,12 @@ function MaJourneeDetail({
       {mode !== 'bureau' && maJournee.porteAPorteMin > 0 ? (
         <p className="text-sm text-muted">
           Porte-à-porte {formatMinutesHhMm(maJournee.porteAPorteMin)}
+          {maJournee.travailMin > 0
+            ? ` · travail ${formatMinutesHhMm(maJournee.travailMin)} / quota ${formatMinutesHhMm(Math.round(maJournee.heuresJour * 60))}`
+            : ''}
+          {maJournee.trajetMatinMin + maJournee.retourMin > 0
+            ? ` · trajet ${formatMinutesHhMm(maJournee.trajetMatinMin + maJournee.retourMin)} dont ${formatMinutesHhMm(maJournee.trajetRetenuMin)} retenu (> 30 min)`
+            : ''}
           {maJournee.departDomicileIso
             ? ` · sortie ${formatHeureIso(maJournee.departDomicileIso)}`
             : ''}
