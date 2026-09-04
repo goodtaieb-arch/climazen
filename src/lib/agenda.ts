@@ -116,7 +116,11 @@ export function monthsForPeriodicite(p: PeriodiciteContrat): number {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  const n = new Date()
+  const y = n.getFullYear()
+  const m = String(n.getMonth() + 1).padStart(2, '0')
+  const d = String(n.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 function addDaysIso(iso: string, days: number): string {

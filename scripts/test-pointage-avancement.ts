@@ -130,4 +130,42 @@ assert.ok(labelAvancementTech(av).includes('Réel'))
 assert.equal(nowMarkerPct('2026-09-03', midi), ((13 - 7) / 12) * 100)
 assert.equal(nowMarkerPct('2026-09-02', midi), null)
 
+const viaStatut = statutLiveOtPourTech({
+  otId: 'ot1',
+  otStatut: 'en_cours',
+  heure: '08:00',
+  dureeMinutes: 240,
+  events: [],
+  userId: 't1',
+  date: '2026-09-03',
+  now: midi,
+})
+assert.equal(viaStatut.statut, 'en_cours')
+
+const autreOt: PointageEvent[] = [
+  ev({ action: 'intervention_en_cours', at: '2026-09-03T08:00:00.000Z', otId: 'ot2' }),
+]
+const pasCeluiLa = statutLiveOtPourTech({
+  otId: 'ot1',
+  otStatut: 'en_cours',
+  heure: '08:00',
+  dureeMinutes: 60,
+  events: autreOt,
+  userId: 't1',
+  date: '2026-09-03',
+  now: midi,
+})
+assert.equal(pasCeluiLa.statut, 'planifie')
+
+const avSansEvents = avancementTechVsPlanning({
+  userId: 't1',
+  date: '2026-09-03',
+  events: [],
+  blocs,
+  now: '2026-09-03T10:00:00.000Z',
+  otStatuts: ['en_cours'],
+})
+assert.equal(avSansEvents.statutLabel, 'En cours')
+assert.equal(avSansEvents.enRetard, false)
+
 console.log('test-pointage-avancement: ok')
