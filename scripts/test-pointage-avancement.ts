@@ -140,7 +140,34 @@ const viaStatut = statutLiveOtPourTech({
   date: '2026-09-03',
   now: midi,
 })
-assert.equal(viaStatut.statut, 'en_cours')
+assert.equal(viaStatut.statut, 'en_retard')
+
+const poseMatin = statutLiveOtPourTech({
+  otId: 'ot1',
+  otStatut: 'en_cours',
+  heure: '07:00',
+  dureeMinutes: 60,
+  events: [],
+  userId: 't1',
+  date: '2026-09-03',
+  now: matin,
+})
+assert.equal(poseMatin.statut, 'planifie')
+
+const pauseApresDebut = statutLiveOtPourTech({
+  otId: 'ot1',
+  otStatut: 'en_cours',
+  heure: '08:00',
+  dureeMinutes: 240,
+  events: [
+    ev({ action: 'intervention_en_cours', at: '2026-09-03T08:00:00.000Z', otId: 'ot1' }),
+    ev({ action: 'pause', at: '2026-09-03T10:00:00.000Z' }),
+  ],
+  userId: 't1',
+  date: '2026-09-03',
+  now: midi,
+})
+assert.equal(pauseApresDebut.statut, 'en_cours')
 
 const autreOt: PointageEvent[] = [
   ev({ action: 'intervention_en_cours', at: '2026-09-03T08:00:00.000Z', otId: 'ot2' }),
@@ -162,10 +189,22 @@ const avSansEvents = avancementTechVsPlanning({
   date: '2026-09-03',
   events: [],
   blocs,
-  now: '2026-09-03T10:00:00.000Z',
+  now: new Date(2026, 8, 3, 7, 5, 0).toISOString(),
   otStatuts: ['en_cours'],
 })
-assert.equal(avSansEvents.statutLabel, 'En cours')
+assert.equal(avSansEvents.statutLabel, 'Planifié')
 assert.equal(avSansEvents.enRetard, false)
+assert.equal(avSansEvents.pctOtFait, 0)
+
+const avPoseEnRetard = avancementTechVsPlanning({
+  userId: 't1',
+  date: '2026-09-03',
+  events: [],
+  blocs,
+  now: new Date(2026, 8, 3, 10, 0, 0).toISOString(),
+  otStatuts: ['en_cours'],
+})
+assert.equal(avPoseEnRetard.statutLabel, 'En retard')
+assert.equal(avPoseEnRetard.enRetard, true)
 
 console.log('test-pointage-avancement: ok')
