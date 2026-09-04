@@ -106,6 +106,7 @@ export const HORS_OT_BUREAU: AgendaEventType[] = [
   'hors_ot_libre',
   'vacances',
   'conge',
+  'rtt',
   'maladie',
 ]
 
@@ -131,6 +132,7 @@ export function typesAgendaPourSaisie(opts: { bureau: boolean }): AgendaEventTyp
 }
 
 export function titreDefautHorsOt(type: AgendaEventType): string {
+  if (isIndispoType(type)) return 'Absent'
   if (type === 'hors_ot_libre' || type === 'rdv' || type === 'autre') return ''
   return AGENDA_TYPE_LABELS[type] || ''
 }
@@ -326,6 +328,15 @@ export const COULEURS_HORS_OT: Record<string, CouleurSecteur> = {
   },
   conge: {
     key: 'conge',
+    bg: 'bg-orange-50',
+    border: 'border-orange-400',
+    badge: 'bg-orange-700 text-white',
+    text: 'text-orange-950',
+    row: 'border-orange-300 bg-orange-50',
+    dot: 'bg-orange-600',
+  },
+  rtt: {
+    key: 'rtt',
     bg: 'bg-orange-50',
     border: 'border-orange-400',
     badge: 'bg-orange-700 text-white',
@@ -610,7 +621,7 @@ export function labelIndispoCourte(e: Pick<AgendaEvent, 'type' | 'title'>): stri
 }
 
 /**
- * Premier tech bloqué (vacances / congé / maladie) pour une date OT.
+ * Premier tech bloqué (absence : vacances, RTT, maladie…) pour une date OT.
  * Retourne null si tous sont dispo ou si date / techs vides.
  */
 export function premierTechIndispo(

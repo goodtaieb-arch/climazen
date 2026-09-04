@@ -661,7 +661,7 @@ export function AgendaPage() {
       return
     }
     if (isIndispoType(form.type) && !form.technicienUserId) {
-      alert('Choisissez le technicien concerné par les vacances / congés.')
+      alert('Choisissez le technicien concerné par l’absence.')
       return
     }
     const dateFin =
@@ -693,7 +693,7 @@ export function AgendaPage() {
     navigate('/app/agenda', { replace: true })
     setSyncMsg(
       isIndispoType(form.type)
-        ? 'Vacances / congé enregistrés — aucun OT ne pourra être posé sur ces jours.'
+        ? 'Absence enregistrée — aucun OT ne pourra être posé sur ces jours.'
         : isHorsOtType(form.type)
           ? 'Action hors OT enregistrée.'
           : 'Intervention enregistrée dans le programme.',
@@ -779,6 +779,9 @@ export function AgendaPage() {
     team.find((t) => t.id === id)?.fullName || fallback || 'Non affecté'
 
   if (formOpen) {
+    const typesSaisie = typesAgendaPourSaisie({ bureau })
+    const typesAbsence = typesSaisie.filter((t) => isIndispoType(t))
+    const typesAutres = typesSaisie.filter((t) => !isIndispoType(t))
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <div className="flex items-center gap-2">
@@ -795,7 +798,9 @@ export function AgendaPage() {
           <h1 className="font-display text-xl font-bold">
             {existing
               ? 'Modifier'
-              : isHorsOtType(form.type)
+              : isIndispoType(form.type)
+                ? 'Absence'
+                : isHorsOtType(form.type)
                 ? 'Action hors OT'
                 : 'Planifier une intervention'}
           </h1>
@@ -804,7 +809,11 @@ export function AgendaPage() {
         <form onSubmit={onSave} className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">
-              {form.type === 'hors_ot_libre' ? 'Événement (champ libre) *' : 'Titre *'}
+              {form.type === 'hors_ot_libre'
+                ? 'Événement (champ libre) *'
+                : isIndispoType(form.type)
+                  ? 'Libellé *'
+                  : 'Titre *'}
             </span>
             <input
               required
@@ -814,7 +823,9 @@ export function AgendaPage() {
               placeholder={
                 form.type === 'hors_ot_libre'
                   ? 'Ex. Formation SST, RDV contrôle technique, réunion…'
-                  : isHorsOtType(form.type)
+                  : isIndispoType(form.type)
+                    ? 'Ex. RTT, arrêt maladie, vacances été…'
+                    : isHorsOtType(form.type)
                     ? AGENDA_TYPE_LABELS[form.type]
                     : 'Ex. Maintenance clim — Site école'
               }
@@ -893,7 +904,9 @@ export function AgendaPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Type</span>
+              <span className="mb-1 block font-semibold text-ink">
+                {isIndispoType(form.type) ? 'Motif' : 'Type'}
+              </span>
               <select
                 value={form.type}
                 onChange={(e) => {
@@ -922,11 +935,22 @@ export function AgendaPage() {
                 }}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3"
               >
-                {typesAgendaPourSaisie({ bureau }).map((t) => (
-                  <option key={t} value={t}>
-                    {AGENDA_TYPE_LABELS[t]}
-                  </option>
-                ))}
+                {typesAbsence.length ? (
+                  <optgroup label="Absence">
+                    {typesAbsence.map((t) => (
+                      <option key={t} value={t}>
+                        {AGENDA_TYPE_LABELS[t]}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                <optgroup label="Planning">
+                  {typesAutres.map((t) => (
+                    <option key={t} value={t}>
+                      {AGENDA_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </label>
             <label className="block text-sm">
@@ -1851,9 +1875,7 @@ export function AgendaPage() {
         <div className="flex flex-wrap gap-1.5">
           {(
             [
-              ['vacances', 'Vacances'],
-              ['conge', 'Congé'],
-              ['maladie', 'Maladie'],
+              ['conge', 'Absent'],
               ['formation', 'Formation'],
               ['rdv_garage', 'RDV garage'],
               ['hors_ot_libre', 'Événement libre'],
@@ -1865,7 +1887,7 @@ export function AgendaPage() {
               onClick={() => openNew(cursorDate, type)}
               className={[
                 'rounded-full border px-3 py-1.5 text-xs font-bold',
-                type === 'vacances' || type === 'conge' || type === 'maladie'
+                isIndispoType(type)
                   ? 'border-amber-400 bg-amber-50 text-amber-950'
                   : 'border-line bg-white',
               ].join(' ')}

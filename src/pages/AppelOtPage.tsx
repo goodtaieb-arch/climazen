@@ -439,7 +439,7 @@ export function AppelOtPage() {
         const block = premierTechIndispo(data.agendaEvents, ids, day)
         if (block) {
           alert(
-            `Impossible : ce tech est en ${labelIndispoCourte(block.absence)} le ${day}. Retirez l’heure ou choisissez un autre jour / tech (Agenda → Vacances).`,
+            `Impossible : ce tech est en ${labelIndispoCourte(block.absence)} le ${day}. Retirez l’heure ou choisissez un autre jour / tech (Agenda → Absent).`,
           )
           return idOverride || otId || existing?.id || ''
         }
@@ -1491,7 +1491,7 @@ export function AppelOtPage() {
                     )
                     if (block) {
                       alert(
-                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’OT (Agenda → Vacances).`,
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’OT (Agenda → Absent).`,
                       )
                       return
                     }
@@ -2026,7 +2026,7 @@ export function AppelOtPage() {
                       )
                       if (block) {
                         alert(
-                          `Impossible : tech en ${labelIndispoCourte(block.absence)} — ouvrez l’Agenda pour poser les vacances / changer de jour.`,
+                          `Impossible : tech en ${labelIndispoCourte(block.absence)} — ouvrez l’Agenda pour poser l’absence / changer de jour.`,
                         )
                         return
                       }

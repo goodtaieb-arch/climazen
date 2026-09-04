@@ -117,6 +117,9 @@ function detectAgendaType(n: string): AgendaEventType {
   if (/rappel\s+appel|appeler\s+le\s+client|rappel\s+client/.test(n)) return 'rappel_appel'
   if (/controle\s+d?[' ]?etancheite|etancheite/.test(n)) return 'controle_etancheite'
   if (/\bmaintenance\b|\bentretien\b/.test(n)) return 'maintenance'
+  if (/\bmaladie\b|arret\s+maladie/.test(n)) return 'maladie'
+  if (/\brtt\b/.test(n)) return 'rtt'
+  if (/\bvacances\b|\bconges?\b|\babsent/.test(n)) return 'conge'
   if (/\brdv\b|rendez[\s-]?vous|intervention|visite/.test(n)) return 'rdv'
   return 'rdv'
 }
