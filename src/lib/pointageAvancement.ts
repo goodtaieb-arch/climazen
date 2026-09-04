@@ -4,6 +4,7 @@
 
 import {
   dureeMinutesEffectif,
+  dureeMinutesOt,
   JOUR_PLANNING_DEBUT_H,
   JOUR_PLANNING_FIN_H,
   JOUR_PLANNING_SPAN_MIN,
@@ -81,6 +82,7 @@ export function blocsPlanifiesDuTech(
     | 'date'
     | 'heure'
     | 'dureeMinutes'
+    | 'visiteNiveau'
     | 'technicienUserId'
     | 'technicienUserIds'
     | 'statut'
@@ -98,7 +100,7 @@ export function blocsPlanifiesDuTech(
     .map((o) => ({
       otId: o.id,
       heure: o.heure,
-      dureeMinutes: o.dureeMinutes,
+      dureeMinutes: dureeMinutesOt(o),
       title: o.action,
       numero: o.numero,
     }))

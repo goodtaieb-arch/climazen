@@ -66,6 +66,19 @@ export function parseNiveauVisite(raw: unknown): NiveauVisite | undefined {
   return undefined
 }
 
+/** Durée indicative planning (n’empêche pas le tech de dépasser). */
+export const DUREE_INDICATIVE_VISITE_MIN: Record<NiveauVisite, number> = {
+  mensuel: 120,
+  trimestriel: 180,
+  semestriel: 240,
+  annuel: 300,
+}
+
+export function dureeIndicativeVisite(niveau?: unknown): number | undefined {
+  const n = parseNiveauVisite(niveau)
+  return n ? DUREE_INDICATIVE_VISITE_MIN[n] : undefined
+}
+
 /** Niveau de fiche pour le N-ième mois d’un cycle de 12 (1 = 1re visite). */
 export function niveauVisitePourMoisCycle(mois1a12: number): NiveauVisite {
   if (mois1a12 === 12) return 'annuel'
@@ -540,6 +553,8 @@ export type OtDraftDepuisContrat = {
   secteur: PostePersonnelId
   agenceCode?: string
   heure?: string
+  /** Durée indicative (bande planning). Le tech peut dépasser. */
+  dureeMinutes?: number
   lienCommandeType: 'contrat'
   lienCommandeRef: string
   contratId: string
@@ -684,6 +699,7 @@ export function buildOtDraftsDepuisContrats(input: {
         secteur,
         agenceCode: site?.agenceCode,
         heure: '',
+        dureeMinutes: DUREE_INDICATIVE_VISITE_MIN[v0.niveau],
         lienCommandeType: 'contrat',
         lienCommandeRef: contrat.numero,
         contratId: contrat.id,
@@ -767,6 +783,7 @@ export function scinderOtContratParEquipement(
     | 'maintenanceParSousTraitant'
     | 'technicien'
     | 'heure'
+    | 'dureeMinutes'
   >,
   siteEquipements?: Equipement[],
 ): { parentId: string; children: OtDraftDepuisContrat[] } | null {
@@ -807,6 +824,7 @@ export function scinderOtContratParEquipement(
       secteur: (ot.secteur || 'tech_cvc') as PostePersonnelId,
       agenceCode: ot.agenceCode,
       heure: ot.heure || '',
+      dureeMinutes: ot.dureeMinutes || DUREE_INDICATIVE_VISITE_MIN[niveau],
       lienCommandeType: 'contrat',
       lienCommandeRef: ot.lienCommandeRef || '',
       contratId: ot.contratId!,

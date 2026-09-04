@@ -12,6 +12,7 @@ import {
 import type { OrdreTravail } from './ordreTravail'
 import { isOtCloture, techIdsOt } from './ordreTravail'
 import { isPosteBureau, isPosteTerrain, parsePostePersonnel } from './postePersonnel'
+import { dureeIndicativeVisite } from './contratOtAuto'
 
 /** Fenêtre jour affichée sur la frise (7h → 19h). */
 export const JOUR_PLANNING_DEBUT_H = 7
@@ -19,8 +20,8 @@ export const JOUR_PLANNING_FIN_H = 19
 export const JOUR_PLANNING_SPAN_MIN = (JOUR_PLANNING_FIN_H - JOUR_PLANNING_DEBUT_H) * 60
 export const DUREE_PLANNING_DEFAUT = 60
 
-/** Presets durée (OT / agenda) — minutes. Inclut 2 h, demi-journée (6 h), journée (12 h). */
-export const DUREES_PLANNING_PRESETS = [30, 60, 90, 120, 180, 240, 360, 720] as const
+/** Presets durée indicative (OT / agenda). Inclut 2–5 h visites contrat, ½ j, 1 j. */
+export const DUREES_PLANNING_PRESETS = [30, 60, 90, 120, 180, 240, 300, 360, 720] as const
 
 export function parseHeureToMinutes(h?: string): number | null {
   const v = formatHeure(h)
@@ -38,6 +39,20 @@ export function dureeMinutesEffectif(d?: number | null): number {
   const n = Math.round(Number(d) || 0)
   if (!Number.isFinite(n) || n <= 0) return DUREE_PLANNING_DEFAUT
   return Math.min(12 * 60, Math.max(15, n))
+}
+
+/**
+ * Durée de bande OT : indicative selon le niveau de visite (M 2h / T 3h / S 4h / A 5h).
+ * Une durée saisie autre que le défaut 60 min est respectée. Jamais un plafond métier.
+ */
+export function dureeMinutesOt(ot?: {
+  dureeMinutes?: number | null
+  visiteNiveau?: string | null
+}): number {
+  const indicative = dureeIndicativeVisite(ot?.visiteNiveau)
+  const raw = Math.round(Number(ot?.dureeMinutes) || 0)
+  if (indicative && (!raw || raw === DUREE_PLANNING_DEFAUT)) return indicative
+  return dureeMinutesEffectif(raw || undefined)
 }
 
 export function labelDureeMinutes(d?: number | null): string {
