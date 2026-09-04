@@ -91,20 +91,39 @@ export const POINTAGE_ACTION_LABELS: Record<PointageAction, string> = {
 }
 
 export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
-  sortie_domicile: 'Vous quittez le domicile — trajet début (−30 min légal)',
+  sortie_domicile: '1er trajet du jour — on ne retient que ce qui dépasse 30 min',
   deplacement: 'En route vers l’OT, hors OT, un fournisseur ou le bureau',
-  intervention_en_cours: 'Arrivé sur site — OT en cours',
+  intervention_en_cours: 'Arrivé — le temps de travail (quota 7h/8h) démarre',
   fin_intervention: 'Intervention terminée sur cet OT',
   fournisseur: 'Chez le fournisseur (pièces, gaz, station…)',
   bureau: 'Au bureau / atelier',
   pause: 'Pause personnelle',
   pause_repas: 'Pause repas',
-  retour_domicile: 'Vous rentrez — trajet fin (−30 min légal)',
+  retour_domicile: 'Trajet fin — le quota travail s’arrête, franchise 30 min',
   fin_journee: 'Arrivé chez vous — le trajet fin s’arrête, journée close',
 }
 
-/** Forfait légal : 30 min déduites du trajet début et du trajet fin (domicile). */
+/** Franchise légale : les 30 premières minutes de trajet domicile ne sont pas retenues. */
 export const ABATTEMENT_TRAJET_DOMICILE_MIN = 30
+
+/** Arrivée qui clôture le 1er trajet (site INT, fournisseur ou bureau). */
+export function estArriveeLieuTravail(action?: PointageAction): boolean {
+  if (!action) return false
+  const n = normaliserAction(action)
+  return n === 'intervention_en_cours' || n === 'fournisseur' || n === 'bureau'
+}
+
+/** Minutes de trajet domicile réellement retenues (0 si ≤ 30 min). */
+export function trajetDomicileRetenuMin(brutMin: number): number {
+  if (brutMin <= 0) return 0
+  return Math.max(0, brutMin - ABATTEMENT_TRAJET_DOMICILE_MIN)
+}
+
+/** Minutes de franchise appliquées (tout le trajet s’il fait moins de 30 min). */
+export function trajetDomicileFranchiseMin(brutMin: number): number {
+  if (brutMin <= 0) return 0
+  return Math.min(ABATTEMENT_TRAJET_DOMICILE_MIN, brutMin)
+}
 
 export type PointageSegmentKind =
   | 'deplacement'
@@ -620,12 +639,16 @@ export type JourneePointage = {
   fournisseurMin: number
   bureauMin: number
   pauseMin: number
-  /** Trajet matin domicile → 1er site (inclus dans deplacementMin + trajet_domicile). */
+  /** Trajet matin domicile → 1re arrivée (site, fournisseur ou bureau). Hors quota 7h/8h. */
   trajetMatinMin: number
-  /** Trajet retour vers domicile. */
+  /** Trajet retour vers domicile (après « Trajet fin »). Hors quota 7h/8h. */
   retourMin: number
-  /** 30 min × trajets domicile (début et/ou fin) effectivement déduits. */
+  /** Franchise 30 min matin + soir effectivement non retenue. */
   abattementDomicileMin: number
+  /** Dépassement de 30 min retenu en trajet (matin + soir). */
+  trajetRetenuMin: number
+  /** Temps de travail : 1re arrivée → bouton Trajet fin (quota société 7h/8h). */
+  travailMin: number
   /** Déplacements hors OT entre INT (temps entier, pas d’abattement −30). */
   horsOtMin: number
   /** Sortie domicile → retour / fin (ou maintenant si journée ouverte). */
@@ -692,6 +715,8 @@ export function blankJourneePointage(opts: {
     trajetMatinMin: 0,
     retourMin: 0,
     abattementDomicileMin: 0,
+    trajetRetenuMin: 0,
+    travailMin: 0,
     horsOtMin: 0,
     porteAPorteMin: 0,
     trajetMin: 0,
@@ -730,24 +755,53 @@ export function calculerJournee(opts: {
   const lastNorm = last ? normaliserAction(last.action) : undefined
   const ouvert = Boolean(last && lastNorm !== 'fin_journee')
 
+  let arriveeFaite = false
+  let rentre = false
+
   for (let i = 0; i < list.length; i++) {
     const cur = list[i]
+    const n = normaliserAction(cur.action)
+    if (n === 'retour_domicile') rentre = true
+    if (!arriveeFaite && !rentre && estArriveeLieuTravail(cur.action)) arriveeFaite = true
+
     const kind = segmentDepuisAction(cur.action)
     if (!kind) continue
     const nextAt = finCreaneau(list, i, ouvert, now)
     if (!nextAt) continue
     const minutes = minutesEntre(cur.at, nextAt)
     if (minutes <= 0) continue
-    addSegmentKind(totals, kind, minutes, cur.action)
-    segments.push({
-      kind,
-      from: cur.at,
-      to: nextAt,
-      minutes,
-      otId: cur.otId,
-      chantierId: cur.chantierId,
-      cible: cur.cible,
-    })
+
+    const bucket: 'matin' | 'travail' | 'retour' = rentre
+      ? 'retour'
+      : arriveeFaite
+        ? 'travail'
+        : 'matin'
+
+    if (bucket === 'matin' || bucket === 'retour') {
+      totals.deplacementMin += minutes
+      if (bucket === 'retour') totals.retourMin += minutes
+      else totals.trajetMatinMin += minutes
+      segments.push({
+        kind: 'trajet_domicile',
+        from: cur.at,
+        to: nextAt,
+        minutes,
+        otId: cur.otId,
+        chantierId: cur.chantierId,
+        cible: cur.cible || 'domicile',
+      })
+    } else {
+      addSegmentKind(totals, kind, minutes, cur.action)
+      segments.push({
+        kind,
+        from: cur.at,
+        to: nextAt,
+        minutes,
+        otId: cur.otId,
+        chantierId: cur.chantierId,
+        cible: cur.cible,
+      })
+    }
   }
 
   const sortieEv = list.find((e) => normaliserAction(e.action) === 'sortie_domicile')
@@ -761,26 +815,24 @@ export function calculerJournee(opts: {
       ? minutesEntre(departDomicileIso, finPorteAPorte)
       : 0
 
-  if (totals.trajetMatinMin === 0) {
-    const premierTrajet = segments.find(
-      (s) => s.kind === 'deplacement' || s.kind === 'trajet_domicile',
-    )
-    if (premierTrajet) totals.trajetMatinMin = premierTrajet.minutes
-  }
-
-  const premierTrajetSeg = segments.find(
-    (s) => s.kind === 'deplacement' || s.kind === 'trajet_domicile',
-  )
   const horsOtMin = segments
     .filter((s) => s.kind === 'deplacement' && s.cible === 'hors_ot')
-    .filter((s) => Boolean(sortieEv) || s !== premierTrajetSeg)
     .reduce((n, s) => n + s.minutes, 0)
 
   const abattementDomicileMin =
-    (totals.trajetMatinMin > 0
-      ? Math.min(ABATTEMENT_TRAJET_DOMICILE_MIN, totals.trajetMatinMin)
-      : 0) +
-    (totals.retourMin > 0 ? Math.min(ABATTEMENT_TRAJET_DOMICILE_MIN, totals.retourMin) : 0)
+    trajetDomicileFranchiseMin(totals.trajetMatinMin) +
+    trajetDomicileFranchiseMin(totals.retourMin)
+  const trajetRetenuMin =
+    trajetDomicileRetenuMin(totals.trajetMatinMin) + trajetDomicileRetenuMin(totals.retourMin)
+
+  const travailMin = Math.max(
+    0,
+    totals.interventionMin +
+      totals.fournisseurMin +
+      totals.bureauMin +
+      totals.pauseMin +
+      (totals.deplacementMin - totals.trajetMatinMin - totals.retourMin),
+  )
 
   let pauseAutoMin = 0
   if (
@@ -791,16 +843,11 @@ export function calculerJournee(opts: {
     pauseAutoMin = r.pauseAutoMinutes
   }
 
-  const brut =
-    totals.deplacementMin +
-    totals.interventionMin +
-    totals.fournisseurMin +
-    totals.bureauMin +
-    totals.pauseMin
-  const payeMin = Math.max(
+  const travailNet = Math.max(
     0,
-    brut - (r.pauseNonPayee ? totals.pauseMin : 0) - pauseAutoMin - abattementDomicileMin,
+    travailMin - (r.pauseNonPayee ? totals.pauseMin : 0) - pauseAutoMin,
   )
+  const payeMin = travailNet + trajetRetenuMin
   const quota = Math.round(r.heuresJour * 60)
 
   const otIdCourant =
@@ -813,6 +860,8 @@ export function calculerJournee(opts: {
     userName: last?.userName || list[0]?.userName || '',
     ...totals,
     abattementDomicileMin,
+    trajetRetenuMin,
+    travailMin,
     horsOtMin,
     porteAPorteMin,
     departDomicileIso,
@@ -823,7 +872,7 @@ export function calculerJournee(opts: {
     pauseAutoMin,
     payeMin,
     heuresJour: r.heuresJour,
-    heuresSupMin: Math.max(0, payeMin - quota),
+    heuresSupMin: Math.max(0, travailNet - quota),
     ouvert,
     lastAction: last?.action,
     otIdCourant,
@@ -869,12 +918,13 @@ export function calculerSemaine(opts: {
     }),
   )
   const payeMin = jours.reduce((s, j) => s + j.payeMin, 0)
+  const travailNetMin = jours.reduce((s, j) => s + Math.max(0, j.payeMin - j.trajetRetenuMin), 0)
   const quotaMin = Math.round(r.heuresSemaine * 60)
   return {
     jours,
     payeMin,
     quotaMin,
-    heuresSupMin: Math.max(0, payeMin - quotaMin),
+    heuresSupMin: Math.max(0, travailNetMin - quotaMin),
   }
 }
 
@@ -889,15 +939,19 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Date',
     'Technicien',
     'Porte-à-porte (min)',
+    'Travail (min)',
     'Trajet matin (min)',
+    'Trajet matin retenu (min)',
     'Déplacement (min)',
     'Intervention OT (min)',
     'Fournisseur (min)',
     'Bureau (min)',
     'Pause (min)',
     'Retour domicile (min)',
+    'Retour retenu (min)',
     'Déplacement hors OT (min)',
-    'Abattement domicile −30×2 (min)',
+    'Franchise domicile 30 min (min)',
+    'Trajet retenu total (min)',
     'Pause auto (min)',
     'Temps payé (min)',
     'Temps payé',
@@ -912,15 +966,19 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
         j.date,
         csvEscape(j.userName),
         j.porteAPorteMin,
+        j.travailMin,
         j.trajetMatinMin,
+        trajetDomicileRetenuMin(j.trajetMatinMin),
         j.deplacementMin,
         j.interventionMin,
         j.fournisseurMin,
         j.bureauMin,
         j.pauseMin,
         j.retourMin,
+        trajetDomicileRetenuMin(j.retourMin),
         j.horsOtMin,
         j.abattementDomicileMin,
+        j.trajetRetenuMin,
         j.pauseAutoMin,
         j.payeMin,
         formatMinutesHhMm(j.payeMin),
@@ -1179,6 +1237,8 @@ export function calculerJourneeBureau(
     trajetMatinMin: 0,
     retourMin: 0,
     abattementDomicileMin: 0,
+    trajetRetenuMin: 0,
+    travailMin,
     horsOtMin: 0,
     porteAPorteMin: brutMin,
     departDomicileIso: debutIso,

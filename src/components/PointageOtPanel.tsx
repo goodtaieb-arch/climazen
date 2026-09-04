@@ -254,11 +254,14 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
               {maJournee.porteAPorteMin > 0
                 ? `Porte-à-porte ${formatMinutesHhMm(maJournee.porteAPorteMin)}`
                 : 'Pas encore sorti'}
+              {maJournee.travailMin > 0
+                ? ` · travail ${formatMinutesHhMm(maJournee.travailMin)} / ${formatMinutesHhMm(Math.round(maJournee.heuresJour * 60))}`
+                : ''}
+              {maJournee.trajetMatinMin + maJournee.retourMin > 0
+                ? ` · trajet retenu ${formatMinutesHhMm(maJournee.trajetRetenuMin)} (franchise 30 min)`
+                : ''}
               {maJournee.interventionMin > 0
                 ? ` · OT ${formatMinutesHhMm(maJournee.interventionMin)}`
-                : ''}
-              {maJournee.deplacementMin > 0
-                ? ` · route ${formatMinutesHhMm(maJournee.deplacementMin)}`
                 : ''}
               {maJournee.ouvert ? ' · en cours' : ' · journée close'}
             </p>
@@ -357,7 +360,8 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
             ))}
           </select>
           <p className="mt-1 text-[10px] font-semibold text-muted">
-            Trajet début / fin : −30 min légal. Déplacement hors INT entre deux OT : temps entier.
+            Trajet début / fin : hors quota 7h/8h, on ne retient que le dépassement de 30 min.
+            Déplacement hors INT entre deux OT : temps entier.
           </p>
           {horsOtBtns.length > 0 ? (
             <div className="mt-2 grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>

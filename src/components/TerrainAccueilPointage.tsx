@@ -166,9 +166,9 @@ export function TerrainAccueilPointage() {
           ))}
         </select>
         <span className="mt-1 block text-[10px] font-semibold text-muted">
-          Matin : « Trajet début » puis fournisseur / bureau si besoin (−30 min domicile). Entre
-          deux INT : déplacement hors INT (temps entier). Soir : « Trajet fin » (−30 min) puis
-          arrivé à la maison.
+          Matin : « Trajet début » jusqu’à l’arrivée (INT, fournisseur ou bureau). On ne retient
+          que ce qui dépasse 30 min (15 min = 0). Puis le quota travail (7h/8h) tourne jusqu’à
+          « Trajet fin ». Soir : même franchise 30 min. Entre deux INT : temps entier.
         </span>
       </label>
     ) : null
@@ -206,7 +206,7 @@ export function TerrainAccueilPointage() {
 
   const journeeBar = journeeClose ? (
     <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold text-muted">
-      Journée close — arrivé à la maison. Le trajet fin est arrêté (−30 min légal).
+      Journée close — arrivé à la maison. Trajet fin hors quota 7h/8h (franchise 30 min).
     </p>
   ) : (
     <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
