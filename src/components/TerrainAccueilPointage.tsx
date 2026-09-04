@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, Flag, Home, MapPin, Navigation, Wrench } from 'lucide-react'
+import { Check, ChevronDown, Eye, Home, MapPin, Navigation, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
@@ -119,10 +119,6 @@ export function TerrainAccueilPointage() {
   const enIntervention = lastCanon === 'intervention_en_cours'
   const enTrajetFin = lastCanon === 'retour_domicile'
   const journeeClose = lastCanon === 'fin_journee'
-  const peutTrajetDebut =
-    !journeeClose && !enTrajetFin && actionAutorisee(last, 'sortie_domicile')
-  const peutTrajetFin =
-    !journeeClose && !enTrajetFin && actionAutorisee(last, 'retour_domicile')
   const showApresInt =
     !journeeClose &&
     !enIntervention &&
@@ -130,11 +126,13 @@ export function TerrainAccueilPointage() {
 
   const punchHorsInt = (item: (typeof POINTAGE_HORS_INT_MENU)[number]) => {
     if (!actionAutorisee(last, item.action)) {
-      setMsg(
-        item.action === 'fournisseur' || item.action === 'bureau'
-          ? 'D’abord « Trajet début de journée » (−30 min légal), puis fournisseur / bureau.'
-          : `Action impossible après ${last ? POINTAGE_ACTION_LABELS[last.action] : 'rien'}. Commencez par « Trajet début de journée ».`,
-      )
+      if (item.action === 'sortie_domicile') {
+        setMsg('Trajet début déjà fait, ou journée close.')
+      } else if (!last || lastCanon === 'fin_journee') {
+        setMsg('D’abord « Déplacement hors INT début de journée ».')
+      } else {
+        setMsg(`Action impossible après ${POINTAGE_ACTION_LABELS[last.action]}.`)
+      }
       return
     }
     void punch(item.action, { cible: item.cible })
@@ -158,7 +156,7 @@ export function TerrainAccueilPointage() {
           }}
           className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold"
         >
-          <option value="">Fournisseur, bureau, déplacement hors INT…</option>
+          <option value="">Choisir une entrée hors INT…</option>
           {POINTAGE_HORS_INT_MENU.map((m) => (
             <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
               {m.label}
@@ -166,23 +164,11 @@ export function TerrainAccueilPointage() {
           ))}
         </select>
         <span className="mt-1 block text-[10px] font-semibold text-muted">
-          Matin : « Trajet début » jusqu’à l’arrivée (INT, fournisseur ou bureau). On ne retient
-          que ce qui dépasse 30 min (15 min = 0). Puis le quota travail (7h/8h) tourne jusqu’à
-          « Trajet fin ». Soir : même franchise 30 min. Entre deux INT : temps entier.
+          Début / fin de journée : franchise 30 min, hors quota. Pause = non payée. Entre deux INT :
+          déplacement hors INT au temps entier. Consulter une INT ne lance pas le pointage.
         </span>
       </label>
     ) : null
-
-  const trajetDebutBtn = peutTrajetDebut ? (
-    <button
-      type="button"
-      disabled={busy || !actif}
-      onClick={() => void punch('sortie_domicile', { cible: 'domicile' })}
-      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-sky-400 bg-sky-50 px-3 text-sm font-bold text-sky-950"
-    >
-      <Navigation className="h-4 w-4" /> Trajet début de journée
-    </button>
-  ) : null
 
   const trajetFinBtn = enTrajetFin ? (
     <button
@@ -192,15 +178,6 @@ export function TerrainAccueilPointage() {
       className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-3 text-sm font-bold text-white"
     >
       <Home className="h-4 w-4" /> Arrivé à la maison
-    </button>
-  ) : peutTrajetFin ? (
-    <button
-      type="button"
-      disabled={busy || !actif}
-      onClick={() => void punch('retour_domicile', { cible: 'domicile' })}
-      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-400 bg-white px-3 text-sm font-bold text-slate-900"
-    >
-      <Flag className="h-4 w-4" /> Trajet fin de journée
     </button>
   ) : null
 
@@ -213,9 +190,8 @@ export function TerrainAccueilPointage() {
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
         Pointage hors INT
       </p>
-      {trajetDebutBtn}
       {horsIntSelect}
-      {trajetFinBtn}
+      {enTrajetFin ? trajetFinBtn : null}
       {showApresInt ? (
         <Link
           to="/app/appel"
@@ -285,49 +261,59 @@ export function TerrainAccueilPointage() {
 
           return (
             <li key={o.id} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-              <button
-                type="button"
-                onClick={() => setOpenId(expanded ? null : o.id)}
-                className="flex w-full items-start gap-2 px-3 py-3 text-left"
-              >
-                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-ink/20 bg-mist">
-                  {enCoursIci ? (
-                    <Wrench className="h-4 w-4 text-emerald-700" />
-                  ) : enDeplacementOt ? (
-                    <Navigation className="h-4 w-4 text-sky-700" />
-                  ) : (
-                    <MapPin className="h-4 w-4 text-muted" />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-extrabold text-ink">{formatOtNumero(o.numero)}</span>
-                    <span className="text-[10px] font-bold uppercase text-muted">
-                      {TYPE_OT_LABELS[o.typeOt]}
-                    </span>
-                    {enDeplacementOt ? (
-                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-950">
-                        Déplacement
-                      </span>
-                    ) : null}
+              <div className="flex w-full items-start gap-2 px-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(expanded ? null : o.id)}
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                >
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-ink/20 bg-mist">
                     {enCoursIci ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-950">
-                        En cours
+                      <Wrench className="h-4 w-4 text-emerald-700" />
+                    ) : enDeplacementOt ? (
+                      <Navigation className="h-4 w-4 text-sky-700" />
+                    ) : (
+                      <MapPin className="h-4 w-4 text-muted" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-extrabold text-ink">{formatOtNumero(o.numero)}</span>
+                      <span className="text-[10px] font-bold uppercase text-muted">
+                        {TYPE_OT_LABELS[o.typeOt]}
                       </span>
-                    ) : null}
+                      {enDeplacementOt ? (
+                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-950">
+                          Déplacement
+                        </span>
+                      ) : null}
+                      {enCoursIci ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-950">
+                          En cours
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="mt-0.5 block truncate text-sm font-semibold text-ink">
+                      {client?.raisonSociale || 'Client —'}
+                    </span>
+                    <span className="block truncate text-xs text-muted">
+                      {site?.nom || 'Site —'}
+                      {o.action ? ` · ${o.action}` : ''}
+                    </span>
                   </span>
-                  <span className="mt-0.5 block truncate text-sm font-semibold text-ink">
-                    {client?.raisonSociale || 'Client —'}
-                  </span>
-                  <span className="block truncate text-xs text-muted">
-                    {site?.nom || 'Site —'}
-                    {o.action ? ` · ${o.action}` : ''}
-                  </span>
-                </span>
-                <ChevronDown
-                  className={`mt-1 h-4 w-4 shrink-0 text-muted transition ${expanded ? 'rotate-180' : ''}`}
-                />
-              </button>
+                  <ChevronDown
+                    className={`mt-1 h-4 w-4 shrink-0 text-muted transition ${expanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                <Link
+                  to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
+                  className="mt-0.5 inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-white px-2.5 text-[11px] font-bold text-ink"
+                  title="Consulter sans pointer"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {enCoursIci ? 'Dossier' : 'Voir'}
+                </Link>
+              </div>
               {expanded && enTrajetFin ? (
                 <p className="border-t border-line bg-mist/40 px-3 py-3 text-xs font-semibold text-muted">
                   Trajet fin en cours — arrêtez-le avec « Arrivé à la maison » en haut.
@@ -335,6 +321,10 @@ export function TerrainAccueilPointage() {
               ) : null}
               {expanded && !enTrajetFin ? (
                 <div className="space-y-2 border-t border-line bg-mist/40 px-3 py-3">
+                  <p className="text-[10px] font-semibold text-muted">
+                    « Voir » ouvre le dossier sans vous mettre en cours. Le pointage hors INT est
+                    au-dessus.
+                  </p>
                   {!enDeplacementOt && !enCoursIci ? (
                     <label className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-950">
                       <input
@@ -350,7 +340,7 @@ export function TerrainAccueilPointage() {
                         }
                         className="h-5 w-5 accent-sky-700"
                       />
-                      Déplacement
+                      Déplacement vers cette INT
                     </label>
                   ) : null}
                   {enDeplacementOt ? (
@@ -370,42 +360,12 @@ export function TerrainAccueilPointage() {
                     </button>
                   ) : null}
                   {enCoursIci ? (
-                    <>
-                      <Link
-                        to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
-                        className="flex min-h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-sm font-bold text-emerald-950"
-                      >
-                        Ouvrir (rédiger / signer / fin)
-                      </Link>
-                      <label className="block text-sm">
-                        <span className="mb-1 block text-[11px] font-bold uppercase text-muted">
-                          Nouvelle entrée hors intervention
-                        </span>
-                        <select
-                          disabled={busy || !actif}
-                          defaultValue=""
-                          onChange={(e) => {
-                            const v = e.target.value
-                            e.target.value = ''
-                            const item = POINTAGE_HORS_INT_MENU.find(
-                              (m) => `${m.action}:${m.cible || ''}` === v,
-                            )
-                            if (!item) return
-                            void punch(item.action, {
-                              cible: item.cible,
-                            })
-                          }}
-                          className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold"
-                        >
-                          <option value="">Choisir…</option>
-                          {POINTAGE_HORS_INT_MENU.map((m) => (
-                            <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
-                              {m.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </>
+                    <Link
+                      to={`/app/appel?ot=${encodeURIComponent(o.id)}`}
+                      className="flex min-h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-sm font-bold text-emerald-950"
+                    >
+                      Rédiger / signer / fin
+                    </Link>
                   ) : null}
                   {peutReprendre && lastOnThis ? (
                     <button
@@ -422,36 +382,6 @@ export function TerrainAccueilPointage() {
                     >
                       Reprendre l’intervention
                     </button>
-                  ) : null}
-                  {peutReprendre && !enCoursIci && !enDeplacementOt ? (
-                    <label className="block text-sm">
-                      <span className="mb-1 block text-[11px] font-bold uppercase text-muted">
-                        Changer d’action
-                      </span>
-                      <select
-                        disabled={busy || !actif}
-                        defaultValue=""
-                        onChange={(e) => {
-                          const v = e.target.value
-                          e.target.value = ''
-                          const item = POINTAGE_HORS_INT_MENU.find(
-                            (m) => `${m.action}:${m.cible || ''}` === v,
-                          )
-                          if (!item) return
-                          void punch(item.action, {
-                            cible: item.cible,
-                          })
-                        }}
-                        className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold"
-                      >
-                        <option value="">Choisir…</option>
-                        {POINTAGE_HORS_INT_MENU.map((m) => (
-                          <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                   ) : null}
                 </div>
               ) : null}

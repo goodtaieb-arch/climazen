@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   POINTAGE_CNIL_NOTICE,
+  POINTAGE_HORS_INT_MENU,
   actionAutorisee,
   actionsSuivantes,
   arrondirDate,
@@ -9,6 +10,7 @@ import {
   calculerJourneeBureau,
   calculerSemaine,
   csvEscape,
+  doitAjouterPauseApresCloture,
   doitEnregistrerFinIntervention,
   exportJourneesCsv,
   formatMinutesHhMm,
@@ -88,6 +90,22 @@ assert.ok(actionsSuivantes(eInter).includes('fournisseur'))
 assert.ok(actionsSuivantes(eInter).includes('bureau'))
 assert.equal(actionAutorisee(eInter, 'fin_intervention'), true)
 assert.equal(actionAutorisee(eInter, 'fournisseur'), true)
+assert.ok(actionsSuivantes(eInter).includes('retour_domicile'))
+assert.ok(actionsSuivantes(eInter).includes('pause'))
+
+assert.deepEqual(
+  POINTAGE_HORS_INT_MENU.map((m) => m.label),
+  [
+    'Déplacement hors INT début de journée',
+    'Bureau / atelier',
+    'Fournisseur',
+    'Déplacement hors INT',
+    'Pause',
+    'Pause repas',
+    'Trajet fin',
+  ],
+)
+assert.equal(doitAjouterPauseApresCloture(eInter, 'ot1'), true)
 
 const eFourDuringOt = ev({ action: 'fournisseur', at: '2026-09-02T09:00:00.000Z' })
 assert.ok(actionsSuivantes(eFourDuringOt).includes('intervention_en_cours'))
@@ -99,6 +117,8 @@ assert.ok(actionsSuivantes(eFinInter).includes('retour_domicile'))
 assert.ok(actionsSuivantes(eFinInter).includes('fin_journee'))
 assert.equal(doitEnregistrerFinIntervention(eInter, 'ot1'), true)
 assert.equal(doitEnregistrerFinIntervention(eFinInter, 'ot1'), false)
+assert.equal(doitAjouterPauseApresCloture(eFinInter, 'ot1'), false)
+assert.equal(doitAjouterPauseApresCloture(eFourDuringOt, 'ot1'), false)
 assert.equal(doitEnregistrerFinIntervention(eFourDuringOt, 'ot1'), true)
 assert.equal(doitEnregistrerFinIntervention(undefined, 'ot1'), false)
 assert.equal(
@@ -175,6 +195,25 @@ const payeAvecPause = calculerJournee({
   regles: { ...pretes, pauseNonPayee: false, active: true, cnilAcceptee: true },
 })
 assert.equal(payeAvecPause.pauseMin, 30)
+assert.ok(!payeAvecPause.travailMin || payeAvecPause.payeMin === payeAvecPause.travailMin + payeAvecPause.trajetRetenuMin)
+
+const pauseSeule = calculerJournee({
+  events: [
+    ev({ action: 'deplacement', at: '2026-09-02T07:00:00.000Z', otId: 'ot1', cible: 'ot' }),
+    ev({ action: 'intervention_en_cours', at: '2026-09-02T07:20:00.000Z', otId: 'ot1' }),
+    ev({ action: 'pause', at: '2026-09-02T10:00:00.000Z' }),
+    ev({ action: 'intervention_en_cours', at: '2026-09-02T10:45:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_intervention', at: '2026-09-02T12:00:00.000Z', otId: 'ot1' }),
+    ev({ action: 'pause', at: '2026-09-02T12:00:00.000Z', note: 'Pause auto après clôture INT — non payée' }),
+    ev({ action: 'fin_journee', at: '2026-09-02T13:00:00.000Z' }),
+  ],
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(pauseSeule.pauseMin, 45 + 60)
+assert.equal(pauseSeule.travailMin, 160 + 75)
+assert.equal(pauseSeule.payeMin, pauseSeule.travailMin + pauseSeule.trajetRetenuMin)
 
 const auto = calculerJournee({
   events: [
