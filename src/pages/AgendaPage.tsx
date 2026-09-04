@@ -1965,83 +1965,101 @@ export function AgendaPage() {
               {otsSansPlanning.length === 0 ? (
                 <p className="mt-2 text-xs text-muted">Aucun OT sans créneau pour ces filtres.</p>
               ) : (
-                <div className="mt-2 max-h-[min(50vh,28rem)] space-y-1 overflow-y-auto">
-                  {otsSansPlanning.map((ot) => {
-                    const selected = otAPlacerId === ot.id
-                    const prio = prioriteTypeOt(ot.typeOt)
-                    const col = couleurPlanning({ typeOt: ot.typeOt })
-                    const clientNom =
-                      data.clients.find((c) => c.id === ot.clientId)?.raisonSociale || '—'
-                    const siteNom =
-                      data.chantiers.find((c) => c.id === ot.chantierId)?.nom || '—'
-                    const typeCourt =
-                      prio === 0
-                        ? 'Dép.'
-                        : prio === 1
-                          ? 'Inst.'
-                          : prio === 2
-                            ? 'Maint.'
-                            : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'INT'
-                    const action = (ot.action || '').trim()
-                    const derniereInterv = derniereIntervParOtId.get(ot.id)
-                    const titleLine = [
-                      typeCourt,
-                      formatOtNumero(ot.numero),
-                      ot.date ? formatFr(ot.date) : '',
-                      derniereInterv ? `dern. interv. ${formatFr(derniereInterv)}` : '',
-                      clientNom,
-                      siteNom,
-                      action,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
-                    return (
-                      <button
-                        key={ot.id}
-                        type="button"
-                        title={titleLine}
-                        onClick={() => {
-                          if (!bureau) {
-                            navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
-                            return
-                          }
-                          setOtAPlacerId(selected ? null : ot.id)
-                          setOtPoolOpen(true)
-                          setView('jour')
-                        }}
-                        className={`flex w-full items-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-[11px] leading-tight ${col.border} ${col.bg} ${
-                          selected ? 'ring-2 ring-teal-600' : 'hover:brightness-95'
-                        }`}
-                      >
-                        <span className={`shrink-0 font-extrabold uppercase ${col.text}`}>
-                          {typeCourt}
-                        </span>
-                        <span className="shrink-0 font-extrabold text-ink">
-                          {formatOtNumero(ot.numero)}
-                        </span>
-                        {ot.date ? (
-                          <span className="hidden shrink-0 font-semibold text-muted sm:inline">
-                            {formatFr(ot.date)}
-                          </span>
-                        ) : null}
-                        {derniereInterv ? (
-                          <span
-                            className="shrink-0 rounded bg-white/70 px-1 py-0.5 text-[10px] font-bold text-amber-900"
-                            title={`Dernière intervention sur ce site : ${formatFr(derniereInterv)} — caler le prochain créneau à un intervalle comparable.`}
+                <div className="mt-2 max-h-[min(50vh,28rem)] overflow-auto">
+                  <div className="min-w-[46rem]">
+                    <div
+                      className="agenda-int-cols px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted"
+                      aria-hidden
+                    >
+                      <span>Type</span>
+                      <span>N°</span>
+                      <span>Date</span>
+                      <span>Dern.</span>
+                      <span>Client</span>
+                      <span>Site</span>
+                      <span>Détail</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {otsSansPlanning.map((ot) => {
+                        const selected = otAPlacerId === ot.id
+                        const prio = prioriteTypeOt(ot.typeOt)
+                        const col = couleurPlanning({ typeOt: ot.typeOt })
+                        const clientNom =
+                          data.clients.find((c) => c.id === ot.clientId)?.raisonSociale || '—'
+                        const siteNom =
+                          data.chantiers.find((c) => c.id === ot.chantierId)?.nom || '—'
+                        const typeCourt =
+                          prio === 0
+                            ? 'Dép.'
+                            : prio === 1
+                              ? 'Inst.'
+                              : prio === 2
+                                ? 'Maint.'
+                                : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'INT'
+                        const action = (ot.action || '').trim()
+                        const derniereInterv = derniereIntervParOtId.get(ot.id)
+                        const titleLine = [
+                          typeCourt,
+                          formatOtNumero(ot.numero),
+                          ot.date ? formatFr(ot.date) : '',
+                          derniereInterv ? `dern. interv. ${formatFr(derniereInterv)}` : '',
+                          clientNom,
+                          siteNom,
+                          action,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                        return (
+                          <button
+                            key={ot.id}
+                            type="button"
+                            title={titleLine}
+                            onClick={() => {
+                              if (!bureau) {
+                                navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
+                                return
+                              }
+                              setOtAPlacerId(selected ? null : ot.id)
+                              setOtPoolOpen(true)
+                              setView('jour')
+                            }}
+                            className={`agenda-int-cols w-full border-0 px-2 py-1.5 text-left text-[11px] leading-tight ${col.bg} ${
+                              selected ? 'ring-2 ring-teal-600' : 'hover:brightness-95'
+                            }`}
                           >
-                            dern. {formatFr(derniereInterv)}
-                          </span>
-                        ) : null}
-                        <span className={`min-w-0 truncate font-semibold ${col.text}`}>
-                          {clientNom}
-                          <span className="font-medium text-muted"> · {siteNom}</span>
-                          {action ? (
-                            <span className="font-normal text-ink/70"> · {action}</span>
-                          ) : null}
-                        </span>
-                      </button>
-                    )
-                  })}
+                            <span className={`truncate font-extrabold uppercase ${col.text}`}>
+                              {typeCourt}
+                            </span>
+                            <span className="truncate font-extrabold tabular-nums text-ink">
+                              {formatOtNumero(ot.numero)}
+                            </span>
+                            <span className="truncate font-semibold tabular-nums text-muted">
+                              {ot.date ? formatFr(ot.date) : '—'}
+                            </span>
+                            <span
+                              className="truncate text-[10px] font-bold tabular-nums text-amber-800"
+                              title={
+                                derniereInterv
+                                  ? `Dernière intervention sur ce site : ${formatFr(derniereInterv)} — caler le prochain créneau à un intervalle comparable.`
+                                  : undefined
+                              }
+                            >
+                              {derniereInterv ? formatFr(derniereInterv) : ''}
+                            </span>
+                            <span className={`min-w-0 truncate font-semibold ${col.text}`}>
+                              {clientNom}
+                            </span>
+                            <span className="min-w-0 truncate font-medium text-muted">
+                              {siteNom}
+                            </span>
+                            <span className="min-w-0 truncate font-normal text-ink/70">
+                              {action || '—'}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
             </>
