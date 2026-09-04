@@ -31,7 +31,14 @@ import {
 } from '../lib/ordreTravail'
 import { formatOtCommercialBadge } from '../lib/chaineCommerciale'
 import { contratsActifsForClient, contratsActifsForSite } from '../lib/contratMaintenance'
-import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
+import {
+  NIVEAU_VISITE_LABELS,
+  infoMoisGenerationOt,
+  labelMoisSlot,
+  parseNiveauVisite,
+  slotKeyMoisEnCours,
+  texteRechercheMoisGeneration,
+} from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { SecteurOtSelect } from '../components/PostePersonnelSelect'
@@ -200,6 +207,7 @@ export function OrdresTravailPage() {
             o.lienCommandeType,
             labelSecteurCourt(o.secteur),
             o.visiteNiveau,
+            texteRechercheMoisGeneration(o),
             labelAgence(o.agenceCode || site?.agenceCode || client?.agenceCode),
             o.observations,
           ]
@@ -228,6 +236,12 @@ export function OrdresTravailPage() {
   const countAttentePiece = useMemo(
     () => (data.ordresTravail || []).filter((o) => o.statut === 'en_attente_piece').length,
     [data.ordresTravail],
+  )
+
+  const moisGenerationCourant = labelMoisSlot(slotKeyMoisEnCours())
+  const visitesContratRetard = useMemo(
+    () => list.filter((o) => infoMoisGenerationOt(o)?.retard).length,
+    [list],
   )
 
   const sitesForClientFilter = useMemo(() => {
@@ -741,7 +755,7 @@ export function OrdresTravailPage() {
         <SearchField
           value={q}
           onChange={setQ}
-          placeholder="N° OT, client, site, ville, tech, action…"
+          placeholder="N° OT, client, site, ville, tech, action, mois…"
           testId="ot-search"
         />
         <select
@@ -850,6 +864,17 @@ export function OrdresTravailPage() {
         ))}
       </div>
 
+      {moisGenerationCourant ? (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          Contrats de maintenance — mois de génération en cours :{' '}
+          <strong>{moisGenerationCourant}</strong>. Chaque visite affiche le mois où l’INT a été
+          générée (un retard reste visible même si on est au mois suivant).
+          {visitesContratRetard > 0
+            ? ` ${visitesContratRetard} visite${visitesContratRetard > 1 ? 's' : ''} d’un mois précédent encore dans la liste.`
+            : ''}
+        </p>
+      ) : null}
+
       <div className="grid gap-3">
         {list.map((o) => {
           const client = data.clients.find((c) => c.id === o.clientId)
@@ -873,6 +898,7 @@ export function OrdresTravailPage() {
             (d) => d.statut === 'accepte' || d.statut === 'execute',
           )
           const attentePiece = o.statut === 'en_attente_piece'
+          const moisGen = infoMoisGenerationOt(o)
           const qsCommercial = new URLSearchParams()
           if (o.clientId) qsCommercial.set('client', o.clientId)
           if (o.chantierId) qsCommercial.set('chantier', o.chantierId)
@@ -921,6 +947,19 @@ export function OrdresTravailPage() {
                   {parseNiveauVisite(o.visiteNiveau) ? (
                     <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase text-ink">
                       {NIVEAU_VISITE_LABELS[parseNiveauVisite(o.visiteNiveau)!]}
+                    </span>
+                  ) : null}
+                  {moisGen ? (
+                    <span
+                      className={[
+                        'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+                        moisGen.retard
+                          ? 'bg-amber-100 text-amber-950'
+                          : 'bg-sky-100 text-sky-950',
+                      ].join(' ')}
+                      title="Mois de génération de la visite sous contrat"
+                    >
+                      {moisGen.label}
                     </span>
                   ) : null}
                 </div>

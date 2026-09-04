@@ -38,6 +38,8 @@ import {
 import { formatOtAvancement, formatOtNumero, OT_LABEL } from '../lib/ordreTravail'
 import {
   alertesOtContratFinMois,
+  isMoisGenerationEnRetard,
+  labelMoisSlot,
   NIVEAU_VISITE_LABELS,
   type NiveauVisite,
 } from '../lib/contratOtAuto'
@@ -964,6 +966,9 @@ export function Dashboard() {
               const niv = a.visiteNiveau
                 ? NIVEAU_VISITE_LABELS[a.visiteNiveau as NiveauVisite]
                 : null
+              const moisGen = a.slotKey
+                ? `${labelMoisSlot(a.slotKey) || a.slotKey}${isMoisGenerationEnRetard(a.slotKey) ? ' · retard' : ''}`
+                : null
               return (
                 <li key={a.otId}>
                   <Link
@@ -974,6 +979,7 @@ export function Dashboard() {
                       <p className="font-display text-base font-bold text-ink">
                         {formatOtNumero(a.numero)}
                         {niv ? ` · ${niv}` : ''}
+                        {moisGen ? ` · ${moisGen}` : ''}
                       </p>
                       <p className="truncate text-sm text-muted">
                         {client?.raisonSociale || '—'}

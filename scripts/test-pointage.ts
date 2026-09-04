@@ -27,6 +27,7 @@ import {
   segmentDepuisAction,
   statutOtDepuisAction,
   trajetDomicileRetenuMin,
+  ventilerPauseRepas,
   type PointageEvent,
 } from '../src/lib/pointage'
 
@@ -35,6 +36,7 @@ assert.ok(POINTAGE_CNIL_NOTICE.includes('OT'))
 
 const vide = blankPointageRegles()
 assert.equal(vide.active, false)
+assert.equal(vide.primePanierActive, true)
 assert.equal(pointageReglesCompletes(vide), false)
 assert.ok(motifsReglesIncompletes(vide).includes('Acceptation information CNIL'))
 assert.equal(peutActiverPointage(vide), false)
@@ -250,7 +252,7 @@ assert.equal(statutOtDepuisAction('deplacement', 'ot'), 'en_deplacement')
 assert.equal(statutOtDepuisAction('intervention_en_cours'), 'en_cours')
 assert.equal(statutOtDepuisAction('sortie_domicile'), null)
 assert.equal(segmentDepuisAction('sortie_domicile'), 'trajet_domicile')
-assert.equal(segmentDepuisAction('pause_repas'), 'pause')
+assert.equal(segmentDepuisAction('pause_repas'), 'pause_repas')
 
 const homeEvents: PointageEvent[] = [
   ev({ action: 'sortie_domicile', at: '2026-09-02T07:00:00.000Z', cible: 'domicile' }),
@@ -363,7 +365,108 @@ const bureauJour = calculerJourneeBureau(
 )
 assert.equal(bureauJour.bureauMin, 8 * 60)
 assert.equal(bureauJour.pauseMin, 60)
+assert.equal(bureauJour.pauseRepasMin, 0)
+assert.equal(bureauJour.primePanier, false)
 assert.equal(bureauJour.payeMin, 8 * 60)
 assert.equal(bureauJour.deplacementMin, 0)
+
+assert.deepEqual(ventilerPauseRepas(49), {
+  repasMin: 0,
+  pauseNonPayeeMin: 49,
+  primePanier: false,
+})
+assert.deepEqual(ventilerPauseRepas(50), {
+  repasMin: 50,
+  pauseNonPayeeMin: 0,
+  primePanier: true,
+})
+assert.deepEqual(ventilerPauseRepas(60), {
+  repasMin: 60,
+  pauseNonPayeeMin: 0,
+  primePanier: true,
+})
+assert.deepEqual(ventilerPauseRepas(80), {
+  repasMin: 60,
+  pauseNonPayeeMin: 20,
+  primePanier: true,
+})
+
+const repasEvents = [
+  ev({ action: 'deplacement', at: '2026-09-02T07:00:00.000Z', otId: 'ot1', cible: 'ot' }),
+  ev({ action: 'intervention_en_cours', at: '2026-09-02T07:30:00.000Z', otId: 'ot1' }),
+  ev({ action: 'pause_repas', at: '2026-09-02T12:00:00.000Z' }),
+]
+
+const repasOk = calculerJournee({
+  events: [
+    ...repasEvents,
+    ev({ action: 'intervention_en_cours', at: '2026-09-02T12:55:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_intervention', at: '2026-09-02T16:00:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_journee', at: '2026-09-02T16:05:00.000Z' }),
+  ],
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(repasOk.pauseRepasMin, 55)
+assert.equal(repasOk.pauseMin, 0)
+assert.equal(repasOk.primePanier, true)
+assert.equal(repasOk.travailMin, 270 + 185)
+assert.equal(repasOk.payeMin, repasOk.travailMin + repasOk.trajetRetenuMin)
+assert.equal(repasOk.segments.filter((s) => s.kind === 'pause_repas').length, 1)
+assert.equal(repasOk.segments.filter((s) => s.kind === 'pause').length, 0)
+
+const repasCourt = calculerJournee({
+  events: [
+    ...repasEvents,
+    ev({ action: 'intervention_en_cours', at: '2026-09-02T12:40:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_intervention', at: '2026-09-02T16:00:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_journee', at: '2026-09-02T16:05:00.000Z' }),
+  ],
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(repasCourt.pauseRepasMin, 0)
+assert.equal(repasCourt.pauseMin, 40)
+assert.equal(repasCourt.primePanier, false)
+assert.equal(repasCourt.travailMin, 270 + 200)
+
+const repasLong = calculerJournee({
+  events: [
+    ...repasEvents,
+    ev({ action: 'intervention_en_cours', at: '2026-09-02T13:20:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_intervention', at: '2026-09-02T16:00:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_journee', at: '2026-09-02T16:05:00.000Z' }),
+  ],
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(repasLong.pauseRepasMin, 60)
+assert.equal(repasLong.pauseMin, 20)
+assert.equal(repasLong.primePanier, true)
+assert.equal(repasLong.travailMin, 270 + 160)
+assert.equal(repasLong.segments.filter((s) => s.kind === 'pause_repas')[0]?.minutes, 60)
+assert.equal(repasLong.segments.filter((s) => s.kind === 'pause')[0]?.minutes, 20)
+
+const repasSansPrime = calculerJournee({
+  events: [
+    ...repasEvents,
+    ev({ action: 'intervention_en_cours', at: '2026-09-02T12:55:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_intervention', at: '2026-09-02T16:00:00.000Z', otId: 'ot1' }),
+    ev({ action: 'fin_journee', at: '2026-09-02T16:05:00.000Z' }),
+  ],
+  userId: 't1',
+  date: '2026-09-02',
+  regles: { ...(act.ok ? act.regles : pretes), primePanierActive: false },
+})
+assert.equal(repasSansPrime.pauseRepasMin, 55)
+assert.equal(repasSansPrime.primePanier, false)
+
+const csvRepas = exportJourneesCsv([repasOk])
+assert.ok(csvRepas.includes('Pause repas (min)'))
+assert.ok(csvRepas.includes('Prime panier'))
+assert.ok(csvRepas.includes('oui'))
 
 console.log('test-pointage: ok')

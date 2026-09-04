@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v226'
+export const APP_VERSION = 'v227'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-04-v226-fix-vercel-pointage'
+export const APP_BUILD = '2026-09-04-v227-mois-contrat-pause-repas'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

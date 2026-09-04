@@ -4,6 +4,7 @@ import { Check, ChevronDown, Eye, Home, MapPin, Navigation, Wrench } from 'lucid
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
+import { infoMoisGenerationOt } from '../lib/contratOtAuto'
 import {
   POINTAGE_ACTION_LABELS,
   POINTAGE_HORS_INT_MENU,
@@ -164,8 +165,9 @@ export function TerrainAccueilPointage() {
           ))}
         </select>
         <span className="mt-1 block text-[10px] font-semibold text-muted">
-          Début / fin de journée : franchise 30 min, hors quota. Pause = non payée. Entre deux INT :
-          déplacement hors INT au temps entier. Consulter une INT ne lance pas le pointage.
+          Début / fin de journée : franchise 30 min, hors quota. Pause = non payée. Pause repas =
+          50 min à 1 h, hors quota, prime panier (surplus = pause). Entre deux INT : déplacement
+          hors INT au temps entier. Consulter une INT ne lance pas le pointage.
         </span>
       </label>
     ) : null
@@ -258,6 +260,7 @@ export function TerrainAccueilPointage() {
             lastCanon === 'pause_repas'
           const peutReprendre =
             horsIntEnCours && !enDeplacementOt && actionAutorisee(last, 'intervention_en_cours')
+          const moisGen = infoMoisGenerationOt(o)
 
           return (
             <li key={o.id} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -290,6 +293,18 @@ export function TerrainAccueilPointage() {
                       {enCoursIci ? (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-950">
                           En cours
+                        </span>
+                      ) : null}
+                      {moisGen ? (
+                        <span
+                          className={[
+                            'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+                            moisGen.retard
+                              ? 'bg-amber-100 text-amber-950'
+                              : 'bg-sky-100 text-sky-950',
+                          ].join(' ')}
+                        >
+                          {moisGen.label}
                         </span>
                       ) : null}
                     </span>

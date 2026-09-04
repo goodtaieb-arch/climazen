@@ -16,11 +16,16 @@ import {
   decalerVisiteContrat,
   docsRequisPourFamille,
   joursRestantsDansMois,
+  labelMoisSlot,
+  infoMoisGenerationOt,
+  isMoisGenerationEnRetard,
   mergeOtsDepuisContrats,
   moisCyclePourFrequence,
   niveauVisitePourMoisCycle,
   periodiciteDepuisVisites,
   pruneOtsContratHorsFenetre,
+  slotKeyFromContratOtKey,
+  slotKeyMoisEnCours,
   visitesDepuisContrat,
 } from '../src/lib/contratOtAuto'
 import {
@@ -401,6 +406,7 @@ const alertes = alertesOtContratFinMois(
 assert.equal(alertes.length, 1)
 assert.equal(alertes[0].otId, 'o1')
 assert.equal(alertes[0].joursRestants, 6)
+assert.equal(alertes[0].slotKey, '2026-09')
 
 const pruned = pruneOtsContratHorsFenetre(
   [
@@ -481,5 +487,19 @@ assert.equal(
   ),
   '2026-09-27',
 )
+
+assert.equal(slotKeyFromContratOtKey('cm-ot:c1:s1:2026-09'), '2026-09')
+assert.equal(labelMoisSlot('2026-09'), 'Septembre 2026')
+assert.equal(labelMoisSlot('2026-08'), 'Août 2026')
+assert.equal(slotKeyMoisEnCours(new Date(2026, 8, 4, 12, 0, 0)), '2026-09')
+assert.equal(isMoisGenerationEnRetard('2026-08', new Date(2026, 8, 4, 12, 0, 0)), true)
+assert.equal(isMoisGenerationEnRetard('2026-09', new Date(2026, 8, 4, 12, 0, 0)), false)
+const infoRetard = infoMoisGenerationOt(
+  { contratOtKey: 'cm-ot:c1:s1:2026-08' },
+  new Date(2026, 8, 4, 12, 0, 0),
+)
+assert.equal(infoRetard?.mois, 'Août 2026')
+assert.equal(infoRetard?.retard, true)
+assert.equal(infoRetard?.label, 'Août 2026 · retard')
 
 console.log('ok test-contrat-ot-auto')

@@ -103,8 +103,9 @@ export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
   fin_intervention: 'Intervention terminée sur cet OT',
   fournisseur: 'Chez le fournisseur (pièces, gaz, station…)',
   bureau: 'Au bureau / atelier',
-  pause: 'Pause personnelle',
-  pause_repas: 'Pause repas',
+  pause: 'Pause — non payée, hors quota 7h/8h',
+  pause_repas:
+    'Pause repas — 50 min à 1 h pour la prime panier (hors quota). Moins de 50 min : pas de prime, temps = pause non payée. Au-delà d’1 h : prime accordée, surplus = pause non payée.',
   retour_domicile: 'Trajet fin — le quota travail s’arrête, franchise 30 min',
   fin_journee: 'Arrivé chez vous — le trajet fin s’arrête, journée close',
 }
@@ -137,6 +138,7 @@ export type PointageSegmentKind =
   | 'fournisseur'
   | 'bureau'
   | 'pause'
+  | 'pause_repas'
   | 'trajet_domicile'
 
 export const POINTAGE_SEGMENT_LABELS: Record<PointageSegmentKind, string> = {
@@ -144,8 +146,37 @@ export const POINTAGE_SEGMENT_LABELS: Record<PointageSegmentKind, string> = {
   intervention: 'Intervention (OT)',
   fournisseur: 'Fournisseur',
   bureau: 'Bureau / atelier',
-  pause: 'Pause',
+  pause: 'Pause (non payée)',
+  pause_repas: 'Pause repas',
   trajet_domicile: 'Trajet domicile',
+}
+
+/** Durée mini pour accorder la prime panier (pause repas). */
+export const PAUSE_REPAS_MIN_ACCORD_MIN = 50
+/** Au-delà, le surplus est une pause non payée. La tranche repas reste hors quota. */
+export const PAUSE_REPAS_MAX_PAYE_MIN = 60
+
+export function ventilerPauseRepas(dureeMin: number): {
+  repasMin: number
+  pauseNonPayeeMin: number
+  primePanier: boolean
+} {
+  const d = Math.max(0, Math.round(dureeMin))
+  if (d < PAUSE_REPAS_MIN_ACCORD_MIN) {
+    return { repasMin: 0, pauseNonPayeeMin: d, primePanier: false }
+  }
+  const repasMin = Math.min(d, PAUSE_REPAS_MAX_PAYE_MIN)
+  return {
+    repasMin,
+    pauseNonPayeeMin: Math.max(0, d - PAUSE_REPAS_MAX_PAYE_MIN),
+    primePanier: true,
+  }
+}
+
+function ajouterMinutesIso(iso: string, minutes: number): string {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return iso
+  return new Date(t + minutes * 60_000).toISOString()
 }
 
 export const POINTAGE_CNIL_NOTICE =
@@ -185,6 +216,8 @@ export type PointageRegles = {
   heuresJour: number
   heuresSemaine: number
   pauseNonPayee: boolean
+  /** Prime panier si pause repas ≥ 50 min (désactivable selon société). */
+  primePanierActive: boolean
   arrondiMinutes: number
   geoObligatoire: boolean
   cnilAcceptee: boolean
@@ -205,6 +238,7 @@ export function blankPointageRegles(): PointageRegles {
     heuresJour: 7,
     heuresSemaine: 35,
     pauseNonPayee: true,
+    primePanierActive: true,
     arrondiMinutes: 0,
     geoObligatoire: true,
     cnilAcceptee: false,
@@ -368,6 +402,7 @@ export function parsePointageRegles(raw: unknown): PointageRegles {
     heuresJour: clampHours(r.heuresJour, 1, 16, base.heuresJour),
     heuresSemaine: clampHours(r.heuresSemaine, 1, 60, base.heuresSemaine),
     pauseNonPayee: r.pauseNonPayee !== false,
+    primePanierActive: r.primePanierActive !== false,
     arrondiMinutes: [0, 5, 10, 15].includes(Number(r.arrondiMinutes))
       ? Number(r.arrondiMinutes)
       : 0,
@@ -619,7 +654,8 @@ export function segmentDepuisAction(action: PointageAction): PointageSegmentKind
   if (n === 'intervention_en_cours') return 'intervention'
   if (n === 'fournisseur') return 'fournisseur'
   if (n === 'bureau') return 'bureau'
-  if (n === 'pause' || n === 'pause_repas') return 'pause'
+  if (n === 'pause_repas') return 'pause_repas'
+  if (n === 'pause') return 'pause'
   return null
 }
 
@@ -682,6 +718,10 @@ export type JourneePointage = {
   fournisseurMin: number
   bureauMin: number
   pauseMin: number
+  /** Tranche repas (50–60 min) — hors heures journalières, peut ouvrir une prime panier. */
+  pauseRepasMin: number
+  /** Au moins une pause repas valide (≥ 50 min) ce jour, si la société active la prime. */
+  primePanier: boolean
   /** Trajet matin domicile → 1re arrivée (site, fournisseur ou bureau). Hors quota 7h/8h. */
   trajetMatinMin: number
   /** Trajet retour vers domicile (après « Trajet fin »). Hors quota 7h/8h. */
@@ -721,6 +761,7 @@ function addSegmentKind(
     | 'fournisseurMin'
     | 'bureauMin'
     | 'pauseMin'
+    | 'pauseRepasMin'
     | 'trajetMatinMin'
     | 'retourMin'
   >,
@@ -737,6 +778,7 @@ function addSegmentKind(
   } else if (kind === 'intervention') acc.interventionMin += minutes
   else if (kind === 'fournisseur') acc.fournisseurMin += minutes
   else if (kind === 'bureau') acc.bureauMin += minutes
+  else if (kind === 'pause_repas') acc.pauseRepasMin += minutes
   else acc.pauseMin += minutes
 }
 
@@ -755,6 +797,8 @@ export function blankJourneePointage(opts: {
     fournisseurMin: 0,
     bureauMin: 0,
     pauseMin: 0,
+    pauseRepasMin: 0,
+    primePanier: false,
     trajetMatinMin: 0,
     retourMin: 0,
     abattementDomicileMin: 0,
@@ -790,6 +834,7 @@ export function calculerJournee(opts: {
     fournisseurMin: 0,
     bureauMin: 0,
     pauseMin: 0,
+    pauseRepasMin: 0,
     trajetMatinMin: 0,
     retourMin: 0,
   }
@@ -800,6 +845,7 @@ export function calculerJournee(opts: {
 
   let arriveeFaite = false
   let rentre = false
+  let primePanier = false
 
   for (let i = 0; i < list.length; i++) {
     const cur = list[i]
@@ -823,7 +869,38 @@ export function calculerJournee(opts: {
           ? 'travail'
           : 'matin'
 
-    if (bucket === 'pause') {
+    if (bucket === 'pause' && n === 'pause_repas') {
+      const v = ventilerPauseRepas(minutes)
+      totals.pauseRepasMin += v.repasMin
+      totals.pauseMin += v.pauseNonPayeeMin
+      if (v.primePanier && r.primePanierActive) primePanier = true
+      if (v.repasMin > 0) {
+        const repasTo =
+          v.pauseNonPayeeMin > 0 ? ajouterMinutesIso(cur.at, v.repasMin) : nextAt
+        segments.push({
+          kind: 'pause_repas',
+          from: cur.at,
+          to: repasTo,
+          minutes: v.repasMin,
+          otId: cur.otId,
+          chantierId: cur.chantierId,
+          cible: cur.cible,
+        })
+      }
+      if (v.pauseNonPayeeMin > 0) {
+        const pauseFrom =
+          v.repasMin > 0 ? ajouterMinutesIso(cur.at, v.repasMin) : cur.at
+        segments.push({
+          kind: 'pause',
+          from: pauseFrom,
+          to: nextAt,
+          minutes: v.pauseNonPayeeMin,
+          otId: cur.otId,
+          chantierId: cur.chantierId,
+          cible: cur.cible,
+        })
+      }
+    } else if (bucket === 'pause') {
       totals.pauseMin += minutes
       segments.push({
         kind: 'pause',
@@ -894,12 +971,13 @@ export function calculerJournee(opts: {
   if (
     r.pauseAutoMinutes > 0 &&
     totals.pauseMin === 0 &&
+    totals.pauseRepasMin === 0 &&
     (totals.interventionMin > 0 || !ouvert)
   ) {
     pauseAutoMin = r.pauseAutoMinutes
   }
 
-  /* Pause (et pause repas) : jamais payée, hors quota 7h/8h. */
+  /* Pause : non payée. Pause repas : hors quota ; prime panier si ≥ 50 min (selon société). */
   const travailNet = Math.max(0, travailMin - pauseAutoMin)
   const payeMin = travailNet + trajetRetenuMin
   const quota = Math.round(r.heuresJour * 60)
@@ -913,6 +991,7 @@ export function calculerJournee(opts: {
     userId: opts.userId,
     userName: last?.userName || list[0]?.userName || '',
     ...totals,
+    primePanier,
     abattementDomicileMin,
     trajetRetenuMin,
     travailMin,
@@ -1001,6 +1080,8 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Fournisseur (min)',
     'Bureau (min)',
     'Pause non payée (min)',
+    'Pause repas (min)',
+    'Prime panier',
     'Retour domicile (min)',
     'Retour retenu (min)',
     'Déplacement hors OT (min)',
@@ -1028,6 +1109,8 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
         j.fournisseurMin,
         j.bureauMin,
         j.pauseMin,
+        j.pauseRepasMin,
+        j.primePanier ? 'oui' : 'non',
         j.retourMin,
         trajetDomicileRetenuMin(j.retourMin),
         j.horsOtMin,
@@ -1288,6 +1371,8 @@ export function calculerJourneeBureau(
     fournisseurMin: 0,
     bureauMin: travailMin,
     pauseMin,
+    pauseRepasMin: 0,
+    primePanier: false,
     trajetMatinMin: 0,
     retourMin: 0,
     abattementDomicileMin: 0,

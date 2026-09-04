@@ -360,8 +360,9 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
             ))}
           </select>
           <p className="mt-1 text-[10px] font-semibold text-muted">
-            Trajet début / fin : hors quota 7h/8h, franchise 30 min. Pause = non payée.
-            Déplacement hors INT entre deux OT : temps entier.
+            Trajet début / fin : hors quota 7h/8h, franchise 30 min. Pause = non payée. Pause
+            repas : 50 min à 1 h, hors quota, prime panier (surplus = pause). Déplacement hors INT
+            entre deux OT : temps entier.
           </p>
           {horsOtBtns.length > 0 ? (
             <div className="mt-2 grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>

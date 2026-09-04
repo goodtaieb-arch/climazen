@@ -231,6 +231,10 @@ function MaJourneeDetail({
           {maJournee.trajetMatinMin + maJournee.retourMin > 0
             ? ` · trajet ${formatMinutesHhMm(maJournee.trajetMatinMin + maJournee.retourMin)} dont ${formatMinutesHhMm(maJournee.trajetRetenuMin)} retenu (> 30 min)`
             : ''}
+          {maJournee.pauseRepasMin > 0
+            ? ` · repas ${formatMinutesHhMm(maJournee.pauseRepasMin)}${maJournee.primePanier ? ' · prime panier' : ''}`
+            : ''}
+          {maJournee.pauseMin > 0 ? ` · pause ${formatMinutesHhMm(maJournee.pauseMin)}` : ''}
           {maJournee.departDomicileIso
             ? ` · sortie ${formatHeureIso(maJournee.departDomicileIso)}`
             : ''}
@@ -342,6 +346,19 @@ function ReglesBloc({
           onChange={(e) => setForm({ ...form, cnilAcceptee: e.target.checked })}
         />
         <span>J’informe l’équipe : {POINTAGE_CNIL_NOTICE} *</span>
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={form.primePanierActive}
+          onChange={(e) => setForm({ ...form, primePanierActive: e.target.checked })}
+        />
+        <span>
+          Prime panier sur pause repas (50 min à 1 h). Moins de 50 min : pas de prime, temps en
+          pause non payée. Au-delà d’1 h : prime accordée, le surplus est une pause non payée. La
+          pause repas n’entre pas dans le quota 7h/8h.
+        </span>
       </label>
       {err ? <p className="text-sm text-danger">{err}</p> : null}
       {!complete ? <p className="text-xs text-amber-800">Manque : {missing.join(', ')}.</p> : null}
