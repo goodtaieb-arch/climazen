@@ -368,7 +368,7 @@ export function CommandesPage() {
     e.preventDefault()
     if (!form) return
     if (form.destination === 'ot' && !form.otId) {
-      alert('Choisissez un OT, ou basculez la destination sur Stock.')
+      alert('Choisissez une INT, ou basculez la destination sur Stock.')
       return
     }
     setPdfBusy(true)
@@ -438,7 +438,7 @@ export function CommandesPage() {
                     : 'border-line bg-white text-muted',
                 ].join(' ')}
               >
-                Liée à un OT
+                Liée à une INT
               </button>
               <button
                 type="button"
@@ -465,7 +465,7 @@ export function CommandesPage() {
             </div>
             <p className="text-[11px] text-muted">
               {destination === 'ot'
-                ? 'La pièce sera réservée à un OT (statut « en attente de pièce »).'
+                ? 'La pièce sera réservée à une INT (statut « en attente de pièce »).'
                 : 'Demande de devis fournisseur puis commande → réception au magasin pièces.'}
             </p>
           </fieldset>
@@ -515,7 +515,7 @@ export function CommandesPage() {
                 className="w-full rounded-xl border border-line px-3 py-2"
                 required
               >
-                <option value="">— Choisir un OT —</option>
+                <option value="">— Choisir une INT —</option>
                 {(data.ordresTravail || [])
                   .slice()
                   .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
@@ -592,7 +592,7 @@ export function CommandesPage() {
           </label>
           {ot ? (
             <p className="text-xs text-muted">
-              OT lié :{' '}
+              INT liée :{' '}
               <Link to={`/app/ot?id=${ot.id}`} className="font-semibold text-accent underline">
                 {formatOtNumero(ot.numero)}
               </Link>
@@ -746,7 +746,7 @@ export function CommandesPage() {
       {list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
           <Truck className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          Aucune commande — créez-en depuis un OT ou ici.
+          Aucune commande — créez-en depuis une INT ou ici.
         </p>
       ) : (
         <div className="space-y-4">

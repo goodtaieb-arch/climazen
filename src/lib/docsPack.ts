@@ -6,7 +6,13 @@ import { buildCerfaPdf, downloadBlob } from './cerfaPdf'
 import { buildFicheMaintenanceClimPdf } from './ficheMaintenanceClimPdf'
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
 import { loadCerfaPdf } from './pdfStore'
-import { TYPE_OT_LABELS, formatOtAvancement, isOtCloture, type OrdreTravail } from './ordreTravail'
+import {
+  TYPE_OT_LABELS,
+  formatOtAvancement,
+  formatOtNumero,
+  isOtCloture,
+  type OrdreTravail,
+} from './ordreTravail'
 import type { AppData, CerfaDraft, Client, Chantier } from './types'
 import { mailtoHref } from './agenda'
 import { allEquipements } from './cerfaBatch'
@@ -203,7 +209,7 @@ async function buildRapportOtPdf(
   doc.setTextColor(...MUTED)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.text(`OT ${ot.numero || '—'}`, margin, y)
+  doc.text(formatOtNumero(ot.numero) || ot.numero || '—', margin, y)
   doc.text(fmtDate(ot.date), margin + 48, y)
   doc.text(TYPE_OT_LABELS[ot.typeOt] || ot.typeOt || '—', margin + 78, y)
   doc.text(`Technicien : ${ot.technicien || '—'}`, margin + 120, y)
@@ -518,14 +524,14 @@ export async function collectOtDocsPack(opts: {
       out.push({
         id: `rapport-${ot.id}`,
         kind: 'rapport_ot',
-        label: 'Rapport OT',
-        fileName: uniqueName(`Rapport-OT-${safeName(ot.numero || ot.id.slice(0, 8))}.pdf`),
+        label: 'Rapport INT',
+        fileName: uniqueName(`Rapport-INT-${safeName(ot.numero || ot.id.slice(0, 8))}.pdf`),
         blob,
         sourceId: ot.id,
         canDelete: false,
       })
     } catch (err) {
-      console.error('ClimaZEN: pack rapport OT', err)
+      console.error('ClimaZEN: pack rapport INT', err)
     }
   }
 

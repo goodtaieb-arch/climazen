@@ -457,7 +457,7 @@ export function buildEntityCatalog(
     summarizeOtsAvecPiecesHs(data, 10),
     '',
     'Si un nom client/site n’existe pas, l’app peut le créer après confirmation « oui ».',
-    'Chaîne pièce : si le rapport OT signale une pièce HS / à changer, propose demande devis fournisseur + devis client (validation humaine).',
+    'Chaîne pièce : si le rapport INT signale une pièce HS / à changer, propose demande devis fournisseur + devis client (validation humaine).',
     '',
     buildStockPiecesCatalog(data, 20),
   ]

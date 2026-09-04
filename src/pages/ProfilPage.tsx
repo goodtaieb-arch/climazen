@@ -83,7 +83,7 @@ export function ProfilPage() {
         signataireQualite: signQualite.trim() || 'Opérateur attesté',
         signatureImage: signImage,
       })
-      setSignOk('Signature enregistrée — elle s’applique sur vos OT et CERFA.')
+      setSignOk('Signature enregistrée — elle s’applique sur vos INT et CERFA.')
     } catch (err) {
       setSignError(err instanceof Error ? err.message : 'Enregistrement impossible')
     } finally {
@@ -142,7 +142,7 @@ export function ProfilPage() {
               Ma signature CERFA
             </h2>
             <p className="text-sm text-muted">
-              Enregistrez-la une fois ici — elle se reporte automatiquement sur vos OT et CERFA.
+              Enregistrez-la une fois ici — elle se reporte automatiquement sur vos INT et CERFA.
               Visible uniquement par vous.
             </p>
           </div>

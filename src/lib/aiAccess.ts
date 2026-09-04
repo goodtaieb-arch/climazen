@@ -30,11 +30,11 @@ export const AI_LIGHT_PRICING = {
   agentDuringBeta: {
     price: 'Sur devis',
     detail:
-      'Pendant la bêta, l’Agent IA (OT, CERFA, agenda, stock…) n’est pas inclus dans Light gratuit — contactez-nous pour l’activer.',
+      'Pendant la bêta, l’Agent IA (INT, CERFA, agenda, stock…) n’est pas inclus dans Light gratuit — contactez-nous pour l’activer.',
   },
   agentAfterBeta: {
     price: 'À définir',
-    detail: 'Option payante — création OT/CERFA, actions terrain (OpenAI, clé de la société).',
+    detail: 'Option payante — création INT/CERFA, actions terrain (OpenAI, clé de la société).',
   },
 } as const
 
@@ -74,10 +74,10 @@ export function aiTierUpsellMessage(tier: AiTier, isBeta?: boolean): string | nu
   if (tier === 'none') {
     return beta
       ? `${AI_LIGHT_BETA_HINT}\n\nContactez-nous pour activer l’Agent IA dès maintenant (tarif sur devis pendant la bêta).`
-      : 'Passez à l’Agent IA pour créer OT, CERFA, agenda et stock par la voix.'
+      : 'Passez à l’Agent IA pour créer INT, CERFA, agenda et stock par la voix.'
   }
   // chatbot
-  return 'Le chatbot répond aux questions sur l’app. Pour créer des OT/CERFA et actions terrain, passez à l’Agent IA (option payante).'
+  return 'Le chatbot répond aux questions sur l’app. Pour créer des INT/CERFA et actions terrain, passez à l’Agent IA (option payante).'
 }
 
 export function parseAiPlan(raw: unknown): AiPlan | undefined {

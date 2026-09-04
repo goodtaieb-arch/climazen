@@ -107,7 +107,7 @@ export function AgencesCouvertesFields({
   )
 }
 
-/** Pastilles pour filtrer agenda / liste OT par une ou plusieurs régions. */
+/** Pastilles pour filtrer agenda / liste INT par une ou plusieurs régions. */
 export function AgenceFilterChips({
   selected,
   onChange,

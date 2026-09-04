@@ -144,11 +144,11 @@ export function buildDevisPdf(devis: Devis, ctx: DevisPdfContext): Blob {
   y = writeLine(doc, 'Site', ctx.siteNom || '—', y)
   y = writeLine(
     doc,
-    'Lien OT',
+    'Lien INT',
     devis.otOrigineId
       ? ctx.otNumero
         ? `Oui — ${formatOtNumero(ctx.otNumero)}`
-        : 'Oui (OT lié)'
+        : 'Oui (INT liée)'
       : 'Non — devis commercial',
     y,
   )
@@ -334,7 +334,7 @@ export function buildCommandePdf(
       ? 'Document à transmettre au fournisseur — réponse devis attendue'
       : cmd.destination === 'stock' || !cmd.otId
         ? 'À réception → entrée magasin pièces'
-        : 'À réception → débloque l’OT en attente de pièce',
+        : 'À réception → débloque l’INT en attente de pièce',
     22,
     y + 9,
   )

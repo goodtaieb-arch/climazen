@@ -46,7 +46,7 @@ const STOP = new Set(
 
 export function normalizeOtTypos(raw: string): string {
   return String(raw || '').replace(
-    /\b(or|ots|o\.t\.?|odi|int|ints|i\.n\.t\.?|di|dis|d\.i\.?)\b/gi,
+    /\b(or|ot|ots|o\.t\.?|odi|int|ints|i\.n\.t\.?|di|dis|d\.i\.?)\b/gi,
     'INT',
   )
 }
@@ -198,7 +198,7 @@ export function searchOrgData(
       site?.nom,
       client ? clientDisplayName(client) : '',
     ].join(' ')
-    push('ot', scoreText(blob, tokens), formatOtBrief(o, data).replace(/^• /, 'OT '))
+    push('ot', scoreText(blob, tokens), formatOtBrief(o, data).replace(/^• /, 'INT '))
   }
 
   for (const p of data.piecesDetachees || []) {
@@ -302,7 +302,7 @@ export function buildLiveDataSnapshot(
     `Date du jour : ${today}`,
     '',
     '— TOTAUX (tous domaines) —',
-    `OT : ${allOts.length} au total · ${allOpen.length} ouverts · ${monthStats.open} ouverts en ${monthLabelFr(ym)} (${monthStats.closed} clôturés ce mois) · ${todayStats.open} ouverts aujourd’hui`,
+    `INT : ${allOts.length} au total · ${allOpen.length} ouvertes · ${monthStats.open} ouvertes en ${monthLabelFr(ym)} (${monthStats.closed} clôturées ce mois) · ${todayStats.open} ouvertes aujourd’hui`,
     `Clients : ${(data.clients || []).length} · Sites : ${(data.chantiers || []).length}`,
     `Devis : ${(data.devis || []).length} · Commandes fournisseur : ${(data.commandesFournisseur || []).length} · Factures : ${(data.factures || []).length}`,
     `Pièces détachées : ${(data.piecesDetachees || []).length} · Bouteilles fluide : ${(data.stock || []).length}`,
@@ -333,11 +333,11 @@ export function buildLiveDataSnapshot(
   const openForPrompt = [...allOpen]
     .sort((a, b) => otDate(a).localeCompare(otDate(b)))
     .slice(0, maxOts)
-  lines.push('', `— OT ouverts (max ${maxOts}, total exact ${allOpen.length}) —`)
+  lines.push('', `— INT ouvertes (max ${maxOts}, total exact ${allOpen.length}) —`)
   if (!openForPrompt.length) lines.push('• (aucun)')
   for (const o of openForPrompt) lines.push(formatOtBrief(o, data))
   if (allOpen.length > maxOts) {
-    lines.push(`… +${allOpen.length - maxOts} OT ouverts non listés (filtrer par tech/date/client dans la recherche).`)
+    lines.push(`… +${allOpen.length - maxOts} INT ouvertes non listées (filtrer par tech/date/client dans la recherche).`)
   }
 
   // Clients : si peu nombreux → tous ; sinon recherche + échantillon
@@ -382,7 +382,7 @@ export function buildLiveDataSnapshot(
     'RÈGLES LECTURE :',
     '1) Tu as accès en lecture à TOUTES les données listées (totaux = exacts même si listes tronquées).',
     '2) Réponds à N’IMPORTE quelle question métier à partir de ce bloc + résultats recherche — pas besoin d’une formulation magique.',
-    '3) « or » / « o.t » = OT. N’invente jamais un chiffre ni un nom absent.',
+    '3) « or » / « o.t » = INT. N’invente jamais un chiffre ni un nom absent.',
     '4) Écriture (créer/modifier) = proposition seulement, validation humaine « oui » obligatoire.',
   )
 
@@ -395,7 +395,7 @@ export function buildLiveDataSnapshot(
 export function wantsDataQuery(raw: string): boolean {
   const n = normalize(normalizeOtTypos(raw))
   if (!n) return false
-  const mentionsOt = /\b(ot|ordre|ordres|intervention|interventions)\b/.test(n)
+  const mentionsOt = /\b(ot|int|ordre|ordres|intervention|interventions)\b/.test(n)
   const asksCount =
     /\b(combien|nombre|reste|rester|restent|encore|effectuer|clotur|finir|bilan|synthese|synth[eè]se)\b/.test(
       n,
@@ -415,14 +415,14 @@ export function answerDataQuery(data: AppData, raw: string, _team?: TeamMemberLi
     : computeOtStats(data, { dateIso: today })
   const label = wantMonth ? monthLabelFr(ym) : 'aujourd’hui'
   const lines = [
-    `Sur ${label} : ${stats.open} OT encore ouvert${stats.open > 1 ? 's' : ''} à effectuer / clôturer` +
+    `Sur ${label} : ${stats.open} INT encore ouverte${stats.open > 1 ? 's' : ''} à effectuer / clôturer` +
       (stats.total
-        ? ` (sur ${stats.total} OT, dont ${stats.closed} déjà clôturé${stats.closed > 1 ? 's' : ''})`
+        ? ` (sur ${stats.total} INT, dont ${stats.closed} déjà clôturée${stats.closed > 1 ? 's' : ''})`
         : '') +
       '.',
   ]
   if (stats.open) {
-    lines.push('', 'OT ouverts :')
+    lines.push('', 'INT ouvertes :')
     for (const o of stats.openList.slice(0, 20)) lines.push(formatOtBrief(o, data))
   }
   return lines.join('\n')

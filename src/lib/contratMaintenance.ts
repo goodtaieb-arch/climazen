@@ -246,7 +246,7 @@ Prestations :
 
 Durée : {{duree}} — Prix : {{prix}} HT.
 
-Chaque visite fait l’objet d’un OT ClimaZEN, affectable à un technicien
+Chaque visite fait l’objet d’une INT ClimaZEN, affectable à un technicien
 dans l’agenda. La date peut être déplacée en cas d’urgence ou de reprise
 d’une intervention partielle.
 `,
@@ -341,7 +341,7 @@ Prix global : {{prix}} HT
 Prestations communes à tous les sites :
 {{prestations}}
 
-Chaque intervention fait l’objet d’un OT ClimaZEN et des documents réglementaires associés.
+Chaque intervention fait l’objet d’une INT ClimaZEN et des documents réglementaires associés.
 `,
   },
 ]

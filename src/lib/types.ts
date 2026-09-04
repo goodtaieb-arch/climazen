@@ -852,9 +852,9 @@ export function cerfaLabelFor(
   if (intervention.numeroIntervention?.trim()) {
     const base = intervention.numeroIntervention
       .trim()
-      .replace(/^OT\s*/i, '')
+      .replace(/^(?:INT|OT|DI)\s*/i, '')
       .replace(/-\d+$/, '')
-    return base ? `OT${base}` : intervention.numeroIntervention.trim()
+    return base ? `INT${base}` : intervention.numeroIntervention.trim()
   }
   if (intervention.cerfaPdfFileName) {
     return intervention.cerfaPdfFileName.replace(/\.pdf$/i, '')

@@ -8,7 +8,7 @@ export const OT_LABEL = {
   /** Titre page / menu long */
   title: 'Interventions',
   /** Sous-titre court sous le titre */
-  alsoCalled: 'Aussi appelés OT ou demandes d’intervention',
+  alsoCalled: 'Demandes d’intervention — code INT',
   /** Menu / tuile compacte */
   nav: 'Interventions',
   /** Nav mobile (3 lettres) */
@@ -220,7 +220,7 @@ export function upsertVisitePresence(
 
 /** Étapes du parcours appel client → intervention. */
 export const PARCOURS_APPEL_STEPS = [
-  { id: 'ot', label: 'Appel / OT', hint: 'Décrire la demande' },
+  { id: 'ot', label: 'Appel / INT', hint: 'Décrire la demande' },
   { id: 'client', label: 'Client', hint: 'Qui appelle' },
   { id: 'site', label: 'Site', hint: 'Où intervenir' },
   { id: 'equipement', label: 'Équipement', hint: 'Sur place' },

@@ -157,7 +157,7 @@ function AvancementEquipe({
     <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
       <h2 className="font-display text-lg font-semibold">Avancement vs planning</h2>
       <p className="text-xs text-muted">
-        Temps réel pointé (porte-à-porte) comparé aux OT posés sur l’agenda du jour.
+        Temps réel pointé (porte-à-porte) comparé aux INT posées sur l’agenda du jour.
       </p>
       <ul className="space-y-2">
         {ids.map((uid) => {
@@ -256,7 +256,7 @@ function MaJourneeDetail({
             <li key={`${s.from}-${i}`} className="flex flex-wrap items-center justify-between gap-2">
               <span>
                 {POINTAGE_SEGMENT_LABELS[s.kind]} · {formatHeureIso(s.from)} → {formatHeureIso(s.to)}
-                {s.otId ? ` · OT ${s.otId.slice(0, 8)}…` : ''}
+                {s.otId ? ` · INT ${s.otId.slice(0, 8)}…` : ''}
               </span>
               <span className="font-bold">{formatMinutesHhMm(s.minutes)}</span>
             </li>
@@ -309,7 +309,7 @@ function ReglesBloc({
     >
       <h2 className="font-display text-lg font-semibold">Règles de calcul d’heures</h2>
       <p className="text-xs text-muted">
-        Bureau : saisie début / fin / pause. Terrain : actions OT — le temps se calcule entre
+        Bureau : saisie début / fin / pause. Terrain : actions INT — le temps se calcule entre
         chaque action.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -494,7 +494,7 @@ function BureauExport({
           <li key={e.id} className="flex justify-between gap-2">
             <span>
               {formatHeureIso(e.at)} · {POINTAGE_ACTION_LABELS[e.action]}
-              {e.otId ? ` · OT` : ''}
+              {e.otId ? ` · INT` : ''}
             </span>
             {!e.annule ? (
               <button

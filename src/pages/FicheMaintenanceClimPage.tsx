@@ -618,7 +618,7 @@ export function FicheMaintenanceClimPage() {
       {otReturnHref && (
         <div className="sticky top-[6.5rem] z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-[#0f766e] bg-[#0f766e] px-4 py-3 text-white shadow-lg md:top-[5.5rem]">
           <div className="min-w-0">
-            <p className="text-sm font-extrabold">Retour signatures OT</p>
+            <p className="text-sm font-extrabold">Retour signatures INT</p>
             <p className="text-xs text-white/85">
               {formatOtNumero(linkedOt?.numero) || 'INT'} — signez et clôturez après la fiche checklist
             </p>
@@ -636,7 +636,7 @@ export function FicheMaintenanceClimPage() {
             className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-white px-4 text-sm font-extrabold text-[#0f766e]"
           >
             <Check className="h-4 w-4" />
-            Retour à l’OT — signer
+            Retour à l’INT — signer
           </button>
         </div>
       )}
@@ -721,15 +721,18 @@ export function FicheMaintenanceClimPage() {
       <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-line bg-white p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm">
-            <span className="mb-1 block font-semibold text-ink">N° OT</span>
+            <span className="mb-1 block font-semibold text-ink">N° INT</span>
             <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
               <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
-                OT
+                INT
               </span>
               <input
                 value={otBaseNumero(form.numero) || form.numero}
                 onChange={(e) =>
-                  setForm({ ...form, numero: e.target.value.replace(/^OT\s*/i, '').trim() })
+                  setForm({
+                    ...form,
+                    numero: e.target.value.replace(/^(?:INT|OT|DI)\s*/i, '').trim(),
+                  })
                 }
                 className="h-full min-w-0 flex-1 border-0 px-3 outline-none"
                 placeholder="26081702"
@@ -1066,7 +1069,7 @@ export function FicheMaintenanceClimPage() {
               className="inline-flex min-h-11 items-center gap-2 rounded-full border-2 border-[#0f766e] px-5 py-2.5 text-sm font-extrabold text-[#0f766e] hover:bg-emerald-50"
             >
               <Check className="h-4 w-4" />
-              Retour à l’OT — signer
+              Retour à l’INT — signer
             </button>
           ) : null}
         </div>

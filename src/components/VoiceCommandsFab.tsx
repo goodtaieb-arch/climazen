@@ -191,7 +191,7 @@ export function VoiceCommandsFab() {
     try {
       rec.start()
       emitState(true)
-      setHint('Dites : stock, OT, appel, scan équipement… (corrigez avec « non plutôt »)')
+      setHint('Dites : stock, INT, appel, scan équipement… (corrigez avec « non plutôt »)')
       armSilence()
     } catch {
       setHint('Micro indisponible')
@@ -254,7 +254,7 @@ export function VoiceCommandsFab() {
         {showHelp && (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>stock / fluides</li>
-            <li>appel / OT</li>
+            <li>appel / INT</li>
             <li>scan équipement</li>
             <li>scan bouteille</li>
             <li>GPS / Waze</li>

@@ -73,10 +73,10 @@ const ONBOARDING_KEY = 'climazen_onboarding_dismissed'
 const QUICK_START = [
   {
     n: 1,
-    title: 'Créer l’OT',
+    title: 'Créer l’INT',
     hint: 'Dès l’appel client — décrire la panne',
     img: ICON3D.cerfa,
-    alt: 'OT 3D',
+    alt: 'INT 3D',
     delay: '0s',
     to: '/app/appel',
   },
@@ -317,7 +317,7 @@ export function Dashboard() {
             ) : (
               <>
                 <p className="mt-1 hidden text-sm font-medium text-muted sm:block sm:text-base">
-                  OT &amp; CERFA partagés dans la société — tech en astreinte : bouton « Client
+                  INT &amp; CERFA partagés dans la société — tech en astreinte : bouton « Client
                   appelle ».
                 </p>
                 <p className="mt-1 text-[11px] font-extrabold tracking-wide text-[#0f766e]">
@@ -499,7 +499,7 @@ export function Dashboard() {
                 Mode d’emploi rapide
               </span>
               <span className="hidden text-xs font-medium text-emerald-100 sm:inline">
-                Appel client → OT → site → docs
+                Appel client → INT → site → docs
               </span>
             </div>
             <div className="relative mb-0 md:mb-4">
@@ -507,7 +507,7 @@ export function Dashboard() {
                 to="/app/appel"
                 className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-bold text-emerald-800 shadow-md transition hover:bg-emerald-50 active:scale-[0.99]"
               >
-                <Phone className="h-5 w-5" /> Client appelle — créer l’OT
+                <Phone className="h-5 w-5" /> Client appelle — créer l’INT
               </Link>
             </div>
             <ol className="relative mt-4 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3 md:gap-4">
@@ -773,7 +773,7 @@ export function Dashboard() {
                 icon={QrCode}
                 img3d={ICON3D.search}
                 title="Scanner QR"
-                subtitle="Équipement → OT · Bâtiment → parc + ticket"
+                subtitle="Équipement → INT · Bâtiment → parc + ticket"
                 color="sites"
                 to="/app/scan-equip?camera=1"
               />
@@ -834,7 +834,7 @@ export function Dashboard() {
                     icon={Phone}
                     img3d={ICON3D.accueil}
                     title="Client appelle"
-                    subtitle="Ouvrir un OT sur place"
+                    subtitle="Ouvrir une INT sur place"
                     color="cerfa"
                     to="/app/appel"
                   />
@@ -956,7 +956,7 @@ export function Dashboard() {
             </Link>
           </div>
           <p className="text-sm text-muted">
-            Mois presque terminé ({otContratFinMois[0].joursRestants} j restants) — OT encore à
+            Mois presque terminé ({otContratFinMois[0].joursRestants} j restants) — INT encore à
             faire / poser.
           </p>
           <ul className="space-y-2">
@@ -1058,7 +1058,7 @@ export function Dashboard() {
       {!q.trim() && !terrainUi && otAReprendre.length > 0 && (
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-display text-lg font-semibold">OT à reprendre</h2>
+            <h2 className="font-display text-lg font-semibold">INT à reprendre</h2>
             <Link to="/app/ot" className="text-sm font-semibold text-accent hover:underline">
               Voir tout
             </Link>
@@ -1078,7 +1078,7 @@ export function Dashboard() {
                         {formatOtNumero(o.numero)}
                       </span>
                       <span className="font-display text-base font-bold text-ink">
-                        {o.action || 'OT en cours'}
+                        {o.action || 'INT en cours'}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-600 sm:text-sm">

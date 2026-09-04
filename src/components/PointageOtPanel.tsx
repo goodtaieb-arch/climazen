@@ -151,7 +151,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     if (canon === 'deplacement') {
       cible = cibleOverride || cibleDeplacement
       if (cible === 'ot' && !otForEvent) {
-        setMsg('Choisissez l’OT vers lequel vous vous déplacez.')
+        setMsg('Choisissez l’INT vers laquelle vous vous déplacez.')
         return
       }
       if (cible !== 'ot') otForEvent = ''
@@ -167,12 +167,12 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     }
     if (canon === 'intervention_en_cours' || action === 'fin_intervention') {
       if (!otForEvent) {
-        setMsg('Sélectionnez l’OT sur lequel vous intervenez.')
+        setMsg('Sélectionnez l’INT sur lequel vous intervenez.')
         return
       }
     }
     if (otIdObligatoire(action, cible) && !otForEvent) {
-      setMsg('Cette action doit être liée à un OT.')
+      setMsg('Cette action doit être liée à une INT.')
       return
     }
 
@@ -297,7 +297,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
                 ? ` · trajet retenu ${formatMinutesHhMm(maJournee.trajetRetenuMin)} (franchise 30 min)`
                 : ''}
               {maJournee.interventionMin > 0
-                ? ` · OT ${formatMinutesHhMm(maJournee.interventionMin)}`
+                ? ` · INT ${formatMinutesHhMm(maJournee.interventionMin)}`
                 : ''}
               {maJournee.ouvert ? ' · en cours' : ' · journée close'}
             </p>
@@ -341,14 +341,14 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
           {showOtPicker && (!showCiblePicker || cibleDeplacement === 'ot') ? (
             <label className="block text-sm sm:col-span-2">
               <span className="mb-1 block font-semibold text-ink">
-                OT du déplacement / intervention *
+                INT du déplacement / intervention *
               </span>
               <select
                 value={effectiveOtId}
                 onChange={(e) => setOtId(e.target.value)}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3"
               >
-                <option value="">— Choisir un OT —</option>
+                <option value="">— Choisir une INT —</option>
                 {otsOuverts.map((o) => (
                   <option key={o.id} value={o.id}>
                     {formatOtNumero(o.numero)} · {o.action || o.typeOt}
@@ -409,7 +409,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
           <p className="mt-1 text-[10px] font-semibold text-muted">
             Trajet début / fin : hors quota 7h/8h, franchise 30 min. Pause = non payée. Pause
             repas : 50 min à 1 h, hors quota, prime panier (surplus = pause). Déplacement hors INT
-            entre deux OT : temps entier.
+            entre deux INT : temps entier.
           </p>
           {horsOtBtns.length > 0 ? (
             <div className="mt-2 grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>

@@ -184,7 +184,7 @@ export function ContratsMaintenancePage() {
       const n = syncAgendaFromSources()
       alert(
         `Contrat ${form.numero} enregistré.${
-          n > 0 ? ` ${n} OT / rappel(s) de maintenance généré(s).` : ''
+          n > 0 ? ` ${n} INT / rappel(s) de maintenance généré(s).` : ''
         }`,
       )
       return
@@ -214,8 +214,8 @@ export function ContratsMaintenancePage() {
     navigate(`/app/contrats?id=${encodeURIComponent(id)}`, { replace: true })
     const n = syncAgendaFromSources()
     alert(
-      `Contrat ${form.numero} signé — les OT de maintenance sont créés pour l’agenda.${
-        n > 0 ? `\n${n} OT / rappel(s) généré(s).` : ''
+      `Contrat ${form.numero} signé — les INT de maintenance sont créées pour l’agenda.${
+        n > 0 ? `\n${n} INT / rappel(s) généré(s).` : ''
       }\nAffectez un tech et décalez la date si besoin (urgence ou visite partielle).`,
     )
   }
@@ -324,7 +324,7 @@ export function ContratsMaintenancePage() {
               <div>
                 <h2 className="font-display text-lg font-semibold text-ink">Fiche de remplissage</h2>
                 <p className="mt-0.5 text-sm text-muted">
-                  Client, équipements, fréquence de contrôle — les OT et la fiche (si elle
+                  Client, équipements, fréquence de contrôle — les INT et la fiche (si elle
                   existe) se génèrent à la signature.
                 </p>
               </div>
@@ -407,7 +407,7 @@ export function ContratsMaintenancePage() {
               <p className="text-xs text-muted">
                 Chaufferie 12, clim 2, CTA 4 = exemples. Chaque équipement a sa fréquence.
                 S’il existe une fiche (clim, chaufferie, CTA), elle s’ouvre au bon niveau ;
-                sinon le rapport d’OT suffit.
+                sinon le rapport d’INT suffit.
               </p>
 
               <label className="flex items-start gap-2 text-sm">
@@ -418,9 +418,9 @@ export function ContratsMaintenancePage() {
                   onChange={(e) => setForm({ ...form, genererOtAuto: e.target.checked })}
                 />
                 <span>
-                  <span className="font-semibold text-ink">Créer les OT automatiquement</span>
+                  <span className="font-semibold text-ink">Créer les INT automatiquement</span>
                   <span className="mt-0.5 block text-xs text-muted">
-                    Dès la signature : un OT par visite / site (tous les équipements du même
+                    Dès la signature : une INT par visite / site (tous les équipements du même
                     site regroupés), sans heure (à caler dans l’agenda). Vous pouvez scinder
                     par équipement ensuite. Date déplaçable (urgence ou visite partielle).
                   </span>
@@ -556,15 +556,15 @@ export function ContratsMaintenancePage() {
                 }}
                 onSync={() => {
                   if (!existing?.id) {
-                    alert('Enregistrez le contrat avant de générer les OT.')
+                    alert('Enregistrez le contrat avant de générer les INT.')
                     return
                   }
                   upsertContratMaintenance({ ...form, id: existing.id })
                   const n = syncOtsDepuisContrats()
                   alert(
                     n > 0
-                      ? `${n} OT de maintenance créé(s) — à affecter dans l’agenda.`
-                      : 'Tous les créneaux ont déjà un OT (y compris si la date a été déplacée).',
+                      ? `${n} INT de maintenance créée(s) — à affecter dans l’agenda.`
+                      : 'Tous les créneaux ont déjà une INT (y compris si la date a été déplacée).',
                   )
                 }}
               />
@@ -749,7 +749,7 @@ export function ContratsMaintenancePage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Contrats maintenance</h1>
           <p className="mt-1 text-muted">
-            Modèles types — une fois signé, les OT de maintenance se créent tout seuls (bonne
+            Modèles types — une fois signé, les INT de maintenance se créent tout seuls (bonne
             fiche / période). Affectez le tech dans l’agenda.
           </p>
         </div>
@@ -818,7 +818,7 @@ export function ContratsMaintenancePage() {
                       : ''}
                   {` · ${FAMILLE_CONTRAT_LABELS[resolveFamilleContrat(c)]}`}
                   {` · ${visites} visites / an`}
-                  {otsContrat.length > 0 ? ` · ${otsContrat.length} OT` : ''}
+                  {otsContrat.length > 0 ? ` · ${otsContrat.length} INT` : ''}
                 </p>
               </Link>
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
@@ -914,7 +914,7 @@ function CalendrierVisitesPreview({
             {' · '}
             {PERIODICITE_LABELS[form.periodicite].toLowerCase()}
             {' · '}
-            OT mois par mois — avancez / retardez un contrôle (trimestriel, annuel…)
+            INT mois par mois — avancez / retardez un contrôle (trimestriel, annuel…)
           </p>
         </div>
         {form.statut === 'signe' ? (
@@ -923,10 +923,10 @@ function CalendrierVisitesPreview({
             onClick={onSync}
             className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold"
           >
-            Générer / sync les OT
+            Générer / sync les INT
           </button>
         ) : (
-          <p className="text-[11px] text-muted">Les OT se créent à la signature.</p>
+          <p className="text-[11px] text-muted">Les INT se créent à la signature.</p>
         )}
       </div>
       {visites.length === 0 ? (
@@ -975,7 +975,7 @@ function CalendrierVisitesPreview({
                       {closed ? ' · clôturé' : ''}
                     </Link>
                   ) : (
-                    <span className="shrink-0 text-muted">OT à générer</span>
+                    <span className="shrink-0 text-muted">INT à générer</span>
                   )}
                 </div>
                 {canDecaler && !closed ? (
@@ -1091,7 +1091,7 @@ function EquipementsContratFields({
         <Link className="font-semibold underline" to="/app/chantiers">
           Ajouter le parc
         </Link>
-        {' — '}sinon un OT par site (rapport d’OT).
+        {' — '}sinon une INT par site (rapport d’INT).
       </p>
     )
   }

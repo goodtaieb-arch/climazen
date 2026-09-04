@@ -167,7 +167,7 @@ export function PortailClientPage() {
                 <p className="text-xs text-slate">{t.description}</p>
                 <p className="mt-1 text-[11px] text-muted">
                   {t.statut === 'ot_cree' && t.otNumero
-                    ? `Pris en charge — OT ${t.otNumero}`
+                    ? `Pris en charge — INT ${t.otNumero}`
                     : t.statut === 'nouveau'
                       ? 'En attente de traitement'
                       : t.statut}

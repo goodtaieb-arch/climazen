@@ -17,15 +17,14 @@ import {
 } from '../lib/types'
 import { formatOtNumero, otBaseNumero } from '../lib/ordreTravail'
 
-/** Affiche OT26081702 pour un n° OT ; laisse ACHAT- / BON-RETOUR- inchangés. */
+/** Affiche INT26081702 pour un n° INT ; laisse ACHAT- / BON-RETOUR- inchangés. */
 function displayMouvementLabel(label?: string) {
   if (!label) return ''
   const t = label.trim()
   const base = otBaseNumero(t)
-  if (/^OT/i.test(t) || /^\d{6,}$/.test(base)) {
-    // Évite de préfixer DEST- / ACHAT- si le label contient des lettres hors OT
-    const withoutOt = t.replace(/^OT\s*/i, '')
-    if (/^\d{6,}(-\d+)?$/.test(withoutOt) || /^\d{6,}$/.test(base)) {
+  if (/^(?:INT|OT|DI)/i.test(t) || /^\d{6,}$/.test(base)) {
+    const withoutPrefix = t.replace(/^(?:INT|OT|DI)\s*/i, '')
+    if (/^\d{6,}(-\d+)?$/.test(withoutPrefix) || /^\d{6,}$/.test(base)) {
       return formatOtNumero(t)
     }
   }

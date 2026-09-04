@@ -72,8 +72,8 @@ export type PointageAction = PointageActionCanon | PointageActionLegacy
 export type PointageCible = 'ot' | 'fournisseur' | 'bureau' | 'domicile' | 'hors_ot'
 
 export const POINTAGE_CIBLE_LABELS: Record<PointageCible, string> = {
-  ot: 'Vers le site / OT',
-  hors_ot: 'Déplacement hors OT (entre INT)',
+  ot: 'Vers le site / INT',
+  hors_ot: 'Déplacement hors INT (entre INT)',
   fournisseur: 'Fournisseur / extérieur',
   bureau: 'Bureau / atelier',
   domicile: 'Domicile',
@@ -92,15 +92,15 @@ export const POINTAGE_ACTION_LABELS: Record<PointageAction, string> = {
   fin_journee: 'Arrivé à la maison',
   prise_vehicule: 'Prise du véhicule',
   trajet: 'Trajet',
-  arrivee_chantier: 'Arrivée chantier / OT',
+  arrivee_chantier: 'Arrivée chantier / INT',
   retour: 'Retour',
 }
 
 export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
   sortie_domicile: '1er trajet du jour — on ne retient que ce qui dépasse 30 min',
-  deplacement: 'En route vers l’OT, hors OT, un fournisseur ou le bureau',
+  deplacement: 'En route vers l’INT, hors INT, un fournisseur ou le bureau',
   intervention_en_cours: 'Arrivé — le temps de travail (quota 7h/8h) démarre',
-  fin_intervention: 'Intervention terminée sur cet OT',
+  fin_intervention: 'Intervention terminée sur cette INT',
   fournisseur: 'Chez le fournisseur (pièces, gaz, station…)',
   bureau: 'Au bureau / atelier',
   pause: 'Pause — non payée, hors quota 7h/8h',
@@ -143,7 +143,7 @@ export type PointageSegmentKind =
 
 export const POINTAGE_SEGMENT_LABELS: Record<PointageSegmentKind, string> = {
   deplacement: 'En déplacement',
-  intervention: 'Intervention (OT)',
+  intervention: 'Intervention (INT)',
   fournisseur: 'Fournisseur',
   bureau: 'Bureau / atelier',
   pause: 'Pause (non payée)',
@@ -182,7 +182,7 @@ function ajouterMinutesIso(iso: string, minutes: number): string {
 }
 
 export const POINTAGE_CNIL_NOTICE =
-  'Horodatage et position uniquement au moment du pointage. Aucun suivi GPS continu. Temps calculé automatiquement entre chaque action, rattaché à l’OT quand applicable.'
+  'Horodatage et position uniquement au moment du pointage. Aucun suivi GPS continu. Temps calculé automatiquement entre chaque action, rattaché à l’INT quand applicable.'
 
 export type PointageGeo = {
   lat: number
@@ -1119,7 +1119,7 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Trajet matin (min)',
     'Trajet matin retenu (min)',
     'Déplacement (min)',
-    'Intervention OT (min)',
+    'Intervention INT (min)',
     'Fournisseur (min)',
     'Bureau (min)',
     'Pause non payée (min)',
@@ -1127,7 +1127,7 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Prime panier',
     'Retour domicile (min)',
     'Retour retenu (min)',
-    'Déplacement hors OT (min)',
+    'Déplacement hors INT (min)',
     'Franchise domicile 30 min (min)',
     'Trajet retenu total (min)',
     'Pause auto (min)',
@@ -1135,7 +1135,7 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Temps payé',
     'Heures sup (min)',
     'Journée ouverte',
-    'OT en cours',
+    'INT en cours',
   ]
   const lines = [header.join(';')]
   for (const j of jours) {

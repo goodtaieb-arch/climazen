@@ -344,7 +344,7 @@ export function DocsPackPanel({
                       title={
                         d.canDelete
                           ? 'Supprimer définitivement'
-                          : 'Retirer du lot (rapport OT)'
+                          : 'Retirer du lot (rapport INT)'
                       }
                     >
                       <Trash2 className="h-4 w-4" />

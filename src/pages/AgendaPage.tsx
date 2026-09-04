@@ -177,7 +177,7 @@ export function AgendaPage() {
   const [filterAgences, setFilterAgences] = useState<string[]>([])
   const [agenceFilterReady, setAgenceFilterReady] = useState(false)
   const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
-  /** OT sélectionné pour pose / déplacement / multi-tech sur la frise. */
+  /** INT sélectionné pour pose / déplacement / multi-tech sur la frise. */
   const [otAPlacerId, setOtAPlacerId] = useState<string | null>(null)
   /** Ref synchrone : clic INT puis clic tech immédiat (avant re-render). */
   const otAPlacerIdRef = useRef<string | null>(null)
@@ -205,7 +205,7 @@ export function AgendaPage() {
 
   useEffect(() => {
     const n = syncAgendaFromSources()
-    if (n > 0) setSyncMsg(`${n} OT / rappel(s) généré(s) depuis les contrats.`)
+    if (n > 0) setSyncMsg(`${n} INT / rappel(s) généré(s) depuis les contrats.`)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -365,7 +365,7 @@ export function AgendaPage() {
     return [...set].sort()
   }, [data.ordresTravail, data.personnelDossiers, data.clients, data.chantiers, mesAgences]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Programme = hors OT + rappels + OT calés (avec heure). */
+  /** Programme = hors INT + rappels + INT calés (avec heure). */
   const visOpts = {
     bureau,
     userId: user?.id,
@@ -444,7 +444,7 @@ export function AgendaPage() {
     [programmeAll, filterSecteur, bureau, data.personnelDossiers], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  /** Tous les OT sans créneau (métier / région) — la bande reste visible tous les jours. */
+  /** Tous les INT sans créneau (métier / région) — la bande reste visible tous les jours. */
   const otsSansPlanningBase = useMemo(() => {
     const list = (data.ordresTravail || []).filter((o) => {
       if (!otSansCreneau(o) || !visibleAgendaPour(visOpts, o)) return false
@@ -462,7 +462,7 @@ export function AgendaPage() {
     filterAgences,
   ]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Sites de la région sélectionnée (pour le déroulant bande OT). */
+  /** Sites de la région sélectionnée (pour le déroulant bande INT). */
   const sitesRegionPool = useMemo(() => {
     const sites = (data.chantiers || []).filter((s) => {
       if (s.statut === 'archive') return false
@@ -491,7 +491,7 @@ export function AgendaPage() {
     })
   }, [otsSansPlanningBase, filterTypeOt, filterSiteId])
 
-  /** Dernière intervention par OT (bande à poser) — surtout contrats mensuels. */
+  /** Dernière intervention par INT (bande à poser) — surtout contrats mensuels. */
   const derniereIntervParOtId = useMemo(() => {
     const map = new Map<string, string>()
     const ots = data.ordresTravail || []
@@ -552,7 +552,7 @@ export function AgendaPage() {
     if (techEstIndispo(data.agendaEvents, techId, day)) {
       const abs = indisposTechSurDate(data.agendaEvents, techId, day)[0]
       setSyncMsg(
-        `Impossible : tech en ${labelIndispoCourte(abs || { type: 'vacances', title: 'vacances' })} — ne pas poser d’OT.`,
+        `Impossible : tech en ${labelIndispoCourte(abs || { type: 'vacances', title: 'vacances' })} — ne pas poser d’INT.`,
       )
       return
     }
@@ -573,7 +573,7 @@ export function AgendaPage() {
     choisirOtAPlacer(null)
   }
 
-  /** Croix rouge : retire le tech, ou enlève l’heure (OT revient dans la bande). */
+  /** Croix rouge : retire le tech, ou enlève l’heure (INT revient dans la bande). */
   const retirerOtDuTech = (otId: string, techId: string) => {
     if (!bureau) return
     const ot = (data.ordresTravail || []).find((o) => o.id === otId)
@@ -638,8 +638,8 @@ export function AgendaPage() {
     const n = syncAgendaFromSources()
     setSyncMsg(
       n > 0
-        ? `${n} OT / rappel(s) ajouté(s) depuis les contrats.`
-        : 'Agenda à jour (OT de maintenance et rappels déjà synchronisés).',
+        ? `${n} INT / rappel(s) ajouté(s) depuis les contrats.`
+        : 'Agenda à jour (INT de maintenance et rappels déjà synchronisés).',
     )
   }
 
@@ -713,9 +713,9 @@ export function AgendaPage() {
     navigate('/app/agenda', { replace: true })
     setSyncMsg(
       isIndispoType(form.type)
-        ? 'Absence enregistrée — aucun OT ne pourra être posé sur ces jours.'
+        ? 'Absence enregistrée — aucune INT ne pourra être posé sur ces jours.'
         : isHorsOtType(form.type)
-          ? 'Action hors OT enregistrée.'
+          ? 'Action hors INT enregistrée.'
           : 'Intervention enregistrée dans le programme.',
     )
     setView('jour')
@@ -759,7 +759,7 @@ export function AgendaPage() {
         if (techEstIndispo(data.agendaEvents, tid, day)) {
           const abs = indisposTechSurDate(data.agendaEvents, tid, day)[0]
           setSyncMsg(
-            `OT non planifié : ${noms[tid] || 'tech'} est en ${labelIndispoCourte(
+            `INT non planifiée : ${noms[tid] || 'tech'} est en ${labelIndispoCourte(
               abs || { type: 'vacances', title: 'vacances' },
             )}.`,
           )
@@ -821,7 +821,7 @@ export function AgendaPage() {
               : isIndispoType(form.type)
                 ? 'Absence'
                 : isHorsOtType(form.type)
-                ? 'Action hors OT'
+                ? 'Action hors INT'
                 : 'Planifier une intervention'}
           </h1>
         </div>
@@ -907,7 +907,7 @@ export function AgendaPage() {
               </label>
             ) : (
               <p className="flex items-end pb-2 text-xs font-semibold text-amber-900 sm:col-span-1">
-                Journée(s) bloquée(s) — aucun OT posable.
+                Journée(s) bloquée(s) — aucune INT posable.
               </p>
             )}
             {!isIndispoType(form.type) ? (
@@ -1111,7 +1111,7 @@ export function AgendaPage() {
         >
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${col.badge}`}>
-              OT
+              INT
             </span>
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-extrabold text-ink">
               {formatOtNumero(item.numero)}
@@ -1194,7 +1194,7 @@ export function AgendaPage() {
               to={`/app/appel?ot=${encodeURIComponent(item.otId)}`}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#0f766e] px-3 text-xs font-bold text-white"
             >
-              <ClipboardList className="h-3.5 w-3.5" /> Ouvrir l’OT
+              <ClipboardList className="h-3.5 w-3.5" /> Ouvrir l’INT
             </Link>
           </div>
         </article>
@@ -1285,7 +1285,7 @@ export function AgendaPage() {
               }${ev.contratId ? `&contrat=${encodeURIComponent(ev.contratId)}` : ''}`}
               className="inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-xs font-semibold"
             >
-              Créer OT
+              Créer INT
             </Link>
           ) : null}
           <Link
@@ -1607,7 +1607,7 @@ export function AgendaPage() {
                       onClick={() => {
                         if (bureau && otAPlacerIdRef.current && enVacances) {
                           setSyncMsg(
-                            `Impossible : ${t?.fullName || 'ce tech'} est en ${labelVac} — OT bloqués.`,
+                            `Impossible : ${t?.fullName || 'ce tech'} est en ${labelVac} — INT bloquées.`,
                           )
                           return
                         }
@@ -1679,7 +1679,7 @@ export function AgendaPage() {
                       {enVacances ? (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-2">
                           <span className="rounded-lg border border-amber-500 bg-amber-50 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-amber-950">
-                            {labelVac} — OT bloqués
+                            {labelVac} — INT bloqués
                           </span>
                         </div>
                       ) : null}
@@ -1785,7 +1785,7 @@ export function AgendaPage() {
             <p className="mt-0.5 text-sm text-muted">
               {bureau
                 ? 'Vue jour : techs filtrés par métier / région. Sélectionnez une INT puis cliquez le tech (ou une heure). Priorité : dépannage → installation → maintenance.'
-                : 'Vos OT affectés (même sans créneau) + vos actions hors OT.'}
+                : 'Vos INT affectées (même sans créneau) + vos actions hors INT.'}
             </p>
           </div>
         </div>
@@ -1802,7 +1802,7 @@ export function AgendaPage() {
             onClick={() => openNew()}
             className="hidden min-h-11 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-ink md:inline-flex"
           >
-            <Plus className="h-4 w-4" /> {bureau ? 'Événement' : 'Hors OT'}
+            <Plus className="h-4 w-4" /> {bureau ? 'Événement' : 'Hors INT'}
           </button>
         </div>
       </div>
@@ -1817,7 +1817,7 @@ export function AgendaPage() {
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           <p className="font-semibold">
             Fin de mois dans {otContratFinMois[0].joursRestants} j —{' '}
-            {otContratFinMois.length} OT contrat encore à poser / faire
+            {otContratFinMois.length} INT contrat encore à poser / faire
           </p>
           <ul className="mt-1 space-y-0.5 text-xs">
             {otContratFinMois.slice(0, 5).map((a) => (
@@ -1990,7 +1990,7 @@ export function AgendaPage() {
             >
               <ClipboardList className="h-4 w-4 shrink-0 text-muted" />
               <span className="min-w-0 truncate">
-                {bureau ? 'OT à poser' : 'Mes OT sans planning'}
+                {bureau ? 'INT à poser' : 'Mes INT sans planning'}
                 <span className="ml-1.5 font-bold text-teal-800">
                   ({otsSansPlanning.length}
                   {otsSansPlanning.length !== otsSansPlanningBase.length
@@ -2009,7 +2009,7 @@ export function AgendaPage() {
                 value={filterTypeOt}
                 onChange={(e) => setFilterTypeOt(e.target.value as TypeOt | 'tous')}
                 className="max-w-[9.5rem] rounded-lg border-0 bg-transparent py-1 text-xs font-semibold text-ink outline-none"
-                aria-label="Filtrer par type d’OT"
+                aria-label="Filtrer par type d’INT"
               >
                 <option value="tous">Tous</option>
                 {(
@@ -2064,10 +2064,10 @@ export function AgendaPage() {
               <p className="mt-2 text-[11px] text-muted">
                 {bureau
                   ? 'Sans créneau · priorité dépannage → install → maintenance. Cliquez une INT puis le tech (1re heure libre) ou une heure. Sur Maint. contrat : « dern. » = dernière intervention du site. Bloc posé : clic = déplacer / + tech ; croix rouge = retirer.'
-                  : 'OT affectés à vous, pas encore calés.'}
+                  : 'INT affectés à vous, pas encore calés.'}
               </p>
               {otsSansPlanning.length === 0 ? (
-                <p className="mt-2 text-xs text-muted">Aucun OT sans créneau pour ces filtres.</p>
+                <p className="mt-2 text-xs text-muted">Aucune INT sans créneau pour ces filtres.</p>
               ) : (
                 <div className="mt-2 max-h-[min(50vh,28rem)] overflow-auto">
                   <div className="min-w-[46rem]">
@@ -2265,7 +2265,7 @@ export function AgendaPage() {
           {!bureau ? (
             programmeForDate(cursorDate).length === 0 ? (
               <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
-                Rien de prévu ce jour. Ajoute une intervention ou un OT daté aujourd’hui.
+                Rien de prévu ce jour. Ajoute une intervention ou une INT daté aujourd’hui.
               </div>
             ) : (
               <div className="grid gap-3">
@@ -2489,7 +2489,7 @@ function OtPlanifierInline({
       onSubmit={(e: FormEvent) => {
         e.preventDefault()
         if (!heure.trim()) {
-          alert('Indiquez une heure pour caler l’OT sur le planning.')
+          alert('Indiquez une heure pour caler l’INT sur le planning.')
           return
         }
         onPlan({

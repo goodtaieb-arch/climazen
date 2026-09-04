@@ -4,6 +4,7 @@ import { sensMouvementPourContenant } from './types'
 import { controlesPeriodiquesInfo, isFluideAdrInflammable, libelleAdrPourCerfa } from './fluides'
 import { formatKg, roundKg } from './decimal'
 import { findEquipement } from './migrate'
+import { formatOtNumero } from './ordreTravail'
 
 /**
  * Remplit le CERFA officiel 15497*04 (forme inchangée) puis aplatit les champs
@@ -337,7 +338,9 @@ export async function buildCerfaPdf(opts: {
   // [13] [14]
   setText(form, '13_Instal', draft.installationDestination)
   const obsParts = [
-    draft.numeroIntervention?.trim() ? `OT ${draft.numeroIntervention.trim()}` : '',
+    draft.numeroIntervention?.trim()
+      ? formatOtNumero(draft.numeroIntervention) || draft.numeroIntervention.trim()
+      : '',
     draft.observations || '',
   ].filter(Boolean)
   setText(form, '14_Observations', obsParts.join(' — '))

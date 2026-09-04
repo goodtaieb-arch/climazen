@@ -50,7 +50,7 @@ export type PieceMouvementKind =
 export const PIECE_MOUVEMENT_KIND_LABELS: Record<PieceMouvementKind, string> = {
   entree_achat: 'Entrée achat',
   reception_commande: 'Réception commande fournisseur',
-  sortie_ot: 'Sortie pour OT',
+  sortie_ot: 'Sortie pour INT',
   sortie_manuelle: 'Sortie manuelle',
   retour: 'Retour stock',
   inventaire: 'Inventaire / ajustement',

@@ -96,7 +96,7 @@ export function AiValidationInbox() {
                   to="/app/appel"
                   className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-bold text-indigo-950"
                 >
-                  <Phone className="h-3.5 w-3.5" /> Ouvrir OT
+                  <Phone className="h-3.5 w-3.5" /> Ouvrir INT
                 </Link>
               ) : null}
             </div>

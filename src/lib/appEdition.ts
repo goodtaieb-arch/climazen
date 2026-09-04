@@ -42,7 +42,7 @@ export type { AiPlan, AiTier } from './aiAccess'
 
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
-    'OT, agenda, contrats maintenance, stock fluides, CERFA et société — tout le métier, un seul compte utilisateur.',
+    'INT, agenda, contrats maintenance, stock fluides, CERFA et société — tout le métier, un seul compte utilisateur.',
   pro:
     'Comme Light + équipe multi-techniciens, pointeuse, RH, agences, devis/commandes et pilotage.',
 }
@@ -53,7 +53,7 @@ export const APP_EDITION_SOLO_HINT =
 
 /** Parcours solo AE — une intervention = client → site → équipement → papiers. */
 export const LIGHT_SOLO_FLOW_HINT =
-  'Client → site (depuis la fiche client), stock fluides, OT, agenda, contrats et CERFA — solo.'
+  'Client → site (depuis la fiche client), stock fluides, INT, agenda, contrats et CERFA — solo.'
 
 /** Fonctionnalités réservées à l’édition Pro. */
 export type EditionFeature =
