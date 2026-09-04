@@ -287,7 +287,8 @@ type UpsertClientFn = (c: Omit<Client, 'id' | 'createdAt'> & { id?: string }) =>
 type UpsertChantierFn = (c: Omit<Site, 'id' | 'createdAt'> & { id?: string }) => string
 
 /**
- * Applique l’import sur le store (upserts incrémentaux — ne remplace pas OT/stock).
+ * Applique l’import sur le store (upserts incrémentaux — ne remplace pas les
+ * interventions ni le stock).
  */
 export function applyGmaoImport(
   rows: GmaoImportRow[],

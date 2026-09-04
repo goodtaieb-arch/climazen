@@ -161,7 +161,7 @@ export function GmaoImportPanel() {
 
       <p className="mt-3 text-[11px] text-muted">
         Colonnes reconnues : client, site, équipement, marque, modèle, série, fluide, charge…
-        Les OT et le stock existants ne sont pas effacés.
+        Les interventions et le stock existants ne sont pas effacés.
       </p>
     </section>
   )
