@@ -16,6 +16,7 @@ import {
 import type { PendingTerrainAction } from './assistantTerrainActions'
 import { buildStockPiecesCatalog } from './assistantStockPieces'
 import { buildLiveDataSnapshot } from './assistantDataQuery'
+import { summarizeOtsAvecPiecesHs } from './assistantChainePiece'
 
 export type CreateOtCerfaIntent = {
   kind: 'create_ot_cerfa'
@@ -449,11 +450,14 @@ export function buildEntityCatalog(
       maxOpenOts: 40,
     }),
     '',
+    summarizeOtsAvecPiecesHs(data, 10),
+    '',
     'Si un nom client/site n’existe pas, l’app peut le créer après confirmation « oui ».',
+    'Chaîne pièce : si le rapport OT signale une pièce HS / à changer, propose demande devis fournisseur + devis client (validation humaine).',
     '',
     buildStockPiecesCatalog(data, 20),
   ]
-  return lines.join('\n')
+  return lines.filter(Boolean).join('\n')
 }
 
 export type CreateOtCerfaDeps = {

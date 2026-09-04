@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v212'
+export const APP_VERSION = 'v213'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-04-v212-speech-fluides'
+export const APP_BUILD = '2026-09-04-v213-chaine-piece'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

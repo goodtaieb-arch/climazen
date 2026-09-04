@@ -133,6 +133,7 @@ export type TerrainActionKind =
   | 'piece'
   | 'piece_veille'
   | 'decaler_ot'
+  | 'chaine_piece'
 
 export type PendingTerrainAction =
   | {
@@ -229,6 +230,19 @@ export type PendingTerrainAction =
       heureFrom: string
       heureTo: string
       date: string
+      summary: string
+    }
+  | {
+      kind: 'chaine_piece'
+      otId: string
+      otNumero: string
+      clientId: string
+      chantierId?: string
+      pieces: { designation: string; quantite: number; motif: string; prixFournisseurHt?: number }[]
+      fournisseur: string
+      createDemandeFournisseur: boolean
+      createDevisClient: boolean
+      coefMarge: number
       summary: string
     }
 
@@ -1196,6 +1210,106 @@ export async function executeTerrainAction(
     return {
       message: `${formatOtNumero(ot.numero)} décalé : ${action.heureFrom} → ${action.heureTo}. Agenda mis à jour.`,
       navigateTo: `/app/agenda`,
+    }
+  }
+
+  if (action.kind === 'chaine_piece') {
+    if (!deps.upsertDevis || !deps.upsertCommandeFournisseur || !deps.upsertOrdreTravail) {
+      throw new Error('Chaîne pièce / devis / commande indisponible.')
+    }
+    const ot = (deps.data.ordresTravail || []).find((o) => o.id === action.otId)
+    if (!ot) throw new Error(`OT ${action.otNumero} introuvable.`)
+    const client = deps.data.clients?.find((c) => c.id === action.clientId)
+    if (!client) throw new Error('Client introuvable pour la chaîne commerciale.')
+
+    const { blankDevis } = await import('./chaineCommerciale')
+    const bits: string[] = []
+    let commandeId: string | undefined
+    let devisId: string | undefined
+    let devisNumero: string | undefined
+
+    const libellePieces = action.pieces
+      .map((p) => `${p.designation} ×${p.quantite}`)
+      .join(' · ')
+
+    if (action.createDemandeFournisseur) {
+      const created = deps.upsertCommandeFournisseur({
+        fournisseur: action.fournisseur,
+        statut: 'demande_devis',
+        clientId: action.clientId,
+        chantierId: action.chantierId,
+        otId: action.otId,
+        destination: 'ot',
+        libelle: `Pièces OT${action.otNumero} — ${libellePieces}`,
+        referencePiece: action.pieces[0]?.designation,
+        quantite: action.pieces.reduce((s, p) => s + (p.quantite || 1), 0),
+        notes: action.pieces.map((p) => `• ${p.designation} — ${p.motif}`).join('\n'),
+      })
+      commandeId = created.id
+      bits.push(`demande devis fournisseur « ${action.fournisseur} »`)
+    }
+
+    if (action.createDevisClient) {
+      const lignes = action.pieces.map((p) => {
+        const prixF = p.prixFournisseurHt
+        const prixClient =
+          prixF != null && prixF > 0
+            ? Math.round(prixF * action.coefMarge * 100) / 100
+            : undefined
+        return {
+          id: crypto.randomUUID(),
+          designation: `Fourniture / pose — ${p.designation} (suite ${formatOtNumero(action.otNumero)})`,
+          quantite: p.quantite || 1,
+          unite: 'u',
+          prixUnitaireHt: prixClient,
+          horsContrat: true,
+        }
+      })
+      const montantHt = lignes.every((l) => l.prixUnitaireHt != null)
+        ? lignes.reduce((s, l) => s + (l.prixUnitaireHt || 0) * l.quantite, 0)
+        : undefined
+      const base = blankDevis(action.clientId, {
+        type: 'regularisation',
+        chantierId: action.chantierId,
+        otOrigineId: action.otId,
+        libelle: `Devis pièces — OT${action.otNumero} — ${libellePieces}`,
+        lignes,
+        montantHt,
+        notes:
+          `Généré depuis le rapport OT (validation humaine).` +
+          (commandeId ? ` Demande fournisseur liée.` : '') +
+          ` Complétez les prix si besoin, envoyez au client, puis « Lancer commande » après acceptation.`,
+      })
+      const d = deps.upsertDevis(base)
+      devisId = d.id
+      devisNumero = d.numero
+      bits.push(`devis client brouillon ${d.numero}`)
+    }
+
+    const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = ot
+    deps.upsertOrdreTravail({
+      ...rest,
+      id: ot.id,
+      statut: ot.statut === 'signe' || ot.statut === 'termine' ? ot.statut : 'en_attente_piece',
+      commandeFournisseurId: commandeId || ot.commandeFournisseurId,
+      devisId: devisId || ot.devisId,
+      lienCommandeType: devisId ? 'devis_regule' : ot.lienCommandeType,
+      lienCommandeRef: devisNumero || ot.lienCommandeRef,
+      origineOt: ot.origineOt || 'commande_materiel',
+      statutFacturation: devisId ? 'devis_regule_emis' : ot.statutFacturation,
+    })
+
+    return {
+      message: [
+        `Chaîne pièce lancée pour ${formatOtNumero(action.otNumero)} : ${bits.join(' + ')}.`,
+        `OT passé en « en attente de pièce ».`,
+        `Ensuite : prix fournisseur → finalisez le devis client → client accepte → « Lancer commande ».`,
+      ].join(' '),
+      navigateTo: devisId
+        ? `/app/devis?id=${encodeURIComponent(devisId)}`
+        : commandeId
+          ? `/app/commandes?id=${encodeURIComponent(commandeId)}`
+          : `/app/ot`,
     }
   }
 
