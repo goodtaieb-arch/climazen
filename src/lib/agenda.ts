@@ -297,6 +297,14 @@ export function weekDatesFrom(iso: string): string[] {
 
 const JOUR_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const
 
+/** Samedi / dimanche (évite de confondre avec un jour ouvré). */
+export function isWeekendIso(iso: string | undefined): boolean {
+  const d = new Date(String(iso || '').slice(0, 10) + 'T12:00:00')
+  if (Number.isNaN(d.getTime())) return false
+  const wd = d.getDay() // 0=dim, 6=sam
+  return wd === 0 || wd === 6
+}
+
 export function formatJourCourt(iso: string): string {
   const d = new Date(iso.slice(0, 10) + 'T12:00:00')
   if (Number.isNaN(d.getTime())) return iso

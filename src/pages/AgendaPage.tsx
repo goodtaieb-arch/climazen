@@ -27,6 +27,7 @@ import {
   compareProgrammeHeure,
   formatHeure,
   formatJourCourt,
+  isWeekendIso,
   agendaCouvreDate,
   isAgendaDueSoon,
   isAgendaOverdue,
@@ -2103,9 +2104,21 @@ export function AgendaPage() {
 
       {view === 'jour' && (
         <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div
+            className={[
+              'flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-3 py-2',
+              isWeekendIso(cursorDate)
+                ? 'border-slate-300 bg-slate-100/90'
+                : 'border-transparent bg-transparent px-0',
+            ].join(' ')}
+          >
             <h2 className="font-display text-lg font-semibold">
               Programme · {formatJourCourt(cursorDate)}
+              {isWeekendIso(cursorDate) ? (
+                <span className="ml-2 rounded-md border border-slate-400/60 bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-800">
+                  Week-end
+                </span>
+              ) : null}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
               {bureau && filterTechId && filterTechId !== 'tous' ? (
@@ -2122,6 +2135,11 @@ export function AgendaPage() {
               </button>
             </div>
           </div>
+          {isWeekendIso(cursorDate) ? (
+            <p className="text-[11px] font-semibold text-slate-600">
+              Jour non ouvré (week-end) — à planifier seulement si astreinte / urgence.
+            </p>
+          ) : null}
           {renderLignesTechJour(cursorDate)}
           {!bureau ? (
             programmeForDate(cursorDate).length === 0 ? (
@@ -2158,13 +2176,26 @@ export function AgendaPage() {
           {weekDates.map((day) => {
             const items = programmeForDate(day)
             const isToday = day === todayIsoLocal()
+            const weekend = isWeekendIso(day)
             return (
               <div
                 key={day}
                 className={[
                   'rounded-2xl border p-3',
-                  isToday ? 'border-teal-300 bg-teal-50/40' : 'border-line bg-white',
+                  isToday
+                    ? 'border-teal-300 bg-teal-50/40'
+                    : weekend
+                      ? 'border-slate-300 bg-slate-100/90'
+                      : 'border-line bg-white',
                 ].join(' ')}
+                style={
+                  weekend && !isToday
+                    ? {
+                        backgroundImage:
+                          'repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(100,116,139,0.07) 8px, rgba(100,116,139,0.07) 16px)',
+                      }
+                    : undefined
+                }
               >
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <button
@@ -2175,9 +2206,19 @@ export function AgendaPage() {
                     }}
                     className="text-left"
                   >
-                    <span className="font-display text-base font-bold text-ink">
+                    <span
+                      className={[
+                        'font-display text-base font-bold',
+                        weekend ? 'text-slate-800' : 'text-ink',
+                      ].join(' ')}
+                    >
                       {formatJourCourt(day)}
                     </span>
+                    {weekend ? (
+                      <span className="ml-2 rounded-md border border-slate-400/60 bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-800">
+                        Week-end
+                      </span>
+                    ) : null}
                     {isToday ? (
                       <span className="ml-2 text-[10px] font-bold uppercase text-teal-800">
                         Aujourd’hui
@@ -2190,11 +2231,21 @@ export function AgendaPage() {
                   <button
                     type="button"
                     onClick={() => openNew(day)}
-                    className="inline-flex min-h-9 items-center gap-1 rounded-full border border-line px-2.5 text-[11px] font-bold"
+                    className={[
+                      'inline-flex min-h-9 items-center gap-1 rounded-full border px-2.5 text-[11px] font-bold',
+                      weekend
+                        ? 'border-slate-400 bg-white/80 text-slate-800'
+                        : 'border-line',
+                    ].join(' ')}
                   >
                     <Plus className="h-3 w-3" /> Planifier
                   </button>
                 </div>
+                {weekend ? (
+                  <p className="mb-2 text-[11px] font-semibold text-slate-600">
+                    Jour non ouvré — à planifier seulement si astreinte / urgence.
+                  </p>
+                ) : null}
                 {bureau ? (
                   renderLignesTechJour(day)
                 ) : items.length === 0 ? (
