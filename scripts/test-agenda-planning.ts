@@ -7,6 +7,7 @@ import {
   couleurSecteurTech,
   dateDansSemaine,
   dureeMinutesEffectif,
+  dureeMinutesOt,
   estPourTech,
   heuresFriseJour,
   isHorsOtType,
@@ -284,6 +285,14 @@ assert.equal(parseHeureToMinutes('08:30'), 8 * 60 + 30)
 assert.equal(parseHeureToMinutes(''), null)
 assert.equal(dureeMinutesEffectif(undefined), 60)
 assert.equal(dureeMinutesEffectif(90), 90)
+assert.equal(dureeMinutesOt({ visiteNiveau: 'mensuel' }), 120)
+assert.equal(dureeMinutesOt({ visiteNiveau: 'trimestriel' }), 180)
+assert.equal(dureeMinutesOt({ visiteNiveau: 'semestriel' }), 240)
+assert.equal(dureeMinutesOt({ visiteNiveau: 'annuel' }), 300)
+assert.equal(dureeMinutesOt({ visiteNiveau: 'mensuel', dureeMinutes: 60 }), 120)
+assert.equal(dureeMinutesOt({ visiteNiveau: 'mensuel', dureeMinutes: 90 }), 90)
+assert.equal(dureeMinutesOt({}), 60)
+assert.equal(labelDureeMinutes(300), '5 h')
 assert.equal(labelDureeMinutes(90), '1 h 30')
 assert.equal(labelDureeMinutes(120), '2 h')
 assert.deepEqual(heuresFriseJour()[0], 7)
@@ -293,6 +302,12 @@ const place = timelinePlacement('09:00', 60)
 assert.ok(place)
 assert.equal(Math.round(place!.leftPct), Math.round(((9 - 7) * 60 / 720) * 100))
 assert.equal(Math.round(place!.widthPct), Math.round((60 / 720) * 100))
+const place2h = timelinePlacement('07:00', 120)
+assert.ok(place2h)
+assert.equal(Math.round(place2h!.widthPct), Math.round((120 / 720) * 100))
+const place5h = timelinePlacement('07:00', 300)
+assert.ok(place5h)
+assert.equal(Math.round(place5h!.widthPct), Math.round((300 / 720) * 100))
 assert.equal(timelinePlacement(undefined, 60), null)
 const early = timelinePlacement('06:00', 120)
 assert.ok(early?.clippedStart)

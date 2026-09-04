@@ -291,7 +291,7 @@ export interface OrdreTravail {
   agenceCode?: string
   /** Heure de passage prévue (HH:mm) — planning agenda. Sans heure = pas encore calé. */
   heure?: string
-  /** Durée prévue sur le planning (minutes). Défaut 60 si absent. */
+  /** Durée indicative sur le planning (minutes). N’empêche pas de dépasser. */
   dureeMinutes?: number
   /** Lien CERFA si généré avec fluide */
   interventionId?: string

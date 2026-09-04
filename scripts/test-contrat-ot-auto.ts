@@ -192,6 +192,8 @@ assert.equal(drafts[0].statut, 'pret_a_planifier')
 assert.deepEqual(drafts[0].docsRequis, ['fiche_chaufferie'])
 assert.equal(drafts[5].visiteNiveau, 'semestriel')
 assert.match(drafts[5].action, /semestrielle/i)
+assert.equal(drafts[0].dureeMinutes, 120)
+assert.equal(drafts[5].dureeMinutes, 240)
 
 const draftsMois = buildOtDraftsDepuisContrats({
   contrats: [contrat({ id: 'cm1' })],

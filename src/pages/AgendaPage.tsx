@@ -73,6 +73,7 @@ import {
   JOUR_PLANNING_FIN_H,
   couleurPlanning,
   dureeMinutesEffectif,
+  dureeMinutesOt,
   heuresFriseJour,
   isHorsOtType,
   labelDureeMinutes,
@@ -399,7 +400,7 @@ export function AgendaPage() {
         id: `ot-${o.id}`,
         date: (o.date || '').slice(0, 10),
         heure: o.heure,
-        dureeMinutes: o.dureeMinutes,
+        dureeMinutes: dureeMinutesOt(o),
         title: o.action || TYPE_OT_LABELS[o.typeOt] || 'INT',
         otId: o.id,
         typeOt: o.typeOt,
@@ -518,8 +519,8 @@ export function AgendaPage() {
 
   useEffect(() => {
     if (!otAPlacer) return
-    setDureePose(dureeMinutesEffectif(otAPlacer.dureeMinutes))
-  }, [otAPlacer?.id, otAPlacer?.dureeMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
+    setDureePose(dureeMinutesOt(otAPlacer))
+  }, [otAPlacer?.id, otAPlacer?.dureeMinutes, otAPlacer?.visiteNiveau]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const programmeForDate = (iso: string) => {
     const day = iso.slice(0, 10)
@@ -884,7 +885,7 @@ export function AgendaPage() {
             )}
             {!isIndispoType(form.type) ? (
               <label className="block text-sm">
-                <span className="mb-1 block font-semibold text-ink">Durée</span>
+                <span className="mb-1 block font-semibold text-ink">Durée indicative</span>
                 <select
                   value={dureeMinutesEffectif(form.dureeMinutes)}
                   onChange={(e) =>
@@ -1479,7 +1480,9 @@ export function AgendaPage() {
               </button>
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold uppercase text-teal-800">Durée</span>
+              <span className="text-[10px] font-bold uppercase text-teal-800">
+                Durée indicative
+              </span>
               {DUREES_PLANNING_PRESETS.map((m) => (
                 <button
                   key={m}
@@ -1495,6 +1498,9 @@ export function AgendaPage() {
                 </button>
               ))}
             </div>
+            <p className="text-[10px] font-semibold text-teal-800/80">
+              Temps indicatif pour la bande — le tech peut dépasser, rien n’est bloqué.
+            </p>
           </div>
         ) : null}
         <div className="overflow-x-auto rounded-2xl border border-line bg-white">
@@ -2435,7 +2441,7 @@ function OtPlanifierInline({
 }) {
   const [date, setDate] = useState(ot.date || todayIsoLocal())
   const [heure, setHeure] = useState(formatHeure(ot.heure))
-  const [duree, setDuree] = useState(() => dureeMinutesEffectif(ot.dureeMinutes))
+  const [duree, setDuree] = useState(() => dureeMinutesOt(ot))
   const [tech, setTech] = useState(ot.technicien || '')
   const [techId, setTechId] = useState(ot.technicienUserId)
   const [techIds, setTechIds] = useState(() => techIdsOt(ot))
@@ -2480,7 +2486,7 @@ function OtPlanifierInline({
         />
       </label>
       <label className="block text-xs">
-        <span className="mb-0.5 block font-bold uppercase text-muted">Durée</span>
+        <span className="mb-0.5 block font-bold uppercase text-muted">Durée indicative</span>
         <select
           value={duree}
           onChange={(e) => setDuree(Number(e.target.value) || DUREE_PLANNING_DEFAUT)}
