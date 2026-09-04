@@ -103,14 +103,14 @@ export const AI_FORBIDDEN_ACTIONS = [
  * Réponse type si l’utilisateur dit « annule l’OT… ».
  * Annuler = supprimer → interdit. Retirer / déplacer sur l’agenda → OK (humain).
  */
-export const AI_ANNULER_OT_GUIDE = `Je ne peux pas annuler (= supprimer) un OT.
+export const AI_ANNULER_OT_GUIDE = `Je ne peux pas annuler (= supprimer) une intervention (INT / OT).
 
-Par contre vous pouvez le corriger vous-même :
-• Agenda → croix rouge sur le bloc = retirer l’OT du tech (il revient dans « OT à poser »)
+Par contre vous pouvez la corriger vous-même :
+• Agenda → croix rouge sur le bloc = retirer l’INT du tech (il revient dans « à poser »)
 • Ou recliquer le bloc / le replacer = déplacer l’heure ou le tech
-• Ordres de travail → ouvrir l’OT pour changer date, tech, type, action
+• Interventions → ouvrir l’INT pour changer date, tech, type, action
 
-Dites-moi plutôt « retire l’OT de Julie » ou « déplace l’OT demain 14h » et je vous guide — sans rien supprimer.`
+Dites-moi plutôt « retire l’OT de Julie » ou « déplace l’INT demain 14h » et je vous guide — sans rien supprimer.`
 
 /** Détecte une demande d’annulation / suppression d’OT (fautes : anulle, anuller…). */
 export function wantsAnnulerOt(raw: string): boolean {
@@ -126,20 +126,23 @@ export function wantsAnnulerOt(raw: string): boolean {
     /\b(annul|anull|supprim|effac|detrui|supprime|annule|anulle)\w*\b/.test(n) ||
     /\bmets?\s+a\s+la\s+poubelle\b/.test(n)
   if (!verbe) return false
-  // « OT », « l’OT », dictée « lot de Julie », « ordre de travail », « intervention »
+  // « OT », « INT », « DI », « l’OT », dictée « lot de Julie », « ordre de travail », « intervention »
   return (
-    /\b(ot|ordre(?:s)?\s+de\s+travail|intervention|interventions)\b/.test(n) ||
+    /\b(ot|int|di|ordre(?:s)?\s+de\s+travail|demande(?:s)?\s+d['']?intervention|intervention|interventions)\b/.test(
+      n,
+    ) ||
     /\bl['']ot\b/.test(n) ||
+    /\bl['']int\b/.test(n) ||
     /\blot\s+(?:de|du|pour|numero|n)\b/.test(n)
   )
 }
 
 export function answerAnnulerOtGuide(raw?: string): string {
   const who = String(raw || '').match(
-    /(?:ot|ordre|intervention)\s+(?:de|du|pour)\s+([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+)?)/i,
+    /(?:ot|int|di|ordre|intervention)\s+(?:de|du|pour)\s+([A-Za-zÀ-ÿ'’\-]+(?:\s+[A-Za-zÀ-ÿ'’\-]+)?)/i,
   )?.[1]
   if (who) {
-    return `${AI_ANNULER_OT_GUIDE}\n\nPour l’OT de ${who.trim()} : ouvrez l’Agenda, trouvez le bloc, croix rouge = retirer, ou déplacez-le.`
+    return `${AI_ANNULER_OT_GUIDE}\n\nPour l’intervention de ${who.trim()} : ouvrez l’Agenda, trouvez le bloc, croix rouge = retirer, ou déplacez-le.`
   }
   return AI_ANNULER_OT_GUIDE
 }

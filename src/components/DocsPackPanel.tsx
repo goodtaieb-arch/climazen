@@ -202,7 +202,7 @@ export function DocsPackPanel({
     setError('')
     setHint('')
     try {
-      const title = `Docs ${formatOtNumero(ot.numero) || 'OT'}`
+      const title = `Docs ${formatOtNumero(ot.numero) || 'INT'}`
       const text = `Documents ClimaZEN — intervention ${formatOtNumero(ot.numero) || ot.numero}`
       const shareResult = await shareDocsPack({
         docs: chosen,
@@ -252,7 +252,7 @@ export function DocsPackPanel({
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wide text-muted">Docs groupés</p>
           <h3 className="font-display text-base font-bold text-ink">
-            Envoyer / enregistrer · {formatOtNumero(ot.numero) || 'OT'}
+            Envoyer / enregistrer · {formatOtNumero(ot.numero) || 'INT'}
           </h3>
           <p className="mt-0.5 text-xs text-muted">
             Lisez le PDF, cochez, supprimez les doublons — puis ZIP / envoi.

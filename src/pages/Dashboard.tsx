@@ -35,7 +35,7 @@ import {
   telHref,
   mailtoHref,
 } from '../lib/agenda'
-import { formatOtAvancement, formatOtNumero } from '../lib/ordreTravail'
+import { formatOtAvancement, formatOtNumero, OT_LABEL } from '../lib/ordreTravail'
 import {
   alertesOtContratFinMois,
   NIVEAU_VISITE_LABELS,
@@ -439,7 +439,7 @@ export function Dashboard() {
                 to="/app/ot"
                 className="rounded-2xl border border-line bg-white px-2 py-3 text-center text-xs font-bold text-ink shadow-sm active:bg-mist"
               >
-                OT / Demandes
+                {OT_LABEL.nav}
               </Link>
               <Link
                 to="/app/agenda"
@@ -787,11 +787,11 @@ export function Dashboard() {
               <TerrainAction
                 icon={ClipboardList}
                 img3d={ICON3D.maintenance}
-                title="OT / Demandes"
+                title={OT_LABEL.nav}
                 subtitle={
                   otAReprendre.length
                     ? `${otAReprendre.length} à reprendre`
-                    : 'Ordres de travail & demandes'
+                    : 'Interventions & demandes terrain'
                 }
                 color="cerfa"
                 to="/app/ot"
@@ -800,7 +800,7 @@ export function Dashboard() {
               <TerrainAction
                 icon={ClipboardList}
                 img3d={ICON3D.cerfa}
-                title="CERFA / Interventions"
+                title="CERFA"
                 subtitle={
                   brouillons.length
                     ? `${brouillons.length} brouillon${brouillons.length > 1 ? 's' : ''} à terminer`

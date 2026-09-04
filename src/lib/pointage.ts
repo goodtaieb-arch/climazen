@@ -813,7 +813,7 @@ export function exportEvenementsCsv(events: PointageEvent[]): string {
     'Heure',
     'Technicien',
     'Action',
-    'OT',
+    'INT',
     'Cible',
     'Latitude',
     'Longitude',

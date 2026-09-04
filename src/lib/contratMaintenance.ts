@@ -208,7 +208,7 @@ Le Prestataire assure une maintenance préventive à périodicité {{periodicite
 
 Durée : {{duree}} — Prix : {{prix}} HT.
 
-Les interventions donnent lieu à un ordre de travail (OT) et, le cas échéant, à un CERFA.
+Les interventions donnent lieu à une fiche Intervention (INT) et, le cas échéant, à un CERFA.
 `,
   },
   {

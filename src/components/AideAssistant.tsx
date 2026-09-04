@@ -248,7 +248,7 @@ export function AideAssistant() {
     setPendingCreate(resolved.resolved)
     pushAssistant(resolved.resolved.summary)
     notifyResponsable({
-      title: `Proposition OT — ${resolved.resolved.summary.split('\n')[0] || 'OT'}`,
+      title: `Proposition intervention — ${resolved.resolved.summary.split('\n')[0] || 'INT'}`,
       summary: resolved.resolved.summary,
       kind: 'ot',
       textForInfer: `${intent.actionText} ${intent.clientQuery} ${intent.siteQuery} ${intent.typeOt}`,

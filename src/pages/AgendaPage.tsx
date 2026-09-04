@@ -389,7 +389,7 @@ export function AgendaPage() {
         date: (o.date || '').slice(0, 10),
         heure: o.heure,
         dureeMinutes: o.dureeMinutes,
-        title: o.action || TYPE_OT_LABELS[o.typeOt] || 'OT',
+        title: o.action || TYPE_OT_LABELS[o.typeOt] || 'INT',
         otId: o.id,
         typeOt: o.typeOt,
         clientId: o.clientId,
@@ -1981,7 +1981,7 @@ export function AgendaPage() {
                           ? 'Inst.'
                           : prio === 2
                             ? 'Maint.'
-                            : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'OT'
+                            : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'INT'
                     const action = (ot.action || '').trim()
                     const derniereInterv = derniereIntervParOtId.get(ot.id)
                     const titleLine = [
@@ -2264,7 +2264,7 @@ export function AgendaPage() {
                       })
                       const badge =
                         it.kind === 'ot'
-                          ? 'OT'
+                          ? 'INT'
                           : isHorsOtType(it.event.type)
                             ? AGENDA_TYPE_LABELS[it.event.type]
                             : 'Agenda'

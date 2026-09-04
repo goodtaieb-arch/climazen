@@ -21,14 +21,14 @@ export const AIDE_SYSTEM_PROMPT = `Tu es l’intelligence ClimaZEN UNIQUE (assis
 ${AI_UNIFIED_SYSTEM_RULES}
 
 ACCÈS DONNÉES (ouvert, pas cas par cas) :
-- Chaque message contient un bloc « DONNÉES RÉELLES DE LA SOCIÉTÉ » : totaux de TOUS les domaines (OT, clients, sites, devis, commandes, pièces, fluides, CERFA, agenda, équipe…) + une RECHERCHE libre sur les mots de la question.
+- Chaque message contient un bloc « DONNÉES RÉELLES DE LA SOCIÉTÉ » : totaux de TOUS les domaines (interventions/INT, clients, sites, devis, commandes, pièces, fluides, CERFA, agenda, équipe…) + une RECHERCHE libre sur les mots de la question.
 - Tu réponds à N’IMPORTE quelle question métier à partir de ce bloc. Pas besoin d’une formulation précise ni d’un exemple appris.
-- Les TOTAUX sont exacts même si une liste est tronquée. « or » / « o.t » = OT.
-- Interdit d’inventer un chiffre, un client ou un OT absent du bloc. Si tu ne trouves pas : dis-le et propose comment reformuler ou où regarder dans l’app.
-- Si un rapport OT mentionne une pièce HS / à changer / bruyante : oriente vers la chaîne « demande devis fournisseur + devis client » (validation humaine).
+- Les TOTAUX sont exacts même si une liste est tronquée. « or » / « o.t » / « ot » / « di » = INT (intervention).
+- Interdit d’inventer un chiffre, un client ou une INT absente du bloc. Si tu ne trouves pas : dis-le et propose comment reformuler ou où regarder dans l’app.
+- Si un rapport d’intervention mentionne une pièce HS / à changer / bruyante : oriente vers la chaîne « demande devis fournisseur + devis client » (validation humaine).
 
 Parcours principaux :
-1) Client appelle → /app/appel (OT) → client, site, équipements → docs → signatures → Clôturer (HUMAIN).
+1) Client appelle → /app/appel (Intervention / INT) → client, site, équipements → docs → signatures → Clôturer (HUMAIN).
 2) CERFA → /app/interventions (PDF final = HUMAIN).
 3) Stock fluides → /app/stock.
 4) Clients / Sites → équipements.
@@ -83,7 +83,7 @@ Fluides F-Gas restent sur /app/stock (bouteilles).`,
   },
   {
     id: 'annuler-ot',
-    title: 'Annuler / retirer / déplacer un OT',
+    title: 'Annuler / retirer / déplacer une intervention',
     keywords: [
       'annule',
       'annuler',
@@ -95,29 +95,48 @@ Fluides F-Gas restent sur /app/stock (bouteilles).`,
       'deplacer',
       'déplacer',
       'enlever ot',
+      'enlever int',
+      'intervention',
     ],
     paths: ['/app/agenda', '/app/ot', '/app/appel'],
-    answer: `Je ne peux pas annuler (= supprimer) un OT.
+    answer: `Je ne peux pas annuler (= supprimer) une intervention (INT / OT / DI).
 
 Pour corriger le planning :
-• Agenda → croix rouge sur le bloc = retirer l’OT du tech (revient dans « OT à poser »)
+• Agenda → croix rouge sur le bloc = retirer l’INT du tech (revient dans « à poser »)
 • Recliquer / reposer = déplacer l’heure ou changer de tech
-• Ordres de travail → ouvrir l’OT pour modifier date, tech, action`,
+• Interventions → ouvrir l’INT pour modifier date, tech, action`,
   },
   {
     id: 'parcours-ot',
-    title: 'Parcours OT / Client appelle',
-    keywords: ['ot', 'ordre', 'appel', 'client appelle', 'cloturer', 'clôturer', 'parcours', 'etape', 'étape', 'avancement', 'partiel', 'pourcentage', 'présence'],
+    title: 'Parcours Intervention / Client appelle',
+    keywords: [
+      'ot',
+      'int',
+      'di',
+      'ordre',
+      'intervention',
+      'appel',
+      'client appelle',
+      'cloturer',
+      'clôturer',
+      'parcours',
+      'etape',
+      'étape',
+      'avancement',
+      'partiel',
+      'pourcentage',
+      'présence',
+    ],
     paths: ['/app/appel', '/app/ot'],
     answer: `Parcours terrain typique :
-1. Accueil → « Client appelle » (ou Ordres de travail).
-2. Remplir OT → Client → Site → Équipement(s).
+1. Accueil → « Client appelle » (ou Interventions).
+2. Remplir Intervention → Client → Site → Équipement(s).
 3. Étape Documents : CERFA (si fluide), fiche checklist optionnelle, signatures.
 4. « Valider la présence du jour » (signature client, même si le travail n’est pas fini) ou « Clôturer signé » quand c’est terminé.
 
-Chantier sur plusieurs jours : cochez « Intervention partielle », mettez le %, faites signer le client à chaque passage. L’OT reste ouvert jusqu’à clôture.
+Chantier sur plusieurs jours : cochez « Intervention partielle », mettez le %, faites signer le client à chaque passage. L’intervention reste ouverte jusqu’à clôture.
 
-Après un CERFA, utilise « Retour à l’OT — signer & clôturer » pour ne pas tout quitter.`,
+Après un CERFA, utilise « Retour à l’intervention — signer & clôturer » pour ne pas tout quitter.`,
   },
   {
     id: 'cerfa',
@@ -125,7 +144,7 @@ Après un CERFA, utilise « Retour à l’OT — signer & clôturer » pour ne p
     keywords: ['cerfa', '15497', 'pdf', 'generer', 'générer', 'intervention', 'fiche'],
     paths: ['/app/interventions'],
     answer: `Pour un CERFA :
-1. Depuis l’OT → bouton CERFA, ou menu Interventions.
+1. Depuis l’intervention → bouton CERFA, ou menu CERFA.
 2. Cochez les natures vous-même. Destruction / BSFF : « Démantèlement / récup. définitive (déchet) ». Réinjection prévue : « Récupération temporaire ».
 3. Fluide [7], puis en [11] : « Récupérer le gaz (D/E) » et/ou « Recharger du neuf (A/B/C) ».
 4. Signatures → « Enregistrer & générer ce CERFA ».
@@ -244,7 +263,7 @@ Dans les menus : « Surnom (N° de série : BOT-XXX) ». Jamais mettre « Transf
 - Technicien : Équipe → son dossier (/app/equipe/…) — signature personnelle, invisible aux collègues. Reprise auto sur OT et CERFA.
 - Client : signature à chaque intervention (pad vide sur chaque nouvel OT / CERFA / fiche). Pas de réutilisation auto de l’ancienne signature site.
 
-Pour clôturer : signatures tech + client sur l’OT, puis « Clôturer signé ».`,
+Pour clôturer : signatures tech + client sur l’intervention, puis « Clôturer signé ».`,
   },
   {
     id: 'entreprise',
@@ -328,7 +347,7 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
     paths: ['/app'],
     answer: `Sur mobile (Chrome / Android) :
 - Bouton « Dicter » sur panne, observations, rapport d’action, CERFA.
-- Micro en bas à gauche : dites « stock », « appel », « OT », « scan », « GPS », « CERFA », « sites » ou « aide ».
+- Micro en bas à gauche : dites « stock », « appel », « interventions », « OT », « INT », « scan », « GPS », « CERFA », « sites » ou « aide ».
 Sur iPhone, la dictée peut être limitée selon Safari.`,
   },
 ]
@@ -358,8 +377,8 @@ export function suggestQuestionsForPath(pathname: string): string[] {
   }
   if (p.includes('/appel') || p.includes('/ot')) {
     return [
-      'Crée une OT pour contrôle d’étanchéité',
-      'Comment clôturer un OT après le CERFA ?',
+      'Crée une intervention pour contrôle d’étanchéité',
+      'Comment clôturer une INT après le CERFA ?',
       'Où signer technicien et client ?',
     ]
   }
@@ -381,7 +400,7 @@ export function suggestQuestionsForPath(pathname: string): string[] {
     return ['Où mettre le logo société ?', 'Détecteur de fuite obligatoire ?']
   }
   return [
-    'Crée une OT + CERFA pour un client',
+    'Crée une intervention + CERFA pour un client',
     'Agenda RDV demain 14h',
     'Stock utilisable vs déchet ?',
   ]
@@ -391,7 +410,7 @@ export function suggestQuestionsForPath(pathname: string): string[] {
 export function answerAideLocal(question: string, pathname = '', data?: AppData): string {
   const q = normalize(question)
   if (!q.trim()) {
-    return 'Posez une question sur ClimaZEN (OT, CERFA, stock, bouteilles…).'
+    return 'Posez une question sur ClimaZEN (interventions, CERFA, stock, bouteilles…).'
   }
 
   if (wantsAnnulerOt(question)) {

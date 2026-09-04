@@ -7,7 +7,7 @@ export type DeletedEntityIds = {
   stock?: string[]
   /** Mouvements stock orphelins (optionnel) */
   stockMouvements?: string[]
-  /** Ordres de travail (OT) */
+  /** Interventions (INT / OT) */
   ordresTravail?: string[]
   /** CERFA / interventions liées */
   interventions?: string[]

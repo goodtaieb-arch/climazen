@@ -274,8 +274,8 @@ export function buildCommandePdf(
     cmd.destination === 'stock' || (!cmd.otId && cmd.destination !== 'ot')
       ? 'Stock / magasin pièces'
       : ctx.otNumero
-        ? `Ordre de travail ${formatOtNumero(ctx.otNumero)}`
-        : 'Ordre de travail'
+        ? `Intervention ${formatOtNumero(ctx.otNumero)}`
+        : 'Intervention'
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)

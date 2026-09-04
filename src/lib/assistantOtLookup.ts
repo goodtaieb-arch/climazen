@@ -234,7 +234,8 @@ export function extractDecalerHeures(raw: string): { from?: string; to?: string 
 
 export function extractOtNumeroQuery(raw: string): string {
   const m =
-    String(raw || '').match(/\bot\s*[-#:]?\s*(\d{6,})\b/i) ||
+    String(raw || '').match(/\b(?:ot|int|di)\s*[-#:]?\s*(\d{6,})\b/i) ||
+    String(raw || '').match(/\b(?:OT|INT|DI)(\d{6,})\b/) ||
     String(raw || '').match(/\b(\d{8})\b/)
   return m?.[1] || ''
 }

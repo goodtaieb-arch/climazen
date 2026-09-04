@@ -1,6 +1,7 @@
 import { ICON3D } from './icons3d'
 import { isTerrainUi, shortcutVisibleForAccess, type UiAccess } from './uiMode'
 import type { EditionFeature } from './appEdition'
+import { OT_LABEL } from './ordreTravail'
 
 /** Identifiants des raccourcis Accueil mobile (grille de cercles). */
 export type HomeShortcutId =
@@ -78,7 +79,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
   },
   ot: {
     id: 'ot',
-    title: 'OT / Demandes',
+    title: OT_LABEL.nav,
     img: ICON3D.maintenance,
     to: '/app/ot',
   },

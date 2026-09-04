@@ -11,6 +11,7 @@ import {
   formatOtNumero,
   naturesCerfaPourTypeOt,
   TYPE_OT_LABELS,
+  OT_LABEL,
   type TypeOt,
 } from './ordreTravail'
 import type { PendingTerrainAction } from './assistantTerrainActions'
@@ -108,9 +109,12 @@ function wantsCreateCerfa(q: string): boolean {
 
 function wantsCreateOt(q: string): boolean {
   const n = normalize(q)
-  // « crée / créer / cree moi une ot / ordre / intervention »
+  // « crée / créer / cree moi une ot / int / di / ordre / intervention »
   if (!/(cree|creer|cr[eé]e|cr[eé]er|fais|faire|ouvre|ouvre|lance)/.test(n)) return false
-  return /\b(ot|ordre|ordres|intervention|interventions)\b/.test(n) || wantsCreateCerfa(q)
+  return (
+    /\b(ot|int|di|ordre|ordres|intervention|interventions|demande)\b/.test(n) ||
+    wantsCreateCerfa(q)
+  )
 }
 
 function extractClientQuery(raw: string): string {
@@ -286,7 +290,7 @@ export function resolveCreateOtCerfa(
     return {
       ok: false,
       message:
-        'Indiquez le client dans la phrase (ex. « crée une OT pour Mr Martin sur le site Atelier… »).',
+        'Indiquez le client dans la phrase (ex. « crée une intervention pour Mr Martin sur le site Atelier… »).',
     }
   }
 
@@ -391,12 +395,12 @@ export function resolveCreateOtCerfa(
   if (create.client) willCreate.push('client')
   if (create.site) willCreate.push('site')
   if (create.equip) willCreate.push('équipement')
-  willCreate.push('OT')
+  willCreate.push(OT_LABEL.singular)
   if (needsCerfa) willCreate.push('CERFA brouillon')
 
   const summary = [
     `Je peux préparer :`,
-    `• OT « ${TYPE_OT_LABELS[intent.typeOt]} »`,
+    `• ${OT_LABEL.code} « ${TYPE_OT_LABELS[intent.typeOt]} »`,
     `• Client : ${clientLabel}`,
     `• Site : ${siteLabel}`,
     `• Équipement : ${equipLabel}`,
@@ -628,7 +632,7 @@ export function executeCreateOtCerfa(
     create.client ? 'client' : null,
     create.site ? 'site' : null,
     create.equip ? 'équipement' : null,
-    'OT',
+    OT_LABEL.singular,
     cerfaId ? 'CERFA brouillon' : null,
   ].filter(Boolean)
 
@@ -646,7 +650,7 @@ export function executeCreateOtCerfa(
     otId: ot.id,
     otNumero: ot.numero,
     navigateTo: `/app/ot?id=${encodeURIComponent(ot.id)}`,
-    message: `${label} créé (${createdBits.join(', ')}). Ouvrez l’OT pour finaliser.`,
+    message: `${label} créé (${createdBits.join(', ')}). Ouvrez l’intervention pour finaliser.`,
   }
 }
 

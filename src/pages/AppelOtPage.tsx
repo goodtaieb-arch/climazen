@@ -57,6 +57,7 @@ import {
   upsertVisitePresence,
   formatOtAvancement,
   techIdsOt,
+  OT_LABEL,
   type TypeOt,
   type StatutOt,
   type ParcoursAppelStepId,
@@ -1297,7 +1298,7 @@ export function AppelOtPage() {
             {isOwner ? 'Client appelle' : 'Urgence / astreinte'}
           </h1>
           <p className="truncate text-xs text-muted">
-            {otForm.numero ? formatOtNumero(otForm.numero) : 'Nouvel OT'} · date {otForm.date || '—'}
+            {otForm.numero ? formatOtNumero(otForm.numero) : OT_LABEL.newItem} · date {otForm.date || '—'}
             {otForm.heure ? ` · ${otForm.heure.slice(0, 5)}` : ''}
             {otForm.statut ? ` · ${STATUT_OT_LABELS[otForm.statut] || otForm.statut}` : ''}
             {!isOwner

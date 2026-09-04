@@ -530,7 +530,7 @@ export interface CerfaDraft {
    * Obligatoire pour tracer toute action terrain (avec ou sans PDF CERFA).
    */
   numeroIntervention?: string
-  /** Lien vers l’ordre de travail (OT) */
+  /** Lien vers l’intervention (INT / OT) */
   ordreTravailId?: string
 
   /** [1] Opérateur — copie au moment de l'intervention */
@@ -789,7 +789,7 @@ export interface AppData {
   fichesMaintenanceChaufferie?: FicheMaintenanceChaufferie[]
   /** Fiches maintenance CTA / VMC (registre périodique 1M→1Y) */
   fichesMaintenanceCtaVmc?: FicheMaintenanceCtaVmc[]
-  /** Ordres de travail (OT) — n° unique OT2026xxxx */
+  /** Interventions (INT) — n° unique aammjjxx (affichage INT…) */
   ordresTravail?: OrdreTravail[]
   /** Contrats de maintenance (documents signables) */
   contratsMaintenance?: ContratMaintenance[]
