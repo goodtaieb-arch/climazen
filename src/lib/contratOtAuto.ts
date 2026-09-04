@@ -198,6 +198,91 @@ export function slotKeyFromContratOtKey(key: string | undefined): string | undef
   return m ? m[1] : undefined
 }
 
+const MOIS_FR = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+] as const
+
+/** Créneau YYYY-MM du mois civil en cours (heure locale). */
+export function slotKeyMoisEnCours(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function parseSlotKey(
+  slotKey: string | undefined,
+): { year: number; month: number } | undefined {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(slotKey || '').trim())
+  if (!m) return undefined
+  const year = Number(m[1])
+  const month = Number(m[2])
+  if (month < 1 || month > 12) return undefined
+  return { year, month }
+}
+
+/** Ex. `2026-09` → `Septembre 2026`. */
+export function labelMoisSlot(slotKey: string | undefined): string | undefined {
+  const p = parseSlotKey(slotKey)
+  if (!p) return undefined
+  return `${MOIS_FR[p.month - 1]} ${p.year}`
+}
+
+/** Mois de génération de l’INT (créneau registre), pas la date planning. */
+export function moisGenerationOt(ot: { contratOtKey?: string }): string | undefined {
+  return slotKeyFromContratOtKey(ot.contratOtKey)
+}
+
+export function isMoisGenerationEnRetard(
+  slotKey: string | undefined,
+  now = new Date(),
+): boolean {
+  const slot = parseSlotKey(slotKey)
+  if (!slot) return false
+  return `${slot.year}-${String(slot.month).padStart(2, '0')}` < slotKeyMoisEnCours(now)
+}
+
+export type InfoMoisGenerationOt = {
+  slotKey: string
+  mois: string
+  retard: boolean
+  label: string
+}
+
+export function infoMoisGenerationOt(
+  ot: { contratOtKey?: string },
+  now = new Date(),
+): InfoMoisGenerationOt | undefined {
+  const slotKey = moisGenerationOt(ot)
+  const mois = labelMoisSlot(slotKey)
+  if (!slotKey || !mois) return undefined
+  const retard = isMoisGenerationEnRetard(slotKey, now)
+  return {
+    slotKey,
+    mois,
+    retard,
+    label: retard ? `${mois} · retard` : mois,
+  }
+}
+
+/** Pour la recherche liste INT (septembre, 2026-09, retard…). */
+export function texteRechercheMoisGeneration(
+  ot: { contratOtKey?: string },
+  now = new Date(),
+): string {
+  const info = infoMoisGenerationOt(ot, now)
+  if (!info) return ''
+  return [info.slotKey, info.mois, info.label, info.retard ? 'retard' : ''].filter(Boolean).join(' ')
+}
+
 /** Clé d’override de date : site + créneau registre (ex. s1:2026-03). */
 export function visiteOverrideKey(siteId: string, slotKey: string): string {
   return `${String(siteId || '').trim()}:${String(slotKey || '').trim()}`
@@ -495,6 +580,8 @@ export type AlerteOtContratFinMois = {
   action: string
   joursRestants: number
   visiteNiveau?: string
+  /** Créneau de génération (YYYY-MM), même si la date planning a bougé. */
+  slotKey?: string
 }
 
 /**
@@ -534,6 +621,7 @@ export function alertesOtContratFinMois(
       action: ot.action || '',
       joursRestants: restants,
       visiteNiveau: ot.visiteNiveau,
+      slotKey: slotKeyFromContratOtKey(ot.contratOtKey),
     })
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.numero.localeCompare(b.numero))

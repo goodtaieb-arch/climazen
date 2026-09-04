@@ -88,7 +88,7 @@ import {
   typesAgendaPourSaisie,
   visibleAgendaPour,
 } from '../lib/agendaPlanning'
-import { alertesOtContratFinMois, dateDerniereInterventionPourOt, NIVEAU_VISITE_LABELS, type NiveauVisite } from '../lib/contratOtAuto'
+import { alertesOtContratFinMois, dateDerniereInterventionPourOt, isMoisGenerationEnRetard, labelMoisSlot, NIVEAU_VISITE_LABELS, type NiveauVisite } from '../lib/contratOtAuto'
 import { dossierForUser } from '../lib/rhDocuments'
 import {
   calculerJournee,
@@ -1836,6 +1836,9 @@ export function AgendaPage() {
                 </button>
                 {a.visiteNiveau
                   ? ` · ${NIVEAU_VISITE_LABELS[a.visiteNiveau as NiveauVisite]}`
+                  : ''}
+                {a.slotKey
+                  ? ` · ${labelMoisSlot(a.slotKey) || a.slotKey}${isMoisGenerationEnRetard(a.slotKey) ? ' · retard' : ''}`
                   : ''}{' '}
                 — {a.action || 'Maintenance contrat'}
               </li>

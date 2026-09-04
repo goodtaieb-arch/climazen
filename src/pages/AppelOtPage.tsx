@@ -72,7 +72,7 @@ import {
 import { editionHasFeature } from '../lib/appEdition'
 import { OtPiecesPanel } from '../components/OtPiecesPanel'
 import { parsePointageEvents, parsePointageRegles, payloadsClotureIntervention, pointageEstActif, datePointageLocale, dernierPointage } from '../lib/pointage'
-import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
+import { NIVEAU_VISITE_LABELS, infoMoisGenerationOt, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { SecteurOtSelect } from '../components/PostePersonnelSelect'
@@ -403,6 +403,7 @@ export function AppelOtPage() {
   const uiAccess = { isOwner: Boolean(isOwner), peutVoirIdentitesRh }
   const role = roleParcoursOt(uiAccess, otForm, user?.id)
   const bureauPrepare = role === 'bureau_depanage' || role === 'bureau_maintenance'
+  const moisGenOt = infoMoisGenerationOt(otForm)
 
   const quitterApresTransmission = () => {
     navigate('/app/ot', { replace: true })
@@ -1420,6 +1421,13 @@ export function AppelOtPage() {
           <strong>
             {NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}
           </strong>
+          {moisGenOt ? (
+            <>
+              {' — générée pour '}
+              <strong>{moisGenOt.mois}</strong>
+              {moisGenOt.retard ? ' (mois en retard)' : ''}
+            </>
+          ) : null}
           {' — '}
           {rapportOtSuffit(otForm.docsRequis)
             ? 'pas de fiche type : le rapport d’OT suffit.'
@@ -1494,7 +1502,8 @@ export function AppelOtPage() {
               />
               {parseNiveauVisite(otForm.visiteNiveau) ? (
                 <span className="mt-1 block text-xs text-muted">
-                  Visite contrat {NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}{' '}
+                  Visite contrat {NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}
+                  {moisGenOt ? ` · mois généré : ${moisGenOt.label}` : ''}{' '}
                   — décalez si urgence ou reprise d’une visite partielle.
                 </span>
               ) : null}

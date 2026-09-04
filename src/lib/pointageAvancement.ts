@@ -174,17 +174,11 @@ export function statutLiveOtPourTech(opts: {
   const lastN = lastGlobal ? normaliserAction(lastGlobal.action) : undefined
   const lastOtId = lastGlobal?.otId || ''
   const lastIsThisOt = Boolean(lastOtId) && lastOtId === opts.otId
-  const horsIntActif =
-    lastN === 'fournisseur' ||
-    lastN === 'bureau' ||
-    lastN === 'pause' ||
-    lastN === 'pause_repas' ||
-    lastN === 'sortie_domicile' ||
-    lastN === 'retour_domicile' ||
-    (lastN === 'deplacement' && (lastGlobal?.cible || 'ot') === 'hors_ot')
-  const actifAilleurs =
-    (Boolean(lastOtId) && lastOtId !== opts.otId && (lastN === 'intervention_en_cours' || lastN === 'deplacement')) ||
-    horsIntActif
+  const onAutreOt =
+    Boolean(lastOtId) &&
+    lastOtId !== opts.otId &&
+    (lastN === 'intervention_en_cours' ||
+      (lastN === 'deplacement' && (lastGlobal?.cible || 'ot') === 'ot'))
 
   if (lastIsThisOt) {
     const fromGlobal = liveFromAction(lastGlobal)
@@ -195,21 +189,11 @@ export function statutLiveOtPourTech(opts: {
     return { statut: 'en_cours', label: STATUT_LIVE_OT_LABELS.en_cours, pctRempli }
   }
 
-  if (actifAilleurs) {
-    const fromOt = liveFromAction(lastOt)
-    if (fromOt?.statut === 'termine') return fromOt
-  } else {
-    const fromOt = liveFromAction(lastOt)
-    if (fromOt) return fromOt
-  }
-
-  /* Statut OT : visible même si le dernier event du jour n’est pas encore lu (sync). */
-  if (opts.otStatut === 'en_deplacement' && !actifAilleurs) {
-    return { statut: 'en_deplacement', label: STATUT_LIVE_OT_LABELS.en_deplacement, pctRempli }
-  }
-  if (opts.otStatut === 'en_cours' && !actifAilleurs) {
-    return { statut: 'en_cours', label: STATUT_LIVE_OT_LABELS.en_cours, pctRempli }
-  }
+  const fromOt = liveFromAction(lastOt)
+  if (fromOt?.statut === 'termine') return fromOt
+  /* Punch réel sur cette INT : reste « en cours » même pendant une pause.
+     Poser l’INT sur un tech (statut dossier en_cours) ne suffit pas. */
+  if (fromOt && !onAutreOt) return fromOt
 
   const startMin = parseHeureToMinutes(opts.heure)
   const todayIso = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`
@@ -265,18 +249,11 @@ export function avancementTechVsPlanning(opts: {
       : journee.interventionMin > 0
         ? 100
         : 0
-  const fromOtStatut = opts.otStatuts?.includes('en_cours')
-    ? STATUT_LIVE_OT_LABELS.en_cours
-    : opts.otStatuts?.includes('en_deplacement')
-      ? STATUT_LIVE_OT_LABELS.en_deplacement
-      : undefined
   const lastLabel = journee.lastAction
     ? POINTAGE_ACTION_LABELS[journee.lastAction]
-    : fromOtStatut
-      ? fromOtStatut
-      : planifieMin > 0
-        ? 'Pas encore pointé'
-        : 'Libre'
+    : planifieMin > 0
+      ? STATUT_LIVE_OT_LABELS.planifie
+      : 'Libre'
   const now = opts.now ? new Date(opts.now) : new Date()
   const firstStart = opts.blocs
     .map((b) => parseHeureToMinutes(b.heure))
@@ -287,8 +264,7 @@ export function avancementTechVsPlanning(opts: {
     opts.date.slice(0, 10) === todayIso &&
     firstStart != null &&
     now.getHours() * 60 + now.getMinutes() > firstStart + 10 &&
-    !journee.lastAction &&
-    !fromOtStatut
+    !journee.lastAction
 
   return {
     userId: opts.userId,

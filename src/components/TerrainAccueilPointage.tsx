@@ -4,6 +4,8 @@ import { Check, ChevronDown, Eye, Home, MapPin, Navigation, Wrench } from 'lucid
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
+import { infoMoisGenerationOt } from '../lib/contratOtAuto'
+import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
 import {
   POINTAGE_ACTION_LABELS,
   POINTAGE_HORS_INT_MENU,
@@ -17,10 +19,16 @@ import {
   parsePointageEvents,
   parsePointageRegles,
   pointageEstActif,
+  repriseApresPauseRepas,
   statutOtDepuisAction,
   type PointageAction,
   type PointageCible,
 } from '../lib/pointage'
+import {
+  demanderPermissionAlarmePauseRepas,
+  preparerSonAlarmePauseRepas,
+  resetAlarmePauseRepas,
+} from '../lib/pauseRepasAlarme'
 
 /**
  * Accueil tech : INT affectées + pointage (déplacement → en cours → hors INT).
@@ -98,6 +106,11 @@ export function TerrainAccueilPointage() {
           upsertOrdreTravail({ ...ot, statut: nextStatut })
         }
       }
+      if (canon === 'pause_repas') {
+        preparerSonAlarmePauseRepas()
+        demanderPermissionAlarmePauseRepas()
+      }
+      if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)}`)
     } finally {
       setBusy(false)
@@ -123,6 +136,13 @@ export function TerrainAccueilPointage() {
     !journeeClose &&
     !enIntervention &&
     lastCanon === 'fin_intervention'
+  const repriseRepas =
+    user?.id && lastCanon === 'pause_repas'
+      ? repriseApresPauseRepas(events, { userId: user.id, date: today })
+      : undefined
+  const otRepriseRepas = repriseRepas
+    ? (data.ordresTravail || []).find((o) => o.id === repriseRepas.otId)
+    : undefined
 
   const punchHorsInt = (item: (typeof POINTAGE_HORS_INT_MENU)[number]) => {
     if (!actionAutorisee(last, item.action)) {
@@ -135,7 +155,18 @@ export function TerrainAccueilPointage() {
       }
       return
     }
-    void punch(item.action, { cible: item.cible })
+    const surInt = lastCanon === 'intervention_en_cours'
+    void punch(item.action, {
+      cible: item.cible,
+      otId:
+        (item.action === 'pause_repas' || item.action === 'pause') && surInt
+          ? last?.otId
+          : undefined,
+      chantierId:
+        (item.action === 'pause_repas' || item.action === 'pause') && surInt
+          ? last?.chantierId
+          : undefined,
+    })
   }
 
   const horsIntSelect =
@@ -164,8 +195,9 @@ export function TerrainAccueilPointage() {
           ))}
         </select>
         <span className="mt-1 block text-[10px] font-semibold text-muted">
-          Début / fin de journée : franchise 30 min, hors quota. Pause = non payée. Entre deux INT :
-          déplacement hors INT au temps entier. Consulter une INT ne lance pas le pointage.
+          Début / fin de journée : franchise 30 min, hors quota. Pause = non payée. Pause repas =
+          50 min à 1 h, hors quota, prime panier (surplus = pause). Entre deux INT : déplacement
+          hors INT au temps entier. Consulter une INT ne lance pas le pointage.
         </span>
       </label>
     ) : null
@@ -190,6 +222,21 @@ export function TerrainAccueilPointage() {
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
         Pointage hors INT
       </p>
+      {repriseRepas && last ? (
+        <PauseRepasEnCoursBar
+          startedAt={last.at}
+          numeroOt={otRepriseRepas ? formatOtNumero(otRepriseRepas.numero) : undefined}
+          busy={busy}
+          disabled={!actif}
+          onStop={() => {
+            void punch('intervention_en_cours', {
+              otId: repriseRepas.otId,
+              chantierId: repriseRepas.chantierId || otRepriseRepas?.chantierId,
+              cible: 'ot',
+            })
+          }}
+        />
+      ) : null}
       {horsIntSelect}
       {enTrajetFin ? trajetFinBtn : null}
       {showApresInt ? (
@@ -258,6 +305,7 @@ export function TerrainAccueilPointage() {
             lastCanon === 'pause_repas'
           const peutReprendre =
             horsIntEnCours && !enDeplacementOt && actionAutorisee(last, 'intervention_en_cours')
+          const moisGen = infoMoisGenerationOt(o)
 
           return (
             <li key={o.id} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -290,6 +338,18 @@ export function TerrainAccueilPointage() {
                       {enCoursIci ? (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-950">
                           En cours
+                        </span>
+                      ) : null}
+                      {moisGen ? (
+                        <span
+                          className={[
+                            'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+                            moisGen.retard
+                              ? 'bg-amber-100 text-amber-950'
+                              : 'bg-sky-100 text-sky-950',
+                          ].join(' ')}
+                        >
+                          {moisGen.label}
                         </span>
                       ) : null}
                     </span>
