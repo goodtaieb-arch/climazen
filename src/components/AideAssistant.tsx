@@ -29,6 +29,7 @@ import {
   wantsOtDeplacerOuDecaler,
   proposeDecalerOt,
 } from '../lib/assistantOtLookup'
+import { wantsDataQuery, answerDataQuery } from '../lib/assistantDataQuery'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
@@ -78,12 +79,13 @@ Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_
     '\n\nJe peux notamment :\n' +
     catalogSummaryForPrompt() +
     '\n\nExemples :\n' +
+    '• « Combien d’OT restent à clôturer ce mois ? »\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
     '• « Préviens-moi quand le compresseur arrive »\n' +
     '• « Décale l’OT de 7h à 9h » (puis « oui »)\n' +
     '• « OT de Karim Benali aujourd’hui »\n' +
     '• « Crée un OT pour Mr Martin, site Atelier »\n\n' +
-    'Je ne déforme jamais un nom. Interdit : supprimer un OT (croix rouge Agenda = retirer).'
+    'Je lis vos données réelles (OT, clients, stock). Je ne déforme jamais un nom. Interdit : supprimer un OT (croix rouge Agenda = retirer).'
   )
 }
 
@@ -370,6 +372,15 @@ export function AideAssistant() {
         return
       }
 
+      // Stats / reste à clôturer / bilan OT (mois, jour…) — lecture AppData complète
+      if (wantsDataQuery(q)) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(answerDataQuery(data, q, team))
+        return
+      }
+
       // Retrouver / décaler OT — si heures fournies → proposition (oui = applique Agenda)
       if (wantsOtLookup(q)) {
         setSource('local')
@@ -452,7 +463,9 @@ export function AideAssistant() {
       const { reply, source: src } = await askAideAssistant({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         pathname: location.pathname,
-        entityCatalog: agentOk ? buildEntityCatalog(data, 40, { team }) : undefined,
+        entityCatalog: agentOk
+          ? buildEntityCatalog(data, 60, { team, userQuery: q })
+          : undefined,
         chatbotOnly: !agentOk,
         organizationId,
       })

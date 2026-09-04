@@ -15,7 +15,7 @@ import {
 } from './ordreTravail'
 import type { PendingTerrainAction } from './assistantTerrainActions'
 import { buildStockPiecesCatalog } from './assistantStockPieces'
-import { buildOtTeamCatalog } from './assistantOtLookup'
+import { buildLiveDataSnapshot } from './assistantDataQuery'
 
 export type CreateOtCerfaIntent = {
   kind: 'create_ot_cerfa'
@@ -432,31 +432,27 @@ function eqLabel(e: Equipement): string {
   return [e.type, e.marque, e.modele].filter(Boolean).join(' ') || e.id
 }
 
-/** Catalogue compact pour OpenAI (contexte). */
+/** Catalogue pour OpenAI : snapshot live (stats mois + OT ouverts + clients). */
 export function buildEntityCatalog(
   data: AppData,
-  max = 40,
-  opts?: { team?: { id: string; fullName?: string; email?: string }[] },
+  max = 60,
+  opts?: {
+    team?: { id: string; fullName?: string; email?: string }[]
+    userQuery?: string
+  },
 ): string {
-  const clients = (data.clients || []).slice(0, max)
   const lines: string[] = [
-    'Clients / sites / équipements (données actuelles).',
-    'Si un nom n’existe pas, l’app peut le créer après confirmation.',
+    buildLiveDataSnapshot(data, {
+      team: opts?.team,
+      userQuery: opts?.userQuery,
+      maxClients: max,
+      maxOpenOts: 40,
+    }),
+    '',
+    'Si un nom client/site n’existe pas, l’app peut le créer après confirmation « oui ».',
+    '',
+    buildStockPiecesCatalog(data, 20),
   ]
-  for (const c of clients) {
-    const sites = (data.chantiers || []).filter((s) => s.clientId === c.id).slice(0, 8)
-    lines.push(`- Client « ${clientDisplayName(c)} »`)
-    for (const s of sites) {
-      const eqs = allEquipements(s)
-        .slice(0, 8)
-        .map((e) => e.nom || e.type || 'équipement')
-        .join(', ')
-      lines.push(`  · Site « ${s.nom} »${eqs ? ` → ${eqs}` : ''}`)
-    }
-  }
-  if (clients.length === 0) lines.push('(aucun client encore — création possible depuis la phrase)')
-  lines.push('', buildStockPiecesCatalog(data, 20))
-  lines.push('', buildOtTeamCatalog(data, opts?.team, 30))
   return lines.join('\n')
 }
 

@@ -402,8 +402,12 @@ export function wantsOtLookup(raw: string): boolean {
   const n = normalize(raw)
   if (!n) return false
   if (wantsOtDeplacerOuDecaler(raw)) return true
+  const hasOt =
+    /\b(ot|ordre)\b/.test(n) ||
+    // faute fréquente dictée / frappe : « or » pour « OT »
+    /\b(or|ots)\b/.test(n)
   return (
-    /\b(ot|ordre)\b/.test(n) &&
+    hasOt &&
     (/\b(de|du|pour)\s+[a-z]/.test(n) || /\btrouve|cherche|quel|montre|affiche\b/.test(n))
   )
 }
@@ -546,29 +550,34 @@ export function answerOtLookupOuDeplacer(
   return lines.join('\n')
 }
 
-/** Bloc contexte techs + OT du jour pour OpenAI. */
+/** Bloc contexte techs + OT ouverts (jour + mois) pour OpenAI. */
 export function buildOtTeamCatalog(
   data: AppData,
   team: TeamMemberLite[] | undefined,
   max = 30,
 ): string {
   const today = todayIsoLocal()
+  const ym = today.slice(0, 7)
   const names = (team || [])
     .map((m) => (m.fullName || '').trim())
     .filter(Boolean)
     .slice(0, max)
-  const ots = (data.ordresTravail || [])
-    .filter((o) => !isOtCloture(o.statut) && String(o.date || '').slice(0, 10) === today)
-    .slice(0, max)
+  const openAll = (data.ordresTravail || []).filter((o) => !isOtCloture(o.statut))
+  const otsToday = openAll.filter((o) => String(o.date || '').slice(0, 10) === today)
+  const otsMonth = openAll.filter((o) => String(o.date || '').slice(0, 10).startsWith(ym))
   const lines = [
     'RÈGLE NOMS : ne jamais inventer ni déformer un nom. Copier EXACTEMENT depuis cette liste ou le message utilisateur.',
     `Équipe (noms officiels) : ${names.length ? names.join(' · ') : '(vide)'}`,
-    `OT ouverts aujourd’hui (${today}) :`,
+    `Totaux : ${otsMonth.length} OT ouverts ce mois (${ym}) · ${otsToday.length} aujourd’hui (${today}) · ${openAll.length} toutes dates`,
+    `OT ouverts (échantillon, max ${max}) :`,
   ]
-  if (!ots.length) lines.push('• (aucun)')
-  for (const o of ots) {
+  const sample = [...openAll]
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+    .slice(0, max)
+  if (!sample.length) lines.push('• (aucun)')
+  for (const o of sample) {
     lines.push(
-      `• ${formatOtNumero(o.numero)} · tech=${o.technicien || techIdsOt(o).join(',') || '—'} · ${(o.action || '').slice(0, 60)} · ${o.heure || 'sans heure'}`,
+      `• ${formatOtNumero(o.numero)} · ${String(o.date || '').slice(0, 10)} · tech=${o.technicien || techIdsOt(o).join(',') || '—'} · ${(o.action || '').slice(0, 60)} · ${o.heure || 'sans heure'}`,
     )
   }
   return lines.join('\n')
