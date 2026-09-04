@@ -76,6 +76,14 @@ export const AI_ACTION_DOMAINS = [
       'Qui a le détecteur X ?',
     ],
   },
+  {
+    id: 'chaine_piece',
+    label: 'Chaîne pièce HS (rapport → devis fournisseur + devis client)',
+    examples: [
+      'Analyse le rapport OT — pièces à commander',
+      'Ventilo bruyant à changer — lance devis et commande',
+    ],
+  },
 ] as const
 
 export type AiActionDomainId = (typeof AI_ACTION_DOMAINS)[number]['id']

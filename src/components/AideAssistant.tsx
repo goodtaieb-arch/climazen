@@ -28,6 +28,10 @@ import {
   wantsOtDeplacerOuDecaler,
   proposeDecalerOt,
 } from '../lib/assistantOtLookup'
+import {
+  wantsChainePieceQuery,
+  buildChainePieceProposal,
+} from '../lib/assistantChainePiece'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
   executeTerrainAction,
@@ -77,6 +81,8 @@ Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_
     '\n\nPosez n’importe quelle question métier — pas besoin d’une formule spéciale.\n' +
     'Exemples (indicatifs) :\n' +
     '• « Combien d’OT restent à clôturer ce mois ? »\n' +
+    '• « Analyse le rapport OT — pièces à commander »\n' +
+    '• « Ventilo bruyant à changer — lance la chaîne devis »\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
     '• « Décale l’OT de 7h à 9h » (puis « oui »)\n' +
     '• « Crée un OT pour Mr Martin, site Atelier »\n\n' +
@@ -367,6 +373,31 @@ export function AideAssistant() {
         return
       }
 
+      // Chaîne pièce HS : rapport OT → demande fournisseur + devis client
+      if (wantsChainePieceQuery(q)) {
+        if (!agentOk) {
+          pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
+          return
+        }
+        setSource('local')
+        setPendingCreate(null)
+        const proposal = buildChainePieceProposal(data, q)
+        if (proposal.ok) {
+          setPendingTerrain(proposal.action)
+          pushAssistant(proposal.action.summary)
+          notifyResponsable({
+            title: 'Proposition chaîne pièce / devis',
+            summary: proposal.action.summary,
+            kind: 'commande',
+            textForInfer: q,
+          })
+          return
+        }
+        setPendingTerrain(null)
+        pushAssistant(proposal.message)
+        return
+      }
+
       // Retrouver / décaler OT — si heures fournies → proposition (oui = applique Agenda)
       if (wantsOtLookup(q)) {
         setSource('local')
@@ -420,7 +451,8 @@ export function AideAssistant() {
               ? 'devis'
               : terrain.kind === 'commande' ||
                   terrain.kind === 'piece' ||
-                  terrain.kind === 'piece_veille'
+                  terrain.kind === 'piece_veille' ||
+                  terrain.kind === 'chaine_piece'
                 ? 'commande'
                 : terrain.kind === 'agenda'
                   ? 'agenda'
