@@ -71,7 +71,7 @@ import {
 } from '../lib/contratMaintenance'
 import { editionHasFeature } from '../lib/appEdition'
 import { OtPiecesPanel } from '../components/OtPiecesPanel'
-import { parsePointageRegles, pointageEstActif } from '../lib/pointage'
+import { parsePointageEvents, parsePointageRegles, payloadFinIntervention, pointageEstActif, datePointageLocale, dernierPointage } from '../lib/pointage'
 import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
@@ -175,7 +175,7 @@ const STEP_INDEX: Record<ParcoursAppelStepId, number> = {
 }
 
 export function AppelOtPage() {
-  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, scinderOtContrat, peutVoirIdentitesRh, appEdition } =
+  const { data, upsertOrdreTravail, upsertClient, upsertChantier, upsertFicheMaintenanceClim, upsertFicheMaintenanceChaufferie, upsertFicheMaintenanceCtaVmc, upsertIntervention, scinderOtContrat, addPointageEvent, peutVoirIdentitesRh, appEdition } =
     useStore()
   const multiTechOt = editionHasFeature(appEdition, 'multi_tech_ot')
   const stockPieces = editionHasFeature(appEdition, 'stock_pieces')
@@ -410,6 +410,28 @@ export function AppelOtPage() {
 
   const retourAccueil = () => {
     navigate('/app', { replace: true })
+  }
+
+  const enregistrerFinPointageOt = async (closedOtId: string) => {
+    if (!user?.id || !closedOtId) return
+    if (!editionHasFeature(appEdition, 'pointage')) return
+    try {
+      const regles = parsePointageRegles(data.pointageRegles)
+      if (!pointageEstActif(regles)) return
+      const events = parsePointageEvents(data.pointageEvents)
+      const last = dernierPointage(events, { userId: user.id, date: datePointageLocale() })
+      const payload = await payloadFinIntervention({
+        last,
+        otId: closedOtId,
+        chantierId: otForm.chantierId,
+        userId: user.id,
+        userName: user.fullName || user.email || 'Technicien',
+        regles,
+      })
+      if (payload) addPointageEvent(payload)
+    } catch {
+      /* GPS / pointage ne doit jamais bloquer la clôture du dossier. */
+    }
   }
 
   const persistOt = (
@@ -1111,7 +1133,8 @@ export function AppelOtPage() {
         interventionPartielle: false,
         avancementPct: 100,
       })
-      retourAccueil()
+      const closedId = otId || existing?.id || ''
+      void enregistrerFinPointageOt(closedId).finally(() => retourAccueil())
       return
     }
     const hasF =
@@ -1252,7 +1275,7 @@ export function AppelOtPage() {
           draft.signatureDetenteurQualite || clientSignQualite || undefined,
       })
     }
-    retourAccueil()
+    void enregistrerFinPointageOt(id).finally(() => retourAccueil())
   }
 
   const stepIdx = STEP_INDEX[step]

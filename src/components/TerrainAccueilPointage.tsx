@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, MapPin, Navigation, Wrench } from 'lucide-react'
+import { Check, ChevronDown, Flag, Home, MapPin, Navigation, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
@@ -24,7 +24,7 @@ import {
 
 /**
  * Accueil tech : INT affectées + pointage (déplacement → en cours → hors INT).
- * Une nouvelle action arrête la précédente. L’OT ne se clôture que via « Fin d’intervention ».
+ * Une nouvelle action arrête la précédente. La clôture du dossier arrête le temps d’INT.
  */
 export function TerrainAccueilPointage() {
   const { data, addPointageEvent, upsertOrdreTravail } = useStore()
@@ -107,14 +107,119 @@ export function TerrainAccueilPointage() {
     }
   }
 
-  if (mesInt.length === 0) {
+  if (mesInt.length === 0 && lastCanon === 'fin_journee') {
     return (
-      <section className="rounded-2xl border border-dashed border-line bg-white p-4">
-        <p className="text-sm font-semibold text-ink">Aucune intervention affectée</p>
+      <section className="rounded-2xl border border-line bg-white p-4">
+        <p className="text-sm font-semibold text-ink">Journée close</p>
         <p className="mt-1 text-xs text-muted">
-          Le bureau vous pose une INT, ou ouvrez-en une nouvelle (cercle Intervenir).
+          Trajet fin arrêté à l’arrivée. Aucune INT ouverte. Nouvelle INT : cercle Intervenir.
         </p>
         {msg ? <p className="mt-2 text-xs font-semibold text-emerald-800">{msg}</p> : null}
+      </section>
+    )
+  }
+
+  const enIntervention = lastCanon === 'intervention_en_cours'
+  const enTrajetFin = lastCanon === 'retour_domicile'
+  const journeeClose = lastCanon === 'fin_journee'
+  const encoreSurOt =
+    enIntervention ||
+    (lastCanon === 'deplacement' && (last?.cible || 'ot') === 'ot' && Boolean(last?.otId)) ||
+    Boolean(
+      last?.otId &&
+        (lastCanon === 'fournisseur' ||
+          lastCanon === 'bureau' ||
+          lastCanon === 'pause' ||
+          lastCanon === 'pause_repas'),
+    )
+  const peutTrajetFin =
+    !journeeClose && !enTrajetFin && !enIntervention && actionAutorisee(last, 'retour_domicile')
+  const showApresInt =
+    !journeeClose &&
+    !enIntervention &&
+    !encoreSurOt &&
+    lastCanon != null &&
+    lastCanon !== 'sortie_domicile'
+
+  const trajetFinBtn = enTrajetFin ? (
+    <button
+      type="button"
+      disabled={busy || !actif}
+      onClick={() => void punch('fin_journee', { cible: 'domicile' })}
+      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-3 text-sm font-bold text-white"
+    >
+      <Home className="h-4 w-4" /> Arrivé à la maison
+    </button>
+  ) : peutTrajetFin ? (
+    <button
+      type="button"
+      disabled={busy || !actif}
+      onClick={() => void punch('retour_domicile', { cible: 'domicile' })}
+      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-400 bg-white px-3 text-sm font-bold text-slate-900"
+    >
+      <Flag className="h-4 w-4" /> Trajet fin de journée
+    </button>
+  ) : null
+
+  const journeeBar = journeeClose ? (
+    <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold text-muted">
+      Journée close — arrivé à la maison. Le trajet fin est arrêté.
+    </p>
+  ) : showApresInt ? (
+    <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">Après l’INT</p>
+      <p className="text-xs text-muted">
+        Dossier clôturé : le temps d’INT est arrêté. Enchaînez une nouvelle INT, une autre tâche
+        (station = fournisseur), ou le trajet fin. Trajet fin : lancez-le en partant, arrêtez-le
+        à l’arrivée chez vous.
+      </p>
+      {trajetFinBtn}
+      {last && !enTrajetFin ? (
+        <label className="block text-sm">
+          <span className="mb-1 block text-[11px] font-bold uppercase text-muted">
+            Autre tâche (hors INT)
+          </span>
+          <select
+            disabled={busy || !actif}
+            defaultValue=""
+            onChange={(e) => {
+              const v = e.target.value
+              e.target.value = ''
+              const item = POINTAGE_HORS_INT_MENU.find((m) => `${m.action}:${m.cible || ''}` === v)
+              if (!item) return
+              void punch(item.action, { cible: item.cible })
+            }}
+            className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold"
+          >
+            <option value="">Choisir (station, pièces, bureau…)</option>
+            {POINTAGE_HORS_INT_MENU.map((m) => (
+              <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <Link
+        to="/app/appel"
+        className="flex min-h-11 items-center justify-center rounded-xl border border-accent bg-accent/15 px-3 text-sm font-bold text-ink"
+      >
+        Nouvelle intervention
+      </Link>
+    </div>
+  ) : trajetFinBtn ? (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">{trajetFinBtn}</div>
+  ) : null
+
+  if (mesInt.length === 0) {
+    return (
+      <section className="space-y-2">
+        {journeeBar}
+        {msg ? (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950">
+            {msg}
+          </p>
+        ) : null}
       </section>
     )
   }
@@ -141,6 +246,7 @@ export function TerrainAccueilPointage() {
           {msg}
         </p>
       ) : null}
+      {journeeBar}
       <ul className="space-y-2">
         {mesInt.map((o) => {
           const client = data.clients.find((c) => c.id === o.clientId)
@@ -206,7 +312,12 @@ export function TerrainAccueilPointage() {
                   className={`mt-1 h-4 w-4 shrink-0 text-muted transition ${expanded ? 'rotate-180' : ''}`}
                 />
               </button>
-              {expanded ? (
+              {expanded && enTrajetFin ? (
+                <p className="border-t border-line bg-mist/40 px-3 py-3 text-xs font-semibold text-muted">
+                  Trajet fin en cours — arrêtez-le avec « Arrivé à la maison » en haut.
+                </p>
+              ) : null}
+              {expanded && !enTrajetFin ? (
                 <div className="space-y-2 border-t border-line bg-mist/40 px-3 py-3">
                   {!enDeplacementOt && !enCoursIci ? (
                     <label className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-950">
