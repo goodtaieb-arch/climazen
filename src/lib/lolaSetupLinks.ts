@@ -1,5 +1,5 @@
 /**
- * Liens officiels — 2 comptes seulement (OpenAI + Twilio).
+ * Liens officiels — comptes IA + Twilio.
  * L’utilisateur clique et arrive pile sur la bonne page.
  */
 
@@ -15,6 +15,18 @@ export const LOLA_SETUP_LINKS = {
   openaiKeys: {
     href: 'https://platform.openai.com/api-keys',
     label: 'Créer la clé API (sk-…)',
+  },
+  anthropicSignup: {
+    href: 'https://console.anthropic.com/',
+    label: 'Créer le compte Anthropic (Claude)',
+  },
+  anthropicKeys: {
+    href: 'https://console.anthropic.com/settings/keys',
+    label: 'Créer la clé API Claude (sk-ant-…)',
+  },
+  geminiKeys: {
+    href: 'https://aistudio.google.com/apikey',
+    label: 'Créer la clé Google AI Studio (Gemini)',
   },
   twilioSignup: {
     href: 'https://www.twilio.com/try-twilio',

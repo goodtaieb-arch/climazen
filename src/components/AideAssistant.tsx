@@ -16,7 +16,6 @@ import {
   type ResolvedCreateOtCerfa,
 } from '../lib/assistantActions'
 import {
-  catalogSummaryForPrompt,
   isForbiddenClaim,
   wantsAnnulerOt,
   answerAnnulerOtGuide,
@@ -73,15 +72,13 @@ ${aiTierUpsellMessage('none') ?? ''}
 Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
   }
   return (
-    'Intelligence ClimaZEN — je propose, vous validez.\n\n' +
+    'Intelligence ClimaZEN — je lis toutes vos données (OT, clients, sites, stock, devis, agenda…) et je propose, vous validez.\n\n' +
     AI_HOW_I_WORK +
-    '\n\nJe peux notamment :\n' +
-    catalogSummaryForPrompt() +
-    '\n\nExemples :\n' +
+    '\n\nPosez n’importe quelle question métier — pas besoin d’une formule spéciale.\n' +
+    'Exemples (indicatifs) :\n' +
+    '• « Combien d’OT restent à clôturer ce mois ? »\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
-    '• « Préviens-moi quand le compresseur arrive »\n' +
     '• « Décale l’OT de 7h à 9h » (puis « oui »)\n' +
-    '• « OT de Karim Benali aujourd’hui »\n' +
     '• « Crée un OT pour Mr Martin, site Atelier »\n\n' +
     'Je ne déforme jamais un nom. Interdit : supprimer un OT (croix rouge Agenda = retirer).'
   )
@@ -452,7 +449,9 @@ export function AideAssistant() {
       const { reply, source: src } = await askAideAssistant({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         pathname: location.pathname,
-        entityCatalog: agentOk ? buildEntityCatalog(data, 40, { team }) : undefined,
+        entityCatalog: agentOk
+          ? buildEntityCatalog(data, 60, { team, userQuery: q })
+          : undefined,
         chatbotOnly: !agentOk,
         organizationId,
       })
@@ -558,7 +557,7 @@ export function AideAssistant() {
   const tierSubtitle =
     aiTier === 'agent'
       ? source === 'api'
-        ? 'Intelligence A→Z · OpenAI · validation humaine'
+        ? 'Intelligence A→Z · cloud · validation humaine'
         : source === 'local'
           ? 'Intelligence A→Z · guide + actions'
           : 'Intelligence A→Z · validation obligatoire'

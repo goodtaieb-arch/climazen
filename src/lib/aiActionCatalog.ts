@@ -67,6 +67,15 @@ export const AI_ACTION_DOMAINS = [
     label: 'Décaler heure OT (Agenda)',
     examples: ['Décale l’OT de 7h à 9h', 'OT de Karim de 7h00 à 9h00'],
   },
+  {
+    id: 'lecture_ot',
+    label: 'Lire toutes les données (OT, clients, stock…)',
+    examples: [
+      'Combien d’OT restent à clôturer ce mois ?',
+      'Où en est le devis Martin ?',
+      'Qui a le détecteur X ?',
+    ],
+  },
 ] as const
 
 export type AiActionDomainId = (typeof AI_ACTION_DOMAINS)[number]['id']

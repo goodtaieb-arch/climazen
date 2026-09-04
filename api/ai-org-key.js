@@ -1,18 +1,20 @@
 /**
  * Vercel — /api/ai-org-key
- * Gérant : coller / retirer la clé OpenAI de SA société (site + Lola).
- * GET  — { hasKey, hint }  (jamais la clé complète)
- * POST — { openaiApiKey } | { clear: true }
+ * Gérant : choisir le fournisseur IA + coller la clé (OpenAI / Claude / Gemini).
+ * GET  — { provider, hasKey, hint, keys, model }
+ * POST — { provider, apiKey?, model?, clear?, clearKey?, providerOnly? }
  */
 
 import { authorizeOrgRequest } from '../server/lib/authorizeOrg.js'
 import { getSupabaseConfig } from '../server/lib/supabaseServer.js'
 import { logAiAudit } from '../server/lib/aiAuditLog.js'
 import {
-  fetchOrgOpenaiHint,
+  fetchOrgAiStatus,
+  upsertOrgAiConfig,
   upsertOrgOpenaiKey,
   clearOrgOpenaiKey,
 } from '../server/lib/orgOpenaiKey.js'
+import { normalizeAiProvider } from '../server/lib/aiProviders.js'
 
 export default async function handler(req, res) {
   try {
@@ -31,12 +33,15 @@ export default async function handler(req, res) {
     if (!auth.ok) return res.status(auth.status).json({ error: auth.error, code: auth.code })
 
     if (req.method === 'GET' || req.method === 'HEAD') {
-      const status = await fetchOrgOpenaiHint(auth.orgId)
+      const status = await fetchOrgAiStatus(auth.orgId)
       return res.status(200).json({
         ok: true,
-        provider: 'openai',
+        provider: status.provider,
+        model: status.model,
         hasKey: status.hasKey,
         hint: auth.isOwner ? status.hint : status.hasKey ? 'configurée' : '',
+        keys: status.keys || { openai: status.hasKey, anthropic: false, gemini: false },
+        hints: auth.isOwner ? status.hints : undefined,
         canEdit: auth.isOwner,
       })
     }
@@ -47,36 +52,76 @@ export default async function handler(req, res) {
     }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {}
-    if (body.clear === true || String(body.openaiApiKey || '').trim() === '') {
+
+    // Compat ancienne API : { clear: true } ou { openaiApiKey }
+    if (body.clear === true) {
       await clearOrgOpenaiKey(auth.orgId, auth.user.id)
       await logAiAudit({
         orgId: auth.orgId,
         agent: 'system',
-        action: 'openai_key_cleared',
+        action: 'ai_key_cleared',
         actorUserId: auth.user.id,
       })
-      return res.status(200).json({ ok: true, hasKey: false, hint: '' })
+      return res.status(200).json({ ok: true, hasKey: false, hint: '', provider: 'openai' })
     }
 
-    const saved = await upsertOrgOpenaiKey(auth.orgId, body.openaiApiKey, auth.user.id)
-    if (!saved.ok) {
-      return res.status(400).json({ error: saved.error })
+    if (body.openaiApiKey && !body.provider && !body.apiKey) {
+      const saved = await upsertOrgOpenaiKey(auth.orgId, body.openaiApiKey, auth.user.id)
+      if (!saved.ok) return res.status(400).json({ error: saved.error })
+      await logAiAudit({
+        orgId: auth.orgId,
+        agent: 'system',
+        action: 'openai_key_saved',
+        actorUserId: auth.user.id,
+        detail: { hint: saved.hint },
+      })
+      return res.status(200).json({
+        ok: true,
+        hasKey: true,
+        hint: saved.hint,
+        provider: 'openai',
+      })
     }
+
+    const provider = normalizeAiProvider(body.provider || 'openai')
+    const saved = await upsertOrgAiConfig(
+      auth.orgId,
+      {
+        provider,
+        apiKey: body.apiKey || body.openaiApiKey || body.anthropicApiKey || body.geminiApiKey,
+        model: body.model,
+        clearKey: body.clearKey === true,
+        saveKeyOnly: body.saveKeyOnly === true,
+        providerOnly:
+          body.providerOnly === true ||
+          (!body.apiKey && !body.openaiApiKey && !body.anthropicApiKey && body.provider),
+      },
+      auth.user.id,
+    )
+    if (!saved.ok) return res.status(400).json({ error: saved.error })
+
     await logAiAudit({
       orgId: auth.orgId,
       agent: 'system',
-      action: 'openai_key_saved',
+      action: body.clearKey ? 'ai_key_cleared' : 'ai_provider_saved',
       actorUserId: auth.user.id,
-      detail: { hint: saved.hint },
+      detail: { provider: saved.provider, hint: saved.hint },
     })
-    return res.status(200).json({ ok: true, hasKey: true, hint: saved.hint })
+
+    return res.status(200).json({
+      ok: true,
+      hasKey: Boolean(saved.hasKey),
+      hint: saved.hint || '',
+      provider: saved.provider,
+      model: saved.model,
+    })
   } catch (err) {
     console.error('ai-org-key', err)
     const msg = err instanceof Error ? err.message : 'unknown'
     if (/organization_ai_secrets|schema cache|does not exist/i.test(msg)) {
       return res.status(503).json({
         error:
-          'Table clé OpenAI absente. Exécutez supabase/ai-org-openai.sql dans l’éditeur SQL Supabase.',
+          'Table clé IA absente. Exécutez supabase/ai-org-openai.sql puis supabase/ai-org-providers.sql.',
         code: 'sql_missing',
       })
     }

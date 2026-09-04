@@ -85,12 +85,12 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Profil société introuvable.' })
     }
 
-    const { fetchOrgOpenaiKey } = await import('../server/lib/orgOpenaiKey.js')
-    const openaiKey = await fetchOrgOpenaiKey(profile.organization_id)
-    if (!openaiKey) {
+    const { fetchOrgAiCredentials } = await import('../server/lib/orgOpenaiKey.js')
+    const creds = await fetchOrgAiCredentials(profile.organization_id)
+    if (!creds.apiKey) {
       return res.status(503).json({
-        error: 'openai_not_configured',
-        hint: 'Collez la clé OpenAI de votre société dans Mon entreprise (même clé pour Lola et l’assistant site).',
+        error: 'ai_not_configured',
+        hint: 'Collez une clé IA (OpenAI, Claude ou Gemini) dans Mon entreprise — même config pour Lola et l’assistant site.',
       })
     }
 
@@ -103,7 +103,7 @@ export default async function handler(req, res) {
     const vocabContext = await fetchVocabularyContext(profile.organization_id, 60)
 
     const callerContext = String(body.callerContext || '').trim()
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    const model = creds.model
 
     const system = [
       SYSTEM_BASE,
@@ -117,15 +117,22 @@ export default async function handler(req, res) {
       .filter(Boolean)
       .join('\n')
 
-    const { openaiChatCompletions } = await import('../server/lib/openaiChat.js')
-    const ai = await openaiChatCompletions({
-      apiKey: openaiKey,
+        // Anthropic : pas de response_format JSON natif → consigne explicite
+    const systemForAi =
+      creds.provider === 'anthropic'
+        ? system + '\n\nRéponds UNIQUEMENT en JSON valide (pas de markdown).'
+        : system
+
+const { orgChatCompletions, providerErrorHint } = await import('../server/lib/aiProviders.js')
+    const ai = await orgChatCompletions({
+      provider: creds.provider,
+      apiKey: creds.apiKey,
       model,
       temperature: 0.3,
       maxTokens: 900,
       json: true,
       messages: [
-        { role: 'system', content: system },
+        { role: 'system', content: systemForAi },
         {
           role: 'user',
           content: `Transcription appel téléphonique :\n${normalized}`,
@@ -134,17 +141,13 @@ export default async function handler(req, res) {
     })
 
     if (!ai.ok) {
-      console.error('OpenAI phone-reception', ai.status, ai.error)
-      const hint =
-        ai.status === 429
-          ? 'Quota OpenAI de votre société atteint.'
-          : ai.status === 401 || ai.status === 403
-            ? 'Clé OpenAI invalide (Mon entreprise).'
-            : `Erreur OpenAI (${ai.status}).`
+      console.error('AI phone-reception', creds.provider, ai.status, ai.error)
+      const hint = providerErrorHint(creds.provider, ai.status)
       return res.status(200).json({
         ok: false,
-        error: `openai_${ai.status}`,
+        error: `ai_${ai.status}`,
         hint,
+        provider: creds.provider,
         normalized,
         termsDetected: localTerms.map((t) => t.canonical),
       })
