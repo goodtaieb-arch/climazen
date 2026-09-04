@@ -392,9 +392,15 @@ export function peutActiverPointage(regles?: PointageRegles | null): boolean {
   return pointageReglesCompletes(regles)
 }
 
+/**
+ * Pointeuse utilisable sur le téléphone tech.
+ * Ouverte par défaut (7h/35h). Le bureau ne la coupe que s’il l’a d’abord
+ * activée officiellement (`configuredAt`) puis désactivée (`active: false`).
+ */
 export function pointageEstActif(regles?: PointageRegles | null): boolean {
   const r = parsePointageRegles(regles)
-  return r.active === true && pointageReglesCompletes(r)
+  if (r.configuredAt && r.active !== true) return false
+  return true
 }
 
 export function preparerActivation(

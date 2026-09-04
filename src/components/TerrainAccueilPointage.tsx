@@ -53,7 +53,7 @@ export function TerrainAccueilPointage() {
   ) => {
     if (!user?.id) return
     if (!actif) {
-      setMsg('Pointeuse inactive — le bureau doit activer les règles.')
+      setMsg('Pointeuse coupée par le bureau.')
       return
     }
     if (!actionAutorisee(last, action)) {
@@ -64,10 +64,7 @@ export function TerrainAccueilPointage() {
     setMsg('')
     try {
       const geoRes = await capturerGeoPonctuel()
-      if (!geoRes.ok && regles.geoObligatoire) {
-        setMsg(geoRes.message)
-        return
-      }
+      /* GPS ponctuel si dispo — ne bloque jamais le pointage téléphone. */
       const at = arrondirDate(new Date(), regles.arrondiMinutes).toISOString()
       const canon = normaliserAction(action)
       const cible =
@@ -238,7 +235,7 @@ export function TerrainAccueilPointage() {
       </div>
       {!actif ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          Pointeuse non activée par le bureau — les INT restent visibles, le pointage est bloqué.
+          Pointeuse coupée par le bureau — les INT restent visibles.
         </p>
       ) : null}
       {msg ? (

@@ -35,7 +35,7 @@ assert.equal(vide.active, false)
 assert.equal(pointageReglesCompletes(vide), false)
 assert.ok(motifsReglesIncompletes(vide).includes('Acceptation information CNIL'))
 assert.equal(peutActiverPointage(vide), false)
-assert.equal(pointageEstActif(vide), false)
+assert.equal(pointageEstActif(vide), true)
 
 const refuse = preparerActivation(vide, { userId: 'owner' })
 assert.equal(refuse.ok, false)
@@ -47,12 +47,13 @@ const pretes = parsePointageRegles({
   heuresSemaine: 35,
 })
 assert.equal(pointageReglesCompletes(pretes), true)
-assert.equal(pointageEstActif(pretes), false)
+assert.equal(pointageEstActif(pretes), true)
 const act = preparerActivation(pretes, { userId: 'owner', now: '2026-09-02T08:00:00.000Z' })
 assert.equal(act.ok, true)
 if (act.ok) {
   assert.equal(act.regles.active, true)
   assert.equal(pointageEstActif(act.regles), true)
+  assert.equal(pointageEstActif({ ...act.regles, active: false }), false)
 }
 
 assert.deepEqual(actionsSuivantes(undefined), ['sortie_domicile', 'deplacement'])
