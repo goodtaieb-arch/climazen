@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
 import { infoMoisGenerationOt } from '../lib/contratOtAuto'
+import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
 import {
   POINTAGE_ACTION_LABELS,
   POINTAGE_HORS_INT_MENU,
@@ -18,10 +19,16 @@ import {
   parsePointageEvents,
   parsePointageRegles,
   pointageEstActif,
+  repriseApresPauseRepas,
   statutOtDepuisAction,
   type PointageAction,
   type PointageCible,
 } from '../lib/pointage'
+import {
+  demanderPermissionAlarmePauseRepas,
+  preparerSonAlarmePauseRepas,
+  resetAlarmePauseRepas,
+} from '../lib/pauseRepasAlarme'
 
 /**
  * Accueil tech : INT affectées + pointage (déplacement → en cours → hors INT).
@@ -99,6 +106,11 @@ export function TerrainAccueilPointage() {
           upsertOrdreTravail({ ...ot, statut: nextStatut })
         }
       }
+      if (canon === 'pause_repas') {
+        preparerSonAlarmePauseRepas()
+        demanderPermissionAlarmePauseRepas()
+      }
+      if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)}`)
     } finally {
       setBusy(false)
@@ -124,6 +136,13 @@ export function TerrainAccueilPointage() {
     !journeeClose &&
     !enIntervention &&
     lastCanon === 'fin_intervention'
+  const repriseRepas =
+    user?.id && lastCanon === 'pause_repas'
+      ? repriseApresPauseRepas(events, { userId: user.id, date: today })
+      : undefined
+  const otRepriseRepas = repriseRepas
+    ? (data.ordresTravail || []).find((o) => o.id === repriseRepas.otId)
+    : undefined
 
   const punchHorsInt = (item: (typeof POINTAGE_HORS_INT_MENU)[number]) => {
     if (!actionAutorisee(last, item.action)) {
@@ -136,7 +155,18 @@ export function TerrainAccueilPointage() {
       }
       return
     }
-    void punch(item.action, { cible: item.cible })
+    const surInt = lastCanon === 'intervention_en_cours'
+    void punch(item.action, {
+      cible: item.cible,
+      otId:
+        (item.action === 'pause_repas' || item.action === 'pause') && surInt
+          ? last?.otId
+          : undefined,
+      chantierId:
+        (item.action === 'pause_repas' || item.action === 'pause') && surInt
+          ? last?.chantierId
+          : undefined,
+    })
   }
 
   const horsIntSelect =
@@ -192,6 +222,21 @@ export function TerrainAccueilPointage() {
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
         Pointage hors INT
       </p>
+      {repriseRepas && last ? (
+        <PauseRepasEnCoursBar
+          startedAt={last.at}
+          numeroOt={otRepriseRepas ? formatOtNumero(otRepriseRepas.numero) : undefined}
+          busy={busy}
+          disabled={!actif}
+          onStop={() => {
+            void punch('intervention_en_cours', {
+              otId: repriseRepas.otId,
+              chantierId: repriseRepas.chantierId || otRepriseRepas?.chantierId,
+              cible: 'ot',
+            })
+          }}
+        />
+      ) : null}
       {horsIntSelect}
       {enTrajetFin ? trajetFinBtn : null}
       {showApresInt ? (

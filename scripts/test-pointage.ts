@@ -28,6 +28,10 @@ import {
   statutOtDepuisAction,
   trajetDomicileRetenuMin,
   ventilerPauseRepas,
+  repriseApresPauseRepas,
+  secondesAvantAlarmePauseRepas,
+  formatCompteAReboursPause,
+  PAUSE_REPAS_ALARME_MIN,
   type PointageEvent,
 } from '../src/lib/pointage'
 
@@ -468,5 +472,55 @@ const csvRepas = exportJourneesCsv([repasOk])
 assert.ok(csvRepas.includes('Pause repas (min)'))
 assert.ok(csvRepas.includes('Prime panier'))
 assert.ok(csvRepas.includes('oui'))
+
+assert.equal(PAUSE_REPAS_ALARME_MIN, 60)
+assert.equal(
+  secondesAvantAlarmePauseRepas('2026-09-02T12:00:00.000Z', Date.parse('2026-09-02T12:00:00.000Z')),
+  3600,
+)
+assert.equal(
+  secondesAvantAlarmePauseRepas('2026-09-02T12:00:00.000Z', Date.parse('2026-09-02T13:00:00.000Z')),
+  0,
+)
+assert.equal(formatCompteAReboursPause(125), '2 min 05 s')
+
+assert.deepEqual(
+  repriseApresPauseRepas(
+    [
+      ev({ action: 'intervention_en_cours', at: '2026-09-02T10:00:00.000Z', otId: 'ot1' }),
+      ev({ action: 'pause_repas', at: '2026-09-02T12:00:00.000Z' }),
+    ],
+    { userId: 't1', date: '2026-09-02' },
+  ),
+  { otId: 'ot1', chantierId: undefined },
+)
+assert.deepEqual(
+  repriseApresPauseRepas(
+    [
+      ev({
+        action: 'intervention_en_cours',
+        at: '2026-09-02T10:00:00.000Z',
+        otId: 'ot9',
+        chantierId: 's9',
+      }),
+      ev({
+        action: 'pause_repas',
+        at: '2026-09-02T12:00:00.000Z',
+        otId: 'ot9',
+        chantierId: 's9',
+      }),
+    ],
+    { userId: 't1', date: '2026-09-02' },
+  ),
+  { otId: 'ot9', chantierId: 's9' },
+)
+assert.equal(
+  repriseApresPauseRepas(
+    [ev({ action: 'pause_repas', at: '2026-09-02T12:00:00.000Z' })],
+    { userId: 't1', date: '2026-09-02' },
+  ),
+  undefined,
+)
+assert.ok(actionAutorisee(ev({ action: 'pause_repas', at: '2026-09-02T12:00:00.000Z' }), 'intervention_en_cours'))
 
 console.log('test-pointage: ok')

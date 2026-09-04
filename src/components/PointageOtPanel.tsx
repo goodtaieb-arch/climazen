@@ -15,6 +15,7 @@ import {
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt } from '../lib/ordreTravail'
+import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
 import {
   POINTAGE_ACTION_HINTS,
   POINTAGE_ACTION_LABELS,
@@ -36,11 +37,17 @@ import {
   parsePointageEvents,
   parsePointageRegles,
   pointageEstActif,
+  repriseApresPauseRepas,
   statutOtDepuisAction,
   type PointageAction,
   type PointageActionCanon,
   type PointageCible,
 } from '../lib/pointage'
+import {
+  demanderPermissionAlarmePauseRepas,
+  preparerSonAlarmePauseRepas,
+  resetAlarmePauseRepas,
+} from '../lib/pauseRepasAlarme'
 
 const ACTION_ICON: Record<PointageActionCanon, typeof Navigation> = {
   sortie_domicile: Home,
@@ -85,13 +92,18 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
   const lastCanon = last ? normaliserAction(last.action) : undefined
   const next = actionsSuivantes(last)
   const deplacementSuivant = next.includes('deplacement')
+  const reprisePause =
+    user?.id && lastCanon === 'pause_repas'
+      ? repriseApresPauseRepas(events, { userId: user.id, date: today })
+      : undefined
   const effectiveOtId =
-    otIdProp && !deplacementSuivant ? otIdProp : otId || otIdProp
+    otIdProp && !deplacementSuivant ? otIdProp : otId || otIdProp || reprisePause?.otId || ''
   const showCiblePicker = deplacementSuivant
   const showOtPicker =
     (deplacementSuivant && cibleDeplacement === 'ot') ||
     ((next.includes('intervention_en_cours') || next.includes('fin_intervention')) &&
-      !effectiveOtId)
+      !effectiveOtId &&
+      !reprisePause)
 
   const maJournee = user?.id
     ? calculerJournee({ events, userId: user.id, date: today, regles })
@@ -113,7 +125,11 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
       ? otsOuverts.find((o) => o.id === maJournee.otIdCourant)
       : undefined
 
-  const punch = async (action: PointageAction, cibleOverride?: PointageCible) => {
+  const punch = async (
+    action: PointageAction,
+    cibleOverride?: PointageCible,
+    otIdOverride?: string,
+  ) => {
     if (!user?.id) return
     if (!actif) {
       setMsg('Pointeuse inactive — le bureau doit activer les règles.')
@@ -126,7 +142,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
 
     const canon = normaliserAction(action)
     let cible: PointageCible | undefined
-    let otForEvent = effectiveOtId
+    let otForEvent = otIdOverride || effectiveOtId
 
     if (canon === 'sortie_domicile' || canon === 'retour_domicile') {
       cible = 'domicile'
@@ -139,6 +155,15 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
         return
       }
       if (cible !== 'ot') otForEvent = ''
+    }
+    if ((canon === 'pause_repas' || canon === 'pause') && !otForEvent) {
+      if (last && normaliserAction(last.action) === 'intervention_en_cours') {
+        otForEvent = last.otId || ''
+      }
+    }
+    if (canon === 'intervention_en_cours' && !otForEvent) {
+      const r = repriseApresPauseRepas(events, { userId: user.id, date: today })
+      if (r) otForEvent = r.otId
     }
     if (canon === 'intervention_en_cours' || action === 'fin_intervention') {
       if (!otForEvent) {
@@ -170,7 +195,11 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
         geoRefused: !geoRes.ok && geoRes.refused,
         geoError: geoRes.ok ? undefined : geoRes.message,
         otId: otForEvent || undefined,
-        chantierId: chantierId || otCourant?.chantierId,
+        chantierId:
+          chantierId ||
+          (otForEvent
+            ? (data.ordresTravail || []).find((o) => o.id === otForEvent)?.chantierId
+            : otCourant?.chantierId),
         cible,
       })
       const nextStatut = statutOtDepuisAction(action, cible)
@@ -180,6 +209,11 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
           upsertOrdreTravail({ ...ot, statut: nextStatut })
         }
       }
+      if (canon === 'pause_repas') {
+        preparerSonAlarmePauseRepas()
+        demanderPermissionAlarmePauseRepas()
+      }
+      if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)} — heures mises à jour.`)
     } finally {
       setBusy(false)
@@ -199,8 +233,10 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     )
   }
 
-  const parcoursBtns = next.filter((a) =>
-    (POINTAGE_ACTIONS_PARCOURS as readonly string[]).includes(a),
+  const parcoursBtns = next.filter(
+    (a) =>
+      (POINTAGE_ACTIONS_PARCOURS as readonly string[]).includes(a) &&
+      !(reprisePause && a === 'intervention_en_cours'),
   )
   const horsOtBtns = next.filter((a) =>
     (POINTAGE_ACTIONS_HORS_OT as readonly string[]).includes(a),
@@ -273,6 +309,17 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
           </Link>
         ) : null}
       </div>
+
+      {reprisePause && last ? (
+        <PauseRepasEnCoursBar
+          startedAt={last.at}
+          numeroOt={otCourant ? formatOtNumero(otCourant.numero) : undefined}
+          busy={busy}
+          onStop={() => {
+            void punch('intervention_en_cours', 'ot', reprisePause.otId)
+          }}
+        />
+      ) : null}
 
       {showOtPicker || showCiblePicker ? (
         <div className="grid gap-2 sm:grid-cols-2">

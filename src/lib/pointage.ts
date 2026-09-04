@@ -105,7 +105,7 @@ export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
   bureau: 'Au bureau / atelier',
   pause: 'Pause — non payée, hors quota 7h/8h',
   pause_repas:
-    'Pause repas — 50 min à 1 h pour la prime panier (hors quota). Moins de 50 min : pas de prime, temps = pause non payée. Au-delà d’1 h : prime accordée, surplus = pause non payée.',
+    'Pause repas sur site — alarme 1 h. Arrêter reprend l’INT en cours, sans re-pointer Entrer. 50 min à 1 h = prime panier (hors quota). Surplus = pause non payée.',
   retour_domicile: 'Trajet fin — le quota travail s’arrête, franchise 30 min',
   fin_journee: 'Arrivé chez vous — le trajet fin s’arrête, journée close',
 }
@@ -155,6 +155,8 @@ export const POINTAGE_SEGMENT_LABELS: Record<PointageSegmentKind, string> = {
 export const PAUSE_REPAS_MIN_ACCORD_MIN = 50
 /** Au-delà, le surplus est une pause non payée. La tranche repas reste hors quota. */
 export const PAUSE_REPAS_MAX_PAYE_MIN = 60
+/** Alarme de fin de pause repas (mange sur site pendant une INT). */
+export const PAUSE_REPAS_ALARME_MIN = PAUSE_REPAS_MAX_PAYE_MIN
 
 export function ventilerPauseRepas(dureeMin: number): {
   repasMin: number
@@ -570,6 +572,47 @@ export function dernierPointage(
 ): PointageEvent | undefined {
   const list = eventsDuJour(events, opts)
   return list[list.length - 1]
+}
+
+export function estPauseRepasEnCours(last?: PointageEvent): boolean {
+  return Boolean(last && normaliserAction(last.action) === 'pause_repas')
+}
+
+/** INT à reprendre après une pause repas sur site (sans re-pointer « Entrer »). */
+export function repriseApresPauseRepas(
+  events: PointageEvent[],
+  opts: { userId: string; date: string },
+): { otId: string; chantierId?: string } | undefined {
+  const list = eventsDuJour(events, opts)
+  const last = list[list.length - 1]
+  if (!last || normaliserAction(last.action) !== 'pause_repas') return undefined
+  if (last.otId) return { otId: last.otId, chantierId: last.chantierId }
+  for (let i = list.length - 2; i >= 0; i--) {
+    const cur = list[i]
+    const n = normaliserAction(cur.action)
+    if (n === 'fin_intervention' || n === 'fin_journee' || n === 'retour_domicile') break
+    if (n === 'intervention_en_cours' && cur.otId) {
+      return { otId: cur.otId, chantierId: cur.chantierId }
+    }
+  }
+  return undefined
+}
+
+export function isoAlarmePauseRepas(startedAt: string): string {
+  return new Date(new Date(startedAt).getTime() + PAUSE_REPAS_ALARME_MIN * 60_000).toISOString()
+}
+
+export function secondesAvantAlarmePauseRepas(startedAt: string, nowMs = Date.now()): number {
+  const end = new Date(startedAt).getTime() + PAUSE_REPAS_ALARME_MIN * 60_000
+  if (!Number.isFinite(end)) return 0
+  return Math.max(0, Math.round((end - nowMs) / 1000))
+}
+
+export function formatCompteAReboursPause(sec: number): string {
+  const s = Math.max(0, Math.round(sec))
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m} min ${String(r).padStart(2, '0')} s`
 }
 
 function dernierEtat(last?: PointageEvent): PointageActionCanon | 'fin_intervention' | undefined {
