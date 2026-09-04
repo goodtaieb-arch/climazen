@@ -307,17 +307,24 @@ export function OpenaiOrgKeyPanel() {
         ) : null}
         <label className="mt-3 block text-sm">
           <span className="mb-1 block font-extrabold text-amber-950">
-            ↓ Coller la clé Claude ici (sk-ant-…)
+            ↓ Coller la clé Claude ici (doit commencer par sk-ant-)
           </span>
           <input
-            type="password"
+            type="text"
             autoComplete="off"
+            spellCheck={false}
+            inputMode="text"
             value={claudeInput}
             onChange={(e) => setClaudeInput(e.target.value)}
-            placeholder="sk-ant-…"
+            placeholder="sk-ant-api03-…"
             className="h-11 w-full rounded-xl border-2 border-amber-400 bg-white px-3 font-mono text-sm"
           />
         </label>
+        <p className="mt-1 text-xs text-amber-950/75">
+          Pas un ID workspace ni un code « cloud » : uniquement la clé API secrète affichée une fois
+          (Create Key). Si le début n’est pas <code className="font-mono">sk-ant-</code>, ce n’est
+          pas la bonne.
+        </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"
