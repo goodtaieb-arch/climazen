@@ -661,7 +661,7 @@ export function AgendaPage() {
       return
     }
     if (isIndispoType(form.type) && !form.technicienUserId) {
-      alert('Choisissez le technicien concerné par les vacances / congés.')
+      alert('Choisissez le technicien concerné par l’absence.')
       return
     }
     const dateFin =
@@ -693,7 +693,7 @@ export function AgendaPage() {
     navigate('/app/agenda', { replace: true })
     setSyncMsg(
       isIndispoType(form.type)
-        ? 'Vacances / congé enregistrés — aucun OT ne pourra être posé sur ces jours.'
+        ? 'Absence enregistrée — aucun OT ne pourra être posé sur ces jours.'
         : isHorsOtType(form.type)
           ? 'Action hors OT enregistrée.'
           : 'Intervention enregistrée dans le programme.',
@@ -779,6 +779,9 @@ export function AgendaPage() {
     team.find((t) => t.id === id)?.fullName || fallback || 'Non affecté'
 
   if (formOpen) {
+    const typesSaisie = typesAgendaPourSaisie({ bureau })
+    const typesAbsence = typesSaisie.filter((t) => isIndispoType(t))
+    const typesAutres = typesSaisie.filter((t) => !isIndispoType(t))
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <div className="flex items-center gap-2">
@@ -795,7 +798,9 @@ export function AgendaPage() {
           <h1 className="font-display text-xl font-bold">
             {existing
               ? 'Modifier'
-              : isHorsOtType(form.type)
+              : isIndispoType(form.type)
+                ? 'Absence'
+                : isHorsOtType(form.type)
                 ? 'Action hors OT'
                 : 'Planifier une intervention'}
           </h1>
@@ -804,7 +809,11 @@ export function AgendaPage() {
         <form onSubmit={onSave} className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">
-              {form.type === 'hors_ot_libre' ? 'Événement (champ libre) *' : 'Titre *'}
+              {form.type === 'hors_ot_libre'
+                ? 'Événement (champ libre) *'
+                : isIndispoType(form.type)
+                  ? 'Libellé *'
+                  : 'Titre *'}
             </span>
             <input
               required
@@ -814,7 +823,9 @@ export function AgendaPage() {
               placeholder={
                 form.type === 'hors_ot_libre'
                   ? 'Ex. Formation SST, RDV contrôle technique, réunion…'
-                  : isHorsOtType(form.type)
+                  : isIndispoType(form.type)
+                    ? 'Ex. RTT, arrêt maladie, vacances été…'
+                    : isHorsOtType(form.type)
                     ? AGENDA_TYPE_LABELS[form.type]
                     : 'Ex. Maintenance clim — Site école'
               }
@@ -893,7 +904,9 @@ export function AgendaPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Type</span>
+              <span className="mb-1 block font-semibold text-ink">
+                {isIndispoType(form.type) ? 'Motif' : 'Type'}
+              </span>
               <select
                 value={form.type}
                 onChange={(e) => {
@@ -922,11 +935,22 @@ export function AgendaPage() {
                 }}
                 className="h-11 w-full rounded-xl border border-line bg-white px-3"
               >
-                {typesAgendaPourSaisie({ bureau }).map((t) => (
-                  <option key={t} value={t}>
-                    {AGENDA_TYPE_LABELS[t]}
-                  </option>
-                ))}
+                {typesAbsence.length ? (
+                  <optgroup label="Absence">
+                    {typesAbsence.map((t) => (
+                      <option key={t} value={t}>
+                        {AGENDA_TYPE_LABELS[t]}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                <optgroup label="Planning">
+                  {typesAutres.map((t) => (
+                    <option key={t} value={t}>
+                      {AGENDA_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </label>
             <label className="block text-sm">
@@ -1851,9 +1875,7 @@ export function AgendaPage() {
         <div className="flex flex-wrap gap-1.5">
           {(
             [
-              ['vacances', 'Vacances'],
-              ['conge', 'Congé'],
-              ['maladie', 'Maladie'],
+              ['conge', 'Absent'],
               ['formation', 'Formation'],
               ['rdv_garage', 'RDV garage'],
               ['hors_ot_libre', 'Événement libre'],
@@ -1865,7 +1887,7 @@ export function AgendaPage() {
               onClick={() => openNew(cursorDate, type)}
               className={[
                 'rounded-full border px-3 py-1.5 text-xs font-bold',
-                type === 'vacances' || type === 'conge' || type === 'maladie'
+                isIndispoType(type)
                   ? 'border-amber-400 bg-amber-50 text-amber-950'
                   : 'border-line bg-white',
               ].join(' ')}
@@ -1965,83 +1987,101 @@ export function AgendaPage() {
               {otsSansPlanning.length === 0 ? (
                 <p className="mt-2 text-xs text-muted">Aucun OT sans créneau pour ces filtres.</p>
               ) : (
-                <div className="mt-2 max-h-[min(50vh,28rem)] space-y-1 overflow-y-auto">
-                  {otsSansPlanning.map((ot) => {
-                    const selected = otAPlacerId === ot.id
-                    const prio = prioriteTypeOt(ot.typeOt)
-                    const col = couleurPlanning({ typeOt: ot.typeOt })
-                    const clientNom =
-                      data.clients.find((c) => c.id === ot.clientId)?.raisonSociale || '—'
-                    const siteNom =
-                      data.chantiers.find((c) => c.id === ot.chantierId)?.nom || '—'
-                    const typeCourt =
-                      prio === 0
-                        ? 'Dép.'
-                        : prio === 1
-                          ? 'Inst.'
-                          : prio === 2
-                            ? 'Maint.'
-                            : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'INT'
-                    const action = (ot.action || '').trim()
-                    const derniereInterv = derniereIntervParOtId.get(ot.id)
-                    const titleLine = [
-                      typeCourt,
-                      formatOtNumero(ot.numero),
-                      ot.date ? formatFr(ot.date) : '',
-                      derniereInterv ? `dern. interv. ${formatFr(derniereInterv)}` : '',
-                      clientNom,
-                      siteNom,
-                      action,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
-                    return (
-                      <button
-                        key={ot.id}
-                        type="button"
-                        title={titleLine}
-                        onClick={() => {
-                          if (!bureau) {
-                            navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
-                            return
-                          }
-                          setOtAPlacerId(selected ? null : ot.id)
-                          setOtPoolOpen(true)
-                          setView('jour')
-                        }}
-                        className={`flex w-full items-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-[11px] leading-tight ${col.border} ${col.bg} ${
-                          selected ? 'ring-2 ring-teal-600' : 'hover:brightness-95'
-                        }`}
-                      >
-                        <span className={`shrink-0 font-extrabold uppercase ${col.text}`}>
-                          {typeCourt}
-                        </span>
-                        <span className="shrink-0 font-extrabold text-ink">
-                          {formatOtNumero(ot.numero)}
-                        </span>
-                        {ot.date ? (
-                          <span className="hidden shrink-0 font-semibold text-muted sm:inline">
-                            {formatFr(ot.date)}
-                          </span>
-                        ) : null}
-                        {derniereInterv ? (
-                          <span
-                            className="shrink-0 rounded bg-white/70 px-1 py-0.5 text-[10px] font-bold text-amber-900"
-                            title={`Dernière intervention sur ce site : ${formatFr(derniereInterv)} — caler le prochain créneau à un intervalle comparable.`}
+                <div className="mt-2 max-h-[min(50vh,28rem)] overflow-auto">
+                  <div className="min-w-[46rem]">
+                    <div
+                      className="agenda-int-cols px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted"
+                      aria-hidden
+                    >
+                      <span>Type</span>
+                      <span>N°</span>
+                      <span>Date</span>
+                      <span>Dern.</span>
+                      <span>Client</span>
+                      <span>Site</span>
+                      <span>Détail</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {otsSansPlanning.map((ot) => {
+                        const selected = otAPlacerId === ot.id
+                        const prio = prioriteTypeOt(ot.typeOt)
+                        const col = couleurPlanning({ typeOt: ot.typeOt })
+                        const clientNom =
+                          data.clients.find((c) => c.id === ot.clientId)?.raisonSociale || '—'
+                        const siteNom =
+                          data.chantiers.find((c) => c.id === ot.chantierId)?.nom || '—'
+                        const typeCourt =
+                          prio === 0
+                            ? 'Dép.'
+                            : prio === 1
+                              ? 'Inst.'
+                              : prio === 2
+                                ? 'Maint.'
+                                : TYPE_OT_LABELS[ot.typeOt]?.slice(0, 6) || 'INT'
+                        const action = (ot.action || '').trim()
+                        const derniereInterv = derniereIntervParOtId.get(ot.id)
+                        const titleLine = [
+                          typeCourt,
+                          formatOtNumero(ot.numero),
+                          ot.date ? formatFr(ot.date) : '',
+                          derniereInterv ? `dern. interv. ${formatFr(derniereInterv)}` : '',
+                          clientNom,
+                          siteNom,
+                          action,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                        return (
+                          <button
+                            key={ot.id}
+                            type="button"
+                            title={titleLine}
+                            onClick={() => {
+                              if (!bureau) {
+                                navigate(`/app/appel?ot=${encodeURIComponent(ot.id)}`)
+                                return
+                              }
+                              setOtAPlacerId(selected ? null : ot.id)
+                              setOtPoolOpen(true)
+                              setView('jour')
+                            }}
+                            className={`agenda-int-cols w-full border-0 px-2 py-1.5 text-left text-[11px] leading-tight ${col.bg} ${
+                              selected ? 'ring-2 ring-teal-600' : 'hover:brightness-95'
+                            }`}
                           >
-                            dern. {formatFr(derniereInterv)}
-                          </span>
-                        ) : null}
-                        <span className={`min-w-0 truncate font-semibold ${col.text}`}>
-                          {clientNom}
-                          <span className="font-medium text-muted"> · {siteNom}</span>
-                          {action ? (
-                            <span className="font-normal text-ink/70"> · {action}</span>
-                          ) : null}
-                        </span>
-                      </button>
-                    )
-                  })}
+                            <span className={`truncate font-extrabold uppercase ${col.text}`}>
+                              {typeCourt}
+                            </span>
+                            <span className="truncate font-extrabold tabular-nums text-ink">
+                              {formatOtNumero(ot.numero)}
+                            </span>
+                            <span className="truncate font-semibold tabular-nums text-muted">
+                              {ot.date ? formatFr(ot.date) : '—'}
+                            </span>
+                            <span
+                              className="truncate text-[10px] font-bold tabular-nums text-amber-800"
+                              title={
+                                derniereInterv
+                                  ? `Dernière intervention sur ce site : ${formatFr(derniereInterv)} — caler le prochain créneau à un intervalle comparable.`
+                                  : undefined
+                              }
+                            >
+                              {derniereInterv ? formatFr(derniereInterv) : ''}
+                            </span>
+                            <span className={`min-w-0 truncate font-semibold ${col.text}`}>
+                              {clientNom}
+                            </span>
+                            <span className="min-w-0 truncate font-medium text-muted">
+                              {siteNom}
+                            </span>
+                            <span className="min-w-0 truncate font-normal text-ink/70">
+                              {action || '—'}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
             </>

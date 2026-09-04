@@ -20,6 +20,7 @@ export type AgendaEventType =
   | 'hors_ot_libre'
   | 'vacances'
   | 'conge'
+  | 'rtt'
   | 'maladie'
 
 export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
@@ -37,6 +38,7 @@ export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   hors_ot_libre: 'Hors OT (libre)',
   vacances: 'Vacances',
   conge: 'Congé',
+  rtt: 'RTT',
   maladie: 'Maladie / arrêt',
 }
 
@@ -56,7 +58,7 @@ export interface AgendaEvent {
   /** Jour de l’échéance / visite prévue (ou début d’absence). */
   date: string
   /**
-   * Fin d’absence inclusive (vacances / congé / maladie).
+   * Fin d’absence inclusive (vacances, RTT, maladie…).
    * Si absent = journée unique (`date`).
    */
   dateFin?: string
@@ -85,8 +87,8 @@ export interface AgendaEvent {
   updatedAt: string
 }
 
-/** Types qui bloquent la pose d’OT sur le tech. */
-export const AGENDA_INDISPO_TYPES: AgendaEventType[] = ['vacances', 'conge', 'maladie']
+/** Types qui bloquent la pose d’OT sur le tech (un bouton « Absent », motifs au choix). */
+export const AGENDA_INDISPO_TYPES: AgendaEventType[] = ['vacances', 'conge', 'rtt', 'maladie']
 
 export function isIndispoType(t: string | undefined): boolean {
   return Boolean(t && (AGENDA_INDISPO_TYPES as string[]).includes(t))
