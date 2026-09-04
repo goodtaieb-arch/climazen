@@ -94,9 +94,11 @@ import {
   calculerJournee,
   parsePointageEvents,
   parsePointageRegles,
+  type JourneePointage,
 } from '../lib/pointage'
 import {
   STATUT_LIVE_OT_CLASS,
+  STATUT_LIVE_OT_LABELS,
   avancementTechVsPlanning,
   blocsPlanifiesDuTech,
   labelAvancementTech,
@@ -1079,6 +1081,7 @@ export function AgendaPage() {
     dureeMinutes?: number,
     otStatut?: string,
     date = cursorDate,
+    journee?: JourneePointage,
   ) =>
     statutLiveOtPourTech({
       otId,
@@ -1089,6 +1092,7 @@ export function AgendaPage() {
       userId: techId,
       date,
       now: new Date(nowTick),
+      journee,
     })
 
   const renderProgrammeCard = (item: ProgrammeItem) => {
@@ -1140,14 +1144,24 @@ export function AgendaPage() {
                 {item.avancement}
               </span>
             ) : null}
-            {user?.id ? (
+            {item.technicienUserId || user?.id ? (
               (() => {
+                const techId = item.technicienUserId || user!.id
+                const journeeTech = calculerJournee({
+                  events: pointageEvents,
+                  userId: techId,
+                  date: cursorDate,
+                  regles: pointageRegles,
+                  now: new Date(nowTick).toISOString(),
+                })
                 const live = liveOtFor(
                   item.otId,
-                  user.id,
+                  techId,
                   item.heure,
                   item.dureeMinutes,
-                  item.statut,
+                  otFull?.statut || item.statut,
+                  cursorDate,
+                  journeeTech,
                 )
                 return (
                   <span
@@ -1360,7 +1374,7 @@ export function AgendaPage() {
       }
     }
 
-    const renderBlock = (it: ProgrammeItem, techId: string) => {
+    const renderBlock = (it: ProgrammeItem, techId: string, journee?: JourneePointage) => {
       const place = timelinePlacement(it.heure, it.dureeMinutes)
       if (!place) return null
       const otFull =
@@ -1388,7 +1402,15 @@ export function AgendaPage() {
           : undefined
       const live =
         it.kind === 'ot'
-          ? liveOtFor(it.otId, techId, it.heure, it.dureeMinutes, it.statut, iso)
+          ? liveOtFor(
+              it.otId,
+              techId,
+              it.heure,
+              it.dureeMinutes,
+              otFull?.statut || it.statut,
+              iso,
+              journee,
+            )
           : null
       return (
         <div
@@ -1561,6 +1583,12 @@ export function AgendaPage() {
                 regles: pointageRegles,
                 now: new Date(nowTick).toISOString(),
                 journee,
+                otStatuts: (data.ordresTravail || [])
+                  .filter(
+                    (o) =>
+                      (o.date || '').slice(0, 10) === iso && techIdsOt(o).includes(id),
+                  )
+                  .map((o) => o.statut || ''),
               })
               const avLabel = labelAvancementTech(av)
               const absences = indisposTechSurDate(data.agendaEvents, id, iso)
@@ -1623,7 +1651,13 @@ export function AgendaPage() {
                             ? 'text-amber-800'
                             : av.enRetard
                               ? 'text-amber-800'
-                              : 'text-muted'
+                              : av.lastAction === 'intervention_en_cours' ||
+                                  av.statutLabel === STATUT_LIVE_OT_LABELS.en_cours
+                                ? 'text-emerald-800'
+                                : av.lastAction === 'deplacement' ||
+                                    av.statutLabel === STATUT_LIVE_OT_LABELS.en_deplacement
+                                  ? 'text-violet-800'
+                                  : 'text-muted'
                         }`}
                       >
                         {enVacances
@@ -1678,7 +1712,7 @@ export function AgendaPage() {
                           }}
                         />
                       ))}
-                      {timed.map((it) => renderBlock(it, id))}
+                      {timed.map((it) => renderBlock(it, id, journee))}
                       {nowPct != null ? (
                         <span
                           className="pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 bg-rose-600"

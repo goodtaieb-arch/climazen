@@ -152,7 +152,9 @@ assert.equal(jour.interventionMin, 180 + 180)
 assert.equal(jour.fournisseurMin, 30)
 assert.equal(jour.trajetMin, jour.deplacementMin)
 assert.equal(jour.chantierMin, jour.interventionMin)
-assert.equal(jour.payeMin, jour.deplacementMin + jour.interventionMin + jour.fournisseurMin)
+assert.equal(jour.payeMin, jour.deplacementMin + jour.interventionMin + jour.fournisseurMin - 30)
+assert.equal(jour.abattementDomicileMin, 30)
+assert.equal(jour.trajetMatinMin, 60)
 assert.equal(jour.heuresSupMin, Math.max(0, jour.payeMin - 7 * 60))
 assert.equal(jour.segments.filter((s) => s.otId === 'ot1').length, 2)
 assert.equal(jour.segments.filter((s) => s.otId === 'ot2').length, 2)
@@ -184,7 +186,8 @@ const auto = calculerJournee({
 })
 assert.equal(auto.pauseMin, 0)
 assert.equal(auto.pauseAutoMin, 30)
-assert.equal(auto.payeMin, 60 + 360 - 30)
+assert.equal(auto.abattementDomicileMin, 30)
+assert.equal(auto.payeMin, 60 + 360 - 30 - 30)
 
 const csv = exportJourneesCsv([jour])
 assert.ok(csv.startsWith('Date;'))
@@ -223,8 +226,42 @@ assert.equal(home.trajetMatinMin, 20)
 assert.equal(home.retourMin, 50)
 assert.equal(home.interventionMin, 4 * 60)
 assert.equal(home.deplacementMin, 20 + 40 + 50)
+assert.equal(home.abattementDomicileMin, 20 + 30)
+assert.equal(home.payeMin, home.deplacementMin + home.interventionMin - home.abattementDomicileMin)
 assert.ok(home.departDomicileIso?.startsWith('2026-09-02T07:00'))
 assert.ok(home.retourDomicileIso?.startsWith('2026-09-02T13:00'))
+
+const mix: PointageEvent[] = [
+  ev({ action: 'sortie_domicile', at: '2026-09-02T07:00:00.000Z', cible: 'domicile' }),
+  ev({ action: 'fournisseur', at: '2026-09-02T07:40:00.000Z' }),
+  ev({ action: 'deplacement', at: '2026-09-02T08:10:00.000Z', otId: 'ot1', cible: 'ot' }),
+  ev({ action: 'intervention_en_cours', at: '2026-09-02T08:30:00.000Z', otId: 'ot1' }),
+  ev({ action: 'fin_intervention', at: '2026-09-02T10:00:00.000Z', otId: 'ot1' }),
+  ev({ action: 'deplacement', at: '2026-09-02T10:00:00.000Z', cible: 'hors_ot' }),
+  ev({ action: 'fournisseur', at: '2026-09-02T10:25:00.000Z' }),
+  ev({ action: 'deplacement', at: '2026-09-02T10:40:00.000Z', otId: 'ot2', cible: 'ot' }),
+  ev({ action: 'intervention_en_cours', at: '2026-09-02T11:00:00.000Z', otId: 'ot2' }),
+  ev({ action: 'fin_intervention', at: '2026-09-02T12:00:00.000Z', otId: 'ot2' }),
+  ev({ action: 'retour_domicile', at: '2026-09-02T12:00:00.000Z', cible: 'domicile' }),
+  ev({ action: 'fin_journee', at: '2026-09-02T12:45:00.000Z' }),
+]
+const mixJour = calculerJournee({
+  events: mix,
+  userId: 't1',
+  date: '2026-09-02',
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(mixJour.trajetMatinMin, 40)
+assert.equal(mixJour.retourMin, 45)
+assert.equal(mixJour.horsOtMin, 25)
+assert.equal(mixJour.abattementDomicileMin, 30 + 30)
+assert.equal(
+  mixJour.payeMin,
+  mixJour.deplacementMin + mixJour.interventionMin + mixJour.fournisseurMin - 60,
+)
+const mixCsv = exportJourneesCsv([mixJour])
+assert.ok(mixCsv.includes('Déplacement hors OT'))
+assert.ok(mixCsv.includes('Abattement domicile'))
 
 const sem = calculerSemaine({
   events: dayEvents,

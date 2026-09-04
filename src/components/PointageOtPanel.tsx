@@ -82,6 +82,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
   const last = user?.id
     ? dernierPointage(events, { userId: user.id, date: today })
     : undefined
+  const lastCanon = last ? normaliserAction(last.action) : undefined
   const next = actionsSuivantes(last)
   const deplacementSuivant = next.includes('deplacement')
   const effectiveOtId =
@@ -323,7 +324,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
         </div>
       ) : null}
 
-      {horsOtBtns.length > 0 || next.includes('deplacement') ? (
+      {lastCanon !== 'fin_journee' && lastCanon !== 'retour_domicile' ? (
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
             Nouvelle entrée hors intervention
@@ -336,17 +337,28 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
               e.target.value = ''
               const item = POINTAGE_HORS_INT_MENU.find((m) => `${m.action}:${m.cible || ''}` === v)
               if (!item) return
+              if (!actionAutorisee(last, item.action)) {
+                setMsg(
+                  item.action === 'fournisseur' || item.action === 'bureau'
+                    ? 'D’abord « Trajet début de journée » (−30 min légal), puis fournisseur / bureau.'
+                    : `Action impossible après ${last ? POINTAGE_ACTION_LABELS[last.action] : 'rien'}.`,
+                )
+                return
+              }
               void punch(item.action, item.cible)
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3 text-sm font-semibold"
           >
-            <option value="">Choisir (pièce, gasoil, bureau…)</option>
+            <option value="">Fournisseur, bureau, déplacement hors INT…</option>
             {POINTAGE_HORS_INT_MENU.map((m) => (
               <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
                 {m.label}
               </option>
             ))}
           </select>
+          <p className="mt-1 text-[10px] font-semibold text-muted">
+            Trajet début / fin : −30 min légal. Déplacement hors INT entre deux OT : temps entier.
+          </p>
           {horsOtBtns.length > 0 ? (
             <div className="mt-2 grid grid-cols-2 gap-2">{horsOtBtns.map(renderBtn)}</div>
           ) : null}

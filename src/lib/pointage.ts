@@ -44,7 +44,7 @@ export const POINTAGE_HORS_INT_MENU: {
   cible?: PointageCible
   label: string
 }[] = [
-  { action: 'deplacement', cible: 'hors_ot', label: 'Déplacement hors INT' },
+  { action: 'deplacement', cible: 'hors_ot', label: 'Déplacement hors INT (entre OT)' },
   { action: 'fournisseur', label: 'Fournisseur (station, pièces, gaz…)' },
   { action: 'bureau', label: 'Bureau / atelier' },
   { action: 'pause', label: 'Pause' },
@@ -67,7 +67,7 @@ export type PointageCible = 'ot' | 'fournisseur' | 'bureau' | 'domicile' | 'hors
 
 export const POINTAGE_CIBLE_LABELS: Record<PointageCible, string> = {
   ot: 'Vers le site / OT',
-  hors_ot: 'Déplacement hors OT',
+  hors_ot: 'Déplacement hors OT (entre INT)',
   fournisseur: 'Fournisseur / extérieur',
   bureau: 'Bureau / atelier',
   domicile: 'Domicile',
@@ -91,17 +91,20 @@ export const POINTAGE_ACTION_LABELS: Record<PointageAction, string> = {
 }
 
 export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
-  sortie_domicile: 'Vous quittez le domicile — le compteur porte-à-porte démarre',
+  sortie_domicile: 'Vous quittez le domicile — trajet début (−30 min légal)',
   deplacement: 'En route vers l’OT, hors OT, un fournisseur ou le bureau',
   intervention_en_cours: 'Arrivé sur site — OT en cours',
   fin_intervention: 'Intervention terminée sur cet OT',
-  fournisseur: 'Chez le fournisseur (pièces, gaz…)',
+  fournisseur: 'Chez le fournisseur (pièces, gaz, station…)',
   bureau: 'Au bureau / atelier',
   pause: 'Pause personnelle',
   pause_repas: 'Pause repas',
-  retour_domicile: 'Vous rentrez — le trajet fin démarre',
+  retour_domicile: 'Vous rentrez — trajet fin (−30 min légal)',
   fin_journee: 'Arrivé chez vous — le trajet fin s’arrête, journée close',
 }
+
+/** Forfait légal : 30 min déduites du trajet début et du trajet fin (domicile). */
+export const ABATTEMENT_TRAJET_DOMICILE_MIN = 30
 
 export type PointageSegmentKind =
   | 'deplacement'
@@ -440,13 +443,27 @@ export function eventsActifs(events: PointageEvent[]): PointageEvent[] {
   return events.filter((e) => !e.annule)
 }
 
+/** Jour calendaire local (pas le slice UTC de l’ISO). */
+export function dateLocaleFromInstant(iso?: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return iso.slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function eventsDuJour(
   events: PointageEvent[],
   opts: { userId?: string; date: string },
 ): PointageEvent[] {
   const date = opts.date.slice(0, 10)
   return eventsActifs(events)
-    .filter((e) => e.date === date && (!opts.userId || e.userId === opts.userId))
+    .filter((e) => {
+      const d = (e.date || '').slice(0, 10) || dateLocaleFromInstant(e.at)
+      return d === date && (!opts.userId || e.userId === opts.userId)
+    })
     .sort((a, b) => a.at.localeCompare(b.at))
 }
 
@@ -607,6 +624,10 @@ export type JourneePointage = {
   trajetMatinMin: number
   /** Trajet retour vers domicile. */
   retourMin: number
+  /** 30 min × trajets domicile (début et/ou fin) effectivement déduits. */
+  abattementDomicileMin: number
+  /** Déplacements hors OT entre INT (temps entier, pas d’abattement −30). */
+  horsOtMin: number
   /** Sortie domicile → retour / fin (ou maintenant si journée ouverte). */
   porteAPorteMin: number
   departDomicileIso?: string
@@ -670,6 +691,8 @@ export function blankJourneePointage(opts: {
     pauseMin: 0,
     trajetMatinMin: 0,
     retourMin: 0,
+    abattementDomicileMin: 0,
+    horsOtMin: 0,
     porteAPorteMin: 0,
     trajetMin: 0,
     chantierMin: 0,
@@ -738,6 +761,27 @@ export function calculerJournee(opts: {
       ? minutesEntre(departDomicileIso, finPorteAPorte)
       : 0
 
+  if (totals.trajetMatinMin === 0) {
+    const premierTrajet = segments.find(
+      (s) => s.kind === 'deplacement' || s.kind === 'trajet_domicile',
+    )
+    if (premierTrajet) totals.trajetMatinMin = premierTrajet.minutes
+  }
+
+  const premierTrajetSeg = segments.find(
+    (s) => s.kind === 'deplacement' || s.kind === 'trajet_domicile',
+  )
+  const horsOtMin = segments
+    .filter((s) => s.kind === 'deplacement' && s.cible === 'hors_ot')
+    .filter((s) => Boolean(sortieEv) || s !== premierTrajetSeg)
+    .reduce((n, s) => n + s.minutes, 0)
+
+  const abattementDomicileMin =
+    (totals.trajetMatinMin > 0
+      ? Math.min(ABATTEMENT_TRAJET_DOMICILE_MIN, totals.trajetMatinMin)
+      : 0) +
+    (totals.retourMin > 0 ? Math.min(ABATTEMENT_TRAJET_DOMICILE_MIN, totals.retourMin) : 0)
+
   let pauseAutoMin = 0
   if (
     r.pauseAutoMinutes > 0 &&
@@ -753,7 +797,10 @@ export function calculerJournee(opts: {
     totals.fournisseurMin +
     totals.bureauMin +
     totals.pauseMin
-  const payeMin = Math.max(0, brut - (r.pauseNonPayee ? totals.pauseMin : 0) - pauseAutoMin)
+  const payeMin = Math.max(
+    0,
+    brut - (r.pauseNonPayee ? totals.pauseMin : 0) - pauseAutoMin - abattementDomicileMin,
+  )
   const quota = Math.round(r.heuresJour * 60)
 
   const otIdCourant =
@@ -765,6 +812,8 @@ export function calculerJournee(opts: {
     userId: opts.userId,
     userName: last?.userName || list[0]?.userName || '',
     ...totals,
+    abattementDomicileMin,
+    horsOtMin,
     porteAPorteMin,
     departDomicileIso,
     retourDomicileIso,
@@ -847,6 +896,8 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Bureau (min)',
     'Pause (min)',
     'Retour domicile (min)',
+    'Déplacement hors OT (min)',
+    'Abattement domicile −30×2 (min)',
     'Pause auto (min)',
     'Temps payé (min)',
     'Temps payé',
@@ -868,6 +919,8 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
         j.bureauMin,
         j.pauseMin,
         j.retourMin,
+        j.horsOtMin,
+        j.abattementDomicileMin,
         j.pauseAutoMin,
         j.payeMin,
         formatMinutesHhMm(j.payeMin),
@@ -1125,6 +1178,8 @@ export function calculerJourneeBureau(
     pauseMin,
     trajetMatinMin: 0,
     retourMin: 0,
+    abattementDomicileMin: 0,
+    horsOtMin: 0,
     porteAPorteMin: brutMin,
     departDomicileIso: debutIso,
     retourDomicileIso: j.heureFin ? finIso : undefined,

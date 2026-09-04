@@ -13,6 +13,7 @@ import {
 import { isOtCloture, techIdsOt, type OrdreTravail } from './ordreTravail'
 import {
   calculerJournee,
+  dernierPointage,
   eventsDuJour,
   formatMinutesHhMm,
   normaliserAction,
@@ -139,38 +140,74 @@ export function statutLiveOtPourTech(opts: {
 }): LiveOtInfo {
   const nowDate =
     typeof opts.now === 'string' ? new Date(opts.now) : opts.now || new Date()
-  const last = lastEventPourOt(opts.events, {
+  const lastOt = lastEventPourOt(opts.events, {
     userId: opts.userId,
     date: opts.date,
     otId: opts.otId,
   })
+  const lastGlobal = dernierPointage(opts.events, { userId: opts.userId, date: opts.date })
   const planned = dureeMinutesEffectif(opts.dureeMinutes)
   const interMin = (opts.journee?.segments || [])
     .filter((s) => s.kind === 'intervention' && s.otId === opts.otId)
     .reduce((s, x) => s + x.minutes, 0)
   const pctRempli = planned > 0 ? Math.max(0, Math.min(100, Math.round((interMin / planned) * 100))) : 0
 
-  if (last) {
-    const n = normaliserAction(last.action)
-    if (n === 'deplacement' && (last.cible || 'ot') === 'ot') {
+  const liveFromAction = (ev: PointageEvent | undefined): LiveOtInfo | null => {
+    if (!ev) return null
+    const n = normaliserAction(ev.action)
+    if (n === 'deplacement' && (ev.cible || 'ot') === 'ot' && ev.otId === opts.otId) {
       return { statut: 'en_deplacement', label: STATUT_LIVE_OT_LABELS.en_deplacement, pctRempli }
     }
-    if (n === 'intervention_en_cours') {
+    if (n === 'intervention_en_cours' && (!ev.otId || ev.otId === opts.otId)) {
       return { statut: 'en_cours', label: STATUT_LIVE_OT_LABELS.en_cours, pctRempli }
     }
-    if (n === 'fin_intervention') {
+    if (n === 'fin_intervention' && ev.otId === opts.otId) {
       return {
         statut: 'termine',
         label: STATUT_LIVE_OT_LABELS.termine,
         pctRempli: Math.max(pctRempli, 100),
       }
     }
+    return null
   }
 
-  if (opts.otStatut === 'en_deplacement') {
+  const lastN = lastGlobal ? normaliserAction(lastGlobal.action) : undefined
+  const lastOtId = lastGlobal?.otId || ''
+  const lastIsThisOt = Boolean(lastOtId) && lastOtId === opts.otId
+  const horsIntActif =
+    lastN === 'fournisseur' ||
+    lastN === 'bureau' ||
+    lastN === 'pause' ||
+    lastN === 'pause_repas' ||
+    lastN === 'sortie_domicile' ||
+    lastN === 'retour_domicile' ||
+    (lastN === 'deplacement' && (lastGlobal?.cible || 'ot') === 'hors_ot')
+  const actifAilleurs =
+    (Boolean(lastOtId) && lastOtId !== opts.otId && (lastN === 'intervention_en_cours' || lastN === 'deplacement')) ||
+    horsIntActif
+
+  if (lastIsThisOt) {
+    const fromGlobal = liveFromAction(lastGlobal)
+    if (fromGlobal) return fromGlobal
+  }
+
+  if (lastN === 'intervention_en_cours' && !lastOtId && opts.otStatut === 'en_cours') {
+    return { statut: 'en_cours', label: STATUT_LIVE_OT_LABELS.en_cours, pctRempli }
+  }
+
+  if (actifAilleurs) {
+    const fromOt = liveFromAction(lastOt)
+    if (fromOt?.statut === 'termine') return fromOt
+  } else {
+    const fromOt = liveFromAction(lastOt)
+    if (fromOt) return fromOt
+  }
+
+  /* Statut OT : visible même si le dernier event du jour n’est pas encore lu (sync). */
+  if (opts.otStatut === 'en_deplacement' && !actifAilleurs) {
     return { statut: 'en_deplacement', label: STATUT_LIVE_OT_LABELS.en_deplacement, pctRempli }
   }
-  if (opts.otStatut === 'en_cours' && last) {
+  if (opts.otStatut === 'en_cours' && !actifAilleurs) {
     return { statut: 'en_cours', label: STATUT_LIVE_OT_LABELS.en_cours, pctRempli }
   }
 
@@ -179,7 +216,8 @@ export function statutLiveOtPourTech(opts: {
   if (
     opts.date.slice(0, 10) === todayIso &&
     startMin != null &&
-    nowDate.getHours() * 60 + nowDate.getMinutes() > startMin + 10
+    nowDate.getHours() * 60 + nowDate.getMinutes() > startMin + 10 &&
+    !lastGlobal
   ) {
     return { statut: 'en_retard', label: STATUT_LIVE_OT_LABELS.en_retard, pctRempli: 0 }
   }
@@ -208,6 +246,8 @@ export function avancementTechVsPlanning(opts: {
   regles?: PointageRegles | null
   now?: string
   journee?: JourneePointage
+  /** Statuts OT du jour (filet si les events ne sont pas encore rattachés). */
+  otStatuts?: string[]
 }): TechAvancementJour {
   const journee =
     opts.journee ||
@@ -225,11 +265,18 @@ export function avancementTechVsPlanning(opts: {
       : journee.interventionMin > 0
         ? 100
         : 0
+  const fromOtStatut = opts.otStatuts?.includes('en_cours')
+    ? STATUT_LIVE_OT_LABELS.en_cours
+    : opts.otStatuts?.includes('en_deplacement')
+      ? STATUT_LIVE_OT_LABELS.en_deplacement
+      : undefined
   const lastLabel = journee.lastAction
     ? POINTAGE_ACTION_LABELS[journee.lastAction]
-    : planifieMin > 0
-      ? 'Pas encore pointé'
-      : 'Libre'
+    : fromOtStatut
+      ? fromOtStatut
+      : planifieMin > 0
+        ? 'Pas encore pointé'
+        : 'Libre'
   const now = opts.now ? new Date(opts.now) : new Date()
   const firstStart = opts.blocs
     .map((b) => parseHeureToMinutes(b.heure))
@@ -240,7 +287,8 @@ export function avancementTechVsPlanning(opts: {
     opts.date.slice(0, 10) === todayIso &&
     firstStart != null &&
     now.getHours() * 60 + now.getMinutes() > firstStart + 10 &&
-    !journee.lastAction
+    !journee.lastAction &&
+    !fromOtStatut
 
   return {
     userId: opts.userId,
