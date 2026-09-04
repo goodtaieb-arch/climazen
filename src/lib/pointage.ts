@@ -45,7 +45,7 @@ export const POINTAGE_HORS_INT_MENU: {
   label: string
 }[] = [
   { action: 'deplacement', cible: 'hors_ot', label: 'Déplacement hors INT' },
-  { action: 'fournisseur', label: 'Fournisseur' },
+  { action: 'fournisseur', label: 'Fournisseur (station, pièces, gaz…)' },
   { action: 'bureau', label: 'Bureau / atelier' },
   { action: 'pause', label: 'Pause' },
   { action: 'pause_repas', label: 'Pause repas' },
@@ -82,8 +82,8 @@ export const POINTAGE_ACTION_LABELS: Record<PointageAction, string> = {
   bureau: 'Bureau / atelier',
   pause: 'Pause',
   pause_repas: 'Pause repas',
-  retour_domicile: 'Trajet fin / retour domicile',
-  fin_journee: 'Fin de journée',
+  retour_domicile: 'Trajet fin de journée',
+  fin_journee: 'Arrivé à la maison',
   prise_vehicule: 'Prise du véhicule',
   trajet: 'Trajet',
   arrivee_chantier: 'Arrivée chantier / OT',
@@ -99,8 +99,8 @@ export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
   bureau: 'Au bureau / atelier',
   pause: 'Pause personnelle',
   pause_repas: 'Pause repas',
-  retour_domicile: 'Vous rentrez au domicile — trajet retour',
-  fin_journee: 'Arrivé à la maison — les heures porte-à-porte sont figées',
+  retour_domicile: 'Vous rentrez — le trajet fin démarre',
+  fin_journee: 'Arrivé chez vous — le trajet fin s’arrête, journée close',
 }
 
 export type PointageSegmentKind =
@@ -219,6 +219,45 @@ export function otIdObligatoire(action: PointageAction, cible?: PointageCible): 
   if (n === 'intervention_en_cours' || n === 'fin_intervention') return true
   if (n === 'deplacement') return (cible || 'ot') === 'ot'
   return false
+}
+
+/** Clôture dossier INT : enregistrer fin d’intervention si le pointage tourne encore sur cet OT. */
+export function doitEnregistrerFinIntervention(
+  last: PointageEvent | undefined,
+  otId: string,
+): boolean {
+  if (!String(otId || '').trim()) return false
+  if (!last) return false
+  const n = normaliserAction(last.action)
+  if (n === 'fin_journee' || n === 'retour_domicile') return false
+  if (n === 'fin_intervention' && last.otId === otId) return false
+  if (last.otId && last.otId !== otId) return false
+  return true
+}
+
+export async function payloadFinIntervention(opts: {
+  last?: PointageEvent
+  otId: string
+  chantierId?: string
+  userId: string
+  userName: string
+  regles: PointageRegles
+}): Promise<Omit<PointageEvent, 'id' | 'createdAt'> | null> {
+  if (!doitEnregistrerFinIntervention(opts.last, opts.otId)) return null
+  const geoRes = await capturerGeoPonctuel()
+  const at = arrondirDate(new Date(), opts.regles.arrondiMinutes).toISOString()
+  return {
+    userId: opts.userId,
+    userName: opts.userName,
+    action: 'fin_intervention',
+    at,
+    date: datePointageLocale(),
+    otId: opts.otId,
+    chantierId: opts.chantierId,
+    geo: geoRes.ok ? geoRes.geo : undefined,
+    geoRefused: !geoRes.ok && geoRes.refused,
+    geoError: geoRes.ok ? undefined : geoRes.message,
+  }
 }
 
 /** Statut OT à poser au punch (sans clôturer). */

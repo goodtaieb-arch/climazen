@@ -9,6 +9,7 @@ import {
   calculerJourneeBureau,
   calculerSemaine,
   csvEscape,
+  doitEnregistrerFinIntervention,
   exportJourneesCsv,
   formatMinutesHhMm,
   lundiIso,
@@ -94,6 +95,24 @@ const eFinInter = ev({ action: 'fin_intervention', at: '2026-09-02T11:00:00.000Z
 assert.ok(actionsSuivantes(eFinInter).includes('deplacement'))
 assert.ok(actionsSuivantes(eFinInter).includes('retour_domicile'))
 assert.ok(actionsSuivantes(eFinInter).includes('fin_journee'))
+assert.equal(doitEnregistrerFinIntervention(eInter, 'ot1'), true)
+assert.equal(doitEnregistrerFinIntervention(eFinInter, 'ot1'), false)
+assert.equal(doitEnregistrerFinIntervention(eFourDuringOt, 'ot1'), true)
+assert.equal(doitEnregistrerFinIntervention(undefined, 'ot1'), false)
+assert.equal(
+  doitEnregistrerFinIntervention(
+    ev({ action: 'deplacement', at: '2026-09-02T11:10:00.000Z', otId: 'ot2', cible: 'ot' }),
+    'ot1',
+  ),
+  false,
+)
+assert.equal(
+  doitEnregistrerFinIntervention(
+    ev({ action: 'retour_domicile', at: '2026-09-02T17:00:00.000Z', cible: 'domicile' }),
+    'ot1',
+  ),
+  false,
+)
 
 assert.equal(normaliserAction('trajet'), 'deplacement')
 assert.equal(normaliserAction('arrivee_chantier'), 'intervention_en_cours')
