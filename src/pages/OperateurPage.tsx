@@ -331,16 +331,15 @@ export function OperateurPage() {
           <h2 className="font-display text-lg font-semibold">Assistant IA</h2>
           <p className="mt-1 text-sm text-muted">
             Édition Pro : {AI_TIER_LABELS.agent} inclus (OT, CERFA, agenda). L’IA cloud utilise
-            la clé OpenAI de votre société.
+            la clé de votre société (OpenAI et/ou Claude).
           </p>
         </section>
       )}
 
       {isOwner ? (
         <p className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-ink">
-          <strong>Lola + IA : 2 comptes seulement.</strong> Pas d’autre outil.{' '}
-          Étape 1 = OpenAI (le cerveau). Étape 2 = Twilio (le numéro). Cliquez les liens bleus :
-          ils ouvrent la page exacte.
+          <strong>Lola + IA :</strong> Étape 1 = clé IA (OpenAI actif, Claude en test). Étape 2 =
+          Twilio (le numéro). Cliquez les liens bleus : ils ouvrent la page exacte.
         </p>
       ) : null}
       {isOwner ? <OpenaiOrgKeyPanel /> : null}

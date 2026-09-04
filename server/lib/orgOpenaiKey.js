@@ -261,12 +261,20 @@ export async function upsertOrgOpenaiKey(orgId, key, actorUserId) {
 
 /**
  * Enregistre provider + clé associée (+ modèle optionnel).
+ * opts.saveKeyOnly = true → enregistre la clé SANS changer le fournisseur actif
+ *   (ex. coller Claude tout en gardant OpenAI actif pour le moment).
  */
 export async function upsertOrgAiConfig(orgId, opts, actorUserId) {
   const provider = normalizeAiProvider(opts.provider)
   const model = String(opts.model || '').trim() || null
-  const patch = { ai_provider: provider }
-  if (model) patch.ai_model = model
+  const saveKeyOnly = opts.saveKeyOnly === true
+  const patch = {}
+  if (!saveKeyOnly) {
+    patch.ai_provider = provider
+    if (model) patch.ai_model = model
+  } else if (model) {
+    // Ne touche pas au modèle actif si on ne fait que stocker une clé secondaire
+  }
 
   if (opts.clearKey) {
     if (provider === 'anthropic') {
@@ -279,8 +287,13 @@ export async function upsertOrgAiConfig(orgId, opts, actorUserId) {
       patch.openai_api_key = null
       patch.openai_key_hint = null
     }
+    // Si on retire la clé du provider actif, basculer vers openai s’il reste une clé
+    if (!saveKeyOnly) {
+      // keep patch.ai_provider if set; on clearKey of active, caller may set providerOnly later
+    }
     await upsertRow(orgId, patch, actorUserId)
-    return { ok: true, provider, hasKey: false, hint: '' }
+    const status = await fetchOrgAiStatus(orgId)
+    return { ok: true, provider: status.provider, hasKey: status.hasKey, hint: status.hint }
   }
 
   const rawKey = String(opts.apiKey || '').trim()
@@ -303,6 +316,7 @@ export async function upsertOrgAiConfig(orgId, opts, actorUserId) {
     }
   } else if (opts.providerOnly) {
     // Changer de provider sans nouvelle clé
+    if (saveKeyOnly) return { ok: false, error: 'Rien à enregistrer.' }
   } else {
     return { ok: false, error: 'Clé API requise.' }
   }

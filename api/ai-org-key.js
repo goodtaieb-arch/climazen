@@ -91,7 +91,10 @@ export default async function handler(req, res) {
         apiKey: body.apiKey || body.openaiApiKey || body.anthropicApiKey || body.geminiApiKey,
         model: body.model,
         clearKey: body.clearKey === true,
-        providerOnly: body.providerOnly === true || (!body.apiKey && !body.openaiApiKey && body.provider),
+        saveKeyOnly: body.saveKeyOnly === true,
+        providerOnly:
+          body.providerOnly === true ||
+          (!body.apiKey && !body.openaiApiKey && !body.anthropicApiKey && body.provider),
       },
       auth.user.id,
     )

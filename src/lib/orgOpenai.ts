@@ -26,6 +26,7 @@ export type OrgOpenaiStatus = {
   provider?: AiProviderId
   model?: string
   keys?: { openai: boolean; anthropic: boolean; gemini: boolean }
+  hints?: { openai?: string; anthropic?: string; gemini?: string }
   error?: string
   code?: string
 }
@@ -53,6 +54,7 @@ export async function fetchOrgOpenaiStatus(): Promise<OrgOpenaiStatus | null> {
     provider: (data.provider as AiProviderId) || 'openai',
     model: data.model,
     keys: data.keys,
+    hints: data.hints,
   }
 }
 
@@ -69,6 +71,8 @@ export async function saveOrgAiConfig(opts: {
   model?: string
   providerOnly?: boolean
   clearKey?: boolean
+  /** Enregistre la clé sans changer le fournisseur actif (garder OpenAI, coller Claude). */
+  saveKeyOnly?: boolean
 }): Promise<{ ok: boolean; hint?: string; error?: string; provider?: string; model?: string }> {
   const headers = await authHeaders()
   if (!headers.Authorization) return { ok: false, error: 'Session requise.' }

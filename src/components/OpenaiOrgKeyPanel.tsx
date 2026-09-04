@@ -10,34 +10,6 @@ import { LOLA_SETUP_LINKS } from '../lib/lolaSetupLinks'
 import { SetupLink } from './SetupLink'
 import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 
-const PROVIDERS: {
-  id: AiProviderId
-  label: string
-  recommend?: string
-  placeholder: string
-  modelHint: string
-}[] = [
-  {
-    id: 'anthropic',
-    label: 'Anthropic Claude',
-    recommend: 'Recommandé — plus à l’aise avec consignes longues et français métier',
-    placeholder: 'sk-ant-…',
-    modelHint: 'Claude Sonnet (défaut)',
-  },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    placeholder: 'sk-proj-… ou sk-…',
-    modelHint: 'gpt-4o-mini (défaut)',
-  },
-  {
-    id: 'gemini',
-    label: 'Google Gemini',
-    placeholder: 'Clé AI Studio…',
-    modelHint: 'gemini-2.5-flash (défaut)',
-  },
-]
-
 function explainApiError(raw: string | undefined): string {
   const e = String(raw || '').trim()
   if (!e) return ''
@@ -62,20 +34,19 @@ function explainApiError(raw: string | undefined): string {
 }
 
 /**
- * Étape 1 — choisir le fournisseur IA + coller la clé (site + Lola).
+ * Mon entreprise — OpenAI reste le moteur actif ;
+ * on colle Claude à côté pour tester sans supprimer OpenAI.
  */
 export function OpenaiOrgKeyPanel() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [hasKey, setHasKey] = useState(false)
-  const [hint, setHint] = useState('')
-  const [provider, setProvider] = useState<AiProviderId>('anthropic')
+  const [active, setActive] = useState<AiProviderId>('openai')
   const [keys, setKeys] = useState({ openai: false, anthropic: false, gemini: false })
-  const [keyInput, setKeyInput] = useState('')
+  const [hints, setHints] = useState({ openai: '', anthropic: '', gemini: '' })
+  const [openaiInput, setOpenaiInput] = useState('')
+  const [claudeInput, setClaudeInput] = useState('')
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
-
-  const meta = PROVIDERS.find((p) => p.id === provider) || PROVIDERS[0]
 
   const reload = async () => {
     const res = await fetchOrgOpenaiStatus()
@@ -84,10 +55,31 @@ export function OpenaiOrgKeyPanel() {
       setLoading(false)
       return
     }
-    setHasKey(res.hasKey)
-    setHint(res.hint)
-    if (res.provider) setProvider(res.provider)
+    setActive((res.provider as AiProviderId) || 'openai')
     if (res.keys) setKeys(res.keys)
+    if (res.hints) {
+      setHints({
+        openai: res.hints.openai || '',
+        anthropic: res.hints.anthropic || '',
+        gemini: res.hints.gemini || '',
+      })
+    } else {
+      setHints({
+        openai: res.keys?.openai && res.provider === 'openai' ? res.hint : res.keys?.openai ? 'enregistrée' : '',
+        anthropic:
+          res.keys?.anthropic && res.provider === 'anthropic'
+            ? res.hint
+            : res.keys?.anthropic
+              ? 'enregistrée'
+              : '',
+        gemini:
+          res.keys?.gemini && res.provider === 'gemini'
+            ? res.hint
+            : res.keys?.gemini
+              ? 'enregistrée'
+              : '',
+      })
+    }
     if (res.error) setErr(explainApiError(res.error))
     else setErr('')
     setLoading(false)
@@ -97,44 +89,100 @@ export function OpenaiOrgKeyPanel() {
     void reload()
   }, [])
 
-  const save = async () => {
+  const run = async (
+    fn: () => Promise<{ ok: boolean; error?: string; hint?: string; provider?: string }>,
+    okMsg: string,
+  ) => {
     setBusy(true)
     setErr('')
     setMsg('')
-    const result = await saveOrgAiConfig({
-      provider,
-      apiKey: keyInput.trim() || undefined,
-      providerOnly: !keyInput.trim() && (keys[provider] || false),
-    })
+    const result = await fn()
     setBusy(false)
     if (!result.ok) {
-      setErr(explainApiError(result.error) || 'Enregistrement impossible.')
+      setErr(explainApiError(result.error) || 'Action impossible.')
       return
     }
-    setKeyInput('')
-    setHasKey(Boolean(result.hint) || true)
-    setHint(result.hint || '')
-    setMsg(
-      `Étape 1 OK — ${meta.label} actif. Même config pour l’assistant et Lola.`,
-    )
+    setMsg(okMsg)
+    setOpenaiInput('')
+    setClaudeInput('')
     await reload()
   }
 
-  const clear = async () => {
-    if (!confirm('Retirer toutes les clés IA de cette société ?')) return
-    setBusy(true)
-    setErr('')
-    setMsg('')
-    const result = await clearOrgOpenaiKey()
-    setBusy(false)
-    if (!result.ok) {
-      setErr(explainApiError(result.error) || 'Suppression impossible.')
-      return
-    }
-    setHasKey(false)
-    setHint('')
-    setKeys({ openai: false, anthropic: false, gemini: false })
-    setMsg('Clés retirées.')
+  const saveOpenai = () =>
+    void run(
+      () =>
+        saveOrgAiConfig({
+          provider: 'openai',
+          apiKey: openaiInput.trim(),
+          // Si OpenAI est déjà actif, on reste dessus ; sinon on enregistre seulement la clé
+          saveKeyOnly: active !== 'openai',
+        }),
+      active === 'openai'
+        ? 'Clé OpenAI enregistrée (toujours actif).'
+        : 'Clé OpenAI enregistrée (Claude / autre reste actif).',
+    )
+
+  const saveClaudeKeepOpenai = () =>
+    void run(
+      () =>
+        saveOrgAiConfig({
+          provider: 'anthropic',
+          apiKey: claudeInput.trim(),
+          saveKeyOnly: true, // ← ne change PAS le fournisseur actif
+        }),
+      'Clé Claude enregistrée. OpenAI reste actif — cliquez « Tester Claude » quand vous voulez.',
+    )
+
+  const activateClaude = () =>
+    void run(
+      () =>
+        saveOrgAiConfig({
+          provider: 'anthropic',
+          apiKey: claudeInput.trim() || undefined,
+          providerOnly: !claudeInput.trim() && keys.anthropic,
+        }),
+      'Claude est maintenant ACTIF (site + Lola). OpenAI est gardé en secours — vous pouvez y revenir.',
+    )
+
+  const activateOpenai = () =>
+    void run(
+      () =>
+        saveOrgAiConfig({
+          provider: 'openai',
+          providerOnly: true,
+        }),
+      'Retour sur OpenAI (actif). La clé Claude est toujours enregistrée.',
+    )
+
+  const removeClaudeOnly = () => {
+    if (!confirm('Retirer uniquement la clé Claude ? OpenAI n’est pas touché.')) return
+    void (async () => {
+      setBusy(true)
+      setErr('')
+      setMsg('')
+      const cleared = await saveOrgAiConfig({
+        provider: 'anthropic',
+        clearKey: true,
+        saveKeyOnly: true,
+      })
+      if (!cleared.ok) {
+        setBusy(false)
+        setErr(explainApiError(cleared.error) || 'Action impossible.')
+        return
+      }
+      // Si Claude était actif → revenir à OpenAI automatiquement
+      if (active === 'anthropic' && keys.openai) {
+        await saveOrgAiConfig({ provider: 'openai', providerOnly: true })
+      }
+      setBusy(false)
+      setMsg('Clé Claude retirée. OpenAI inchangé (et réactivé si besoin).')
+      await reload()
+    })()
+  }
+
+  const clearAll = () => {
+    if (!confirm('Retirer TOUTES les clés IA (OpenAI + Claude) ?')) return
+    void run(() => clearOrgOpenaiKey(), 'Toutes les clés retirées.')
   }
 
   if (loading) {
@@ -153,151 +201,164 @@ export function OpenaiOrgKeyPanel() {
         </span>
         <div>
           <h2 className="font-display text-lg font-semibold text-violet-950">
-            Intelligence IA (fournisseur)
+            Intelligence IA — OpenAI + test Claude
           </h2>
           <p className="mt-1 text-sm text-violet-900/85">
-            Choisissez le moteur : Claude (souvent plus précis sur le métier), OpenAI ou Gemini. Une
-            clé pour tout — assistant dans l’app + Lola. Facturé sur{' '}
-            <strong>votre</strong> compte fournisseur.
+            Pour l’instant <strong>OpenAI reste le moteur</strong>. Vous collez Claude à côté pour
+            tester. Si Claude convient, basculez ; sinon vous restez sur OpenAI.
           </p>
         </div>
       </div>
 
       <AiLearningInfoNotice variant="full" className="mt-3" dismissible />
 
-      <fieldset className="mt-4">
-        <legend className="mb-2 text-sm font-extrabold text-violet-950">Fournisseur actif</legend>
-        <div className="flex flex-col gap-2">
-          {PROVIDERS.map((p) => (
-            <label
-              key={p.id}
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-3 py-2.5 ${
-                provider === p.id
-                  ? 'border-violet-600 bg-white'
-                  : 'border-violet-200/80 bg-white/60'
-              }`}
-            >
-              <input
-                type="radio"
-                name="ai-provider"
-                className="mt-1"
-                checked={provider === p.id}
-                onChange={() => {
-                  setProvider(p.id)
-                  setKeyInput('')
-                  setMsg('')
-                }}
-              />
-              <span>
-                <span className="font-semibold text-violet-950">{p.label}</span>
-                {keys[p.id] ? (
-                  <span className="ml-2 text-xs font-semibold text-teal-700">clé OK</span>
-                ) : null}
-                {p.recommend ? (
-                  <span className="mt-0.5 block text-xs text-violet-800/90">{p.recommend}</span>
-                ) : (
-                  <span className="mt-0.5 block text-xs text-muted">{p.modelHint}</span>
-                )}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <p className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-900">
+        Actif maintenant :{' '}
+        {active === 'anthropic' ? 'Claude' : active === 'gemini' ? 'Gemini' : 'OpenAI'}
+        {active === 'openai' && keys.openai ? ' ✓' : ''}
+        {active === 'anthropic' && keys.anthropic ? ' ✓' : ''}
+      </p>
 
-      <ol className="mt-4 space-y-2 text-sm text-ink">
-        {provider === 'anthropic' ? (
-          <>
-            <li>
-              <span className="font-semibold">A.</span>{' '}
-              <SetupLink href={LOLA_SETUP_LINKS.anthropicSignup.href}>
-                {LOLA_SETUP_LINKS.anthropicSignup.label}
-              </SetupLink>
-            </li>
-            <li>
-              <span className="font-semibold">B.</span>{' '}
-              <SetupLink href={LOLA_SETUP_LINKS.anthropicKeys.href}>
-                {LOLA_SETUP_LINKS.anthropicKeys.label}
-              </SetupLink>
-              {' — '}créez une clé <strong>sk-ant-…</strong>
-            </li>
-          </>
-        ) : null}
-        {provider === 'openai' ? (
-          <>
-            <li>
-              <span className="font-semibold">A.</span>{' '}
-              <SetupLink href={LOLA_SETUP_LINKS.openaiSignup.href}>
-                {LOLA_SETUP_LINKS.openaiSignup.label}
-              </SetupLink>
-            </li>
-            <li>
-              <span className="font-semibold">B.</span>{' '}
-              <SetupLink href={LOLA_SETUP_LINKS.openaiBilling.href}>
-                {LOLA_SETUP_LINKS.openaiBilling.label}
-              </SetupLink>
-            </li>
-            <li>
-              <span className="font-semibold">C.</span>{' '}
-              <SetupLink href={LOLA_SETUP_LINKS.openaiKeys.href}>
-                {LOLA_SETUP_LINKS.openaiKeys.label}
-              </SetupLink>
-              {' — '}cliquez <strong>Create new secret key</strong>, copiez.
-            </li>
-          </>
-        ) : null}
-        {provider === 'gemini' ? (
-          <>
-            <li>
-              <span className="font-semibold">A.</span>{' '}
-              <SetupLink href={LOLA_SETUP_LINKS.geminiKeys.href}>
-                {LOLA_SETUP_LINKS.geminiKeys.label}
-              </SetupLink>
-            </li>
-          </>
-        ) : null}
-      </ol>
-
-      {hasKey && provider ? (
-        <p className="mt-3 text-sm font-semibold text-teal-800">
-          Actif : {meta.label}
-          {hint ? ` · ${hint}` : ''}
+      {/* ——— OpenAI (garder) ——— */}
+      <div className="mt-4 rounded-xl border-2 border-violet-300 bg-white p-4">
+        <h3 className="font-semibold text-violet-950">
+          OpenAI <span className="text-xs font-bold text-teal-700">(garder pour le moment)</span>
+        </h3>
+        <p className="mt-1 text-xs text-muted">
+          {keys.openai
+            ? `Clé présente${hints.openai ? ` · ${hints.openai}` : ''}`
+            : 'Aucune clé OpenAI — collez-en une pour continuer à faire tourner l’assistant.'}
         </p>
-      ) : null}
-
-      <label className="mt-4 block text-sm">
-        <span className="mb-1 block font-extrabold text-violet-950">
-          ↓ Coller la clé {meta.label} ici
-        </span>
-        <input
-          type="password"
-          autoComplete="off"
-          value={keyInput}
-          onChange={(e) => setKeyInput(e.target.value)}
-          placeholder={meta.placeholder}
-          className="h-12 w-full rounded-xl border-2 border-violet-400 bg-white px-3 font-mono text-sm shadow-sm"
-        />
-      </label>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy || (!keyInput.trim() && !keys[provider])}
-          onClick={() => void save()}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-800 px-5 text-sm font-bold text-white disabled:opacity-50"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {keyInput.trim() ? 'Enregistrer la clé' : 'Activer ce fournisseur'}
-        </button>
-        {hasKey || keys.openai || keys.anthropic || keys.gemini ? (
+        <ol className="mt-2 space-y-1 text-sm text-ink">
+          <li>
+            <SetupLink href={LOLA_SETUP_LINKS.openaiKeys.href}>
+              {LOLA_SETUP_LINKS.openaiKeys.label}
+            </SetupLink>
+          </li>
+        </ol>
+        <label className="mt-3 block text-sm">
+          <span className="mb-1 block font-extrabold text-violet-950">
+            ↓ Coller / mettre à jour la clé OpenAI (sk-…)
+          </span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={openaiInput}
+            onChange={(e) => setOpenaiInput(e.target.value)}
+            placeholder="sk-proj-… ou sk-…"
+            className="h-11 w-full rounded-xl border-2 border-violet-300 bg-white px-3 font-mono text-sm"
+          />
+        </label>
+        <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={busy}
-            onClick={() => void clear()}
-            className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white px-4 text-sm font-semibold text-danger"
+            disabled={busy || !openaiInput.trim()}
+            onClick={saveOpenai}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-violet-800 px-4 text-sm font-bold text-white disabled:opacity-50"
           >
-            Tout retirer
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Enregistrer OpenAI
           </button>
-        ) : null}
+          {active !== 'openai' && keys.openai ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={activateOpenai}
+              className="inline-flex min-h-10 items-center rounded-xl border border-violet-400 bg-white px-4 text-sm font-semibold text-violet-900"
+            >
+              Revenir sur OpenAI
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {/* ——— Claude (test) ——— */}
+      <div className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50/50 p-4">
+        <h3 className="font-semibold text-amber-950">
+          Claude (Anthropic){' '}
+          <span className="text-xs font-bold text-amber-800">— coller pour tester</span>
+        </h3>
+        <p className="mt-1 text-xs text-amber-950/80">
+          Enregistrer la clé <strong>ne coupe pas OpenAI</strong>. Ensuite seulement : « Tester
+          Claude ». Si ça ne va pas → « Revenir sur OpenAI ».
+        </p>
+        <ol className="mt-2 space-y-1 text-sm text-ink">
+          <li>
+            A.{' '}
+            <SetupLink href={LOLA_SETUP_LINKS.anthropicSignup.href}>
+              {LOLA_SETUP_LINKS.anthropicSignup.label}
+            </SetupLink>
+            {' · '}
+            <SetupLink href="https://www.anthropic.com/pricing">Voir les tarifs</SetupLink>
+          </li>
+          <li>
+            B.{' '}
+            <SetupLink href={LOLA_SETUP_LINKS.anthropicKeys.href}>
+              {LOLA_SETUP_LINKS.anthropicKeys.label}
+            </SetupLink>{' '}
+            — clé <strong>sk-ant-…</strong>
+          </li>
+        </ol>
+        {keys.anthropic ? (
+          <p className="mt-2 text-sm font-semibold text-teal-800">
+            Clé Claude déjà enregistrée
+            {hints.anthropic ? ` · ${hints.anthropic}` : ''}
+          </p>
+        ) : null}
+        <label className="mt-3 block text-sm">
+          <span className="mb-1 block font-extrabold text-amber-950">
+            ↓ Coller la clé Claude ici (sk-ant-…)
+          </span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={claudeInput}
+            onChange={(e) => setClaudeInput(e.target.value)}
+            placeholder="sk-ant-…"
+            className="h-11 w-full rounded-xl border-2 border-amber-400 bg-white px-3 font-mono text-sm"
+          />
+        </label>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy || !claudeInput.trim()}
+            onClick={saveClaudeKeepOpenai}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border-2 border-amber-600 bg-white px-4 text-sm font-bold text-amber-950 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Enregistrer Claude (garder OpenAI actif)
+          </button>
+          <button
+            type="button"
+            disabled={busy || (!claudeInput.trim() && !keys.anthropic)}
+            onClick={activateClaude}
+            className="inline-flex min-h-10 items-center rounded-xl bg-amber-700 px-4 text-sm font-bold text-white disabled:opacity-50"
+          >
+            Tester Claude (activer)
+          </button>
+          {keys.anthropic ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={removeClaudeOnly}
+              className="inline-flex min-h-10 items-center rounded-xl border border-line bg-white px-3 text-sm font-semibold text-danger"
+            >
+              Retirer Claude seulement
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {(keys.openai || keys.anthropic || keys.gemini) && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={clearAll}
+          className="mt-4 text-xs font-semibold text-danger underline"
+        >
+          Tout retirer (OpenAI + Claude)
+        </button>
+      )}
 
       {msg ? <p className="mt-2 text-sm font-semibold text-teal-800">{msg}</p> : null}
       {err ? <p className="mt-2 text-sm font-semibold text-rose-700">{err}</p> : null}
