@@ -342,9 +342,9 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
               if (!item) return
               if (!actionAutorisee(last, item.action)) {
                 setMsg(
-                  item.action === 'fournisseur' || item.action === 'bureau'
-                    ? 'D’abord « Trajet début de journée » (−30 min légal), puis fournisseur / bureau.'
-                    : `Action impossible après ${last ? POINTAGE_ACTION_LABELS[last.action] : 'rien'}.`,
+                  !last || lastCanon === 'fin_journee'
+                    ? 'D’abord « Déplacement hors INT début de journée ».'
+                    : `Action impossible après ${POINTAGE_ACTION_LABELS[last.action]}.`,
                 )
                 return
               }
@@ -352,7 +352,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
             }}
             className="h-11 w-full rounded-xl border border-line bg-white px-3 text-sm font-semibold"
           >
-            <option value="">Fournisseur, bureau, déplacement hors INT…</option>
+            <option value="">Choisir une entrée hors INT…</option>
             {POINTAGE_HORS_INT_MENU.map((m) => (
               <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
                 {m.label}
@@ -360,7 +360,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
             ))}
           </select>
           <p className="mt-1 text-[10px] font-semibold text-muted">
-            Trajet début / fin : hors quota 7h/8h, on ne retient que le dépassement de 30 min.
+            Trajet début / fin : hors quota 7h/8h, franchise 30 min. Pause = non payée.
             Déplacement hors INT entre deux OT : temps entier.
           </p>
           {horsOtBtns.length > 0 ? (

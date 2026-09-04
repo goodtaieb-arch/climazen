@@ -38,17 +38,23 @@ export const POINTAGE_ACTIONS_HORS_OT = [
   'fournisseur',
 ] as const
 
-/** Menu « nouvelle entrée hors intervention » (n’clôture pas l’OT). */
+/** Menu « nouvelle entrée hors intervention » (accueil + pointeuse). */
 export const POINTAGE_HORS_INT_MENU: {
   action: PointageActionCanon
   cible?: PointageCible
   label: string
 }[] = [
-  { action: 'deplacement', cible: 'hors_ot', label: 'Déplacement hors INT (entre OT)' },
-  { action: 'fournisseur', label: 'Fournisseur (station, pièces, gaz…)' },
+  {
+    action: 'sortie_domicile',
+    cible: 'domicile',
+    label: 'Déplacement hors INT début de journée',
+  },
   { action: 'bureau', label: 'Bureau / atelier' },
+  { action: 'fournisseur', label: 'Fournisseur' },
+  { action: 'deplacement', cible: 'hors_ot', label: 'Déplacement hors INT' },
   { action: 'pause', label: 'Pause' },
   { action: 'pause_repas', label: 'Pause repas' },
+  { action: 'retour_domicile', cible: 'domicile', label: 'Trajet fin' },
 ]
 
 /** Anciennes actions — toujours lues pour l’historique. */
@@ -280,6 +286,43 @@ export async function payloadFinIntervention(opts: {
     geoRefused: !geoRes.ok && geoRes.refused,
     geoError: geoRes.ok ? undefined : geoRes.message,
   }
+}
+
+/** Clôture INT : fin d’intervention + pause auto si aucune nouvelle action n’est choisie. */
+export function doitAjouterPauseApresCloture(
+  last: PointageEvent | undefined,
+  otId: string,
+): boolean {
+  if (!doitEnregistrerFinIntervention(last, otId)) return false
+  const n = last ? normaliserAction(last.action) : undefined
+  return (
+    n === 'intervention_en_cours' ||
+    (n === 'deplacement' && last?.otId === otId && (last?.cible || 'ot') === 'ot')
+  )
+}
+
+export async function payloadsClotureIntervention(opts: {
+  last?: PointageEvent
+  otId: string
+  chantierId?: string
+  userId: string
+  userName: string
+  regles: PointageRegles
+}): Promise<Omit<PointageEvent, 'id' | 'createdAt'>[]> {
+  const fin = await payloadFinIntervention(opts)
+  if (!fin) return []
+  if (!doitAjouterPauseApresCloture(opts.last, opts.otId)) return [fin]
+  return [
+    fin,
+    {
+      ...fin,
+      action: 'pause',
+      otId: undefined,
+      chantierId: undefined,
+      cible: undefined,
+      note: 'Pause auto après clôture INT — non payée',
+    },
+  ]
 }
 
 /** Statut OT à poser au punch (sans clôturer). */
@@ -518,7 +561,7 @@ export function actionsSuivantes(last?: PointageEvent): PointageActionCanon[] {
     return ['intervention_en_cours', ...HORS_OT_EN_COURS, 'retour_domicile']
   }
   if (etat === 'intervention_en_cours') {
-    return ['fin_intervention', 'deplacement', ...HORS_OT_EN_COURS]
+    return ['fin_intervention', 'deplacement', ...HORS_OT_EN_COURS, 'retour_domicile']
   }
   if (etat === 'fin_intervention') {
     return ['deplacement', ...HORS_OT_EN_COURS, 'retour_domicile', 'fin_journee']
@@ -771,13 +814,27 @@ export function calculerJournee(opts: {
     const minutes = minutesEntre(cur.at, nextAt)
     if (minutes <= 0) continue
 
-    const bucket: 'matin' | 'travail' | 'retour' = rentre
-      ? 'retour'
-      : arriveeFaite
-        ? 'travail'
-        : 'matin'
+    const estPause = n === 'pause' || n === 'pause_repas'
+    const bucket: 'matin' | 'travail' | 'retour' | 'pause' = estPause
+      ? 'pause'
+      : rentre
+        ? 'retour'
+        : arriveeFaite
+          ? 'travail'
+          : 'matin'
 
-    if (bucket === 'matin' || bucket === 'retour') {
+    if (bucket === 'pause') {
+      totals.pauseMin += minutes
+      segments.push({
+        kind: 'pause',
+        from: cur.at,
+        to: nextAt,
+        minutes,
+        otId: cur.otId,
+        chantierId: cur.chantierId,
+        cible: cur.cible,
+      })
+    } else if (bucket === 'matin' || bucket === 'retour') {
       totals.deplacementMin += minutes
       if (bucket === 'retour') totals.retourMin += minutes
       else totals.trajetMatinMin += minutes
@@ -830,7 +887,6 @@ export function calculerJournee(opts: {
     totals.interventionMin +
       totals.fournisseurMin +
       totals.bureauMin +
-      totals.pauseMin +
       (totals.deplacementMin - totals.trajetMatinMin - totals.retourMin),
   )
 
@@ -843,10 +899,8 @@ export function calculerJournee(opts: {
     pauseAutoMin = r.pauseAutoMinutes
   }
 
-  const travailNet = Math.max(
-    0,
-    travailMin - (r.pauseNonPayee ? totals.pauseMin : 0) - pauseAutoMin,
-  )
+  /* Pause (et pause repas) : jamais payée, hors quota 7h/8h. */
+  const travailNet = Math.max(0, travailMin - pauseAutoMin)
   const payeMin = travailNet + trajetRetenuMin
   const quota = Math.round(r.heuresJour * 60)
 
@@ -946,7 +1000,7 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Intervention OT (min)',
     'Fournisseur (min)',
     'Bureau (min)',
-    'Pause (min)',
+    'Pause non payée (min)',
     'Retour domicile (min)',
     'Retour retenu (min)',
     'Déplacement hors OT (min)',

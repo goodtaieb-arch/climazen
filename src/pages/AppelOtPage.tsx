@@ -71,7 +71,7 @@ import {
 } from '../lib/contratMaintenance'
 import { editionHasFeature } from '../lib/appEdition'
 import { OtPiecesPanel } from '../components/OtPiecesPanel'
-import { parsePointageEvents, parsePointageRegles, payloadFinIntervention, pointageEstActif, datePointageLocale, dernierPointage } from '../lib/pointage'
+import { parsePointageEvents, parsePointageRegles, payloadsClotureIntervention, pointageEstActif, datePointageLocale, dernierPointage } from '../lib/pointage'
 import { NIVEAU_VISITE_LABELS, parseNiveauVisite } from '../lib/contratOtAuto'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
@@ -420,7 +420,7 @@ export function AppelOtPage() {
       if (!pointageEstActif(regles)) return
       const events = parsePointageEvents(data.pointageEvents)
       const last = dernierPointage(events, { userId: user.id, date: datePointageLocale() })
-      const payload = await payloadFinIntervention({
+      const payloads = await payloadsClotureIntervention({
         last,
         otId: closedOtId,
         chantierId: otForm.chantierId,
@@ -428,7 +428,7 @@ export function AppelOtPage() {
         userName: user.fullName || user.email || 'Technicien',
         regles,
       })
-      if (payload) addPointageEvent(payload)
+      for (const payload of payloads) addPointageEvent(payload)
     } catch {
       /* GPS / pointage ne doit jamais bloquer la clôture du dossier. */
     }
