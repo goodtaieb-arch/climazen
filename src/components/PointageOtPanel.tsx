@@ -342,7 +342,7 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
               if (!item) return
               if (!actionAutorisee(last, item.action)) {
                 setMsg(
-                  !last || lastCanon === 'fin_journee'
+                  !last
                     ? 'D’abord « Déplacement hors INT début de journée ».'
                     : `Action impossible après ${POINTAGE_ACTION_LABELS[last.action]}.`,
                 )
