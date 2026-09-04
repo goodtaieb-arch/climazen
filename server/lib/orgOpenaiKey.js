@@ -4,17 +4,30 @@
 
 import { normalizeAiProvider, AI_PROVIDER_DEFAULT_MODELS } from './aiProviders.js'
 
+/** Nettoie un collage mobile (espaces, guillemets, Bearer, caractères invisibles). */
+export function sanitizeApiKeyPaste(raw) {
+  return String(raw || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/["'`]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
 export function maskOpenaiKey(raw) {
-  const key = String(raw || '').trim()
+  const key = sanitizeApiKeyPaste(raw)
   if (key.length < 8) return ''
   const last = key.slice(-4)
-  if (key.startsWith('sk-')) return `sk-…${last}`
   if (key.startsWith('sk-ant-')) return `sk-ant-…${last}`
+  if (key.startsWith('sk-')) return `sk-…${last}`
   return `…${last}`
 }
 
 export function maskApiKey(raw, provider = 'openai') {
-  const key = String(raw || '').trim()
+  const key = sanitizeApiKeyPaste(raw)
   if (key.length < 8) return ''
   const last = key.slice(-4)
   if (provider === 'anthropic' || key.startsWith('sk-ant-')) return `sk-ant-…${last}`
@@ -24,39 +37,66 @@ export function maskApiKey(raw, provider = 'openai') {
 
 /** @returns {{ ok: true, key: string } | { ok: false, error: string }} */
 export function parseOpenaiKey(raw) {
-  const key = String(raw || '').trim()
+  const key = sanitizeApiKeyPaste(raw)
   if (!key) return { ok: false, error: 'empty' }
-  if (key.length < 20 || key.length > 256) {
+  if (key.startsWith('sk-ant-')) {
+    return {
+      ok: false,
+      error: 'Ça ressemble à une clé Claude (sk-ant-…). Collez-la dans le bloc Claude, pas OpenAI.',
+    }
+  }
+  if (key.length < 20 || key.length > 512) {
     return { ok: false, error: 'Clé OpenAI invalide (longueur).' }
   }
   if (!/^sk-[A-Za-z0-9_\-]+$/.test(key)) {
-    return { ok: false, error: 'La clé doit commencer par sk- (clé API OpenAI).' }
+    return { ok: false, error: 'La clé OpenAI doit commencer par sk- ou sk-proj-.' }
   }
   return { ok: true, key }
 }
 
 export function parseAnthropicKey(raw) {
-  const key = String(raw || '').trim()
+  const key = sanitizeApiKeyPaste(raw)
   if (!key) return { ok: false, error: 'empty' }
-  if (key.length < 20 || key.length > 256) {
-    return { ok: false, error: 'Clé Anthropic invalide (longueur).' }
-  }
-  if (!/^sk-ant-[A-Za-z0-9_\-]+$/.test(key)) {
+
+  // Erreurs fréquentes : mauvaise clé collée
+  if (/^sk-(?!ant-)/i.test(key) || key.startsWith('sk-proj-')) {
     return {
       ok: false,
-      error: 'La clé Anthropic doit commencer par sk-ant- (console.anthropic.com).',
+      error:
+        'Vous avez collé une clé OpenAI (sk-… / sk-proj-…). Pour Claude, créez une clé sur console.anthropic.com/settings/keys — elle commence par sk-ant-.',
+    }
+  }
+  if (/^AIza/i.test(key)) {
+    return {
+      ok: false,
+      error: 'Ça ressemble à une clé Google Gemini. Pour Claude il faut sk-ant-…',
+    }
+  }
+
+  if (key.length < 20 || key.length > 512) {
+    return {
+      ok: false,
+      error: `Clé Anthropic invalide (longueur ${key.length}). Copiez toute la clé sk-ant-… affichée une seule fois.`,
+    }
+  }
+
+  // Format réel : sk-ant-api03-… (lettres, chiffres, tirets, underscores)
+  if (!/^sk-ant-[A-Za-z0-9_\-]+$/.test(key)) {
+    const debut = key.slice(0, 12)
+    return {
+      ok: false,
+      error: `Clé Claude refusée (début reçu : « ${debut}… »). Elle doit commencer exactement par sk-ant- (pas un ID workspace ni un code cloud). Page : console.anthropic.com/settings/keys → Create Key → copier tout de suite.`,
     }
   }
   return { ok: true, key }
 }
 
 export function parseGeminiKey(raw) {
-  const key = String(raw || '').trim()
+  const key = sanitizeApiKeyPaste(raw)
   if (!key) return { ok: false, error: 'empty' }
-  if (key.length < 20 || key.length > 256) {
+  if (key.length < 20 || key.length > 512) {
     return { ok: false, error: 'Clé Gemini invalide (longueur).' }
   }
-  // Google AI Studio keys are often alphanumeric
   if (!/^[A-Za-z0-9_\-]+$/.test(key)) {
     return { ok: false, error: 'Clé Gemini invalide (caractères).' }
   }
