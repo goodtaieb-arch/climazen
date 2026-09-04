@@ -557,7 +557,7 @@ export function AideAssistant() {
   const tierSubtitle =
     aiTier === 'agent'
       ? source === 'api'
-        ? 'Intelligence A→Z · OpenAI · validation humaine'
+        ? 'Intelligence A→Z · cloud · validation humaine'
         : source === 'local'
           ? 'Intelligence A→Z · guide + actions'
           : 'Intelligence A→Z · validation obligatoire'

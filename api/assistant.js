@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless — /api/assistant
- * Une clé OpenAI par société (collée par le gérant). Sans clé → guide local.
+ * Clé IA par société (OpenAI / Claude / Gemini). Sans clé → guide local.
  *
  * Body POST : messages, system, context, pathname, organizationId?
  */
@@ -12,11 +12,11 @@ import {
 } from '../server/lib/aiVocabularyCore.js'
 import { authorizeOrgRequest } from '../server/lib/authorizeOrg.js'
 import { logAiAudit } from '../server/lib/aiAuditLog.js'
-import { fetchOrgOpenaiKey, fetchOrgOpenaiHint } from '../server/lib/orgOpenaiKey.js'
-import { openaiChatCompletions } from '../server/lib/openaiChat.js'
+import { fetchOrgAiCredentials, fetchOrgAiStatus } from '../server/lib/orgOpenaiKey.js'
+import { orgChatCompletions, providerErrorHint, AI_PROVIDER_LABELS } from '../server/lib/aiProviders.js'
 
 const NO_KEY_HINT =
-  'Ajoutez la clé OpenAI de votre société dans Mon entreprise — c’est elle qui paie l’usage (site + Lola).'
+  'Ajoutez une clé IA (OpenAI, Claude ou Gemini) dans Mon entreprise — votre société paie l’usage (site + Lola).'
 
 export default async function handler(req, res) {
   try {
@@ -33,11 +33,12 @@ export default async function handler(req, res) {
       if (!auth.ok) {
         return res.status(200).json({ cloud: false, ok: true, provider: 'openai' })
       }
-      const status = await fetchOrgOpenaiHint(auth.orgId).catch(() => ({ hasKey: false }))
+      const status = await fetchOrgAiStatus(auth.orgId).catch(() => ({ hasKey: false, provider: 'openai' }))
       return res.status(200).json({
         cloud: Boolean(status.hasKey),
         ok: true,
-        provider: 'openai',
+        provider: status.provider || 'openai',
+        model: status.model,
         hasOrgKey: Boolean(status.hasKey),
       })
     }
@@ -63,9 +64,9 @@ export default async function handler(req, res) {
       })
     }
 
-    let apiKey = null
+    let creds
     try {
-      apiKey = await fetchOrgOpenaiKey(auth.orgId)
+      creds = await fetchOrgAiCredentials(auth.orgId)
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
       if (/organization_ai_secrets|schema cache|does not exist/i.test(msg)) {
@@ -73,17 +74,17 @@ export default async function handler(req, res) {
           reply: '',
           source: 'local',
           error: 'sql_missing',
-          hint: 'Exécutez supabase/ai-org-openai.sql puis collez votre clé OpenAI dans Mon entreprise.',
+          hint: 'Exécutez supabase/ai-org-openai.sql (+ ai-org-providers.sql) puis collez votre clé IA dans Mon entreprise.',
         })
       }
       throw err
     }
 
-    if (!apiKey) {
+    if (!creds.apiKey) {
       return res.status(200).json({
         reply: '',
         source: 'local',
-        error: 'openai_key_missing',
+        error: 'ai_key_missing',
         hint: NO_KEY_HINT,
       })
     }
@@ -120,25 +121,23 @@ export default async function handler(req, res) {
       chatMessages.push({ role: 'user', content: 'Peux-tu m’aider sur ClimaZEN ?' })
     }
 
-    const ai = await openaiChatCompletions({
-      apiKey,
+    const ai = await orgChatCompletions({
+      provider: creds.provider,
+      apiKey: creds.apiKey,
+      model: creds.model,
       messages: chatMessages,
       temperature: 0.4,
-      maxTokens: 700,
+      maxTokens: 900,
     })
 
     if (!ai.ok) {
-      const hint =
-        ai.status === 429
-          ? 'Quota OpenAI de votre société atteint (facturé sur votre compte OpenAI).'
-          : ai.status === 401 || ai.status === 403
-            ? 'Clé OpenAI invalide. Vérifiez-la dans Mon entreprise.'
-            : `Erreur OpenAI (${ai.status || 'réseau'}). Guide local utilisé.`
+      const hint = providerErrorHint(creds.provider, ai.status)
       return res.status(200).json({
         reply: '',
         source: 'local',
-        error: `openai_${ai.status || 'error'}`,
+        error: `ai_${ai.status || 'error'}`,
         hint,
+        provider: creds.provider,
       })
     }
 
@@ -147,8 +146,9 @@ export default async function handler(req, res) {
       return res.status(200).json({
         reply: '',
         source: 'local',
-        error: 'openai_empty',
-        hint: 'Réponse OpenAI vide. Guide local utilisé.',
+        error: 'ai_empty',
+        hint: `Réponse ${AI_PROVIDER_LABELS[creds.provider] || 'IA'} vide. Guide local utilisé.`,
+        provider: creds.provider,
       })
     }
 
@@ -158,21 +158,21 @@ export default async function handler(req, res) {
         text: lastUserText,
         agent: 'openai',
         normalizedText: normalizeTechnicalText(lastUserText),
-        metadata: { pathname, model: ai.model },
+        metadata: { pathname, model: ai.model, provider: creds.provider },
       }).catch(() => undefined)
       void logAiAudit({
         orgId: auth.orgId,
         agent: 'openai',
         action: 'assistant_reply',
         actorUserId: auth.user.id,
-        detail: { pathname, model: ai.model },
+        detail: { pathname, model: ai.model, provider: creds.provider },
       })
     }
 
     return res.status(200).json({
       reply,
       source: 'api',
-      provider: 'openai',
+      provider: creds.provider,
       model: ai.model,
     })
   } catch (err) {
