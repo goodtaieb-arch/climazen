@@ -1,5 +1,5 @@
 /**
- * Tests — lecture OT / bilan mois (cas « combien d’OT à clôturer ce mois »).
+ * Tests — accès global données (recherche libre + snapshot, pas cas par cas).
  * Run: npx tsx scripts/test-assistant-data-query.ts
  */
 import assert from 'node:assert/strict'
@@ -9,6 +9,7 @@ import {
   computeOtStats,
   normalizeOtTypos,
   buildLiveDataSnapshot,
+  searchOrgData,
 } from '../src/lib/assistantDataQuery'
 import { todayIsoLocal } from '../src/lib/agenda'
 import type { AppData } from '../src/lib/types'
@@ -17,12 +18,9 @@ import { emptyData } from '../src/lib/storage'
 const today = todayIsoLocal()
 const ym = today.slice(0, 7)
 const midMonth = `${ym}-15`
-const otherMonth = ym.endsWith('01') ? `${Number(ym.slice(0, 4)) - 1}-12-10` : `${ym.slice(0, 4)}-${String(Number(ym.slice(5, 7)) - 1).padStart(2, '0')}-10`
-
-assert.ok(wantsDataQuery('Combien de or reste à effectuer de ce mois qu’on doit le clôturer afin de fin de mois'))
-assert.ok(wantsDataQuery('Combien d’OT restent à clôturer ce mois ?'))
-assert.ok(wantsDataQuery('bilan fin de mois OT ouverts'))
-assert.equal(wantsDataQuery('bonjour comment ça va'), false)
+const otherMonth = ym.endsWith('01')
+  ? `${Number(ym.slice(0, 4)) - 1}-12-10`
+  : `${ym.slice(0, 4)}-${String(Number(ym.slice(5, 7)) - 1).padStart(2, '0')}-10`
 
 assert.ok(/OT/i.test(normalizeOtTypos('Combien de or reste')))
 
@@ -38,7 +36,7 @@ const data = {
       nomContact: '',
       adresse: '',
       codePostal: '',
-      ville: '',
+      ville: 'Marseille',
       telephone: '',
       email: '',
       createdAt: '',
@@ -53,6 +51,29 @@ const data = {
       codePostal: '',
       ville: '',
       createdAt: '',
+    },
+  ],
+  piecesDetachees: [
+    {
+      id: 'p1',
+      reference: 'M5-600',
+      designation: 'Filtre M5',
+      quantite: 12,
+      emplacement: 'atelier',
+      updatedAt: '',
+    },
+  ],
+  devis: [
+    {
+      id: 'd1',
+      numero: 'D-100',
+      type: 'travaux',
+      statut: 'brouillon',
+      clientId: 'c1',
+      libelle: 'Devis chambre froide Martin',
+      lignes: [],
+      createdAt: '',
+      updatedAt: '',
     },
   ],
   ordresTravail: [
@@ -119,26 +140,43 @@ const data = {
   ],
 } as unknown as AppData
 
-const stats = computeOtStats(data, {
-  period: { kind: 'month', label: 'mois', monthYm: ym },
-})
+const stats = computeOtStats(data, { monthYm: ym })
 assert.equal(stats.open, 2, `expected 2 open this month, got ${stats.open}`)
 assert.equal(stats.closed, 1)
-assert.equal(stats.total, 3)
+
+// Recherche libre multi-domaines (pas un regex par exemple)
+const hitsFrigo = searchOrgData(data, 'Frigo Sud entrepôt')
+assert.ok(hitsFrigo.some((h) => h.domain === 'client'))
+assert.ok(hitsFrigo.some((h) => h.domain === 'site'))
+
+const hitsPiece = searchOrgData(data, 'filtre M5 en stock')
+assert.ok(hitsPiece.some((h) => h.domain === 'piece' && /M5/i.test(h.line)))
+
+const hitsDevis = searchOrgData(data, 'devis Martin chambre')
+assert.ok(hitsDevis.some((h) => h.domain === 'devis'))
 
 const phrase =
   "Combien de or reste à effectuer de ce mois qu'on doit le clôturer afin de fin de mois"
 assert.ok(wantsDataQuery(phrase))
-const reply = answerDataQuery(data, phrase)
-assert.ok(/2/.test(reply), `reply should mention 2 open OTs:\n${reply}`)
-assert.ok(/26090401|OT26090401/.test(reply))
-assert.ok(/26090402|OT26090402/.test(reply))
-assert.ok(!/aucun OT ouvert pour ce mois/i.test(reply))
-assert.ok(/Thomas Roux/.test(reply))
 
-const snap = buildLiveDataSnapshot(data, { userQuery: phrase, maxClients: 10 })
+const snap = buildLiveDataSnapshot(data, {
+  userQuery: phrase,
+  maxClients: 10,
+  team: [{ id: 'u1', fullName: 'Thomas Roux' }],
+})
 assert.ok(/DONNÉES RÉELLES/.test(snap))
-assert.ok(/2 ouverts/.test(snap) || /ouverts à clôturer/.test(snap))
+assert.ok(/TOTAUX/.test(snap))
+assert.ok(/RECHERCHE/.test(snap))
+assert.ok(/2 ouverts/.test(snap) || /ouverts en/.test(snap))
 assert.ok(/Frigo Sud/.test(snap))
+assert.ok(/accès total|N’IMPORTE|IMPORTE quelle/i.test(snap))
 
-console.log('ok — assistant data query')
+// Snapshot pour une question totalement différente → toujours les totaux + hits
+const snap2 = buildLiveDataSnapshot(data, { userQuery: 'où en est le devis Martin ?' })
+assert.ok(/Devis/.test(snap2) || /devis/.test(snap2))
+assert.ok(/Clients/.test(snap2))
+
+const reply = answerDataQuery(data, phrase)
+assert.ok(/2/.test(reply), `fallback reply should mention 2:\n${reply}`)
+
+console.log('ok — assistant data query (global search)')

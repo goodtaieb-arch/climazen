@@ -69,11 +69,11 @@ export const AI_ACTION_DOMAINS = [
   },
   {
     id: 'lecture_ot',
-    label: 'Lire OT / bilan mois (chiffres réels)',
+    label: 'Lire toutes les données (OT, clients, stock…)',
     examples: [
       'Combien d’OT restent à clôturer ce mois ?',
-      'OT ouverts aujourd’hui',
-      'Bilan fin de mois',
+      'Où en est le devis Martin ?',
+      'Qui a le détecteur X ?',
     ],
   },
 ] as const

@@ -1,11 +1,14 @@
 /**
- * Lecture factuelle de TOUTES les données app (OT, clients, sites…) pour l’assistant.
- * Pas de RAG : on interroge AppData en mémoire (source de vérité org_data).
- * Corrige le cas où OpenAI ne voyait qu’un extrait (40 clients / OT du jour).
+ * Accès GLOBAL aux données société pour l’assistant (toutes questions, pas cas par cas).
+ *
+ * Principe :
+ * 1) Totaux de tous les domaines (OT, clients, devis, stock…)
+ * 2) Recherche libre sur les mots de la question → hits pertinents
+ * 3) OpenAI répond avec ce contexte — pas besoin d’un regex par exemple
  */
 
 import type { AppData } from './types'
-import { clientDisplayName } from './types'
+import { clientDisplayName, CONTENANT_TYPE_LABELS } from './types'
 import {
   formatOtNumero,
   isOtCloture,
@@ -14,8 +17,9 @@ import {
   type OrdreTravail,
   type StatutOt,
 } from './ordreTravail'
-import { todayIsoLocal } from './agenda'
+import { todayIsoLocal, AGENDA_TYPE_LABELS } from './agenda'
 import { scorePersonName, type TeamMemberLite } from './assistantOtLookup'
+import { allEquipements } from './cerfaBatch'
 
 function normalize(s: string): string {
   return String(s || '')
@@ -28,19 +32,24 @@ function normalize(s: string): string {
     .trim()
 }
 
-/** « or » dicté/tapé à la place de « ot », « ordre », etc. */
+/** Mots vides FR — ne servent pas à la recherche. */
+const STOP = new Set(
+  normalize(
+    `a au aux avec ce ces cet cette de des du elle en et eux il ils je la le les leur ma me mes moi mon
+     ne nos notre nous on ou par pas pour qu que qui sa se ses son sur ta te tes toi ton tu un une vos
+     votre vous y d l n s c qu est sont ai as a ont etait ete etre faire fait comment combien quel quelle
+     quels quelles le la les mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs
+     reste rester effectuer clôturer cloturer afin fin mois aujourd hui demain hier semaine
+     ouverts ouvert ouverte ouvertes encore doit doivent`,
+  ).split(' '),
+)
+
 export function normalizeOtTypos(raw: string): string {
-  return String(raw || '')
-    .replace(/\b(or|ots|o\.t\.?|odi|ordres?)\b/gi, (m) => {
-      const n = normalize(m)
-      if (n === 'or' || n === 'ots' || n === 'ot' || n === 'o t' || n === 'odi') return 'OT'
-      if (n.startsWith('ordre')) return m
-      return 'OT'
-    })
+  return String(raw || '').replace(/\b(or|ots|o\.t\.?|odi)\b/gi, 'OT')
 }
 
 function monthPrefix(iso = todayIsoLocal()): string {
-  return iso.slice(0, 7) // YYYY-MM
+  return iso.slice(0, 7)
 }
 
 function monthLabelFr(ym: string): string {
@@ -62,129 +71,27 @@ function monthLabelFr(ym: string): string {
   return `${names[(m || 1) - 1] || m} ${y}`
 }
 
-function resolvePeriod(raw: string, today = todayIsoLocal()): {
-  kind: 'today' | 'month' | 'week' | 'all_open' | 'date'
-  label: string
-  dateIso?: string
-  monthYm?: string
-} {
-  const n = normalize(raw)
-  if (/\b(ce\s+mois|fin\s+de\s+mois|du\s+mois|mois\s+en\s+cours|ce\s+mois[- ]?ci)\b/.test(n)) {
-    const ym = monthPrefix(today)
-    return { kind: 'month', label: monthLabelFr(ym), monthYm: ym }
-  }
-  if (/\b(cette\s+semaine|semaine\s+en\s+cours)\b/.test(n)) {
-    return { kind: 'week', label: 'cette semaine' }
-  }
-  if (/\b(aujourd|auj)\w*\b/.test(n) || /\baujourd\s*hui\b/.test(n)) {
-    return { kind: 'today', label: 'aujourd’hui', dateIso: today }
-  }
-  if (/\bdemain\b/.test(n)) {
-    const d = new Date(today + 'T12:00:00')
-    d.setDate(d.getDate() + 1)
-    const iso = d.toISOString().slice(0, 10)
-    return { kind: 'date', label: 'demain', dateIso: iso }
-  }
-  const fr = raw.match(/\b(\d{1,2})[./\-](\d{1,2})(?:[./\-](\d{2,4}))?\b/)
-  if (fr) {
-    let y = fr[3] ? Number(fr[3]) : Number(today.slice(0, 4))
-    if (y < 100) y += 2000
-    const m = String(Number(fr[2])).padStart(2, '0')
-    const d = String(Number(fr[1])).padStart(2, '0')
-    const iso = `${y}-${m}-${d}`
-    return { kind: 'date', label: iso, dateIso: iso }
-  }
-  // défaut pour « combien d’OT à clôturer / reste à faire » → mois en cours
-  if (/\b(clotur|rester?|reste|effectuer|finir|a\s+faire|ouverts?)\b/.test(n)) {
-    const ym = monthPrefix(today)
-    return { kind: 'month', label: monthLabelFr(ym), monthYm: ym }
-  }
-  return { kind: 'all_open', label: 'tous les OT ouverts' }
-}
-
 function otDate(o: OrdreTravail): string {
   return String(o.date || '').slice(0, 10)
 }
 
-function startOfWeekMonday(iso: string): string {
-  const d = new Date(iso.slice(0, 10) + 'T12:00:00')
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 10)
+function queryTokens(raw: string): string[] {
+  const n = normalize(normalizeOtTypos(raw))
+  return n
+    .split(' ')
+    .filter((t) => t.length >= 2 && !STOP.has(t) && !/^\d+$/.test(t))
 }
 
-function inWeek(iso: string, today: string): boolean {
-  const start = startOfWeekMonday(today)
-  const end = new Date(start + 'T12:00:00')
-  end.setDate(end.getDate() + 6)
-  const endIso = end.toISOString().slice(0, 10)
-  return iso >= start && iso <= endIso
-}
-
-export function filterOtsByPeriod(
-  ots: OrdreTravail[],
-  period: ReturnType<typeof resolvePeriod>,
-  today = todayIsoLocal(),
-): OrdreTravail[] {
-  return ots.filter((o) => {
-    const d = otDate(o)
-    if (!d) return period.kind === 'all_open'
-    if (period.kind === 'today' || period.kind === 'date') return d === (period.dateIso || today)
-    if (period.kind === 'month') return d.startsWith(period.monthYm || monthPrefix(today))
-    if (period.kind === 'week') return inWeek(d, today)
-    return true
-  })
-}
-
-function formatOtBrief(
-  o: OrdreTravail,
-  data: AppData,
-): string {
-  const site = data.chantiers?.find((s) => s.id === o.chantierId)
-  const client = data.clients?.find((c) => c.id === o.clientId)
-  const where = [client ? clientDisplayName(client) : '', site?.nom].filter(Boolean).join(' · ')
-  const type = TYPE_OT_LABELS[o.typeOt] || o.typeOt
-  const st = STATUT_OT_LABELS[o.statut as StatutOt] || o.statut || '—'
-  const heure = (o.heure || '').slice(0, 5)
-  return `• ${formatOtNumero(o.numero)} — ${type} · ${st}${heure ? ` · ${heure}` : ''} · ${otDate(o)}${
-    o.technicien ? ` · ${o.technicien}` : ''
-  }${where ? ` · ${where}` : ''} — ${(o.action || '').slice(0, 70)}`
-}
-
-/**
- * Questions de lecture métier : comptes OT, reste à clôturer, liste, stats.
- * Inclut fautes « or » / « o.t » et formulations orales fin de mois.
- */
-export function wantsDataQuery(raw: string): boolean {
-  const fixed = normalizeOtTypos(raw)
-  const n = normalize(fixed)
-  if (!n) return false
-
-  const mentionsOt =
-    /\b(ot|ordre|ordres|intervention|interventions)\b/.test(n) ||
-    /\b(or|ots)\b/.test(normalize(raw)) // typo brute avant normalisation
-
-  const asksCount =
-    /\b(combien|nombre|reste|rester|restent|encore|a\s+faire|effectuer|clotur|finir|statistique|bilan|synthese|synth[eè]se)\b/.test(
-      n,
-    ) || /\b(ouverts?|non\s+clotur|pas\s+clotur|en\s+cours)\b/.test(n)
-
-  const asksList =
-    /\b(liste|lister|montre|affiche|quels?|quelles?|donne[- ]moi|voir)\b/.test(n) && mentionsOt
-
-  const periodHint =
-    /\b(ce\s+mois|fin\s+de\s+mois|aujourd|auj|demain|cette\s+semaine|mois)\b/.test(n)
-
-  if (mentionsOt && (asksCount || asksList)) return true
-  if (mentionsOt && periodHint && /\b(reste|clotur|effectuer|ouverts?|a\s+faire)\b/.test(n)) {
-    return true
+function scoreText(haystack: string, tokens: string[]): number {
+  const h = normalize(haystack)
+  if (!h || !tokens.length) return 0
+  let score = 0
+  for (const t of tokens) {
+    if (h === t) score += 100
+    else if (h.includes(t)) score += 50
+    else if (t.length >= 4 && h.split(' ').some((w) => w.startsWith(t) || t.startsWith(w))) score += 30
   }
-  // « combien reste à faire ce mois » même sans « OT » explicite si contexte clôture
-  if (asksCount && periodHint && /\b(clotur|effectuer|intervention|travail)\b/.test(n)) {
-    return true
-  }
-  return false
+  return score
 }
 
 export type OtStats = {
@@ -196,13 +103,17 @@ export type OtStats = {
   closedList: OrdreTravail[]
 }
 
+function filterOtsMonth(ots: OrdreTravail[], ym: string): OrdreTravail[] {
+  return ots.filter((o) => otDate(o).startsWith(ym))
+}
+
 export function computeOtStats(
   data: AppData,
-  opts?: { period?: ReturnType<typeof resolvePeriod>; includeAllStatuses?: boolean },
+  opts?: { monthYm?: string; dateIso?: string },
 ): OtStats {
-  const all = data.ordresTravail || []
-  const period = opts?.period || { kind: 'all_open' as const, label: 'tous' }
-  const scoped = filterOtsByPeriod(all, period)
+  let scoped = data.ordresTravail || []
+  if (opts?.monthYm) scoped = filterOtsMonth(scoped, opts.monthYm)
+  if (opts?.dateIso) scoped = scoped.filter((o) => otDate(o) === opts.dateIso)
   const openList = scoped.filter((o) => !isOtCloture(o.statut))
   const closedList = scoped.filter((o) => isOtCloture(o.statut))
   const byStatut: Record<string, number> = {}
@@ -220,89 +131,152 @@ export function computeOtStats(
   }
 }
 
+function formatOtBrief(o: OrdreTravail, data: AppData): string {
+  const site = data.chantiers?.find((s) => s.id === o.chantierId)
+  const client = data.clients?.find((c) => c.id === o.clientId)
+  const where = [client ? clientDisplayName(client) : '', site?.nom].filter(Boolean).join(' · ')
+  const type = TYPE_OT_LABELS[o.typeOt] || o.typeOt
+  const st = STATUT_OT_LABELS[o.statut as StatutOt] || o.statut || '—'
+  const heure = (o.heure || '').slice(0, 5)
+  return `• ${formatOtNumero(o.numero)} — ${type} · ${st}${heure ? ` · ${heure}` : ''} · ${otDate(o)}${
+    o.technicien ? ` · ${o.technicien}` : ''
+  }${where ? ` · ${where}` : ''} — ${(o.action || '').slice(0, 70)}`
+}
+
+export type SearchHit = { domain: string; score: number; line: string }
+
 /**
- * Réponse locale authoritative — chiffres réels depuis AppData.
+ * Recherche libre multi-domaines : n’importe quels mots de la question.
+ * C’est ça qui rend l’intelligence « ouverte » (pas un if par exemple).
  */
-export function answerDataQuery(
+export function searchOrgData(
   data: AppData,
   raw: string,
-  _team?: TeamMemberLite[],
-): string {
-  const period = resolvePeriod(raw)
-  const stats = computeOtStats(data, { period })
-  const wantsClosedOnly = /\b(clotur[eé]s?|termin[eé]s?|finis?|sign[eé]s?)\b/.test(
-    normalize(raw),
-  ) && !/\b(a\s+clotur|rester?|reste|effectuer|ouverts?|non\s+clotur)\b/.test(normalize(raw))
+  opts?: { team?: TeamMemberLite[]; max?: number },
+): SearchHit[] {
+  const tokens = queryTokens(raw)
+  if (!tokens.length) return []
+  const hits: SearchHit[] = []
+  const push = (domain: string, score: number, line: string) => {
+    if (score < 40) return
+    hits.push({ domain, score, line })
+  }
 
-  const lines: string[] = []
+  for (const c of data.clients || []) {
+    const label = clientDisplayName(c)
+    const blob = `${label} ${c.ville || ''} ${c.telephone || ''} ${c.email || ''} ${c.siret || ''}`
+    push('client', scoreText(blob, tokens), `Client « ${label} »${c.ville ? ` · ${c.ville}` : ''}`)
+  }
 
-  if (wantsClosedOnly) {
-    lines.push(
-      `Sur ${period.label} : ${stats.closed} OT clôturé${stats.closed > 1 ? 's' : ''} / terminé${stats.closed > 1 ? 's' : ''} (sur ${stats.total} OT au total).`,
+  for (const s of data.chantiers || []) {
+    const client = data.clients?.find((c) => c.id === s.clientId)
+    const eqs = allEquipements(s)
+      .slice(0, 6)
+      .map((e) => e.nom || e.type || '')
+      .filter(Boolean)
+      .join(', ')
+    const blob = `${s.nom} ${s.ville || ''} ${s.adresse || ''} ${eqs} ${client ? clientDisplayName(client) : ''}`
+    push(
+      'site',
+      scoreText(blob, tokens),
+      `Site « ${s.nom} »${client ? ` · client ${clientDisplayName(client)}` : ''}${eqs ? ` · éq. ${eqs}` : ''}`,
     )
-    if (stats.closedList.length) {
-      lines.push('', 'Derniers clôturés :')
-      for (const o of stats.closedList.slice(0, 12)) lines.push(formatOtBrief(o, data))
-      if (stats.closedList.length > 12) {
-        lines.push(`… et ${stats.closedList.length - 12} autre(s).`)
-      }
-    }
-    return lines.join('\n')
   }
 
-  // Cas principal : reste à effectuer / à clôturer
-  lines.push(
-    `Sur ${period.label} : ${stats.open} OT encore ouvert${stats.open > 1 ? 's' : ''} à effectuer / clôturer` +
-      (stats.total
-        ? ` (sur ${stats.total} OT au total, dont ${stats.closed} déjà clôturé${stats.closed > 1 ? 's' : ''})`
-        : '') +
-      '.',
-  )
+  for (const o of data.ordresTravail || []) {
+    const site = data.chantiers?.find((s) => s.id === o.chantierId)
+    const client = data.clients?.find((c) => c.id === o.clientId)
+    const blob = [
+      o.numero,
+      o.action,
+      o.technicien,
+      o.typeOt,
+      o.statut,
+      site?.nom,
+      client ? clientDisplayName(client) : '',
+    ].join(' ')
+    push('ot', scoreText(blob, tokens), formatOtBrief(o, data).replace(/^• /, 'OT '))
+  }
 
-  if (stats.open === 0) {
-    lines.push(
-      '',
-      stats.total === 0
-        ? `Aucun OT planifié pour ${period.label} dans vos données.`
-        : `Tous les OT de ${period.label} sont déjà clôturés ou terminés.`,
+  for (const p of data.piecesDetachees || []) {
+    const blob = `${p.reference} ${p.designation} ${p.emplacement || ''}`
+    push(
+      'piece',
+      scoreText(blob, tokens),
+      `Pièce ${p.reference || '—'} — ${p.designation || ''} · stock ${p.quantite ?? 0}`,
     )
-    // Aide : montrer les ouverts hors période s’il y en a
-    const allOpen = (data.ordresTravail || []).filter((o) => !isOtCloture(o.statut))
-    if (allOpen.length && period.kind !== 'all_open') {
-      lines.push(
-        '',
-        `Note : il reste ${allOpen.length} OT ouvert${allOpen.length > 1 ? 's' : ''} sur d’autres dates (hors ${period.label}).`,
-      )
-      for (const o of allOpen.slice(0, 8)) lines.push(formatOtBrief(o, data))
-      if (allOpen.length > 8) lines.push(`… et ${allOpen.length - 8} autre(s).`)
-    }
-    return lines.join('\n')
   }
 
-  lines.push('', 'OT ouverts :')
-  const sorted = [...stats.openList].sort((a, b) => otDate(a).localeCompare(otDate(b)))
-  for (const o of sorted.slice(0, 20)) lines.push(formatOtBrief(o, data))
-  if (sorted.length > 20) lines.push(`… et ${sorted.length - 20} autre(s).`)
-
-  // Répartition par statut
-  const statutParts = Object.entries(stats.byStatut)
-    .filter(([st]) => !isOtCloture(st))
-    .map(([st, n]) => `${STATUT_OT_LABELS[st as StatutOt] || st}: ${n}`)
-  if (statutParts.length) {
-    lines.push('', `Répartition : ${statutParts.join(' · ')}`)
+  for (const cmd of data.commandesFournisseur || []) {
+    const blob = `${cmd.libelle || ''} ${cmd.referencePiece || ''} ${cmd.fournisseur || ''} ${cmd.statut || ''}`
+    push(
+      'commande',
+      scoreText(blob, tokens),
+      `Commande « ${(cmd.libelle || cmd.referencePiece || '').slice(0, 60)} » · ${cmd.statut || '—'}`,
+    )
   }
 
-  lines.push(
-    '',
-    'Pour clôturer un OT : ouvrez-le depuis l’Agenda ou OT, signez, puis Clôturer (action humaine — l’IA ne clôture pas).',
-  )
+  for (const d of data.devis || []) {
+    const client = data.clients?.find((c) => c.id === d.clientId)
+    const blob = `${d.numero || ''} ${d.libelle || ''} ${d.statut || ''} ${client ? clientDisplayName(client) : ''}`
+    push(
+      'devis',
+      scoreText(blob, tokens),
+      `Devis ${d.numero || '—'} — ${(d.libelle || '').slice(0, 50)} · ${d.statut || '—'}`,
+    )
+  }
 
-  return lines.join('\n')
+  for (const b of data.stock || []) {
+    const blob = `${b.fluide} ${b.numeroContenant} ${b.surnom || ''} ${b.contenantType || ''}`
+    const typeLabel = CONTENANT_TYPE_LABELS[b.contenantType] || b.contenantType
+    push(
+      'fluide',
+      scoreText(blob, tokens),
+      `Bouteille ${b.numeroContenant || b.surnom || '—'} · ${b.fluide} · ${typeLabel} · ${b.quantiteKg ?? 0} kg`,
+    )
+  }
+
+  for (const ev of data.agendaEvents || []) {
+    const blob = `${ev.title} ${ev.type} ${ev.technicien || ''} ${ev.notes || ''}`
+    push(
+      'agenda',
+      scoreText(blob, tokens),
+      `Agenda ${String(ev.date || '').slice(0, 10)} — ${AGENDA_TYPE_LABELS[ev.type] || ev.type} · ${ev.title}`,
+    )
+  }
+
+  for (const det of data.detecteurs || []) {
+    const blob = `${det.identification} ${det.assigneeName || ''}`
+    push(
+      'detecteur',
+      scoreText(blob, tokens),
+      `Détecteur ${det.identification}${det.assigneeName ? ` · ${det.assigneeName}` : ''}`,
+    )
+  }
+
+  for (const m of opts?.team || []) {
+    const blob = `${m.fullName || ''} ${m.email || ''}`
+    const sc = Math.max(scoreText(blob, tokens), scorePersonName(m.fullName || '', tokens.join(' ')))
+    push('tech', sc, `Tech « ${m.fullName || m.email || m.id} »`)
+  }
+
+  hits.sort((a, b) => b.score - a.score)
+  const max = opts?.max ?? 35
+  // dédoublonnage lignes
+  const seen = new Set<string>()
+  const out: SearchHit[] = []
+  for (const h of hits) {
+    if (seen.has(h.line)) continue
+    seen.add(h.line)
+    out.push(h)
+    if (out.length >= max) break
+  }
+  return out
 }
 
 /**
- * Snapshot dense pour OpenAI : stats mois + OT ouverts (pas seulement aujourd’hui)
- * + clients/sites scorés selon la question.
+ * Index GLOBAL injecté à chaque question OpenAI.
+ * Totaux tous domaines + hits de recherche libre + listes utiles.
  */
 export function buildLiveDataSnapshot(
   data: AppData,
@@ -315,92 +289,138 @@ export function buildLiveDataSnapshot(
 ): string {
   const today = todayIsoLocal()
   const ym = monthPrefix(today)
-  const monthStats = computeOtStats(data, {
-    period: { kind: 'month', label: monthLabelFr(ym), monthYm: ym },
-  })
-  const todayStats = computeOtStats(data, {
-    period: { kind: 'today', label: 'aujourd’hui', dateIso: today },
-  })
+  const monthStats = computeOtStats(data, { monthYm: ym })
+  const todayStats = computeOtStats(data, { dateIso: today })
   const allOpen = (data.ordresTravail || []).filter((o) => !isOtCloture(o.statut))
+  const allOts = data.ordresTravail || []
 
   const lines: string[] = [
-    '=== DONNÉES RÉELLES DE LA SOCIÉTÉ (source de vérité — ne pas inventer) ===',
+    '=== DONNÉES RÉELLES DE LA SOCIÉTÉ (accès TOTAL lecture — ne pas inventer) ===',
     `Date du jour : ${today}`,
-    `OT ${monthLabelFr(ym)} : ${monthStats.open} ouverts à clôturer / ${monthStats.closed} clôturés / ${monthStats.total} au total`,
-    `OT aujourd’hui : ${todayStats.open} ouverts / ${todayStats.total} au total`,
-    `OT ouverts (toutes dates) : ${allOpen.length}`,
-    `Clients : ${(data.clients || []).length} · Sites : ${(data.chantiers || []).length} · Pièces stock : ${(data.piecesDetachees || []).length}`,
+    '',
+    '— TOTAUX (tous domaines) —',
+    `OT : ${allOts.length} au total · ${allOpen.length} ouverts · ${monthStats.open} ouverts en ${monthLabelFr(ym)} (${monthStats.closed} clôturés ce mois) · ${todayStats.open} ouverts aujourd’hui`,
+    `Clients : ${(data.clients || []).length} · Sites : ${(data.chantiers || []).length}`,
+    `Devis : ${(data.devis || []).length} · Commandes fournisseur : ${(data.commandesFournisseur || []).length} · Factures : ${(data.factures || []).length}`,
+    `Pièces détachées : ${(data.piecesDetachees || []).length} · Bouteilles fluide : ${(data.stock || []).length}`,
+    `CERFA / interventions : ${(data.interventions || []).length} · Contrats : ${(data.contratsMaintenance || []).length}`,
+    `Agenda : ${(data.agendaEvents || []).length} · Détecteurs : ${(data.detecteurs || []).length}`,
+    `Fiches clim : ${(data.fichesMaintenanceClim || []).length} · Voitures : ${(data.voitures || []).length} · Outillages : ${(data.outillages || []).length}`,
   ]
 
   const names = (opts?.team || [])
     .map((m) => (m.fullName || '').trim())
     .filter(Boolean)
-    .slice(0, 40)
+    .slice(0, 50)
   if (names.length) lines.push(`Équipe : ${names.join(' · ')}`)
 
-  const maxOts = opts?.maxOpenOts ?? 40
+  // Recherche libre selon la question → ouvre l’IA à N’IMPORTE quel exemple
+  const q = (opts?.userQuery || '').trim()
+  if (q) {
+    const hits = searchOrgData(data, q, { team: opts?.team, max: 35 })
+    lines.push('', `— RÉSULTATS RECHERCHE pour « ${q.slice(0, 120)} » —`)
+    if (!hits.length) {
+      lines.push('(aucun nom/réf. précis trouvé dans les libellés — s’appuyer sur les TOTAUX et listes ci-dessous)')
+    } else {
+      for (const h of hits) lines.push(`[${h.domain}] ${h.line}`)
+    }
+  }
+
+  const maxOts = opts?.maxOpenOts ?? 50
   const openForPrompt = [...allOpen]
     .sort((a, b) => otDate(a).localeCompare(otDate(b)))
     .slice(0, maxOts)
-  lines.push('', `OT ouverts (max ${maxOts}) :`)
+  lines.push('', `— OT ouverts (max ${maxOts}, total exact ${allOpen.length}) —`)
   if (!openForPrompt.length) lines.push('• (aucun)')
   for (const o of openForPrompt) lines.push(formatOtBrief(o, data))
   if (allOpen.length > maxOts) {
-    lines.push(`… +${allOpen.length - maxOts} OT ouverts non listés (demander un filtre tech/date).`)
+    lines.push(`… +${allOpen.length - maxOts} OT ouverts non listés (filtrer par tech/date/client dans la recherche).`)
   }
 
-  // Clients pertinents selon la question, sinon les premiers
-  const q = normalize(opts?.userQuery || '')
-  const maxC = opts?.maxClients ?? 60
+  // Clients : si peu nombreux → tous ; sinon recherche + échantillon
+  const maxC = opts?.maxClients ?? 80
   const clients = data.clients || []
   let picked = clients.slice(0, maxC)
-  if (q.length >= 3) {
+  if (q && clients.length > maxC) {
+    const tokens = queryTokens(q)
     const scored = clients
-      .map((c) => {
-        const label = clientDisplayName(c)
-        const score = Math.max(
-          scorePersonName(label, q),
-          ...normalize(label)
-            .split(' ')
-            .filter((t) => t.length > 2 && q.includes(t))
-            .map(() => 70),
-          normalize(label)
-            .split(' ')
-            .some((t) => t.length > 3 && q.includes(t))
-            ? 60
-            : 0,
-        )
-        // tokens de la query dans le nom
-        const tokens = q.split(' ').filter((t) => t.length > 2)
-        const hitTokens = tokens.filter((t) => normalize(label).includes(t)).length
-        return { c, score: Math.max(score, hitTokens * 40) }
-      })
-      .filter((x) => x.score >= 40)
+      .map((c) => ({ c, score: scoreText(clientDisplayName(c), tokens) }))
       .sort((a, b) => b.score - a.score)
-      .map((x) => x.c)
-    if (scored.length) {
-      const ids = new Set(scored.map((c) => c.id))
-      picked = [...scored, ...clients.filter((c) => !ids.has(c.id))].slice(0, maxC)
-    }
+    const top = scored.filter((x) => x.score >= 40).map((x) => x.c)
+    const ids = new Set(top.map((c) => c.id))
+    picked = [...top, ...clients.filter((c) => !ids.has(c.id))].slice(0, maxC)
   }
 
-  lines.push('', `Clients / sites (jusqu’à ${maxC}) :`)
+  lines.push('', `— Clients / sites (jusqu’à ${maxC} / ${clients.length}) —`)
   if (!picked.length) lines.push('(aucun client)')
   for (const c of picked) {
-    const sites = (data.chantiers || []).filter((s) => s.clientId === c.id).slice(0, 10)
+    const sites = (data.chantiers || []).filter((s) => s.clientId === c.id).slice(0, 12)
     lines.push(`- « ${clientDisplayName(c)} »`)
-    for (const s of sites) {
-      lines.push(`  · Site « ${s.nom} »`)
-    }
+    for (const s of sites) lines.push(`  · Site « ${s.nom} »`)
   }
   if (clients.length > picked.length) {
-    lines.push(`… +${clients.length - picked.length} clients non listés — chercher par nom exact.`)
+    lines.push(`… +${clients.length - picked.length} clients — la RECHERCHE ci-dessus couvre les noms cités.`)
+  }
+
+  // Aperçu stock pièces (libellés) — le détail quantité vient aussi de la recherche
+  const pieces = (data.piecesDetachees || []).slice(0, 25)
+  if (pieces.length) {
+    lines.push('', '— Stock pièces (aperçu) —')
+    for (const p of pieces) {
+      lines.push(`• ${p.reference || '—'} ${p.designation || ''} · qté ${p.quantite ?? 0}`)
+    }
+    if ((data.piecesDetachees || []).length > pieces.length) {
+      lines.push(`… +${(data.piecesDetachees || []).length - pieces.length} pièces`)
+    }
   }
 
   lines.push(
     '',
-    'RÈGLE : pour un chiffre (combien d’OT, reste à clôturer…), utilise UNIQUEMENT ces totaux. Si la liste est tronquée, cite le total exact ci-dessus.',
+    'RÈGLES LECTURE :',
+    '1) Tu as accès en lecture à TOUTES les données listées (totaux = exacts même si listes tronquées).',
+    '2) Réponds à N’IMPORTE quelle question métier à partir de ce bloc + résultats recherche — pas besoin d’une formulation magique.',
+    '3) « or » / « o.t » = OT. N’invente jamais un chiffre ni un nom absent.',
+    '4) Écriture (créer/modifier) = proposition seulement, validation humaine « oui » obligatoire.',
   )
 
+  return lines.join('\n')
+}
+
+/**
+ * @deprecated Conservé pour tests / secours. Préférer OpenAI + buildLiveDataSnapshot (intelligence ouverte).
+ */
+export function wantsDataQuery(raw: string): boolean {
+  const n = normalize(normalizeOtTypos(raw))
+  if (!n) return false
+  const mentionsOt = /\b(ot|ordre|ordres|intervention|interventions)\b/.test(n)
+  const asksCount =
+    /\b(combien|nombre|reste|rester|restent|encore|effectuer|clotur|finir|bilan|synthese|synth[eè]se)\b/.test(
+      n,
+    )
+  return mentionsOt && asksCount
+}
+
+/** Secours local si OpenAI indisponible — bilan OT simple. */
+export function answerDataQuery(data: AppData, raw: string, _team?: TeamMemberLite[]): string {
+  const n = normalize(raw)
+  const today = todayIsoLocal()
+  const ym = monthPrefix(today)
+  const wantMonth =
+    /\b(mois|fin\s+de\s+mois)\b/.test(n) || /\b(clotur|reste|effectuer)\b/.test(n)
+  const stats = wantMonth
+    ? computeOtStats(data, { monthYm: ym })
+    : computeOtStats(data, { dateIso: today })
+  const label = wantMonth ? monthLabelFr(ym) : 'aujourd’hui'
+  const lines = [
+    `Sur ${label} : ${stats.open} OT encore ouvert${stats.open > 1 ? 's' : ''} à effectuer / clôturer` +
+      (stats.total
+        ? ` (sur ${stats.total} OT, dont ${stats.closed} déjà clôturé${stats.closed > 1 ? 's' : ''})`
+        : '') +
+      '.',
+  ]
+  if (stats.open) {
+    lines.push('', 'OT ouverts :')
+    for (const o of stats.openList.slice(0, 20)) lines.push(formatOtBrief(o, data))
+  }
   return lines.join('\n')
 }
