@@ -201,16 +201,23 @@ const baseLinksOperator = [
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
-/** Tech terrain : uniquement le boulot (pas clients / contrats / admin). */
+/** Tech terrain : boulot du jour, sans magasin / sites / pointeuse. */
 const baseLinksTerrain = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
-  { to: '/app/chantiers', label: 'Sites & Parc', icon: MapPin, tone: 'sites' },
-  { to: '/app/ot', label: OT_LABEL.nav, icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/scan-equip', label: 'Scan QR', icon: Search, tone: 'sites' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
-  { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
+]
+
+/** Nav mobile terrain : Accueil, Intervenir, Scan, CERFA */
+const mobilePrimaryTerrain = [
+  { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
+  { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/scan-equip', label: 'Scan QR', icon: Search, tone: 'sites' },
+  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
 /** Nav mobile bureau / gérant */
@@ -218,14 +225,6 @@ const mobilePrimaryBureau = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
   { to: '/app/stock', label: 'Fluides', icon: Package, tone: 'stock' },
-  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
-]
-
-/** Nav mobile terrain : Accueil, site, Interventions, CERFA */
-const mobilePrimaryTerrain = [
-  { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
-  { to: '/app/chantiers', label: 'Sites', icon: MapPin, tone: 'sites' },
-  { to: '/app/ot', label: OT_LABEL.navShort, icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
 ]
 
@@ -272,23 +271,23 @@ export function AppLayout() {
     ? ownerLinks
     : terrainUi
       ? filterLinksByEdition(
+          [
+            ...baseLinksTerrain,
+            ...(user
+              ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
+              : []),
+          ],
+          appEdition,
+        )
+      : filterLinksByEdition(
           withMagasinPiecesForGestionnaire(
             [
-              ...baseLinksTerrain,
-              ...(user
-                ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]
-                : []),
+              ...baseLinksOperator,
+              { to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' },
             ],
             appEdition,
             peutGererPiecesDetachees,
           ),
-          appEdition,
-        )
-      : filterLinksByEdition(
-          [
-            ...baseLinksOperator,
-            { to: '/app/equipe', label: 'Équipe / dossiers', icon: Users, tone: 'equipe' },
-          ],
           appEdition,
         )
 
@@ -339,9 +338,8 @@ export function AppLayout() {
       : terrainUi
       ? [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
-          { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
-          magasinPiecesLink,
           { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
+          { to: '/app/scan-equip', label: 'Scanner QR', icon: Search, tone: 'sites' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
           ...(user
             ? [{ to: `/app/equipe/${user.id}`, label: 'Mon dossier', icon: FolderOpen, tone: 'equipe' }]

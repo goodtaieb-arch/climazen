@@ -34,6 +34,8 @@ export type ShortcutAccessFlags = {
   rhTeamOnly?: boolean
   bureauOnly?: boolean
   lightHidden?: boolean
+  /** Masqué sur l’accueil / nav du tech terrain. */
+  terrainHidden?: boolean
   /** Réservé à l’édition Pro (équipe, agenda, pointeuse…). */
   proOnly?: boolean
   proFeature?: EditionFeature
@@ -43,6 +45,7 @@ export function shortcutVisibleForAccess(def: ShortcutAccessFlags, access: UiAcc
   if (def.ownerOnly && !access.isOwner) return false
   if (def.rhTeamOnly && !access.isOwner && !access.peutVoirIdentitesRh) return false
   if (def.bureauOnly && isTerrainUi(access)) return false
+  if (def.terrainHidden && isTerrainUi(access)) return false
   const edition = access.appEdition ?? 'pro'
   if (edition === 'light' && def.lightHidden) return false
   if (def.proOnly && !editionHasFeature(edition, def.proFeature ?? 'equipe')) return false

@@ -34,6 +34,8 @@ export type HomeShortcutDef = {
   bureauOnly?: boolean
   /** Masqué de l’accueil Light (reste accessible via menu Plus ou parcours). */
   lightHidden?: boolean
+  /** Masqué de l’accueil / nav du tech terrain. */
+  terrainHidden?: boolean
   proOnly?: boolean
   proFeature?: EditionFeature
 }
@@ -45,6 +47,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     img: ICON3D.sites,
     action: 'goTravaux',
     lightHidden: true,
+    terrainHidden: true,
   },
   scan_qr: {
     id: 'scan_qr',
@@ -82,6 +85,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: OT_LABEL.nav,
     img: ICON3D.maintenance,
     to: '/app/ot',
+    terrainHidden: true,
   },
   appel: {
     id: 'appel',
@@ -125,6 +129,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     to: '/app/pointage',
     proOnly: true,
     proFeature: 'pointage',
+    terrainHidden: true,
   },
 }
 
@@ -154,13 +159,10 @@ export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
   'profil',
 ]
 
-/** Terrain : uniquement les boutons d’intervention. */
+/** Terrain : cercles métier, sans magasin / sites / pointeuse (le pointage est sur l’accueil). */
 export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
   'appel',
-  'pointage',
   'scan_qr',
-  'sites',
-  'ot',
   'cerfa',
   'stock',
   'agenda',
