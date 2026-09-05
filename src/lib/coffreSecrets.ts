@@ -35,6 +35,8 @@ export type CoffrePublicFlags = {
   docsDestCloud?: boolean
   cloudProvider?: 'webdav' | 'gdrive' | 'onedrive' | 's3'
   coffreActif?: boolean
+  gdriveConnected?: boolean
+  graphConnected?: boolean
 }
 
 export function isCoffreSecretKey(key: string): key is CoffreSecretKey {
@@ -98,9 +100,14 @@ export function computeCoffreActifFromPartial(op: object | null | undefined): bo
     if (provider === 's3') {
       cloud = Boolean(rec.s3Bucket && rec.s3AccessKey && rec.s3SecretKey)
     } else if (provider === 'gdrive') {
-      cloud = Boolean(rec.gdriveRefreshToken && rec.gdriveClientId && rec.gdriveClientSecret)
+      cloud =
+        Boolean(rec.gdriveRefreshToken && rec.gdriveClientId && rec.gdriveClientSecret) ||
+        Boolean(rec.gdriveConnected)
     } else if (provider === 'onedrive') {
-      cloud = Boolean(rec.graphClientId && rec.graphClientSecret && (rec.graphRefreshToken || rec.graphDriveId))
+      cloud =
+        Boolean(
+          rec.graphClientId && rec.graphClientSecret && (rec.graphRefreshToken || rec.graphDriveId),
+        ) || Boolean(rec.graphConnected)
     } else {
       cloud = Boolean(String(rec.serveurCloudDocsUrl || '').trim())
     }

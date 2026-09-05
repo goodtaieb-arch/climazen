@@ -3,10 +3,11 @@
  * Refresh token (délégué) ou client credentials + drive id.
  */
 
+import { httpError } from './storageError.js'
+
 async function graphToken(cfg) {
-  const tenant = String(cfg.graphTenantId || 'common').trim() || 'common'
-  const clientId = String(cfg.graphClientId || '').trim()
-  const clientSecret = String(cfg.graphClientSecret || '').trim()
+  const { resolveGraphOAuthClient } = await import('./coffreSecretsStore.js')
+  const { clientId, clientSecret, tenant } = resolveGraphOAuthClient(cfg)
   const refresh = String(cfg.graphRefreshToken || '').trim()
   if (!clientId || !clientSecret) {
     throw new Error('OneDrive / Graph : client id / secret manquants.')
@@ -33,7 +34,7 @@ async function graphToken(cfg) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.access_token) {
-    throw new Error(`Graph token HTTP ${res.status}`)
+    throw httpError(`Graph token HTTP ${res.status}`, res.status)
   }
   return data.access_token
 }
@@ -65,7 +66,7 @@ export async function onedrivePut({ cfg, relPath, buf, contentType }) {
   if (buf.length <= 4_000_000) {
     const up = await fetch(`${base}:/content`, { method: 'PUT', headers, body: buf })
     if (!up.ok && up.status !== 201 && up.status !== 200) {
-      throw new Error(`Graph PUT HTTP ${up.status}`)
+      throw httpError(`Graph PUT HTTP ${up.status}`, up.status)
     }
     return { ok: true }
   }
@@ -111,15 +112,30 @@ export async function onedriveGet({ cfg, relPath }) {
     redirect: 'follow',
   })
   if (!res.ok) {
-    const err = new Error(`Graph GET HTTP ${res.status}`)
-    err.status = res.status
-    throw err
+    throw httpError(`Graph GET HTTP ${res.status}`, res.status)
   }
   const ab = await res.arrayBuffer()
   return {
     buf: Buffer.from(ab),
     contentType: res.headers.get('content-type') || 'application/octet-stream',
   }
+}
+
+export async function onedrivePing({ cfg }) {
+  const token = await graphToken(cfg)
+  const driveId = String(cfg.graphDriveId || '').trim()
+  const url = driveId
+    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}`
+    : 'https://graph.microsoft.com/v1.0/me/drive'
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw httpError(`Graph PING HTTP ${res.status}`, res.status)
+  const data = await res.json().catch(() => ({}))
+  const remaining = data?.quota?.remaining
+  const state = String(data?.quota?.state || '').toLowerCase()
+  if (state === 'exceeded' || state === 'critical' || remaining === 0) {
+    throw httpError('Graph quota exceeded', 507)
+  }
+  return { ok: true }
 }
 
 export async function onedriveExists({ cfg, relPath }) {

@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { Cloud } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { useAuth } from '../lib/AuthContext'
@@ -17,7 +18,7 @@ import {
   isCoffreSecretKey,
   stripCoffreSecrets,
 } from '../lib/coffreSecrets'
-import { fetchCoffreConfig, saveCoffreConfig } from '../lib/storageService'
+import { fetchCoffreConfig, fetchCloudOAuthStatus, saveCoffreConfig, startCloudOAuth } from '../lib/storageService'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 import {
   APP_EDITION_DESCRIPTIONS,
@@ -49,6 +50,7 @@ export function OperateurPage() {
   const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition, exporterCopieSecoursExcel } =
     useStore()
   const { organization, isOwner, refreshUser, user, listTeam } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [form, setForm] = useState(() => withOrgDefaults(data.operateur, organization?.name))
   const [teamMembers, setTeamMembers] = useState<Array<{ id: string; fullName: string }>>([])
@@ -65,6 +67,8 @@ export function OperateurPage() {
   const [queueCount, setQueueCount] = useState(0)
   const [queueMsg, setQueueMsg] = useState('')
   const [queueBusy, setQueueBusy] = useState(false)
+  const [oauthBusy, setOauthBusy] = useState(false)
+  const [oauthReady, setOauthReady] = useState<{ gdrive?: boolean; onedrive?: boolean }>({})
   const secretsRef = useRef<Partial<Operateur>>({})
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
@@ -99,6 +103,8 @@ export function OperateurPage() {
       .then((r) => {
         if (!r.ok || !r.config) return
         const secrets = extractCoffreSecrets(r.config)
+        delete secrets.gdriveRefreshToken
+        delete secrets.graphRefreshToken
         secretsRef.current = { ...secretsRef.current, ...secrets }
         setForm((f) => ({
           ...f,
@@ -112,6 +118,25 @@ export function OperateurPage() {
               ? r.config.cloudProvider
               : f.cloudProvider || 'webdav',
           coffreActif: Boolean(r.public?.coffreActif || r.config?.coffreActif),
+          gdriveConnected: Boolean(r.config?.gdriveConnected),
+          graphConnected: Boolean(r.config?.graphConnected),
+          gdriveAccountEmail:
+            typeof r.config?.gdriveAccountEmail === 'string' ? r.config.gdriveAccountEmail : f.gdriveAccountEmail,
+          graphAccountEmail:
+            typeof r.config?.graphAccountEmail === 'string' ? r.config.graphAccountEmail : f.graphAccountEmail,
+        }))
+      })
+      .catch(() => undefined)
+    void fetchCloudOAuthStatus()
+      .then((s) => {
+        if (!s.ok) return
+        setOauthReady({ gdrive: Boolean(s.gdrive?.ready), onedrive: Boolean(s.onedrive?.ready) })
+        setForm((f) => ({
+          ...f,
+          gdriveConnected: s.gdrive?.connected ?? f.gdriveConnected,
+          graphConnected: s.onedrive?.connected ?? f.graphConnected,
+          gdriveAccountEmail: s.gdrive?.email || f.gdriveAccountEmail,
+          graphAccountEmail: s.onedrive?.email || f.graphAccountEmail,
         }))
       })
       .catch(() => undefined)
@@ -156,6 +181,46 @@ export function OperateurPage() {
     }, 30_000)
     return () => window.clearInterval(t)
   }, [isOwner])
+
+  useEffect(() => {
+    const cloud = searchParams.get('cloud')
+    if (!cloud) return
+    if (cloud === 'error') {
+      setFormError(searchParams.get('msg') || 'Autorisation cloud refusée.')
+    } else if (cloud === 'gdrive' || cloud === 'onedrive') {
+      setSaved(true)
+      setForm((f) => ({
+        ...f,
+        docsDestCloud: true,
+        cloudProvider: cloud,
+        gdriveConnected: cloud === 'gdrive' ? true : f.gdriveConnected,
+        graphConnected: cloud === 'onedrive' ? true : f.graphConnected,
+      }))
+      void fetchCoffreConfig()
+        .then((r) => {
+          if (!r.ok || !r.config) return
+          setForm((f) => ({
+            ...f,
+            docsDestCloud: true,
+            cloudProvider: cloud,
+            coffreActif: Boolean(r.public?.coffreActif || r.config?.coffreActif),
+            gdriveConnected: Boolean(r.config?.gdriveConnected) || cloud === 'gdrive',
+            graphConnected: Boolean(r.config?.graphConnected) || cloud === 'onedrive',
+            gdriveAccountEmail:
+              typeof r.config?.gdriveAccountEmail === 'string'
+                ? r.config.gdriveAccountEmail
+                : f.gdriveAccountEmail,
+            graphAccountEmail:
+              typeof r.config?.graphAccountEmail === 'string'
+                ? r.config.graphAccountEmail
+                : f.graphAccountEmail,
+          }))
+        })
+        .catch(() => undefined)
+      window.setTimeout(() => setSaved(false), 4000)
+    }
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   if (!isOwner) {
     return <Navigate to="/app/profil" replace />
@@ -274,6 +339,31 @@ export function OperateurPage() {
       setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const connectCloud = async (provider: 'gdrive' | 'onedrive') => {
+    setOauthBusy(true)
+    setFormError('')
+    try {
+      patchForm({ docsDestCloud: true, cloudProvider: provider })
+      const secrets = extractCoffreSecrets(form)
+      await saveCoffreConfig({
+        ...secrets,
+        docsDestNas: form.docsDestNas !== false,
+        docsDestCloud: true,
+        cloudProvider: provider,
+      })
+      const r = await startCloudOAuth(provider)
+      if (!r.ok || !r.url) {
+        setFormError(r.error || 'Impossible d’ouvrir l’autorisation cloud.')
+        return
+      }
+      window.location.href = r.url
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Connexion cloud impossible')
+    } finally {
+      setOauthBusy(false)
     }
   }
 
@@ -605,14 +695,52 @@ export function OperateurPage() {
                 checked={Boolean(form.docsDestCloud)}
                 onChange={(e) => patchForm({ docsDestCloud: e.target.checked })}
               />
-              <span>
-                <strong>Cloud tiers</strong>
+                <span>
+                  <strong>Cloud tiers</strong>
                 <span className="block text-xs text-muted">
                   Google Drive, OneDrive / SharePoint, AWS S3, ou miroir WebDAV.
                 </span>
               </span>
             </label>
           </div>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={oauthBusy}
+              onClick={() => void connectCloud('gdrive')}
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              <Cloud className="h-4 w-4" />
+              {form.gdriveConnected ? 'Reconnecter Google Drive' : 'Cloud Drive'}
+            </button>
+            <button
+              type="button"
+              disabled={oauthBusy}
+              onClick={() => void connectCloud('onedrive')}
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink disabled:opacity-60"
+            >
+              <Cloud className="h-4 w-4 text-accent" />
+              {form.graphConnected ? 'Reconnecter OneDrive' : 'Cloud OneDrive'}
+            </button>
+          </div>
+          <p className="mb-3 text-xs text-muted">
+            {form.gdriveConnected || form.graphConnected ? (
+              <>
+                Connecté
+                {form.gdriveAccountEmail ? ` · Drive ${form.gdriveAccountEmail}` : ''}
+                {form.graphAccountEmail ? ` · OneDrive ${form.graphAccountEmail}` : ''}
+                . Le jeton reste sur le serveur ClimaZEN (jamais collé, jamais vu par le bureau).
+              </>
+            ) : (
+              <>
+                Le bouton ouvre la page d’autorisation Google ou Microsoft. ClimaZEN reçoit un jeton
+                sécurisé côté serveur — vous ne le copiez pas.
+                {!oauthReady.gdrive && !oauthReady.onedrive
+                  ? ' Si le bouton échoue : collez d’abord client ID + secret (réglages avancés ci-dessous), ou ajoutez CLIMAZEN_GDRIVE_CLIENT_ID / CLIMAZEN_MS_CLIENT_ID sur Vercel.'
+                  : ''}
+              </>
+            )}
+          </p>
           <Field
             label="URL NAS / WebDAV"
             value={form.serveurPriveDocsUrl || ''}
@@ -666,60 +794,58 @@ export function OperateurPage() {
               ) : null}
               {form.cloudProvider === 'gdrive' ? (
                 <>
+                  <button
+                    type="button"
+                    disabled={oauthBusy}
+                    onClick={() => void connectCloud('gdrive')}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    <Cloud className="h-4 w-4" />
+                    {form.gdriveConnected ? 'Reconnecter Google Drive' : 'Autoriser Google Drive'}
+                  </button>
                   <Field
-                    label="Google client ID"
-                    value={form.gdriveClientId || ''}
-                    onChange={(v) => patchForm({ gdriveClientId: v || undefined })}
-                  />
-                  <Field
-                    label="Google client secret"
-                    type="password"
-                    value={form.gdriveClientSecret || ''}
-                    onChange={(v) => patchForm({ gdriveClientSecret: v || undefined })}
-                    autoComplete="off"
-                  />
-                  <Field
-                    label="Google refresh token"
-                    type="password"
-                    value={form.gdriveRefreshToken || ''}
-                    onChange={(v) => patchForm({ gdriveRefreshToken: v || undefined })}
-                    autoComplete="off"
-                  />
-                  <Field
-                    label="ID dossier Drive (racine coffre)"
+                    label="ID dossier Drive (racine coffre, optionnel)"
                     value={form.gdriveFolderId || ''}
                     onChange={(v) => patchForm({ gdriveFolderId: v || undefined })}
                   />
+                  <details className="rounded-xl border border-line bg-mist/40 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                      Réglages avancés (console Google)
+                    </summary>
+                    <p className="mt-2 text-xs text-muted">
+                      Inutile si ClimaZEN a déjà son app Google. Sinon : Google Cloud → OAuth client
+                      Web, URI de redirection{' '}
+                      <span className="font-mono">https://climazen.fr/api/oauth/cloud</span>.
+                    </p>
+                    <Field
+                      label="Google client ID"
+                      value={form.gdriveClientId || ''}
+                      onChange={(v) => patchForm({ gdriveClientId: v || undefined })}
+                      className="mt-2"
+                    />
+                    <Field
+                      label="Google client secret"
+                      type="password"
+                      value={form.gdriveClientSecret || ''}
+                      onChange={(v) => patchForm({ gdriveClientSecret: v || undefined })}
+                      autoComplete="off"
+                    />
+                  </details>
                 </>
               ) : null}
               {form.cloudProvider === 'onedrive' ? (
                 <>
+                  <button
+                    type="button"
+                    disabled={oauthBusy}
+                    onClick={() => void connectCloud('onedrive')}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    <Cloud className="h-4 w-4" />
+                    {form.graphConnected ? 'Reconnecter OneDrive' : 'Autoriser OneDrive'}
+                  </button>
                   <Field
-                    label="Azure tenant ID (ou common)"
-                    value={form.graphTenantId || ''}
-                    onChange={(v) => patchForm({ graphTenantId: v || undefined })}
-                  />
-                  <Field
-                    label="Azure client ID"
-                    value={form.graphClientId || ''}
-                    onChange={(v) => patchForm({ graphClientId: v || undefined })}
-                  />
-                  <Field
-                    label="Azure client secret"
-                    type="password"
-                    value={form.graphClientSecret || ''}
-                    onChange={(v) => patchForm({ graphClientSecret: v || undefined })}
-                    autoComplete="off"
-                  />
-                  <Field
-                    label="Refresh token (délégué, optionnel si drive id + app-only)"
-                    type="password"
-                    value={form.graphRefreshToken || ''}
-                    onChange={(v) => patchForm({ graphRefreshToken: v || undefined })}
-                    autoComplete="off"
-                  />
-                  <Field
-                    label="Drive ID SharePoint (optionnel si compte OneDrive /me)"
+                    label="Drive ID SharePoint (optionnel si OneDrive /me)"
                     value={form.graphDriveId || ''}
                     onChange={(v) => patchForm({ graphDriveId: v || undefined })}
                   />
@@ -728,6 +854,34 @@ export function OperateurPage() {
                     value={form.graphFolderPath || ''}
                     onChange={(v) => patchForm({ graphFolderPath: v || undefined })}
                   />
+                  <details className="rounded-xl border border-line bg-mist/40 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                      Réglages avancés (Azure)
+                    </summary>
+                    <p className="mt-2 text-xs text-muted">
+                      URI de redirection{' '}
+                      <span className="font-mono">https://climazen.fr/api/oauth/cloud</span> ·
+                      permissions Files.ReadWrite + offline_access.
+                    </p>
+                    <Field
+                      label="Azure tenant ID (ou common)"
+                      value={form.graphTenantId || ''}
+                      onChange={(v) => patchForm({ graphTenantId: v || undefined })}
+                      className="mt-2"
+                    />
+                    <Field
+                      label="Azure client ID"
+                      value={form.graphClientId || ''}
+                      onChange={(v) => patchForm({ graphClientId: v || undefined })}
+                    />
+                    <Field
+                      label="Azure client secret"
+                      type="password"
+                      value={form.graphClientSecret || ''}
+                      onChange={(v) => patchForm({ graphClientSecret: v || undefined })}
+                      autoComplete="off"
+                    />
+                  </details>
                 </>
               ) : null}
               {form.cloudProvider === 's3' ? (

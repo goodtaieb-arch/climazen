@@ -174,6 +174,53 @@ export async function fetchCoffreConfig(): Promise<{
   }
 }
 
+export async function fetchCloudOAuthStatus(): Promise<{
+  ok: boolean
+  gdrive?: { ready?: boolean; platform?: boolean; connected?: boolean; email?: string | null }
+  onedrive?: { ready?: boolean; platform?: boolean; connected?: boolean; email?: string | null }
+  error?: string
+}> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return { ok: false, error: 'Session requise.' }
+  const res = await fetch('/api/oauth/cloud', { headers: { Authorization: headers.Authorization } })
+  const data = await parseJson(res)
+  if (!res.ok || !data.ok) {
+    return { ok: false, error: String(data.error || data.message || 'Statut OAuth impossible.') }
+  }
+  return {
+    ok: true,
+    gdrive: data.gdrive as {
+      ready?: boolean
+      platform?: boolean
+      connected?: boolean
+      email?: string | null
+    },
+    onedrive: data.onedrive as {
+      ready?: boolean
+      platform?: boolean
+      connected?: boolean
+      email?: string | null
+    },
+  }
+}
+
+export async function startCloudOAuth(
+  provider: 'gdrive' | 'onedrive',
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return { ok: false, error: 'Session requise.' }
+  const res = await fetch('/api/oauth/cloud', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ provider }),
+  })
+  const data = await parseJson(res)
+  if (!res.ok || !data.ok || typeof data.url !== 'string') {
+    return { ok: false, error: String(data.error || data.message || 'Autorisation cloud impossible.') }
+  }
+  return { ok: true, url: data.url }
+}
+
 export async function saveCoffreConfig(config: Record<string, unknown>): Promise<{
   ok: boolean
   coffreActif?: boolean

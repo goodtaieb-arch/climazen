@@ -158,12 +158,16 @@ export interface Operateur {
   gdriveClientSecret?: string
   gdriveRefreshToken?: string
   gdriveFolderId?: string
+  gdriveConnected?: boolean
+  gdriveAccountEmail?: string
   graphTenantId?: string
   graphClientId?: string
   graphClientSecret?: string
   graphRefreshToken?: string
   graphDriveId?: string
   graphFolderPath?: string
+  graphConnected?: boolean
+  graphAccountEmail?: string
   /**
    * Installations de destination habituelles (CERFA [13]) —
    * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.

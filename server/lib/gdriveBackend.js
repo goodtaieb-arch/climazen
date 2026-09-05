@@ -2,13 +2,15 @@
  * Google Drive API — refresh token (collé par le gérant), jamais exposé au bureau.
  */
 
+import { httpError } from './storageError.js'
+
 function encodeQ(name) {
   return String(name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
 export async function gdriveAccessToken(cfg) {
-  const clientId = String(cfg.gdriveClientId || '').trim()
-  const clientSecret = String(cfg.gdriveClientSecret || '').trim()
+  const { resolveGdriveOAuthClient } = await import('./coffreSecretsStore.js')
+  const { clientId, clientSecret } = resolveGdriveOAuthClient(cfg)
   const refresh = String(cfg.gdriveRefreshToken || '').trim()
   if (!clientId || !clientSecret || !refresh) {
     throw new Error('Google Drive : client id / secret / refresh token manquants.')
@@ -26,7 +28,7 @@ export async function gdriveAccessToken(cfg) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.access_token) {
-    throw new Error(`Google Drive token HTTP ${res.status}`)
+    throw httpError(`Google Drive token HTTP ${res.status}`, res.status)
   }
   return data.access_token
 }
@@ -43,7 +45,7 @@ async function driveFindChild(token, parentId, name, folder) {
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=5`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(`Google Drive list HTTP ${res.status}`)
+    if (!res.ok) throw httpError(`Google Drive list HTTP ${res.status}`, res.status)
   return data.files?.[0] || null
 }
 
@@ -97,7 +99,7 @@ export async function gdrivePut({ cfg, relPath, buf, contentType }) {
         body: buf,
       },
     )
-    if (!up.ok) throw new Error(`Google Drive PATCH HTTP ${up.status}`)
+    if (!up.ok) throw httpError(`Google Drive PATCH HTTP ${up.status}`, up.status)
     return { ok: true }
   }
   const meta = JSON.stringify({ name: fileName, parents: [parentId] })
@@ -115,7 +117,7 @@ export async function gdrivePut({ cfg, relPath, buf, contentType }) {
     },
     body,
   })
-  if (!up.ok) throw new Error(`Google Drive POST HTTP ${up.status}`)
+  if (!up.ok) throw httpError(`Google Drive POST HTTP ${up.status}`, up.status)
   return { ok: true }
 }
 
@@ -130,32 +132,43 @@ export async function gdriveGet({ cfg, relPath }) {
   for (const p of parts) {
     const folder = await driveFindChild(token, parent, p, true)
     if (!folder?.id) {
-      const err = new Error('Google Drive GET HTTP 404')
-      err.status = 404
-      throw err
+      throw httpError('Google Drive GET HTTP 404', 404)
     }
     parent = folder.id
   }
   const file = await driveFindChild(token, parent, fileName, false)
   if (!file?.id) {
-    const err = new Error('Google Drive GET HTTP 404')
-    err.status = 404
-    throw err
+    throw httpError('Google Drive GET HTTP 404', 404)
   }
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`,
     { headers: { Authorization: `Bearer ${token}` } },
   )
   if (!res.ok) {
-    const err = new Error(`Google Drive GET HTTP ${res.status}`)
-    err.status = res.status
-    throw err
+    throw httpError(`Google Drive GET HTTP ${res.status}`, res.status)
   }
   const ab = await res.arrayBuffer()
   return {
     buf: Buffer.from(ab),
     contentType: res.headers.get('content-type') || 'application/octet-stream',
   }
+}
+
+export async function gdrivePing({ cfg }) {
+  const token = await gdriveAccessToken(cfg)
+  const res = await fetch(
+    'https://www.googleapis.com/drive/v3/about?fields=storageQuota',
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!res.ok) throw httpError(`Google Drive PING HTTP ${res.status}`, res.status)
+  const data = await res.json().catch(() => ({}))
+  const q = data.storageQuota || {}
+  const limit = Number(q.limit)
+  const usage = Number(q.usage)
+  if (Number.isFinite(limit) && Number.isFinite(usage) && limit > 0 && usage >= limit) {
+    throw httpError('Google Drive quota exceeded', 507)
+  }
+  return { ok: true }
 }
 
 export async function gdriveExists({ cfg, relPath }) {

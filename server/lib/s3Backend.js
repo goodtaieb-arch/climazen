@@ -3,6 +3,7 @@
  */
 
 import crypto from 'node:crypto'
+import { httpError } from './storageError.js'
 
 function hmac(key, data) {
   return crypto.createHmac('sha256', key).update(data, 'utf8').digest()
@@ -116,7 +117,7 @@ export async function s3Put({ cfg, relPath, buf, contentType }) {
   const up = await fetch(url, { method: 'PUT', headers, body: buf })
   if (!up.ok && up.status !== 200 && up.status !== 204) {
     const t = await up.text().catch(() => '')
-    throw new Error(`S3 PUT HTTP ${up.status}${t ? ` — ${t.slice(0, 180)}` : ''}`)
+    throw httpError(`S3 PUT HTTP ${up.status}${t ? ` — ${t.slice(0, 180)}` : ''}`, up.status)
   }
   return { ok: true }
 }
@@ -144,9 +145,7 @@ export async function s3Get({ cfg, relPath }) {
   })
   const get = await fetch(url, { method: 'GET', headers })
   if (!get.ok) {
-    const err = new Error(`S3 GET HTTP ${get.status}`)
-    err.status = get.status
-    throw err
+    throw httpError(`S3 GET HTTP ${get.status}`, get.status)
   }
   const ab = await get.arrayBuffer()
   return {
@@ -167,4 +166,53 @@ export async function s3Exists({ cfg, relPath }) {
 
 export function joinS3Key(prefix, relPath) {
   return joinKey(prefix, relPath)
+}
+
+export async function s3Ping({ cfg }) {
+  const bucket = String(cfg.s3Bucket || '').trim()
+  const accessKey = String(cfg.s3AccessKey || '').trim()
+  const secretKey = String(cfg.s3SecretKey || '').trim()
+  if (!bucket || !accessKey || !secretKey) throw httpError('S3 : bucket / clés manquants.', 403)
+  const { host, origin, pathStyle, region } = resolveHost(cfg)
+  const canonicalUri = pathStyle ? `/${encodeKey(bucket)}` : '/'
+  const url = pathStyle ? `${origin}/${encodeKey(bucket)}` : `${origin}/`
+  const amz = amzDate()
+  const bodyHash = sha256Hex('')
+  const headers = signedHeaders({
+    method: 'HEAD',
+    host,
+    canonicalUri,
+    bodyHash,
+    amz,
+    accessKey,
+    secretKey,
+    region,
+  })
+  const res = await fetch(url, { method: 'HEAD', headers })
+  if (res.status === 404) {
+    /* bucket vide / HEAD non supporté → GET list */
+  } else if (res.ok || res.status === 200 || res.status === 204) {
+    return { ok: true }
+  } else if (res.status === 401 || res.status === 403) {
+    throw httpError(`S3 PING HTTP ${res.status}`, res.status)
+  } else if (res.status === 507) {
+    throw httpError(`S3 PING HTTP ${res.status}`, res.status)
+  } else if (res.status >= 500) {
+    throw httpError(`S3 PING HTTP ${res.status}`, res.status)
+  }
+  const listUri = pathStyle ? `/${encodeKey(bucket)}` : '/'
+  const listUrl = `${url.replace(/\/+$/, '')}?list-type=2&max-keys=1`
+  const listHeaders = signedHeaders({
+    method: 'GET',
+    host,
+    canonicalUri: listUri,
+    bodyHash: sha256Hex(''),
+    amz: amzDate(),
+    accessKey,
+    secretKey,
+    region,
+  })
+  const list = await fetch(listUrl, { method: 'GET', headers: listHeaders })
+  if (list.ok) return { ok: true }
+  throw httpError(`S3 PING HTTP ${list.status}`, list.status)
 }

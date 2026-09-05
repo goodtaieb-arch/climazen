@@ -5,6 +5,7 @@
 
 import { mimeOf, safeRelPath } from './coffrePath.js'
 import { computeCoffreActif } from './coffreSecretsStore.js'
+import { classifyStorageError, coffreErrorMessage } from './storageError.js'
 import { webdavExists, webdavGet, webdavPut } from './webdavClient.js'
 import { s3Exists, s3Get, s3Put } from './s3Backend.js'
 import { gdriveExists, gdriveGet, gdrivePut } from './gdriveBackend.js'
@@ -152,8 +153,15 @@ export async function storagePut(cfg, opts) {
         }
         return { dest: dest.id, ok: true, confirmed, message: `${dest.label} : ${relPath}` }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'erreur'
-        return { dest: dest.id, ok: false, confirmed: false, message: `${dest.label} : ${msg}` }
+        const code = classifyStorageError(err)
+        const friendly = coffreErrorMessage({ destId: dest.id, kind: dest.kind, code })
+        return {
+          dest: dest.id,
+          ok: false,
+          confirmed: false,
+          code,
+          message: `${dest.label} : ${friendly}`,
+        }
       }
     }),
   )
@@ -161,6 +169,16 @@ export async function storagePut(cfg, opts) {
   const cloudOk = results.some((r) => r.dest === 'cloud' && r.ok)
   const anyOk = nasOk || cloudOk
   const failed = results.filter((r) => !r.ok)
+  if (opts.orgId) {
+    void import('./storageHealthCheck.js')
+      .then((m) =>
+        m.runStorageHealthCheck(opts.orgId, {
+          cfg,
+          putResults: results,
+        }),
+      )
+      .catch((err) => console.warn('ClimaZEN: health coffre', err))
+  }
   return {
     ok: anyOk,
     queued: failed.length > 0,

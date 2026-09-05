@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { QUEUE_RETRY_MS, flushQueueBackup } from '../lib/documentQueue'
 
-/** Réessaie l’envoi NAS / cloud toutes les 15 min + au retour réseau. Invisible. */
+/** Réessaie l’envoi NAS / cloud toutes les 15 min. Invisible. */
 export function CoffreQueueWorker() {
   useEffect(() => {
     const run = (force: boolean) => {

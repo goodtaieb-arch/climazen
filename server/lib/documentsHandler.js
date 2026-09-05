@@ -9,6 +9,7 @@ import { COPIE_SECOURS_RELPATH, MAX_DOCUMENT_BYTES, mimeOf, safeRelPath } from '
 import {
   loadCoffreConfig,
   loadOrgPayload,
+  ownerSafeConfig,
   publicCoffreView,
   saveCoffreConfig,
 } from './coffreSecretsStore.js'
@@ -74,10 +75,31 @@ export async function handleDocumentsPost(req, res) {
 
   if (action === 'config') {
     if (auth.isOwner) {
-      res.status(200).json({ ok: true, owner: true, config: cfg, public: publicCoffreView(cfg) })
+      res.status(200).json({
+        ok: true,
+        owner: true,
+        config: ownerSafeConfig(cfg),
+        public: publicCoffreView(cfg),
+      })
       return
     }
     res.status(200).json({ ok: true, owner: false, public: publicCoffreView(cfg) })
+    return
+  }
+
+  if (action === 'health') {
+    const { runStorageHealthCheck, loadCoffreHealth, publicHealthView } = await import(
+      './storageHealthCheck.js'
+    )
+    const probe = auth.isOwner && body.probe !== false
+    const health = probe
+      ? await runStorageHealthCheck(auth.orgId, { cfg })
+      : publicHealthView(await loadCoffreHealth(auth.orgId))
+    res.status(200).json({
+      ok: true,
+      coffreActif: Boolean(cfg.coffreActif),
+      health,
+    })
     return
   }
 
@@ -97,6 +119,7 @@ export async function handleDocumentsPost(req, res) {
       relPath: COPIE_SECOURS_RELPATH,
       buf: enc,
       contentType: 'application/octet-stream',
+      orgId: auth.orgId,
     })
     if (!put.ok) {
       bad(res, 502, put.message || 'Copie Excel : coffre injoignable.')
@@ -138,6 +161,7 @@ export async function handleDocumentsPost(req, res) {
       buf,
       contentType: String(body.contentType || mimeOf(relPath)),
       dests: Array.isArray(body.dests) ? body.dests : undefined,
+      orgId: auth.orgId,
     })
     if (!put.ok) {
       res.status(200).json({

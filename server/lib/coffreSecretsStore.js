@@ -29,7 +29,51 @@ export const COFFRE_SECRET_KEYS = [
   'graphFolderPath',
 ]
 
-export const COFFRE_PUBLIC_KEYS = ['docsDestNas', 'docsDestCloud', 'cloudProvider', 'coffreActif']
+export const COFFRE_PUBLIC_KEYS = [
+  'docsDestNas',
+  'docsDestCloud',
+  'cloudProvider',
+  'coffreActif',
+  'gdriveAccountEmail',
+  'graphAccountEmail',
+]
+
+const REDACTED_KEYS = ['gdriveRefreshToken', 'graphRefreshToken']
+
+export function resolveGdriveOAuthClient(cfg = {}) {
+  return {
+    clientId: String(cfg.gdriveClientId || process.env.CLIMAZEN_GDRIVE_CLIENT_ID || '').trim(),
+    clientSecret: String(
+      cfg.gdriveClientSecret || process.env.CLIMAZEN_GDRIVE_CLIENT_SECRET || '',
+    ).trim(),
+  }
+}
+
+export function resolveGraphOAuthClient(cfg = {}) {
+  return {
+    clientId: String(cfg.graphClientId || process.env.CLIMAZEN_MS_CLIENT_ID || '').trim(),
+    clientSecret: String(cfg.graphClientSecret || process.env.CLIMAZEN_MS_CLIENT_SECRET || '').trim(),
+    tenant: String(cfg.graphTenantId || process.env.CLIMAZEN_MS_TENANT || 'common').trim() || 'common',
+  }
+}
+
+export function ownerSafeConfig(cfg = {}) {
+  const out = { ...cfg }
+  for (const k of REDACTED_KEYS) delete out[k]
+  out.gdriveConnected = Boolean(String(cfg.gdriveRefreshToken || '').trim())
+  out.graphConnected = Boolean(String(cfg.graphRefreshToken || '').trim())
+  out.gdriveAccountEmail = String(cfg.gdriveAccountEmail || '').trim() || undefined
+  out.graphAccountEmail = String(cfg.graphAccountEmail || '').trim() || undefined
+  return out
+}
+
+function isMaskedSecret(value) {
+  const s = String(value || '').trim()
+  if (!s) return false
+  if (/^•+$/.test(s) || /^x+$/i.test(s)) return true
+  if (s === 'connected' || s === '•••• connected') return true
+  return false
+}
 
 export function pickSecrets(op) {
   const out = {}
@@ -55,13 +99,11 @@ export function computeCoffreActif(cfg) {
     if (provider === 's3') {
       cloud = Boolean(cfg.s3Bucket && cfg.s3AccessKey && cfg.s3SecretKey)
     } else if (provider === 'gdrive') {
-      cloud = Boolean(cfg.gdriveRefreshToken && cfg.gdriveClientId && cfg.gdriveClientSecret)
+      const g = resolveGdriveOAuthClient(cfg)
+      cloud = Boolean(cfg.gdriveRefreshToken && g.clientId && g.clientSecret)
     } else if (provider === 'onedrive') {
-      cloud = Boolean(
-        cfg.graphClientId &&
-          cfg.graphClientSecret &&
-          (cfg.graphRefreshToken || cfg.graphDriveId),
-      )
+      const m = resolveGraphOAuthClient(cfg)
+      cloud = Boolean(m.clientId && m.clientSecret && (cfg.graphRefreshToken || cfg.graphDriveId))
     } else {
       cloud = Boolean(String(cfg.serveurCloudDocsUrl || '').trim())
     }
@@ -123,6 +165,7 @@ export async function saveCoffreConfig(orgId, incoming, actorUserId) {
       next[k] = ['webdav', 'gdrive', 'onedrive', 's3'].includes(p) ? p : 'webdav'
       continue
     }
+    if (isMaskedSecret(src[k])) continue
     const s = String(src[k] ?? '').trim()
     if (s) next[k] = s
     else delete next[k]

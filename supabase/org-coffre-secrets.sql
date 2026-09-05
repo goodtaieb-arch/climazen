@@ -24,5 +24,11 @@ alter table public.organization_coffre_secrets enable row level security;
 comment on table public.organization_coffre_secrets is
   'Secrets coffre documents (NAS, WebDAV, Drive, Graph, S3). Jamais exposés au client.';
 
+alter table public.organization_coffre_secrets
+  add column if not exists health jsonb not null default '{}'::jsonb;
+
+comment on column public.organization_coffre_secrets.health is
+  'État de synchro NAS/cloud (pannes, depuis quand, dernier e-mail 24 h).';
+
 select 'organization_coffre_secrets OK' as status
 where to_regclass('public.organization_coffre_secrets') is not null;
