@@ -16,6 +16,10 @@ import {
   toggleDocOtRequis,
   otEstMaintenancePreparee,
 } from '../src/lib/otParcours'
+import {
+  docsFichesPourEquipements,
+  inferCategorieFicheEquipement,
+} from '../src/lib/equipementFiche'
 
 const owner = { isOwner: true, peutVoirIdentitesRh: true }
 const bureau = { isOwner: false, peutVoirIdentitesRh: true }
@@ -80,19 +84,66 @@ assert.deepEqual(parseDocsOtRequis(['fiche_clim', 'hacker', 'cerfa']), ['cerfa',
 assert.deepEqual(toggleDocOtRequis(['fiche_clim'], 'fiche_clim'), [])
 assert.deepEqual(toggleDocOtRequis([], 'fiche_clim'), ['fiche_clim'])
 
-assert.equal(techDoitRemplirCerfa({ hasFluide: true }), true)
+assert.equal(techDoitRemplirCerfa({ hasFluide: true }), false)
 assert.equal(techDoitRemplirCerfa({ hasFluide: true, toucheGaz: false }), false)
 assert.equal(techDoitRemplirCerfa({ hasFluide: false, toucheGaz: true }), true)
 assert.equal(techDoitRemplirCerfa({ hasFluide: false }), false)
 
 assert.deepEqual(
   docsEffectifsRequis({ docsRequis: ['fiche_clim'], hasFluide: true }),
+  ['fiche_clim'],
+)
+assert.deepEqual(
+  docsEffectifsRequis({ docsRequis: ['fiche_clim'], hasFluide: true, toucheGaz: true }),
   ['cerfa', 'fiche_clim'],
 )
 assert.deepEqual(
-  docsEffectifsRequis({ docsRequis: ['fiche_clim'], hasFluide: true, toucheGaz: false }),
+  docsEffectifsRequis({
+    docsRequis: ['cerfa', 'fiche_clim'],
+    hasFluide: true,
+  }),
   ['fiche_clim'],
 )
+assert.deepEqual(
+  docsEffectifsRequis({
+    docsRequis: [],
+    docsAuto: ['fiche_chaufferie', 'cerfa'],
+    hasFluide: true,
+  }),
+  ['fiche_chaufferie'],
+)
+assert.deepEqual(
+  docsEffectifsRequis({
+    docsRequis: [],
+    docsAuto: ['fiche_chaufferie'],
+    hasFluide: false,
+  }),
+  ['fiche_chaufferie'],
+)
+assert.deepEqual(
+  docsEffectifsRequis({
+    docsRequis: ['fiche_clim'],
+    docsAuto: ['fiche_chaufferie'],
+    hasFluide: false,
+  }),
+  ['fiche_clim'],
+)
+assert.equal(rapportOtSuffit([], ['fiche_chaufferie']), false)
+assert.equal(rapportOtSuffit(['cerfa'], []), true)
+
+assert.equal(inferCategorieFicheEquipement({ type: 'Chaudière gaz', nom: 'P2' }), 'chaufferie')
+assert.deepEqual(docsFichesPourEquipements([{ type: 'Chaudière gaz', nom: 'P2' }]), [
+  'fiche_chaufferie',
+])
+assert.deepEqual(docsFichesPourEquipements([{ type: 'Split', nom: 'Clim bureau' }]), ['fiche_clim'])
+assert.deepEqual(
+  docsFichesPourEquipements([
+    { type: 'Chaudière', nom: 'Chaufferie' },
+    { type: 'CTA', nom: 'Toiture' },
+  ]),
+  ['fiche_chaufferie', 'fiche_cta_vmc'],
+)
+assert.deepEqual(docsFichesPourEquipements([{ type: 'Contrôle étanchéité', nom: 'F-gas' }]), [])
 
 assert.deepEqual(
   docsManquantsPourCloture({

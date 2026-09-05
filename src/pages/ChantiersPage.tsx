@@ -68,8 +68,18 @@ import { EquipementHistoriquePanel } from '../components/EquipementHistoriquePan
 import { historiqueEquipement, historiqueSite } from '../lib/equipementHistorique'
 import { ensureSitePortal, portailLinkUrl, setSitePortalActif } from '../lib/portailClient'
 import { editionHasFeature } from '../lib/appEdition'
+import { isTerrainUi } from '../lib/uiMode'
+import { docsFichesPourEquipements } from '../lib/equipementFiche'
 
 type QuickTone = 'sites' | 'cerfa' | 'teal' | 'muted'
+
+function appelUrl(site: Chantier, equipementId?: string) {
+  const q = new URLSearchParams()
+  if (site.clientId) q.set('client', site.clientId)
+  q.set('chantier', site.id)
+  if (equipementId) q.set('equipement', equipementId)
+  return `/app/appel?${q.toString()}`
+}
 
 function QuickIconBtn({
   icon: Icon,
@@ -181,8 +191,10 @@ export function ChantiersPage() {
     createOtForAction,
     appEdition,
     upsertDocumentArchive,
+    peutVoirIdentitesRh,
   } = useStore()
-  const { user } = useAuth()
+  const { user, isOwner } = useAuth()
+  const terrainUi = isTerrainUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1796,7 +1808,8 @@ export function ChantiersPage() {
                   title="Se mettre en intervention"
                   onClick={() => {
                     setSiteMenuOpen(false)
-                    setIntervChoiceSite(c)
+                    if (terrainUi) navigate(appelUrl(c))
+                    else setIntervChoiceSite(c)
                   }}
                 />
                 {(formatAddressQuery(c) || formatAddressQuery(client || {})) && (
@@ -1831,7 +1844,7 @@ export function ChantiersPage() {
 
               {siteMenuOpen && (
                 <div className="overflow-hidden rounded-xl border border-line bg-white">
-                  {canBatch && (
+                  {canBatch && !terrainUi && (
                     <button
                       type="button"
                       disabled={batchBusy === c.id}
@@ -1845,7 +1858,7 @@ export function ChantiersPage() {
                       {batchBusy === c.id ? 'Génération…' : 'Valider maintenance (lot)'}
                     </button>
                   )}
-                  {fluide && (
+                  {fluide && !terrainUi && (
                     <button
                       type="button"
                       onClick={() => {
@@ -2088,6 +2101,10 @@ export function ChantiersPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (terrainUi) {
+                      navigate(appelUrl(c, eq.id))
+                      return
+                    }
                     setEquipWork({
                       site: c,
                       equipementId: eq.id,
@@ -2097,9 +2114,10 @@ export function ChantiersPage() {
                   }}
                   className="flex min-h-11 w-full items-center gap-2 border-b border-line bg-accent/15 px-3 text-left text-sm font-semibold active:bg-accent/30"
                 >
-                  <ClipboardList className="h-4 w-4" /> Intervenir (fiche / CERFA)
+                  <ClipboardList className="h-4 w-4" /> {terrainUi ? 'Intervenir' : 'Intervenir (fiche / CERFA)'}
                   <ChevronRight className="ml-auto h-4 w-4 text-muted" />
                 </button>
+                {(!terrainUi || docsFichesPourEquipements([eq]).includes('fiche_clim')) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2110,6 +2128,8 @@ export function ChantiersPage() {
                 >
                   <ClipboardList className="h-4 w-4 text-accent" /> Fiche checklist clim
                 </button>
+                )}
+                {(!terrainUi || docsFichesPourEquipements([eq]).includes('fiche_chaufferie')) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2120,6 +2140,8 @@ export function ChantiersPage() {
                 >
                   <ClipboardList className="h-4 w-4 text-amber-700" /> Fiche chaufferie P2/P3
                 </button>
+                )}
+                {(!terrainUi || docsFichesPourEquipements([eq]).includes('fiche_cta_vmc')) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2130,7 +2152,8 @@ export function ChantiersPage() {
                 >
                   <ClipboardList className="h-4 w-4 text-sky-600" /> Fiche CTA / VMC
                 </button>
-                {eqFluide && (
+                )}
+                {!terrainUi && eqFluide && (
                   <button
                     type="button"
                     onClick={() =>
@@ -2447,7 +2470,7 @@ export function ChantiersPage() {
               {intervChoiceSite.nom} — chaque action reçoit une INT unique (OT2026…).
             </p>
             <div className="mt-5 space-y-3">
-              {siteAvecFluideFrigorigene(intervChoiceSite) ? (
+              {siteAvecFluideFrigorigene(intervChoiceSite) && !terrainUi ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -2509,10 +2532,15 @@ export function ChantiersPage() {
 
             {(equipWork.step || 'choose') === 'choose' ? (
               <div className="mt-5 space-y-3">
-                {equipAvecFluideFrigorigene(
-                  allEquipements(equipWork.site).find((e) => e.id === equipWork.equipementId) ||
-                    blankEquip(),
-                ) ? (
+                {(() => {
+                  const eqw =
+                    allEquipements(equipWork.site).find((e) => e.id === equipWork.equipementId) ||
+                    blankEquip()
+                  const docsEq = docsFichesPourEquipements([eqw])
+                  const show = (k: (typeof docsEq)[number]) => !terrainUi || docsEq.includes(k)
+                  return (
+                    <>
+                {!terrainUi && equipAvecFluideFrigorigene(eqw) ? (
                   <button
                     type="button"
                     onClick={() => setEquipWork({ ...equipWork, step: 'cerfa' })}
@@ -2526,12 +2554,13 @@ export function ChantiersPage() {
                       </span>
                     </span>
                   </button>
-                ) : (
+                ) : !terrainUi ? (
                   <p className="rounded-xl border border-dashed border-line bg-foam/60 px-3 py-3 text-sm text-muted">
                     Équipement sans fluide — pas de CERFA. Un rapport sur l’INT suffit ; la fiche
                     checklist reste optionnelle.
                   </p>
-                )}
+                ) : null}
+                {show('fiche_clim') && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2543,12 +2572,14 @@ export function ChantiersPage() {
                 >
                   <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
                   <span>
-                    <span className="block text-sm">Fiche checklist clim (optionnel)</span>
+                    <span className="block text-sm">Fiche checklist clim</span>
                     <span className="block text-xs font-medium text-muted">
-                      Pas obligatoire pour une maintenance — utile si vous voulez un PDF détaillé
+                      {terrainUi ? 'Le dossier de cette clim' : 'Optionnel — PDF détaillé'}
                     </span>
                   </span>
                 </button>
+                )}
+                {show('fiche_chaufferie') && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2566,6 +2597,8 @@ export function ChantiersPage() {
                     </span>
                   </span>
                 </button>
+                )}
+                {show('fiche_cta_vmc') && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2583,6 +2616,10 @@ export function ChantiersPage() {
                     </span>
                   </span>
                 </button>
+                )}
+                    </>
+                  )
+                })()}
                 <button
                   type="button"
                   onClick={() => setEquipWork(null)}

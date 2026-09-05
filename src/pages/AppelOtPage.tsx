@@ -72,6 +72,7 @@ import { editionHasFeature } from '../lib/appEdition'
 import { OtPiecesPanel } from '../components/OtPiecesPanel'
 import { parsePointageEvents, parsePointageRegles, payloadsClotureIntervention, pointageEstActif, datePointageLocale, dernierPointage } from '../lib/pointage'
 import { NIVEAU_VISITE_LABELS, infoMoisGenerationOt, parseNiveauVisite } from '../lib/contratOtAuto'
+import { docsFichesPourEquipements } from '../lib/equipementFiche'
 import { OtCommandeLinkFields } from '../components/OtCommandeLinkFields'
 import { TechnicienAssignField } from '../components/TechnicienAssignField'
 import { SecteurOtSelect } from '../components/PostePersonnelSelect'
@@ -87,7 +88,6 @@ import {
   rapportOtSuffit,
   rapportSousTraitantOk,
   roleParcoursOt,
-  techDoitRemplirCerfa,
   toggleDocOtRequis,
   type DocOtRequis,
   type DocsOtRemplis,
@@ -252,6 +252,7 @@ export function AppelOtPage() {
       chantierId: chantierFromQuery || undefined,
       equipementId: equipFromQuery || undefined,
       equipementIds: equipFromQuery ? [equipFromQuery] : undefined,
+      docsRequis: eq ? docsFichesPourEquipements([eq]) : [],
       lienCommandeType: (contratPrefill ? 'contrat' : 'aucun') as LienCommandeType,
       lienCommandeRef: contratPrefill?.numero || '',
       contratId: contratPrefill?.id,
@@ -627,10 +628,17 @@ export function AppelOtPage() {
       alert('Cochez au moins un équipement (ou créez-en un).')
       return
     }
+    const pickedEqs = equipementIds
+      .map((id) => eqs.find((e) => e.id === id) || (equipMode === 'new' ? equipForm : null))
+      .filter(Boolean) as Equipement[]
+    const autoDocs = docsFichesPourEquipements(pickedEqs)
+    const docsDeja = parseDocsOtRequis(otForm.docsRequis).filter((d) => d !== 'cerfa')
+    const docsRequis = docsDeja.length ? docsDeja : autoDocs
     persistOt(
       {
         equipementIds,
         equipementId: equipementIds[0] || '',
+        docsRequis,
         parcoursStep: role === 'bureau_depanage' ? 'equipement' : 'docs',
         statut: 'en_cours',
       },
@@ -649,13 +657,16 @@ export function AppelOtPage() {
       quitterApresTransmission()
       return
     }
+    setOtForm((f) => ({ ...f, docsRequis }))
     setStep('docs')
     setMsg(
       role === 'bureau_maintenance'
-        ? 'Cochez les fiches que le tech devra remplir (checklist clim, chaufferie….).'
-        : equipementIds.length > 1
-          ? `${equipementIds.length} équipements liés — CERFA si fluide, sinon rapport INT.`
-          : 'Équipement lié — CERFA si fluide, sinon rapport INT.',
+        ? autoDocs.length
+          ? `Fiche déjà cochée : ${autoDocs.map((d) => DOC_OT_LABELS[d]).join(', ')}. Vous pouvez ajuster.`
+          : 'Pas de fiche type — le tech remplira le rapport d’INT. CERFA seulement s’il touche au gaz.'
+        : autoDocs.length
+          ? `À remplir : ${autoDocs.map((d) => DOC_OT_LABELS[d]).join(', ')}. CERFA seulement si vous touchez au gaz.`
+          : 'Rapport d’INT sur place. Cochez « j’ai touché au gaz » seulement si vous ouvrez le circuit.',
     )
   }
 
@@ -1181,13 +1192,15 @@ export function AppelOtPage() {
       fiche_chaufferie: ficheOk(data.fichesMaintenanceChaufferie || [], otForm.ficheChaufferieId),
       fiche_cta_vmc: ficheOk(data.fichesMaintenanceCtaVmc || [], otForm.ficheCtaVmcId),
     }
+    const autoDocs = docsFichesPourEquipements(selectedEqs)
     const manquants = docsManquantsPourCloture({
       docsRequis: otForm.docsRequis,
+      docsAuto: autoDocs,
       hasFluide: hasF,
       toucheGaz: otForm.toucheGaz,
       remplis,
     })
-    if (rapportOtSuffit(otForm.docsRequis) && !(otForm.rapportAction || '').trim()) {
+    if (rapportOtSuffit(otForm.docsRequis, autoDocs) && !(otForm.rapportAction || '').trim()) {
       alert(
         'Pas de fiche type pour cet équipement — remplissez le rapport d’action sur l’INT.',
       )
@@ -1289,13 +1302,12 @@ export function AppelOtPage() {
   const fluideCount = (
     selectedEqs.length > 0 ? selectedEqs : site ? allEquipements(site) : []
   ).filter((eq) => equipAvecFluideFrigorigene(eq)).length
-  const fluideSansType = (
-    selectedEqs.length > 0 ? selectedEqs : site ? allEquipements(site) : []
-  ).filter((eq) => equipAvecFluideFrigorigene(eq) && !(eq.fluideType || '').trim()).length
+  const docsAuto = docsFichesPourEquipements(selectedEqs.length > 0 ? selectedEqs : [])
   const docsEff = docsEffectifsRequis({
     docsRequis: otForm.docsRequis,
     hasFluide,
     toucheGaz: otForm.toucheGaz,
+    docsAuto,
   })
   const otCloture = isOtCloture(otForm.statut)
   const isDossierExistant = Boolean(otId || otIdParam || existing)
@@ -1410,7 +1422,7 @@ export function AppelOtPage() {
             </>
           ) : null}
           {' — '}
-          {rapportOtSuffit(otForm.docsRequis)
+          {rapportOtSuffit(otForm.docsRequis, docsAuto)
             ? 'pas de fiche type : le rapport d’INT suffit.'
             : 'la fiche s’ouvre sur ce niveau.'}{' '}
           Date déplaçable (urgence ou reprise partielle).
@@ -2445,9 +2457,8 @@ export function AppelOtPage() {
           {role === 'bureau_maintenance' ? (
             <div className="space-y-3">
               <p className="text-sm text-slate">
-                Cochez ce que <strong>{otForm.technicien || 'le technicien'}</strong> devra remplir
-                sur place. Ex. maintenance clim → fiche checklist clim. Le CERFA s’impose tout
-                seul s’il touche au gaz.
+                L’app a coché le dossier de l’équipement (ex. chaudière → chaufferie). Ajustez si
+                besoin. Le tech ne verra que ça — pas les autres dossiers.
               </p>
               {(['fiche_clim', 'fiche_chaufferie', 'fiche_cta_vmc'] as DocOtRequis[]).map((id) => {
                 const on = parseDocsOtRequis(otForm.docsRequis).includes(id)
@@ -2478,8 +2489,8 @@ export function AppelOtPage() {
                 )
               })}
               <p className="text-xs text-muted">
-                CERFA : toujours accessible au tech. Obligatoire s’il touche au fluide / gaz.
-                Pas de fiche type → le rapport d’INT suffit.
+                CERFA : le tech coche « j’ai touché au gaz » — le dossier s’ouvre alors. Sinon il
+                ne le voit pas. Pas de fiche type → le rapport d’INT suffit.
               </p>
               <SousTraitantOtFields
                 form={otForm}
@@ -2589,32 +2600,35 @@ export function AppelOtPage() {
             }}
           />
 
-          {rapportOtSuffit(otForm.docsRequis) ? (
+          {rapportOtSuffit(otForm.docsRequis, docsAuto) ? (
             <p className="rounded-xl border border-line bg-mist/50 px-3 py-2 text-sm text-ink">
               Pas de fiche type pour cet équipement — le <strong>rapport d’action</strong> de
               l’INT suffit.
             </p>
           ) : null}
 
+          {hasFluide ? (
           <label className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-sm">
             <input
               type="checkbox"
               className="mt-1"
-              checked={techDoitRemplirCerfa({ hasFluide, toucheGaz: otForm.toucheGaz })}
+              checked={otForm.toucheGaz === true}
               onChange={(e) => {
                 const toucheGaz = e.target.checked
                 setOtForm({ ...otForm, toucheGaz })
                 persistOt({ toucheGaz })
+                if (toucheGaz) openCerfa()
               }}
             />
             <span>
               <span className="font-semibold text-ink">J’ai touché au gaz / fluide</span>
               <span className="mt-0.5 block text-xs text-muted">
-                Si oui, le CERFA est obligatoire. Décochez seulement si vous n’avez pas ouvert le
-                circuit. Le bouton CERFA reste toujours accessible.
+                Seulement si vous avez ouvert le circuit. Ça ouvre le CERFA — rien d’autre à
+                chercher.
               </span>
             </span>
           </label>
+          ) : null}
 
           <label className="block text-sm">
             <span className="mb-1 flex items-center justify-between gap-2 font-semibold text-ink">
@@ -2652,102 +2666,82 @@ export function AppelOtPage() {
           />
 
           <div className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted">Documents</p>
-            <button
-              type="button"
-              onClick={openCerfa}
-              className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-left font-bold active:bg-emerald-100"
-            >
-              <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
-              <span>
-                <span className="block">
-                  CERFA (fluide / gaz) — {docsEff.includes('cerfa') ? 'obligatoire' : 'accessible'}
+            {docsEff.length > 0 ? (
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                À remplir sur place
+              </p>
+            ) : null}
+            {docsEff.includes('cerfa') ? (
+              <button
+                type="button"
+                onClick={openCerfa}
+                className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-left font-bold active:bg-emerald-100"
+              >
+                <FileCheck2 className="h-6 w-6 shrink-0 text-emerald-700" />
+                <span>
+                  <span className="block">CERFA (fluide / gaz)</span>
+                  <span className="block text-sm font-medium text-muted">
+                    {fluideCount > 1
+                      ? `${fluideCount} équipements → 1 CERFA chacun`
+                      : 'Ouvert parce que vous avez touché au gaz'}
+                  </span>
                 </span>
-                <span className="block text-sm font-medium text-muted">
-                  {fluideCount > 1
-                    ? `${fluideCount} équipements → 1 CERFA chacun`
-                    : fluideSansType > 0
-                      ? 'Ouvrir la fiche — complétez fluide / charge dedans'
-                      : hasFluide
-                        ? `Toujours accessible — ${formatOtNumero(otForm.numero)}`
-                        : 'Accessible même sans fluide déclaré — à remplir si vous touchez au gaz'}
+              </button>
+            ) : null}
+            {docsEff.includes('fiche_clim') ? (
+              <button
+                type="button"
+                onClick={openFicheMaint}
+                className="flex min-h-12 w-full items-center gap-3 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-left font-semibold active:bg-mist"
+              >
+                <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
+                <span>
+                  <span className="block text-sm">Fiche checklist clim</span>
+                  <span className="block text-xs font-medium text-muted">
+                    {selectedEquipIds.length > 1
+                      ? `${selectedEquipIds.length} équipements → 1 fiche chacun`
+                      : 'Demandée pour cette intervention'}
+                  </span>
                 </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={openFicheMaint}
-              className={[
-                'flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold active:bg-mist',
-                docsEff.includes('fiche_clim')
-                  ? 'border-2 border-amber-400 bg-amber-50'
-                  : 'border border-dashed border-line bg-white',
-              ].join(' ')}
-            >
-              <ClipboardList className="h-5 w-5 shrink-0 text-muted" />
-              <span>
-                <span className="block text-sm">
-                  Fiche checklist clim
-                  {docsEff.includes('fiche_clim') ? ' — obligatoire' : ' (optionnel)'}
+              </button>
+            ) : null}
+            {docsEff.includes('fiche_chaufferie') ? (
+              <button
+                type="button"
+                onClick={openFicheChaufferie}
+                className="flex min-h-12 w-full items-center gap-3 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-left font-semibold active:bg-amber-50"
+              >
+                <ClipboardList className="h-5 w-5 shrink-0 text-amber-800" />
+                <span>
+                  <span className="block text-sm">Fiche chaufferie P2/P3</span>
+                  <span className="block text-xs font-medium text-muted">
+                    {parseNiveauVisite(otForm.visiteNiveau)
+                      ? `Fiche ${NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}`
+                      : 'Le dossier de cette chaufferie — pas les autres'}
+                  </span>
                 </span>
-                <span className="block text-xs font-medium text-muted">
-                  {selectedEquipIds.length > 1
-                    ? `${selectedEquipIds.length} équipements → 1 fiche chacun`
-                    : docsEff.includes('fiche_clim')
-                      ? 'Demandée par le bureau — à remplir avant clôture'
-                      : 'Si vous voulez un PDF détaillé hors CERFA'}
+              </button>
+            ) : null}
+            {docsEff.includes('fiche_cta_vmc') ? (
+              <button
+                type="button"
+                onClick={openFicheCtaVmc}
+                className="flex min-h-12 w-full items-center gap-3 rounded-2xl border-2 border-sky-400 bg-sky-50 px-4 py-3 text-left font-semibold active:bg-sky-50"
+              >
+                <ClipboardList className="h-5 w-5 shrink-0 text-sky-700" />
+                <span>
+                  <span className="block text-sm">Fiche CTA / VMC</span>
+                  <span className="block text-xs font-medium text-muted">
+                    {parseNiveauVisite(otForm.visiteNiveau)
+                      ? `Fiche ${NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()}`
+                      : 'Le dossier de cette CTA — pas les autres'}
+                  </span>
                 </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={openFicheChaufferie}
-              className={[
-                'flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold active:bg-amber-50',
-                docsEff.includes('fiche_chaufferie')
-                  ? 'border-2 border-amber-400 bg-amber-50'
-                  : 'border border-dashed border-amber-200 bg-amber-50/60',
-              ].join(' ')}
-            >
-              <ClipboardList className="h-5 w-5 shrink-0 text-amber-800" />
-              <span>
-                <span className="block text-sm">
-                  Fiche chaufferie P2/P3
-                  {docsEff.includes('fiche_chaufferie') ? ' — obligatoire' : ''}
-                </span>
-                <span className="block text-xs font-medium text-muted">
-                  {parseNiveauVisite(otForm.visiteNiveau)
-                    ? `Fiche ${NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()} automatique`
-                    : 'Mensuel · trimestriel · semestriel · annuel (registre complet)'}
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={openFicheCtaVmc}
-              className={[
-                'flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left font-semibold active:bg-sky-50',
-                docsEff.includes('fiche_cta_vmc')
-                  ? 'border-2 border-sky-400 bg-sky-50'
-                  : 'border border-dashed border-sky-200 bg-sky-50/60',
-              ].join(' ')}
-            >
-              <ClipboardList className="h-5 w-5 shrink-0 text-sky-700" />
-              <span>
-                <span className="block text-sm">
-                  Fiche CTA / VMC
-                  {docsEff.includes('fiche_cta_vmc') ? ' — obligatoire' : ''}
-                </span>
-                <span className="block text-xs font-medium text-muted">
-                  {parseNiveauVisite(otForm.visiteNiveau)
-                    ? `Fiche ${NIVEAU_VISITE_LABELS[parseNiveauVisite(otForm.visiteNiveau)!].toLowerCase()} automatique`
-                    : '1M · 3M · 6M · 1Y — bouches, filtres, turbine, réglementaire'}
-                </span>
-              </span>
-            </button>
+              </button>
+            ) : null}
           </div>
 
-          {otId ? (
+          {otId && role !== 'intervenant' ? (
             <DocsPackPanel
               ot={{
                 ...otForm,

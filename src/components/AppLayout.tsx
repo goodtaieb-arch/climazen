@@ -207,18 +207,17 @@ const baseLinksTerrain = [
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/temps-hors-int', label: 'Temps hors INT', icon: Clock, tone: 'dashboard' },
   { to: '/app/scan-equip', label: 'Scan QR', icon: Search, tone: 'sites' },
-  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 
-/** Nav mobile terrain : Accueil, Intervenir, Scan, CERFA */
+/** Nav mobile terrain : Accueil, Intervenir, Scan, Stock */
 const mobilePrimaryTerrain = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/scan-equip', label: 'Scan QR', icon: Search, tone: 'sites' },
-  { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/stock', label: 'Stock', icon: Package, tone: 'stock' },
 ]
 
 /** Nav mobile bureau / gérant */
