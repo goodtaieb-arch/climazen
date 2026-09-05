@@ -195,6 +195,7 @@ export type VoiceCommandId =
   | 'gps'
   | 'aide'
   | 'pointage'
+  | 'temps_hors_int'
 
 export type ParsedVoiceCommand = {
   id: VoiceCommandId
@@ -208,6 +209,15 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand | null {
   if (!t) return null
 
   const rules: Array<{ id: VoiceCommandId; label: string; path?: string; test: (s: string) => boolean }> = [
+    {
+      id: 'temps_hors_int',
+      label: 'Entrées de temps hors INT',
+      path: '/app/temps-hors-int',
+      test: (s) =>
+        /\bhors\s+int\b/.test(s) ||
+        /\bentr[eé]es?\s+de\s+temps\b/.test(s) ||
+        /\btemps\s+hors\b/.test(s),
+    },
     {
       id: 'scan_equip',
       label: 'Scanner un équipement',

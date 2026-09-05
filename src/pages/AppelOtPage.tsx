@@ -14,7 +14,6 @@ import {
   User,
 } from 'lucide-react'
 import { DocsPackPanel } from '../components/DocsPackPanel'
-import { PointageOtPanel } from '../components/PointageOtPanel'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { SearchField, matchesQuery } from '../components/SearchField'
@@ -1299,13 +1298,6 @@ export function AppelOtPage() {
     toucheGaz: otForm.toucheGaz,
   })
   const otCloture = isOtCloture(otForm.statut)
-  const otCourantId = otId || existing?.id || ''
-  const pointageActif = useMemo(
-    () =>
-      editionHasFeature(appEdition, 'pointage') &&
-      pointageEstActif(parsePointageRegles(data.pointageRegles)),
-    [appEdition, data.pointageRegles],
-  )
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -1440,12 +1432,8 @@ export function AppelOtPage() {
         <RegistreSecuriteBanner />
       ) : null}
 
-      {pointageActif && otCourantId && !otCloture ? (
-        <PointageOtPanel
-          otId={otCourantId}
-          chantierId={otForm.chantierId}
-          compact
-        />
+      {otEstMaintenancePreparee(otForm.typeOt) || otForm.contratId ? (
+        <RegistreSecuriteBanner />
       ) : null}
 
       {/* ——— Étape INT ——— */}

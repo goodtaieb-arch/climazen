@@ -17,6 +17,8 @@ const cases: Array<[string, string | null]> = [
   ['accueil', 'accueil'],
   ['ouvre la pointeuse', 'pointage'],
   ['temps de travail', 'pointage'],
+  ['entrées de temps hors INT', 'temps_hors_int'],
+  ['hors int', 'temps_hors_int'],
   ['bonjour le chat', null],
 ]
 

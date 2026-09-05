@@ -87,6 +87,7 @@ const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
 export const PRO_ROUTE_PREFIXES = [
   '/app/equipe',
   '/app/pointage',
+  '/app/temps-hors-int',
   '/app/stock-pieces',
   '/app/devis',
   '/app/commandes',

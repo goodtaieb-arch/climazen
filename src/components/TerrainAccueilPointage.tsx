@@ -8,7 +8,6 @@ import { infoMoisGenerationOt } from '../lib/contratOtAuto'
 import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
 import {
   POINTAGE_ACTION_LABELS,
-  POINTAGE_HORS_INT_MENU,
   actionAutorisee,
   arrondirDate,
   capturerGeoPonctuel,
@@ -25,8 +24,6 @@ import {
   type PointageCible,
 } from '../lib/pointage'
 import {
-  demanderPermissionAlarmePauseRepas,
-  preparerSonAlarmePauseRepas,
   resetAlarmePauseRepas,
 } from '../lib/pauseRepasAlarme'
 
@@ -106,10 +103,6 @@ export function TerrainAccueilPointage() {
           upsertOrdreTravail({ ...ot, statut: nextStatut })
         }
       }
-      if (canon === 'pause_repas') {
-        preparerSonAlarmePauseRepas()
-        demanderPermissionAlarmePauseRepas()
-      }
       if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)}`)
     } finally {
@@ -144,63 +137,14 @@ export function TerrainAccueilPointage() {
     ? (data.ordresTravail || []).find((o) => o.id === repriseRepas.otId)
     : undefined
 
-  const punchHorsInt = (item: (typeof POINTAGE_HORS_INT_MENU)[number]) => {
-    if (!actionAutorisee(last, item.action)) {
-      if (item.action === 'sortie_domicile') {
-        setMsg('Trajet début déjà fait, ou journée close.')
-      } else if (!last || lastCanon === 'fin_journee') {
-        setMsg('D’abord « Déplacement hors INT début de journée ».')
-      } else {
-        setMsg(`Action impossible après ${POINTAGE_ACTION_LABELS[last.action]}.`)
-      }
-      return
-    }
-    const surInt = lastCanon === 'intervention_en_cours'
-    void punch(item.action, {
-      cible: item.cible,
-      otId:
-        (item.action === 'pause_repas' || item.action === 'pause') && surInt
-          ? last?.otId
-          : undefined,
-      chantierId:
-        (item.action === 'pause_repas' || item.action === 'pause') && surInt
-          ? last?.chantierId
-          : undefined,
-    })
-  }
-
-  const horsIntSelect =
-    !journeeClose && !enTrajetFin ? (
-      <label className="block text-sm">
-        <span className="mb-1 block text-[11px] font-bold uppercase text-muted">
-          Nouvelle entrée hors INT
-        </span>
-        <select
-          disabled={busy || !actif}
-          defaultValue=""
-          onChange={(e) => {
-            const v = e.target.value
-            e.target.value = ''
-            const item = POINTAGE_HORS_INT_MENU.find((m) => `${m.action}:${m.cible || ''}` === v)
-            if (!item) return
-            punchHorsInt(item)
-          }}
-          className="h-11 w-full rounded-xl border border-line bg-white px-3 font-semibold"
-        >
-          <option value="">Choisir une entrée hors INT…</option>
-          {POINTAGE_HORS_INT_MENU.map((m) => (
-            <option key={`${m.action}:${m.cible || ''}`} value={`${m.action}:${m.cible || ''}`}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <span className="mt-1 block text-[10px] font-semibold text-muted">
-          Début / fin de journée : franchise 30 min, hors quota. Pause = non payée. Pause repas =
-          50 min à 1 h, hors quota, prime panier (surplus = pause). Entre deux INT : déplacement
-          hors INT au temps entier. Consulter une INT ne lance pas le pointage.
-        </span>
-      </label>
-    ) : null
+  const horsIntLien = (
+    <Link
+      to="/app/temps-hors-int"
+      className="flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-ink"
+    >
+      Entrées de temps hors INT
+    </Link>
+  )
 
   const trajetFinBtn = enTrajetFin ? (
     <button
@@ -220,7 +164,7 @@ export function TerrainAccueilPointage() {
   ) : (
     <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
-        Pointage hors INT
+        Temps hors INT
       </p>
       {repriseRepas && last ? (
         <PauseRepasEnCoursBar
@@ -237,7 +181,7 @@ export function TerrainAccueilPointage() {
           }}
         />
       ) : null}
-      {horsIntSelect}
+      {horsIntLien}
       {enTrajetFin ? trajetFinBtn : null}
       {showApresInt ? (
         <Link
@@ -382,8 +326,8 @@ export function TerrainAccueilPointage() {
               {expanded && !enTrajetFin ? (
                 <div className="space-y-2 border-t border-line bg-mist/40 px-3 py-3">
                   <p className="text-[10px] font-semibold text-muted">
-                    « Voir » ouvre le dossier sans vous mettre en cours. Le pointage hors INT est
-                    au-dessus.
+                    « Voir » ouvre le dossier sans vous mettre en cours. Trajet, pause, fournisseur :
+                    icône « Entrées de temps hors INT ».
                   </p>
                   {!enDeplacementOt && !enCoursIci ? (
                     <label className="flex min-h-11 items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-950">

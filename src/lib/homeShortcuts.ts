@@ -18,6 +18,7 @@ export type HomeShortcutId =
   | 'equipe'
   | 'operateur'
   | 'pointage'
+  | 'temps_hors_int'
 
 export type HomeShortcutDef = {
   id: HomeShortcutId
@@ -131,6 +132,14 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     proFeature: 'pointage',
     terrainHidden: true,
   },
+  temps_hors_int: {
+    id: 'temps_hors_int',
+    title: 'Temps hors INT',
+    img: ICON3D.signaturePad,
+    to: '/app/temps-hors-int',
+    proOnly: true,
+    proFeature: 'pointage',
+  },
 }
 
 /** Disposition par défaut bureau / gérant Pro. */
@@ -143,6 +152,7 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'clients',
   'ot',
   'appel',
+  'temps_hors_int',
   'pointage',
   'profil',
 ]
@@ -159,9 +169,10 @@ export const DEFAULT_HOME_SHORTCUT_IDS_LIGHT: HomeShortcutId[] = [
   'profil',
 ]
 
-/** Terrain : cercles métier, sans magasin / sites / pointeuse (le pointage est sur l’accueil). */
+/** Terrain : cercles métier — temps hors INT à part (pas dans le dossier INT). */
 export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
   'appel',
+  'temps_hors_int',
   'scan_qr',
   'cerfa',
   'stock',
@@ -222,6 +233,17 @@ export function resetHomeShortcutIds(userId: string) {
   localStorage.removeItem(homeShortcutsStorageKey(userId))
 }
 
+function withTempsHorsIntShortcut(
+  ids: HomeShortcutId[],
+  allowed: Set<HomeShortcutId>,
+): HomeShortcutId[] {
+  if (!allowed.has('temps_hors_int') || ids.includes('temps_hors_int')) return ids
+  const next = [...ids]
+  const after = next.indexOf('appel')
+  next.splice(after >= 0 ? after + 1 : 0, 0, 'temps_hors_int')
+  return next.slice(0, MAX_HOME_SHORTCUTS)
+}
+
 /**
  * Résout la liste affichée : prefs utilisateur filtrées + défaut si absent.
  * Retire les raccourcis devenus inaccessibles (changement de rôle).
@@ -234,9 +256,15 @@ export function resolveHomeShortcutIds(
   const saved = userId ? loadHomeShortcutIds(userId) : null
   const defaults = defaultShortcutIds(access)
   const base = saved ?? defaults
-  const filtered = base.filter((id) => allowed.has(id))
+  const filtered = withTempsHorsIntShortcut(
+    base.filter((id) => allowed.has(id)),
+    allowed,
+  )
   if (filtered.length >= MIN_HOME_SHORTCUTS) return filtered.slice(0, MAX_HOME_SHORTCUTS)
-  const fallback = defaults.filter((id) => allowed.has(id))
+  const fallback = withTempsHorsIntShortcut(
+    defaults.filter((id) => allowed.has(id)),
+    allowed,
+  )
   return fallback.length ? fallback : [...allowed].slice(0, MAX_HOME_SHORTCUTS)
 }
 

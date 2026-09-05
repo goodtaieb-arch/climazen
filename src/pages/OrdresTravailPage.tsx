@@ -358,9 +358,9 @@ export function OrdresTravailPage() {
       <div className="mx-auto max-w-lg space-y-4">
         <h1 className="font-display text-2xl font-bold">Nouvelle intervention</h1>
         <p className="text-sm text-muted">
-          Les INT qui vous sont affectées sont sur l’accueil (pointage). Ici vous ouvrez seulement
-          une nouvelle intervention : client, site, et un équipement s’il n’est pas déjà sur la
-          liste.
+          Les INT qui vous sont affectées sont sur l’accueil. Le pointage porte-à-porte n’est pas
+          dans le dossier : icône « Temps hors INT ». Ici vous ouvrez seulement une nouvelle
+          intervention : client, site, et un équipement s’il n’est pas déjà sur la liste.
         </p>
         <Link
           to="/app/appel"
