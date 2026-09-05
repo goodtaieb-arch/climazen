@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Check, ChevronDown, Eye, Home, MapPin, Navigation, Wrench } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
-import { formatOtNumero, isOtCloture, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
+import { formatOtNumero, isOtCloture, otEstAstreinte, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
 import { infoMoisGenerationOt } from '../lib/contratOtAuto'
 import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
 import {
@@ -219,6 +219,10 @@ export function TerrainAccueilPointage() {
           <p className="text-[11px] font-semibold text-muted">Pas encore pointé aujourd’hui</p>
         )}
       </div>
+      <p className="px-1 text-[11px] text-muted">
+        Oubli « En cours d’intervention » à l’arrivée : ne changez pas l’heure vous-même — bureau
+        ou Aide IA (GPS).
+      </p>
       {!actif ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
           Pointeuse coupée par le bureau — les INT restent visibles.
@@ -282,6 +286,11 @@ export function TerrainAccueilPointage() {
                       {enCoursIci ? (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-950">
                           En cours
+                        </span>
+                      ) : null}
+                      {otEstAstreinte(o) ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
+                          Astreinte
                         </span>
                       ) : null}
                       {moisGen ? (

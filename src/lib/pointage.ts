@@ -210,6 +210,10 @@ export type PointageEvent = {
   note?: string
   annule?: boolean
   annuleMotif?: string
+  /** Correction bureau / IA (tech ne peut pas retoucher l’heure). */
+  corrigePar?: 'bureau' | 'ia'
+  corrigeMotif?: string
+  corrigeAt?: string
   createdAt: string
 }
 
@@ -469,6 +473,9 @@ export function parsePointageEvents(raw: unknown): PointageEvent[] {
       note: e.note ? String(e.note) : undefined,
       annule: e.annule === true,
       annuleMotif: e.annuleMotif ? String(e.annuleMotif) : undefined,
+      corrigePar: e.corrigePar === 'ia' || e.corrigePar === 'bureau' ? e.corrigePar : undefined,
+      corrigeMotif: e.corrigeMotif ? String(e.corrigeMotif) : undefined,
+      corrigeAt: e.corrigeAt ? String(e.corrigeAt) : undefined,
       createdAt: e.createdAt || at,
     })
   }

@@ -7,6 +7,7 @@ import { isBureauUi } from '../lib/uiMode'
 import { dossierForUser } from '../lib/rhDocuments'
 import { PointageOtPanel } from '../components/PointageOtPanel'
 import { PointageBureauPanel } from '../components/PointageBureauPanel'
+import { CorrectionPointageBureau } from '../components/CorrectionPointageBureau'
 import {
   POINTAGE_ACTION_LABELS,
   POINTAGE_CNIL_NOTICE,
@@ -83,6 +84,12 @@ export function PointagePage() {
 
       {bureau ? <ReglesBloc regles={regles} onSave={upsertPointageRegles} userId={user?.id} /> : null}
 
+      <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted">
+        {bureau
+          ? 'Le technicien ne peut pas modifier une heure déjà enregistrée. Oubli « en cours » à l’arrivée : corrigez ci-dessous, ou le tech demande à l’Aide IA (vérification GPS).'
+          : 'Les heures sont calculées toutes seules à chaque bouton. Vous ne pouvez pas les modifier. Oubli « En cours d’intervention » : appelez le bureau, ou Aide IA (elle vérifie le GPS et corrige).'}
+      </p>
+
       {!actif ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
           {bureau
@@ -112,6 +119,7 @@ export function PointagePage() {
             ots={data.ordresTravail || []}
             dossiers={data.personnelDossiers || []}
           />
+          <CorrectionPointageBureau />
           <BureauExport
           events={events}
           bureauJours={bureauJours}
