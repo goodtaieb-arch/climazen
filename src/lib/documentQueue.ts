@@ -4,8 +4,8 @@
  * jusqu’à confirmation. L’utilisateur n’est pas bloqué.
  */
 
-import type { CoffreDestId, OperateurDocsStockage } from './docStockage'
-import { putAndConfirmCoffreDest } from './documentArchive'
+import type { CoffreDestId } from './docStockage'
+import { storageServicePut } from './storageService'
 
 export const QUEUE_RETRY_MS = 15 * 60 * 1000
 export const QUEUE_DB_NAME = 'climazen_queue_backup'
@@ -164,12 +164,17 @@ export async function getQueuedDocument(relPath: string): Promise<Blob | null> {
 }
 
 export async function flushQueueBackup(
-  operateur?: OperateurDocsStockage | null,
+  _operateur?: unknown,
   opts?: { force?: boolean },
 ): Promise<{
   flushed: number
   remaining: number
 }> {
+  const force = Boolean(
+    opts?.force || (typeof _operateur === 'object' && _operateur && 'force' in _operateur
+      ? (_operateur as { force?: boolean }).force
+      : false),
+  )
   if (typeof indexedDB === 'undefined') return { flushed: 0, remaining: 0 }
   const list = await listQueueBackup()
   let flushed = 0
@@ -179,21 +184,21 @@ export async function flushQueueBackup(
       await withStore('readwrite', (store) => store.delete(item.id))
       continue
     }
-    if (!opts?.force && !isDueForRetry(item, now)) continue
+    if (!force && !isDueForRetry(item, now)) continue
     const blob = new Blob([item.data], { type: item.mime || 'application/pdf' })
+    const pending = (['nas', 'cloud'] as CoffreDestId[]).filter((d) => item.dests[d] === 'pending')
+    const r = await storageServicePut({
+      relPath: item.relPath,
+      blob,
+      dests: pending.length ? pending : undefined,
+    })
     const next = { ...item.dests }
-    let lastError = item.lastError
-    for (const dest of ['nas', 'cloud'] as CoffreDestId[]) {
-      if (next[dest] !== 'pending') continue
-      const r = await putAndConfirmCoffreDest({
-        dest,
-        operateur,
-        relPath: item.relPath,
-        blob,
-      })
-      if (r.ok && r.confirmed) next[dest] = 'ok'
-      else lastError = r.message
+    if (r.nasOk && next.nas === 'pending') next.nas = 'ok'
+    if (r.cloudOk && next.cloud === 'pending') next.cloud = 'ok'
+    if (r.ok && !r.queued) {
+      for (const d of pending) next[d] = 'ok'
     }
+    const lastError = queueItemStillPending(next) ? r.message : undefined
     if (!queueItemStillPending(next)) {
       await withStore('readwrite', (store) => store.delete(item.id))
       flushed += 1

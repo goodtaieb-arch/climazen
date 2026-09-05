@@ -10,6 +10,7 @@ import { COPIE_SECOURS_RELPATH, putDocumentExterne } from './documentArchive'
 import type { OperateurDocsStockage } from './docStockage'
 import { formatOtNumero, isOtCloture } from './ordreTravail'
 import { chiffrerCopieSecours, motDePasseExcelValide } from './documentCrypto'
+import { storageServiceBackupExcel } from './storageService'
 
 export const COPIE_SECOURS_SHEETS = [
   'Societe',
@@ -271,12 +272,17 @@ export async function mettreAJourCopieSecours(opts: {
   operateur?: OperateurDocsStockage | null
 }): Promise<{ ok: boolean; message: string; blob: Blob }> {
   const blob = buildCopieSecoursExcelBlob(opts.data)
+  const viaApi = await storageServiceBackupExcel()
+  if (viaApi.ok) {
+    return { ok: true, message: viaApi.message, blob }
+  }
   const op = opts.operateur || opts.data.operateur
   const pwd = op?.coffreExcelMotDePasse || ''
   if (!motDePasseExcelValide(pwd)) {
     return {
       ok: false,
       message:
+        viaApi.message ||
         'Copie Excel : définissez un mot de passe (8 caractères min.) dans Mon entreprise — le fichier n’est jamais envoyé en clair.',
       blob,
     }

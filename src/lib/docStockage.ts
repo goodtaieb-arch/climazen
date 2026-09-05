@@ -85,6 +85,8 @@ export function cheminRelatifDocument(opts: {
   return [CLOUD_DOCS_ROOT, CLOUD_DOCS_FOLDER, String(year), folder, file].join('/')
 }
 
+export type CloudProviderId = 'webdav' | 'gdrive' | 'onedrive' | 's3'
+
 export type OperateurDocsStockage = {
   docsStockageMode?: DocsStockageMode
   lienCloudDocsRacine?: string
@@ -93,13 +95,29 @@ export type OperateurDocsStockage = {
   serveurPriveDocsToken?: string
   /** Envoi auto vers le NAS (défaut : oui si URL renseignée). */
   docsDestNas?: boolean
-  /** Envoi auto vers le cloud miroir (WebDAV Drive / OneDrive / rclone). */
+  /** Envoi auto vers le cloud (Drive / OneDrive / S3 / WebDAV). */
   docsDestCloud?: boolean
-  /** URL WebDAV du miroir cloud (rclone, Nextcloud, OneDrive WebDAV…). */
+  cloudProvider?: CloudProviderId
   serveurCloudDocsUrl?: string
   serveurCloudDocsToken?: string
-  /** Mot de passe AES de la copie Excel de secours (gérant seulement). */
   coffreExcelMotDePasse?: string
+  coffreActif?: boolean
+  s3Bucket?: string
+  s3Region?: string
+  s3Prefix?: string
+  s3Endpoint?: string
+  s3AccessKey?: string
+  s3SecretKey?: string
+  gdriveClientId?: string
+  gdriveClientSecret?: string
+  gdriveRefreshToken?: string
+  gdriveFolderId?: string
+  graphTenantId?: string
+  graphClientId?: string
+  graphClientSecret?: string
+  graphRefreshToken?: string
+  graphDriveId?: string
+  graphFolderPath?: string
 }
 
 export type CoffreDestId = 'nas' | 'cloud'

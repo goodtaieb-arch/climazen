@@ -87,6 +87,7 @@ export async function loadCerfaPdf(
     const got = await getDocumentExterne({
       operateur: opts?.operateur,
       relPath,
+      archiveId: hit?.id,
     })
     if (got.ok) {
       return {

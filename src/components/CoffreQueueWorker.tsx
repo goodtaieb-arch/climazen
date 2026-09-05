@@ -1,16 +1,11 @@
-import { useEffect, useRef } from 'react'
-import { useStore } from '../lib/store'
+import { useEffect } from 'react'
 import { QUEUE_RETRY_MS, flushQueueBackup } from '../lib/documentQueue'
 
 /** Réessaie l’envoi NAS / cloud toutes les 15 min + au retour réseau. Invisible. */
 export function CoffreQueueWorker() {
-  const { data } = useStore()
-  const opRef = useRef(data.operateur)
-  opRef.current = data.operateur
-
   useEffect(() => {
     const run = (force: boolean) => {
-      void flushQueueBackup(opRef.current, { force }).catch((err) => {
+      void flushQueueBackup({ force }).catch((err) => {
         console.warn('ClimaZEN: file coffre', err)
       })
     }

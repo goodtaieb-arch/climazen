@@ -20,6 +20,7 @@ import {
   type RhAccessActor,
 } from './rhDocuments'
 import { normalizePersonnelStockageDocsUserIds } from './documentArchive'
+import { stripCoffreSecrets, preserveCoffreSecrets } from './coffreSecrets'
 import { mergePointageRegles, parsePointageEvents, parsePointageBureauJours } from './pointage'
 import { stashPendingEdition, type AppEdition } from './appEdition'
 
@@ -511,9 +512,13 @@ export async function saveOrgDataRemote(
       personnelRhAccesUserIds: protectedRh.personnelRhAccesUserIds,
       personnelRetiresUserIds: protectedRh.personnelRetiresUserIds,
       personnelStockageDocsUserIds: remote.data.personnelStockageDocsUserIds,
+      operateur: preserveCoffreSecrets({
+        previous: remote.data.operateur,
+        incoming: data.operateur,
+      }),
     }
   }
-  const light = stripHeavy(toSave)
+  const light = stripHeavy(toSave, { preserveCoffreSecrets: Boolean(actor && !actor.isOwner) })
   const updatedAt = new Date().toISOString()
   const { error } = await sb.from('org_data').upsert(
     {
@@ -527,14 +532,20 @@ export async function saveOrgDataRemote(
   return { updatedAt }
 }
 
-function stripHeavy(data: AppData): AppData {
+function stripHeavy(
+  data: AppData,
+  opts?: { preserveCoffreSecrets?: boolean },
+): AppData {
   // Logo en data-URL : trop lourd pour jsonb cloud — déjà en localStorage (companyLogo)
   const { logoImage: _logo, signatureImage: _sig, ...opRest } = data.operateur as AppData['operateur'] & {
     signatureImage?: string
   }
+  const operateur = (
+    opts?.preserveCoffreSecrets ? opRest : stripCoffreSecrets(opRest)
+  ) as AppData['operateur']
   return {
     ...data,
-    operateur: opRest,
+    operateur,
     personnelDossiers: sanitizePersonnelDossiers(data.personnelDossiers),
     interventions: data.interventions.map((rest) => {
       const { cerfaPdfBase64: _drop, ...clean } = rest as typeof rest & { cerfaPdfBase64?: string }
@@ -681,6 +692,8 @@ export function mergeOperateurPreferFilled(
     ),
     docsDestNas: remote?.docsDestNas ?? local?.docsDestNas,
     docsDestCloud: remote?.docsDestCloud ?? local?.docsDestCloud,
+    cloudProvider: remote?.cloudProvider || local?.cloudProvider,
+    coffreActif: remote?.coffreActif ?? local?.coffreActif,
     serveurCloudDocsUrl: pickNonEmpty(remote?.serveurCloudDocsUrl, local?.serveurCloudDocsUrl),
     serveurCloudDocsToken: pickNonEmpty(
       remote?.serveurCloudDocsToken,

@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
@@ -11,6 +11,13 @@ import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard
 import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
 import { archivePriveConfigure } from '../lib/documentArchive'
 import { countQueueBackup, flushQueueBackup } from '../lib/documentQueue'
+import {
+  computeCoffreActifFromPartial,
+  extractCoffreSecrets,
+  isCoffreSecretKey,
+  stripCoffreSecrets,
+} from '../lib/coffreSecrets'
+import { fetchCoffreConfig, saveCoffreConfig } from '../lib/storageService'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 import {
   APP_EDITION_DESCRIPTIONS,
@@ -58,20 +65,57 @@ export function OperateurPage() {
   const [queueCount, setQueueCount] = useState(0)
   const [queueMsg, setQueueMsg] = useState('')
   const [queueBusy, setQueueBusy] = useState(false)
+  const secretsRef = useRef<Partial<Operateur>>({})
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
 
   const patchForm = (patch: Partial<Operateur> | ((prev: Operateur) => Operateur)) => {
     setDirty(true)
-    setForm((prev) => (typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }))
+    setForm((prev) => {
+      const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }
+      const src = typeof patch === 'function' ? next : patch
+      for (const k of Object.keys(src)) {
+        if (isCoffreSecretKey(k)) {
+          secretsRef.current = { ...secretsRef.current, [k]: (src as Record<string, unknown>)[k] }
+        }
+      }
+      return next
+    })
   }
 
   // Ne pas écraser la saisie en cours
   useEffect(() => {
     if (loading || dirty) return
-    setForm(withOrgDefaults(data.operateur, organization?.name))
+    setForm({
+      ...withOrgDefaults(data.operateur, organization?.name),
+      ...secretsRef.current,
+    })
     setExpertMake(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   }, [data.operateur, organization?.name, loading, dirty])
+
+  useEffect(() => {
+    if (!isOwner) return
+    void fetchCoffreConfig()
+      .then((r) => {
+        if (!r.ok || !r.config) return
+        const secrets = extractCoffreSecrets(r.config)
+        secretsRef.current = { ...secretsRef.current, ...secrets }
+        setForm((f) => ({
+          ...f,
+          ...secrets,
+          docsDestNas: r.config?.docsDestNas !== false,
+          docsDestCloud: Boolean(r.config?.docsDestCloud),
+          cloudProvider:
+            r.config?.cloudProvider === 'gdrive' ||
+            r.config?.cloudProvider === 'onedrive' ||
+            r.config?.cloudProvider === 's3'
+              ? r.config.cloudProvider
+              : f.cloudProvider || 'webdav',
+          coffreActif: Boolean(r.public?.coffreActif || r.config?.coffreActif),
+        }))
+      })
+      .catch(() => undefined)
+  }, [isOwner])
 
   useEffect(() => {
     if (!isOwner) return
@@ -191,23 +235,40 @@ export function OperateurPage() {
     }
     setSaving(true)
     try {
-      await setOperateur({
+      const secrets = extractCoffreSecrets({
         ...form,
+        lienCloudDocsRacine: normalizeLienCloudRh(form.lienCloudDocsRacine) || undefined,
+      })
+      const coffreActif = computeCoffreActifFromPartial(form)
+      secretsRef.current = secrets
+      const publicOp = stripCoffreSecrets(form, {
+        coffreActif,
+      })
+      await setOperateur({
+        ...publicOp,
         facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
         lienCloudRhRacine: normalizeLienCloudRh(form.lienCloudRhRacine) || '',
-        lienCloudDocsRacine: normalizeLienCloudRh(form.lienCloudDocsRacine) || '',
-        serveurPriveDocsUrl: prive,
-        serveurPriveDocsToken: (form.serveurPriveDocsToken || '').trim() || undefined,
-        serveurCloudDocsUrl: (form.serveurCloudDocsUrl || '').trim() || undefined,
-        serveurCloudDocsToken: (form.serveurCloudDocsToken || '').trim() || undefined,
         docsDestNas: form.docsDestNas !== false,
         docsDestCloud: Boolean(form.docsDestCloud),
-        coffreExcelMotDePasse: (form.coffreExcelMotDePasse || '').trim() || undefined,
-        docsStockageMode: form.docsDestCloud && !prive ? 'cloud' : 'prive',
+        cloudProvider: form.cloudProvider || 'webdav',
+        coffreActif,
+        docsStockageMode: form.docsDestCloud && !(form.serveurPriveDocsUrl || '').trim() ? 'cloud' : 'prive',
       })
+      const savedCfg = await saveCoffreConfig({
+        ...secrets,
+        docsDestNas: form.docsDestNas !== false,
+        docsDestCloud: Boolean(form.docsDestCloud),
+        cloudProvider: form.cloudProvider || 'webdav',
+        coffreActif,
+      })
+      if (!savedCfg.ok) {
+        setFormError(savedCfg.error || 'Impossible d’enregistrer les jetons coffre (côté serveur).')
+        return
+      }
       setDirty(false)
       void refreshUser().catch(() => undefined)
       setSaved(true)
+      if (savedCfg.warning) setFormError(savedCfg.warning)
       setTimeout(() => setSaved(false), 2500)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
@@ -515,13 +576,14 @@ export function OperateurPage() {
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">
-            Coffre documents (hors site)
+            Coffre-fort documents (NAS & cloud)
           </h2>
           <p className="mb-3 text-sm text-muted">
-            Les PDF ne sont jamais sur ClimaZEN. Envoi simultané possible vers le NAS et un cloud
-            miroir. Si le serveur est down, le fichier va dans <strong>queue_backup</strong> (local,
-            temporaire) et l’app réessaie toutes les 15 min jusqu’à confirmation — le bureau n’est
-            pas bloqué.
+            Les PDF (CERFA, rapports, devis) et la copie Excel partent vers le stockage choisi via
+            le serveur ClimaZEN. Les URL et jetons restent chez le gérant : le bureau n’ouvre jamais
+            le NAS ni Drive — uniquement{' '}
+            <span className="font-mono text-xs">/api/documents/download/…</span>. Envoi asynchrone ;
+            si le distant est down, file <strong>queue_backup</strong> (retry 15 min).
           </p>
           <div className="mb-3 space-y-2">
             <label className="flex items-start gap-2 text-sm">
@@ -532,8 +594,8 @@ export function OperateurPage() {
                 onChange={(e) => patchForm({ docsDestNas: e.target.checked })}
               />
               <span>
-                <strong>Serveur NAS / WebDAV local</strong>
-                <span className="block text-xs text-muted">Nextcloud, Synology, dossier société.</span>
+                <strong>Serveur privé (NAS / Nextcloud / WebDAV)</strong>
+                <span className="block text-xs text-muted">Synology, TrueNAS, dossier société.</span>
               </span>
             </label>
             <label className="flex items-start gap-2 text-sm">
@@ -544,10 +606,9 @@ export function OperateurPage() {
                 onChange={(e) => patchForm({ docsDestCloud: e.target.checked })}
               />
               <span>
-                <strong>Cloud externe (Google Drive / OneDrive)</strong>
+                <strong>Cloud tiers</strong>
                 <span className="block text-xs text-muted">
-                  Miroir WebDAV (rclone, RaiDrive, OneDrive WebDAV, Nextcloud). L’API Drive native
-                  exige un compte Google — le miroir écrit comme le NAS, en même temps.
+                  Google Drive, OneDrive / SharePoint, AWS S3, ou miroir WebDAV.
                 </span>
               </span>
             </label>
@@ -558,35 +619,165 @@ export function OperateurPage() {
             onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
           />
           <p className="mt-1.5 text-xs text-muted">
-            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user
+            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — jamais visible par le bureau.
           </p>
           <Field
             label="Jeton NAS (optionnel)"
+            type="password"
             value={form.serveurPriveDocsToken || ''}
             onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
             className="mt-3"
+            autoComplete="off"
           />
+          {form.docsDestCloud ? (
+            <div className="mt-3 space-y-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-semibold text-ink">Fournisseur cloud</span>
+                <select
+                  value={form.cloudProvider || 'webdav'}
+                  onChange={(e) =>
+                    patchForm({
+                      cloudProvider: e.target.value as Operateur['cloudProvider'],
+                    })
+                  }
+                  className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base md:h-11 md:text-sm"
+                >
+                  <option value="webdav">WebDAV (rclone / Nextcloud / OneDrive WebDAV)</option>
+                  <option value="gdrive">Google Drive (API)</option>
+                  <option value="onedrive">Microsoft OneDrive / SharePoint (Graph)</option>
+                  <option value="s3">AWS S3 (ou compatible SigV4)</option>
+                </select>
+              </label>
+              {(form.cloudProvider || 'webdav') === 'webdav' ? (
+                <>
+                  <Field
+                    label="URL cloud miroir WebDAV"
+                    value={form.serveurCloudDocsUrl || ''}
+                    onChange={(v) => patchForm({ serveurCloudDocsUrl: v || undefined, docsDestCloud: true })}
+                  />
+                  <Field
+                    label="Jeton cloud miroir (optionnel)"
+                    type="password"
+                    value={form.serveurCloudDocsToken || ''}
+                    onChange={(v) => patchForm({ serveurCloudDocsToken: v || undefined })}
+                    autoComplete="off"
+                  />
+                </>
+              ) : null}
+              {form.cloudProvider === 'gdrive' ? (
+                <>
+                  <Field
+                    label="Google client ID"
+                    value={form.gdriveClientId || ''}
+                    onChange={(v) => patchForm({ gdriveClientId: v || undefined })}
+                  />
+                  <Field
+                    label="Google client secret"
+                    type="password"
+                    value={form.gdriveClientSecret || ''}
+                    onChange={(v) => patchForm({ gdriveClientSecret: v || undefined })}
+                    autoComplete="off"
+                  />
+                  <Field
+                    label="Google refresh token"
+                    type="password"
+                    value={form.gdriveRefreshToken || ''}
+                    onChange={(v) => patchForm({ gdriveRefreshToken: v || undefined })}
+                    autoComplete="off"
+                  />
+                  <Field
+                    label="ID dossier Drive (racine coffre)"
+                    value={form.gdriveFolderId || ''}
+                    onChange={(v) => patchForm({ gdriveFolderId: v || undefined })}
+                  />
+                </>
+              ) : null}
+              {form.cloudProvider === 'onedrive' ? (
+                <>
+                  <Field
+                    label="Azure tenant ID (ou common)"
+                    value={form.graphTenantId || ''}
+                    onChange={(v) => patchForm({ graphTenantId: v || undefined })}
+                  />
+                  <Field
+                    label="Azure client ID"
+                    value={form.graphClientId || ''}
+                    onChange={(v) => patchForm({ graphClientId: v || undefined })}
+                  />
+                  <Field
+                    label="Azure client secret"
+                    type="password"
+                    value={form.graphClientSecret || ''}
+                    onChange={(v) => patchForm({ graphClientSecret: v || undefined })}
+                    autoComplete="off"
+                  />
+                  <Field
+                    label="Refresh token (délégué, optionnel si drive id + app-only)"
+                    type="password"
+                    value={form.graphRefreshToken || ''}
+                    onChange={(v) => patchForm({ graphRefreshToken: v || undefined })}
+                    autoComplete="off"
+                  />
+                  <Field
+                    label="Drive ID SharePoint (optionnel si compte OneDrive /me)"
+                    value={form.graphDriveId || ''}
+                    onChange={(v) => patchForm({ graphDriveId: v || undefined })}
+                  />
+                  <Field
+                    label="Dossier Graph (préfixe, optionnel)"
+                    value={form.graphFolderPath || ''}
+                    onChange={(v) => patchForm({ graphFolderPath: v || undefined })}
+                  />
+                </>
+              ) : null}
+              {form.cloudProvider === 's3' ? (
+                <>
+                  <Field
+                    label="Bucket S3"
+                    value={form.s3Bucket || ''}
+                    onChange={(v) => patchForm({ s3Bucket: v || undefined })}
+                  />
+                  <Field
+                    label="Région (ex. eu-west-3)"
+                    value={form.s3Region || ''}
+                    onChange={(v) => patchForm({ s3Region: v || undefined })}
+                  />
+                  <Field
+                    label="Préfixe clé (optionnel)"
+                    value={form.s3Prefix || ''}
+                    onChange={(v) => patchForm({ s3Prefix: v || undefined })}
+                  />
+                  <Field
+                    label="Endpoint custom (Wasabi / MinIO / Scaleway, optionnel)"
+                    value={form.s3Endpoint || ''}
+                    onChange={(v) => patchForm({ s3Endpoint: v || undefined })}
+                  />
+                  <Field
+                    label="Access key"
+                    value={form.s3AccessKey || ''}
+                    onChange={(v) => patchForm({ s3AccessKey: v || undefined })}
+                    autoComplete="off"
+                  />
+                  <Field
+                    label="Secret key"
+                    type="password"
+                    value={form.s3SecretKey || ''}
+                    onChange={(v) => patchForm({ s3SecretKey: v || undefined })}
+                    autoComplete="off"
+                  />
+                </>
+              ) : null}
+            </div>
+          ) : null}
           <Field
-            label="URL cloud miroir WebDAV (Drive / OneDrive / rclone)"
-            value={form.serveurCloudDocsUrl || ''}
-            onChange={(v) => patchForm({ serveurCloudDocsUrl: v || undefined, docsDestCloud: true })}
-            className="mt-3"
-          />
-          <Field
-            label="Jeton cloud miroir (optionnel)"
-            value={form.serveurCloudDocsToken || ''}
-            onChange={(v) => patchForm({ serveurCloudDocsToken: v || undefined })}
-            className="mt-3"
-          />
-          <Field
-            label="Lien dossier cloud (personnel désigné — ouverture manuelle, pas le bureau)"
+            label="Lien dossier cloud (gérant seulement — jamais envoyé au bureau)"
             value={form.lienCloudDocsRacine || ''}
             onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
             className="mt-3"
           />
           <p className="mt-1.5 text-xs text-muted">
             {cloudPasteHint(form.lienCloudDocsRacine) ||
-              'Le bureau sort CERFA / rapports depuis l’app, jamais depuis Drive.'}
+              'Le personnel sort CERFA / rapports depuis l’app, jamais depuis Drive.'}
           </p>
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
             <p className="text-xs font-bold uppercase text-muted">Arborescence coffre</p>
@@ -594,9 +785,9 @@ export function OperateurPage() {
               {arborescenceDocumentsEntreprise().join('\n')}
             </pre>
             <p className="mt-2 text-xs text-muted">
-              {archivePriveConfigure(form)
-                ? 'Coffre joignable — file d’attente si coupure.'
-                : 'Sans URL NAS ou cloud, les PDF restent en queue_backup jusqu’à configuration.'}
+              {archivePriveConfigure(form) || form.coffreActif
+                ? 'Coffre joignable — file d’attente si coupure. SQL : supabase/org-coffre-secrets.sql'
+                : 'Sans NAS ni cloud, les PDF restent en queue_backup jusqu’à configuration.'}
             </p>
           </div>
           <div className="mt-3 rounded-xl border border-line bg-white p-3">
@@ -612,7 +803,7 @@ export function OperateurPage() {
               onClick={() => {
                 setQueueBusy(true)
                 setQueueMsg('')
-                void flushQueueBackup(form, { force: true })
+                void flushQueueBackup({ force: true })
                   .then((r) => {
                     setQueueCount(r.remaining)
                     setQueueMsg(
@@ -637,7 +828,8 @@ export function OperateurPage() {
           <div className="mt-3 rounded-xl border border-line bg-white p-3">
             <p className="text-sm font-semibold text-ink">Copie Excel de secours (chiffrée)</p>
             <p className="mt-1 text-xs text-muted">
-              AES-256-GCM. Jamais envoyée en clair. Fichier :{' '}
+              AES-256-GCM, dossier <span className="font-mono">/Secours/</span>. Générée côté serveur
+              (le mot de passe ne circule pas vers le bureau). Fichier :{' '}
               <span className="font-mono">ClimaZEN/Documents/Secours/climazen-donnees.xlsx.enc</span>
             </p>
             <Field
@@ -646,6 +838,7 @@ export function OperateurPage() {
               value={form.coffreExcelMotDePasse || ''}
               onChange={(v) => patchForm({ coffreExcelMotDePasse: v || undefined })}
               className="mt-3"
+              autoComplete="new-password"
             />
             <button
               type="button"

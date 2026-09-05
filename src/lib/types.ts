@@ -138,12 +138,32 @@ export interface Operateur {
   serveurPriveDocsToken?: string
   /** Envoi auto NAS (défaut oui). */
   docsDestNas?: boolean
-  /** Envoi auto cloud miroir (WebDAV Drive / OneDrive). */
+  /** Envoi auto cloud (Drive / OneDrive / S3 / WebDAV). */
   docsDestCloud?: boolean
+  /** Fournisseur cloud natif (défaut webdav). */
+  cloudProvider?: 'webdav' | 'gdrive' | 'onedrive' | 's3'
   serveurCloudDocsUrl?: string
   serveurCloudDocsToken?: string
-  /** Mot de passe AES-256 de climazen-donnees.xlsx.enc */
+  /** Mot de passe AES de climazen-donnees.xlsx.enc */
   coffreExcelMotDePasse?: string
+  /** Public : coffre configuré (sans exposer les URL / jetons). */
+  coffreActif?: boolean
+  s3Bucket?: string
+  s3Region?: string
+  s3Prefix?: string
+  s3Endpoint?: string
+  s3AccessKey?: string
+  s3SecretKey?: string
+  gdriveClientId?: string
+  gdriveClientSecret?: string
+  gdriveRefreshToken?: string
+  gdriveFolderId?: string
+  graphTenantId?: string
+  graphClientId?: string
+  graphClientSecret?: string
+  graphRefreshToken?: string
+  graphDriveId?: string
+  graphFolderPath?: string
   /**
    * Installations de destination habituelles (CERFA [13]) —
    * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.

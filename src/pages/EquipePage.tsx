@@ -750,7 +750,7 @@ export function EquipePage() {
                       ? 'bg-accent-soft text-slate'
                       : 'border border-line text-muted hover:bg-mist',
                   ].join(' ')}
-                  title="Autorise à ouvrir le NAS / cloud Documents. Le bureau sort CERFA et rapports depuis l’app, sans ouvrir le coffre."
+                  title="Le bureau n’ouvre jamais le NAS : les PDF passent par ClimaZEN. Ce flag n’expose aucune URL."
                 >
                   <HardDrive className="h-3.5 w-3.5" />
                   {hasCoffreAcces ? 'Coffre docs : oui' : 'Accès coffre documents'}
