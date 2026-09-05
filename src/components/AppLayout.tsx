@@ -205,6 +205,7 @@ const baseLinksOperator = [
 const baseLinksTerrain = [
   { to: '/app', end: true, label: 'Accueil', icon: LayoutDashboard, tone: 'dashboard' },
   { to: '/app/appel', label: 'Intervenir', icon: ClipboardList, tone: 'cerfa' },
+  { to: '/app/temps-hors-int', label: 'Temps hors INT', icon: Clock, tone: 'dashboard' },
   { to: '/app/scan-equip', label: 'Scan QR', icon: Search, tone: 'sites' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
@@ -338,6 +339,7 @@ export function AppLayout() {
       : terrainUi
       ? [
           { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+          { to: '/app/temps-hors-int', label: 'Temps hors INT', icon: Clock, tone: 'dashboard' },
           { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
           { to: '/app/scan-equip', label: 'Scanner QR', icon: Search, tone: 'sites' },
           { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },

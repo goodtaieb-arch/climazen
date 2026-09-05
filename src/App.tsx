@@ -31,6 +31,7 @@ import { AppelOtPage } from './pages/AppelOtPage'
 import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
 import { AgendaPage } from './pages/AgendaPage'
 import { PointagePage } from './pages/PointagePage'
+import { TempsHorsIntPage } from './pages/TempsHorsIntPage'
 import { ContactPage } from './pages/ContactPage'
 import { AvisGooglePage } from './pages/AvisGooglePage'
 import { SignerPage } from './pages/SignerPage'
@@ -154,6 +155,14 @@ export default function App() {
                   element={
                     <RequireEdition>
                       <PointagePage />
+                    </RequireEdition>
+                  }
+                />
+                <Route
+                  path="temps-hors-int"
+                  element={
+                    <RequireEdition>
+                      <TempsHorsIntPage />
                     </RequireEdition>
                   }
                 />

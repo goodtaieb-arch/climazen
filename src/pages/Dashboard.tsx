@@ -310,7 +310,7 @@ export function Dashboard() {
             </h1>
             {terrainUi ? (
               <p className="mt-1 text-sm font-medium text-muted">
-                INT affectées, pointage, scan QR, nouvelle intervention.
+                INT affectées, temps hors INT, scan QR, nouvelle intervention.
               </p>
             ) : appEdition === 'light' ? (
               <p className="mt-1 text-sm font-medium text-muted">{LIGHT_SOLO_FLOW_HINT}</p>

@@ -33,7 +33,9 @@ assert.equal(routeAllowedInEdition('/app/equipe/u1', 'light'), false)
 assert.equal(routeAllowedInEdition('/app/equipe/u1', 'light', { ownUserId: 'u1' }), true)
 assert.equal(lightRouteRedirect('/app/ot', 'light'), null)
 assert.equal(lightRouteRedirect('/app/clients', 'light'), null)
-assert.equal(routeAllowedInEdition('/app/equipe', 'pro'), true)
+assert.equal(routeAllowedInEdition('/app/pointage', 'light'), false)
+assert.equal(routeAllowedInEdition('/app/temps-hors-int', 'light'), false)
+assert.equal(routeAllowedInEdition('/app/temps-hors-int', 'pro'), true)
 
 const links = [
   { to: '/app/clients', label: 'Clients' },
