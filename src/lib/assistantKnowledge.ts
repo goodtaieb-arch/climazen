@@ -308,7 +308,7 @@ Pour clôturer : signatures tech + client sur l’intervention, puis « Clôture
 - Raison sociale, SIRET, attestation de capacité.
 - Logo (apparaît sur le rapport INT).
 - Dossier cloud RH : UN lien général (Drive / OneDrive / SharePoint). ClimaZEN classe ClimaZEN → Dossiers techniciens → nom du tech → catégorie.
-- Coffre documents : NAS / Nextcloud. Les PDF ne sont pas sur le site. Le bureau ouvre CERFA / rapports depuis l’app. Copie Excel de secours (clients, sites, équipe…).
+- Coffre-fort documents : NAS / Nextcloud / WebDAV, Google Drive, OneDrive / SharePoint ou AWS S3. Les PDF ne sont pas sur le site. Le bureau ouvre CERFA / rapports via l’app (proxy), jamais le NAS. Copie Excel chiffrée dans /Secours/.
 Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : Mon profil.`,
   },
   {
@@ -325,12 +325,15 @@ Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : M
       'excel',
       'secours',
       'stockage',
+      'queue',
+      'chiffrement',
+      'drive',
     ],
     paths: ['/app/operateur', '/app/interventions', '/app/equipe'],
-    answer: `Les PDF ne sont pas stockés sur ClimaZEN (place + sécurité). Tout part sur le NAS / Nextcloud de la société.
-Le bureau n’ouvre jamais le coffre : il sort CERFA, rapport, devis depuis l’app, comme si le fichier était sur le site.
-Seul le gérant (et les personnes cochées « Accès coffre documents » dans Équipe) voit l’URL / le jeton.
-Une copie Excel à jour (clients, sites, équipements, équipe sans CNI, INT, stock…) est dans ClimaZEN/Documents/Secours/climazen-donnees.xlsx — pour tout régénérer si on perd le site.`,
+    answer: `Les PDF ne sont pas stockés sur ClimaZEN (place + sécurité). Tout part vers le coffre configuré (NAS WebDAV, Google Drive, OneDrive / SharePoint, AWS S3).
+Le bureau n’ouvre jamais le NAS ni le cloud : il sort CERFA, rapport, devis depuis l’app. ClimaZEN va chercher le fichier en arrière-plan (/api/documents/download/…).
+Les URL et jetons restent chez le gérant (Mon entreprise). Une copie Excel chiffrée (AES-256-GCM) est dans ClimaZEN/Documents/Secours/climazen-donnees.xlsx.enc.
+Envoi asynchrone. Si le serveur est down : file queue_backup, retry toutes les 15 min, le bureau n’est pas bloqué.`,
   },
   {
     id: 'profil',

@@ -4,8 +4,14 @@
  * Le site ne garde que le chemin + métadonnées. Le bureau télécharge via l’app.
  */
 
-import type { DocKind } from './docStockage'
-import { cheminRelatifDocument, resolveServeurPriveBase, type OperateurDocsStockage } from './docStockage'
+import type { CoffreDestId, DocKind, OperateurDocsStockage } from './docStockage'
+import {
+  cheminRelatifDocument,
+  coffreDestinationsVoulues,
+  resolveServeurCloudBase,
+  resolveServeurPriveBase,
+} from './docStockage'
+import { storageServiceDownloadById, storageServiceGet } from './storageService'
 
 export type DocumentArchive = {
   id: string
@@ -22,7 +28,9 @@ export type DocumentArchive = {
   archivedAt?: string
 }
 
-export const COPIE_SECOURS_RELPATH = 'ClimaZEN/Documents/Secours/climazen-donnees.xlsx'
+export const COPIE_SECOURS_RELPATH = 'ClimaZEN/Documents/Secours/climazen-donnees.xlsx.enc'
+export const COPIE_SECOURS_RELPATH_CLAIR = 'ClimaZEN/Documents/Secours/climazen-donnees.xlsx'
+export const QUEUE_BACKUP_FOLDER = 'ClimaZEN/Documents/queue_backup'
 
 export function peutConfigurerCoffreDocs(opts: {
   isOwner?: boolean
@@ -36,7 +44,8 @@ export function peutConfigurerCoffreDocs(opts: {
 }
 
 export function archivePriveConfigure(op?: OperateurDocsStockage | null): boolean {
-  return Boolean(resolveServeurPriveBase(op))
+  if (op && 'coffreActif' in op && (op as { coffreActif?: boolean }).coffreActif) return true
+  return Boolean(resolveServeurPriveBase(op) || resolveServeurCloudBase(op))
 }
 
 export function normalizePersonnelStockageDocsUserIds(ids?: string[] | null): string[] {
@@ -153,102 +162,89 @@ function assertSafeRelPath(relPath: string): string {
   return p
 }
 
-async function blobToBase64(blob: Blob): Promise<string> {
-  const buf = await blob.arrayBuffer()
-  const bytes = new Uint8Array(buf)
-  let bin = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  }
-  return btoa(bin)
-}
-
-function base64ToBlob(b64: string, mime: string): Blob {
-  const bin = atob(b64)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: mime || 'application/pdf' })
-}
-
-async function callArchiveApi(body: Record<string, unknown>): Promise<{
+export type PutDocumentResult = {
   ok: boolean
-  message?: string
-  contentBase64?: string
-  contentType?: string
-}> {
-  const res = await fetch('/api/docs-archive', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = (await res.json().catch(() => ({}))) as {
-    ok?: boolean
-    message?: string
-    error?: string
-    contentBase64?: string
-    contentType?: string
-  }
-  if (!res.ok || !data.ok) {
-    return { ok: false, message: data.message || data.error || `Archive HTTP ${res.status}` }
-  }
-  return {
-    ok: true,
-    message: data.message,
-    contentBase64: data.contentBase64,
-    contentType: data.contentType,
+  message: string
+  queued?: boolean
+  nasOk?: boolean
+  cloudOk?: boolean
+  confirmed?: boolean
+}
+
+async function enqueueFailedDests(opts: {
+  relPath: string
+  blob: Blob
+  failed: CoffreDestId[]
+  okDests?: CoffreDestId[]
+}) {
+  try {
+    const { enqueueDocument } = await import('./documentQueue')
+    await enqueueDocument({
+      relPath: opts.relPath,
+      blob: opts.blob,
+      failed: opts.failed,
+      okDests: opts.okDests,
+    })
+  } catch (err) {
+    console.warn('ClimaZEN: file d’attente coffre', err)
   }
 }
 
+/**
+ * Enfile d’abord (UI non bloquée), puis tente le proxy /api/documents en fond.
+ * Confirmation NAS/cloud → suppression du temporaire (queue_backup).
+ */
 export async function putDocumentExterne(opts: {
   operateur?: OperateurDocsStockage | null
   relPath: string
   blob: Blob
-}): Promise<{ ok: boolean; message: string }> {
-  const base = resolveServeurPriveBase(opts.operateur)
-  if (!base) {
-    return {
-      ok: false,
-      message:
-        'Serveur privé non configuré (Mon entreprise). Les PDF ne sont plus stockés sur ClimaZEN — configurez le NAS / Nextcloud.',
-    }
-  }
+}): Promise<PutDocumentResult> {
+  const dests = coffreDestinationsVoulues(opts.operateur)
   const relPath = assertSafeRelPath(opts.relPath)
-  const contentBase64 = await blobToBase64(opts.blob)
-  const res = await callArchiveApi({
-    action: 'put',
-    baseUrl: base,
-    token: opts.operateur?.serveurPriveDocsToken || '',
+  const pending = dests.length ? dests : (['nas', 'cloud'] as CoffreDestId[])
+  await enqueueFailedDests({
     relPath,
-    contentBase64,
-    contentType: opts.blob.type || 'application/pdf',
+    blob: opts.blob,
+    failed: pending,
   })
+  /* Laisser le PDF lisible depuis la file locale quelques secondes, puis envoyer. */
+  const kickFlush = () => {
+    void import('./documentQueue')
+      .then(({ flushQueueBackup }) => flushQueueBackup({ force: true }))
+      .catch((err) => {
+        console.warn('ClimaZEN: flush coffre', err)
+      })
+  }
+  if (typeof window !== 'undefined') {
+    window.setTimeout(kickFlush, 2500)
+  } else {
+    kickFlush()
+  }
   return {
-    ok: res.ok,
-    message: res.message || (res.ok ? `Archivé : ${relPath}` : 'Archive impossible.'),
+    ok: true,
+    queued: true,
+    message: 'Envoi coffre en file d’attente — nouvel essai auto toutes les 15 min.',
   }
 }
 
 export async function getDocumentExterne(opts: {
   operateur?: OperateurDocsStockage | null
   relPath: string
+  archiveId?: string
 }): Promise<{ ok: true; blob: Blob } | { ok: false; message: string }> {
-  const base = resolveServeurPriveBase(opts.operateur)
-  if (!base) {
-    return { ok: false, message: 'Serveur privé non configuré.' }
-  }
   const relPath = assertSafeRelPath(opts.relPath)
-  const res = await callArchiveApi({
-    action: 'get',
-    baseUrl: base,
-    token: opts.operateur?.serveurPriveDocsToken || '',
-    relPath,
-  })
-  if (!res.ok || !res.contentBase64) {
-    return { ok: false, message: res.message || 'Document introuvable dans l’archive.' }
+  try {
+    const { getQueuedDocument } = await import('./documentQueue')
+    const queued = await getQueuedDocument(relPath)
+    if (queued) return { ok: true, blob: queued }
+  } catch {
+    /* ignore */
   }
-  return {
-    ok: true,
-    blob: base64ToBlob(res.contentBase64, res.contentType || 'application/pdf'),
+  if (opts.archiveId) {
+    const byId = await storageServiceDownloadById(opts.archiveId)
+    if (byId.ok) return { ok: true, blob: byId.blob }
   }
+  const got = await storageServiceGet(relPath)
+  if (got.ok) return got
+  return { ok: false, message: got.message || 'Document introuvable dans l’archive.' }
 }

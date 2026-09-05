@@ -18,7 +18,7 @@ import {
   type StockMouvementSens,
 } from '../lib/types'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
-import { loadCerfaPdf, pdfCtxFromData, saveCerfaPdf } from '../lib/pdfStore'
+import { loadCerfaPdf, pdfCtxForIntervention, saveCerfaPdf } from '../lib/pdfStore'
 import { Field } from './ClientsPage'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
@@ -399,7 +399,7 @@ export function InterventionFormPage() {
     void loadCerfaPdf(
       interventionId,
       user?.organizationId,
-      pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+      pdfCtxForIntervention(data, existing || { clientId: client?.id }),
     ).then((pdf) => {
       if (!pdf) {
         setHasPdf(false)
@@ -416,6 +416,7 @@ export function InterventionFormPage() {
   }, [
     existing?.id,
     existing?.cerfaPdfSavedAt,
+    existing?.cerfaPdfFileName,
     user?.organizationId,
     data.operateur,
     data.documentsArchives,
@@ -1167,7 +1168,11 @@ export function InterventionFormPage() {
       chantier,
     })
     await saveCerfaPdf(savedId, blob, fileName, user?.organizationId, {
-      ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+      ...pdfCtxForIntervention(data, {
+        clientId: client?.id,
+        cerfaPdfFileName: fileName,
+        dateIntervention,
+      }),
       onArchived: upsertDocumentArchive,
     })
 
@@ -1331,7 +1336,11 @@ export function InterventionFormPage() {
         upsertIntervention(fullDraft)
         const blob = await buildCerfaPdf({ draft: fullDraft, client, chantier })
         await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId, {
-          ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+          ...pdfCtxForIntervention(data, {
+            clientId: client?.id,
+            cerfaPdfFileName: fileName,
+            dateIntervention: draft.dateIntervention,
+          }),
           onArchived: upsertDocumentArchive,
         })
         done += 1
@@ -1343,7 +1352,11 @@ export function InterventionFormPage() {
         const pdf = await loadCerfaPdf(
           currentId,
           user?.organizationId,
-          pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+          pdfCtxForIntervention(data, {
+            clientId: client?.id,
+            cerfaPdfFileName: existing?.cerfaPdfFileName,
+            dateIntervention: existing?.dateIntervention,
+          }),
         )
         if (pdf) {
           if (pdfUrl) URL.revokeObjectURL(pdfUrl)

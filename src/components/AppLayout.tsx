@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CoffreQueueWorker } from './CoffreQueueWorker'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
@@ -376,6 +377,7 @@ export function AppLayout() {
         backgroundImage: `linear-gradient(${pageTone.page}, ${pageTone.page})`,
       }}
     >
+      <CoffreQueueWorker />
       <aside className="hidden border-r border-line bg-[#fafbfc] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:self-start md:overflow-y-auto">
         <div className="border-b border-line bg-white px-4 py-4">
           <BrandLogo size="sm" companyLogo={companyLogo} companyName={companyName} />

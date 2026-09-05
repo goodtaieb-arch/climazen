@@ -48,7 +48,8 @@ export function arborescenceDocumentsEntreprise(year = new Date().getFullYear())
     lines.push(`        ${k}/`)
   }
   lines.push(`    Secours/`)
-  lines.push(`      climazen-donnees.xlsx`)
+  lines.push(`      climazen-donnees.xlsx.enc`)
+  lines.push(`    queue_backup/`)
   return lines
 }
 
@@ -84,14 +85,87 @@ export function cheminRelatifDocument(opts: {
   return [CLOUD_DOCS_ROOT, CLOUD_DOCS_FOLDER, String(year), folder, file].join('/')
 }
 
+export type CloudProviderId = 'webdav' | 'gdrive' | 'onedrive' | 's3'
+
 export type OperateurDocsStockage = {
   docsStockageMode?: DocsStockageMode
   lienCloudDocsRacine?: string
-  /** Repli : dossier cloud RH si docs non renseigné */
   lienCloudRhRacine?: string
   serveurPriveDocsUrl?: string
-  /** Jeton optionnel (Bearer) pour PUT WebDAV / API NAS */
   serveurPriveDocsToken?: string
+  /** Envoi auto vers le NAS (défaut : oui si URL renseignée). */
+  docsDestNas?: boolean
+  /** Envoi auto vers le cloud (Drive / OneDrive / S3 / WebDAV). */
+  docsDestCloud?: boolean
+  cloudProvider?: CloudProviderId
+  serveurCloudDocsUrl?: string
+  serveurCloudDocsToken?: string
+  coffreExcelMotDePasse?: string
+  coffreActif?: boolean
+  s3Bucket?: string
+  s3Region?: string
+  s3Prefix?: string
+  s3Endpoint?: string
+  s3AccessKey?: string
+  s3SecretKey?: string
+  gdriveClientId?: string
+  gdriveClientSecret?: string
+  gdriveRefreshToken?: string
+  gdriveFolderId?: string
+  graphTenantId?: string
+  graphClientId?: string
+  graphClientSecret?: string
+  graphRefreshToken?: string
+  graphDriveId?: string
+  graphFolderPath?: string
+}
+
+export type CoffreDestId = 'nas' | 'cloud'
+
+export function resolveHttpBase(raw?: string | null): string | undefined {
+  const s = (raw || '').trim()
+  if (!s) return undefined
+  try {
+    const u = new URL(s)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return undefined
+    return s.replace(/\/+$/, '')
+  } catch {
+    return undefined
+  }
+}
+
+export function resolveServeurPriveBase(op?: OperateurDocsStockage | null): string | undefined {
+  return resolveHttpBase(op?.serveurPriveDocsUrl)
+}
+
+export function resolveServeurCloudBase(op?: OperateurDocsStockage | null): string | undefined {
+  return resolveHttpBase(op?.serveurCloudDocsUrl)
+}
+
+export function coffreDestNasVoulue(op?: OperateurDocsStockage | null): boolean {
+  return op?.docsDestNas !== false
+}
+
+export function coffreDestCloudVoulue(op?: OperateurDocsStockage | null): boolean {
+  return op?.docsDestCloud === true
+}
+
+export function coffreDestinationsVoulues(op?: OperateurDocsStockage | null): CoffreDestId[] {
+  const out: CoffreDestId[] = []
+  if (coffreDestNasVoulue(op)) out.push('nas')
+  if (coffreDestCloudVoulue(op)) out.push('cloud')
+  if (out.length === 0 && resolveServeurPriveBase(op)) out.push('nas')
+  return out
+}
+
+export function coffreDestConfig(op: OperateurDocsStockage | null | undefined, dest: CoffreDestId): {
+  base?: string
+  token?: string
+} {
+  if (dest === 'cloud') {
+    return { base: resolveServeurCloudBase(op), token: op?.serveurCloudDocsToken }
+  }
+  return { base: resolveServeurPriveBase(op), token: op?.serveurPriveDocsToken }
 }
 
 export function resolveDocsStockageMode(op?: OperateurDocsStockage | null): DocsStockageMode {
@@ -110,30 +184,20 @@ export function resolveLienCloudDocs(op?: OperateurDocsStockage | null): string 
   )
 }
 
-export function resolveServeurPriveBase(op?: OperateurDocsStockage | null): string | undefined {
-  const raw = (op?.serveurPriveDocsUrl || '').trim()
-  if (!raw) return undefined
-  try {
-    const u = new URL(raw)
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return undefined
-    return raw.replace(/\/+$/, '')
-  } catch {
-    return undefined
-  }
-}
-
 export type SaveGeneratedDocResult = {
   mode: DocsStockageMode
   relPath: string
   supabaseOk: boolean
   priveOk?: boolean
+  cloudOk?: boolean
+  queued?: boolean
   message: string
   openedCloud?: boolean
 }
 
 /**
- * Enregistre un PDF généré : uniquement hors site (NAS / serveur privé).
- * Pas d’IndexedDB, pas de bucket ClimaZEN — le bureau récupère le fichier via l’app.
+ * Enregistre un PDF hors site (NAS et/ou cloud miroir).
+ * Si le coffre est down : file queue_backup, retry 15 min, l’utilisateur n’est pas bloqué.
  */
 export async function saveGeneratedDocument(opts: {
   blob: Blob
@@ -176,7 +240,7 @@ export async function saveGeneratedDocument(opts: {
     })
   }
 
-  if (opts.alsoDownload || !put.ok) {
+  if (opts.alsoDownload) {
     downloadBlob(opts.blob, opts.fileName)
   }
 
@@ -184,10 +248,10 @@ export async function saveGeneratedDocument(opts: {
     mode: 'prive',
     relPath,
     supabaseOk: false,
-    priveOk: put.ok,
-    message: put.ok
-      ? `Document archivé hors site (${relPath}). Ouvert depuis l’app, pas depuis le NAS.`
-      : put.message,
+    priveOk: put.nasOk,
+    cloudOk: put.cloudOk,
+    queued: put.queued,
+    message: put.message,
   }
 }
 

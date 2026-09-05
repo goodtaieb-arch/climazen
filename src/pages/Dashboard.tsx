@@ -63,6 +63,7 @@ import {
 import { materielEnAttenteReception, operateursEnAttenteReception } from '../lib/attributionMateriel'
 import { DashboardKpiPanel } from '../components/DashboardKpiPanel'
 import { AiValidationInbox } from '../components/AiValidationInbox'
+import { CoffreHealthBadge } from '../components/CoffreHealthBadge'
 import { isTerrainUi } from '../lib/uiMode'
 import { editionHasFeature, isLightEdition, LIGHT_SOLO_FLOW_HINT } from '../lib/appEdition'
 import { AppEditionBadge } from '../components/AppEditionBadge'
@@ -305,9 +306,12 @@ export function Dashboard() {
       <section className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Accueil
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
+                Accueil
+              </h1>
+              {isOwner && !terrainUi ? <CoffreHealthBadge /> : null}
+            </div>
             {terrainUi ? (
               <p className="mt-1 text-sm font-medium text-muted">
                 INT affectées, temps hors INT, scan QR, nouvelle intervention.

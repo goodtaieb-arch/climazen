@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf'
 import { buildCerfaPdf, downloadBlob } from './cerfaPdf'
 import { buildFicheMaintenanceClimPdf } from './ficheMaintenanceClimPdf'
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
-import { loadCerfaPdf, pdfCtxFromData } from './pdfStore'
+import { loadCerfaPdf, pdfCtxForIntervention } from './pdfStore'
 import {
   TYPE_OT_LABELS,
   formatOtAvancement,
@@ -402,7 +402,7 @@ export async function collectOtDocsPack(opts: {
     const stored = await loadCerfaPdf(
       draft.id,
       organizationId,
-      pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+      pdfCtxForIntervention(data, draft),
     )
     if (stored?.blob) {
       blob = stored.blob
@@ -658,7 +658,7 @@ export async function collectCerfaAnnuelPack(opts: {
     const stored = await loadCerfaPdf(
       draft.id,
       organizationId,
-      pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+      pdfCtxForIntervention(data, draft),
     )
     if (stored?.blob) {
       blob = stored.blob

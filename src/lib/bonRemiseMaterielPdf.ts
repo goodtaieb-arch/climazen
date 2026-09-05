@@ -455,7 +455,7 @@ export async function telechargerBonRemise(opts: {
   const stored = await loadCerfaPdf(
     pdfIdBonRemise(bon.id),
     organizationId,
-    pdfCtxFromData(data, { kind: 'bon' }),
+    pdfCtxFromData(data, { kind: 'bon', fileName: bon.fileName }),
   )
   if (stored?.blob) {
     downloadBonRemisePdf(stored.blob, bon.fileName || stored.fileName)

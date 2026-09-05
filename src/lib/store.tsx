@@ -24,6 +24,7 @@ import type {
   Outillage,
 } from './types'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
+import { stripCoffreSecrets } from './coffreSecrets'
 import { seedSandboxData, sandboxDataLooksEmpty } from './seedSandboxData'
 import { isSandboxTestEmail } from './sandboxAccount'
 import {
@@ -475,7 +476,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const scheduleCopieSecours = useCallback(() => {
     const payload = dataRef.current
-    if (!archivePriveConfigure(payload.operateur)) return
+    if (!archivePriveConfigure(payload.operateur) && !payload.operateur.coffreActif) return
     if (excelTimer.current) clearTimeout(excelTimer.current)
     excelTimer.current = setTimeout(() => {
       void mettreAJourCopieSecours({
@@ -515,6 +516,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return applyPersonnelRhScopeToAppData(payload, actor)
   }
 
+  const applyCoffreView = (payload: AppData): AppData => ({
+    ...payload,
+    operateur: stripCoffreSecrets(payload.operateur),
+  })
+
+  const applyViews = (payload: AppData): AppData => applyCoffreView(applyRhView(payload))
+
   const markPending = useCallback(
     (pending: boolean) => {
       setPendingSync(orgId, pending)
@@ -541,7 +549,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           hasLocalPending: true,
           actor: rhActorRef.current,
         })
-        payload = applyRhView(applyLocalLogo(merged, orgId))
+        payload = applyViews(applyLocalLogo(merged, orgId))
         skipNextSave.current = true
         dataRef.current = payload
         setData(payload)
@@ -655,7 +663,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         hasLocalPending: false,
         actor: rhActorRef.current,
       })
-      const merged = applyRhView(applyLocalLogo(resolved, orgId))
+      const merged = applyViews(applyLocalLogo(resolved, orgId))
       skipNextSave.current = true
       dataRef.current = merged
       setData(merged)
@@ -733,7 +741,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPendingSyncState(hadPending)
 
       const useLocal = () => {
-        const local = applyRhView(applyLocalLogo(loadData(orgId), orgId))
+        const local = applyViews(applyLocalLogo(loadData(orgId), orgId))
         skipNextSave.current = true
         dataRef.current = local
         setData(local)
@@ -779,14 +787,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             actor: rhActorRef.current,
           },
         )
-        const merged = applyRhView(applyLocalLogo(resolved, orgId))
+        const merged = applyViews(applyLocalLogo(resolved, orgId))
         let final = merged
         if (
           isSandboxTestEmail(user?.email) &&
           sandboxDataLooksEmpty(merged) &&
           !hadPending
         ) {
-          final = applyRhView(applyLocalLogo(seedSandboxData(user?.id), orgId))
+          final = applyViews(applyLocalLogo(seedSandboxData(user?.id), orgId))
         }
         skipNextSave.current = true
         dataRef.current = final
@@ -863,7 +871,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const replaceData = useCallback(
     async (next: AppData) => {
       if (!orgId) return
-      const viewed = applyRhView(next)
+      const viewed = applyViews(next)
       skipNextSave.current = true
       setData(viewed)
       saveData(viewed, orgId)
@@ -891,7 +899,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (next: AppData) => {
       if (!orgId) return
       if (saveTimer.current) clearTimeout(saveTimer.current)
-      const viewed = applyRhView(next)
+      const viewed = applyViews(next)
       skipNextSave.current = true
       dataRef.current = viewed
       setData(viewed)
