@@ -50,6 +50,7 @@ import {
   formatOtNumero,
   isOtCloture,
   labelTechsOt,
+  otEstAstreinte,
   prioriteTypeOt,
   syncTechsOt,
   techIdsOt,
@@ -1126,6 +1127,11 @@ export function AgendaPage() {
               </span>
             ) : null}
             <span className="text-[10px] font-bold uppercase text-muted">{item.typeLabel}</span>
+            {otEstAstreinte(otFull) ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
+                Astreinte
+              </span>
+            ) : null}
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${col.badge}`}>
               {labelTechsOt(item, nomTech(item.technicienUserId, item.technicien))}
             </span>

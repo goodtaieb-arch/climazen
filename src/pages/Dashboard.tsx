@@ -35,7 +35,7 @@ import {
   telHref,
   mailtoHref,
 } from '../lib/agenda'
-import { formatOtAvancement, formatOtNumero, OT_LABEL } from '../lib/ordreTravail'
+import { formatOtAvancement, formatOtNumero, otEstAstreinte, OT_LABEL } from '../lib/ordreTravail'
 import {
   alertesOtContratFinMois,
   isMoisGenerationEnRetard,
@@ -507,7 +507,7 @@ export function Dashboard() {
                 to="/app/appel"
                 className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 text-base font-bold text-emerald-800 shadow-md transition hover:bg-emerald-50 active:scale-[0.99]"
               >
-                <Phone className="h-5 w-5" /> Client appelle — créer l’INT
+                <Phone className="h-5 w-5" /> Intervenir — créer l’INT
               </Link>
             </div>
             <ol className="relative mt-4 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3 md:gap-4">
@@ -833,7 +833,7 @@ export function Dashboard() {
                   <TerrainAction
                     icon={Phone}
                     img3d={ICON3D.accueil}
-                    title="Client appelle"
+                    title="Intervenir"
                     subtitle="Ouvrir une INT sur place"
                     color="cerfa"
                     to="/app/appel"
@@ -1077,6 +1077,11 @@ export function Dashboard() {
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
                         {formatOtNumero(o.numero)}
                       </span>
+                      {otEstAstreinte(o) ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
+                          Astreinte
+                        </span>
+                      ) : null}
                       <span className="font-display text-base font-bold text-ink">
                         {o.action || 'INT en cours'}
                       </span>
