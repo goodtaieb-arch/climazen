@@ -14,6 +14,7 @@ import {
   peutConfigurerCoffreDocs,
   type DocumentArchive,
 } from '../src/lib/documentArchive'
+import { cerfaRelPathCandidates, pdfCtxForIntervention } from '../src/lib/pdfStore'
 import { copieSecoursSheetNames, COPIE_SECOURS_SHEETS } from '../src/lib/exportSocieteExcel'
 import { emptyData } from '../src/lib/storage'
 
@@ -85,6 +86,34 @@ const b: DocumentArchive = {
 const merged = mergeArchive([a], b)
 assert.equal(merged.length, 1)
 assert.equal(merged[0].fileName, 'b.pdf')
+
+const fromList = pdfCtxForIntervention(
+  {
+    clients: [{ id: 'c1', raisonSociale: 'ACME Clim' }],
+    documentsArchives: [],
+  },
+  {
+    clientId: 'c1',
+    cerfaPdfFileName: 'CERFA-15497-04-2026-09-05.pdf',
+    dateIntervention: '2026-09-05',
+  },
+)
+assert.equal(fromList.clientNom, 'ACME Clim')
+assert.equal(fromList.fileName, 'CERFA-15497-04-2026-09-05.pdf')
+assert.equal(fromList.year, 2026)
+
+const candidates = cerfaRelPathCandidates({
+  fileName: fromList.fileName,
+  clientNom: fromList.clientNom,
+  year: fromList.year,
+})
+assert.ok(candidates.includes('ClimaZEN/Documents/Clients/ACME-Clim/CERFA/CERFA-15497-04-2026-09-05.pdf'))
+assert.ok(candidates.includes('ClimaZEN/Documents/2026/CERFA/CERFA-15497-04-2026-09-05.pdf'))
+assert.equal(
+  cerfaRelPathCandidates({}).length,
+  0,
+  'sans nom de fichier ni archive, ne pas inventer interventionId.pdf',
+)
 
 const names = copieSecoursSheetNames(emptyData())
 for (const s of COPIE_SECOURS_SHEETS) {

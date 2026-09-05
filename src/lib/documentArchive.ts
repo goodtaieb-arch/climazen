@@ -207,13 +207,18 @@ export async function putDocumentExterne(opts: {
     blob: opts.blob,
     failed: pending,
   })
-  try {
-    const { flushQueueBackup } = await import('./documentQueue')
-    void flushQueueBackup({ force: true }).catch((err) => {
-      console.warn('ClimaZEN: flush coffre', err)
-    })
-  } catch {
-    /* worker 15 min */
+  /* Laisser le PDF lisible depuis la file locale quelques secondes, puis envoyer. */
+  const kickFlush = () => {
+    void import('./documentQueue')
+      .then(({ flushQueueBackup }) => flushQueueBackup({ force: true }))
+      .catch((err) => {
+        console.warn('ClimaZEN: flush coffre', err)
+      })
+  }
+  if (typeof window !== 'undefined') {
+    window.setTimeout(kickFlush, 2500)
+  } else {
+    kickFlush()
   }
   return {
     ok: true,
@@ -228,12 +233,6 @@ export async function getDocumentExterne(opts: {
   archiveId?: string
 }): Promise<{ ok: true; blob: Blob } | { ok: false; message: string }> {
   const relPath = assertSafeRelPath(opts.relPath)
-  if (opts.archiveId) {
-    const byId = await storageServiceDownloadById(opts.archiveId)
-    if (byId.ok) return { ok: true, blob: byId.blob }
-  }
-  const got = await storageServiceGet(relPath)
-  if (got.ok) return got
   try {
     const { getQueuedDocument } = await import('./documentQueue')
     const queued = await getQueuedDocument(relPath)
@@ -241,5 +240,11 @@ export async function getDocumentExterne(opts: {
   } catch {
     /* ignore */
   }
+  if (opts.archiveId) {
+    const byId = await storageServiceDownloadById(opts.archiveId)
+    if (byId.ok) return { ok: true, blob: byId.blob }
+  }
+  const got = await storageServiceGet(relPath)
+  if (got.ok) return got
   return { ok: false, message: got.message || 'Document introuvable dans l’archive.' }
 }

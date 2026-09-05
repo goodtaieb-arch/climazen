@@ -50,7 +50,7 @@ import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat, findDuplicateEquipNom, findFirstDuplicateEquipNom } from '../lib/cerfaBatch'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
-import { pdfCtxFromData, saveCerfaPdf } from '../lib/pdfStore'
+import { pdfCtxForIntervention, saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { findEquipementById, type EquipQrHit } from '../lib/equipementQr'
@@ -622,7 +622,11 @@ export function ChantiersPage() {
           const blob = await buildCerfaPdf({ draft, client, chantier: s })
           const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
           await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
-            ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+            ...pdfCtxForIntervention(data, {
+              clientId: client?.id,
+              cerfaPdfFileName: fileName,
+              dateIntervention: draft.dateIntervention,
+            }),
             onArchived: upsertDocumentArchive,
           })
           upsertIntervention({
@@ -671,7 +675,11 @@ export function ChantiersPage() {
         const blob = await buildCerfaPdf({ draft, client, chantier: s })
         const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
         await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
-          ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+          ...pdfCtxForIntervention(data, {
+            clientId: client?.id,
+            cerfaPdfFileName: fileName,
+            dateIntervention: draft.dateIntervention,
+          }),
           onArchived: upsertDocumentArchive,
         })
         upsertIntervention({

@@ -17,7 +17,7 @@ import {
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
-import { loadCerfaPdf, pdfCtxFromData } from '../lib/pdfStore'
+import { loadCerfaPdf, pdfCtxForIntervention } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
@@ -50,6 +50,7 @@ export function InterventionsPage() {
   const [includeRapport, setIncludeRapport] = useState(true)
   const [packHint, setPackHint] = useState('')
   const [packError, setPackError] = useState('')
+  const [openingId, setOpeningId] = useState<string | null>(null)
 
   const effectiveStatus = (i: CerfaDraft) => {
     if (i.status === 'envoye') return 'envoye' as const
@@ -159,16 +160,32 @@ export function InterventionsPage() {
   }
 
   const openCerfa = async (id: string, label: string) => {
-    const pdf = await loadCerfaPdf(id, user?.organizationId, pdfCtxFromData(data))
-    if (!pdf) {
-      alert('CERFA pas encore généré — ouvrez la fiche et enregistrez : le PDF s’ouvre depuis l’app (coffre hors site).')
-      return
+    const i = data.interventions.find((x) => x.id === id)
+    setOpeningId(id)
+    try {
+      const pdf = await loadCerfaPdf(
+        id,
+        user?.organizationId,
+        pdfCtxForIntervention(data, i || {}),
+      )
+      if (!pdf) {
+        if (!i?.hasCerfaPdf && !i?.cerfaPdfFileName) {
+          alert('CERFA pas encore généré — ouvrez la fiche et enregistrez.')
+        } else {
+          alert(
+            'PDF introuvable dans le coffre pour le moment. Réessayez dans un instant, ou ouvrez la fiche et enregistrez à nouveau.',
+          )
+        }
+        return
+      }
+      if (viewer?.url) URL.revokeObjectURL(viewer.url)
+      setViewer({
+        url: createPdfObjectUrl(pdf.blob),
+        title: `CERFA — ${label}`,
+      })
+    } finally {
+      setOpeningId(null)
     }
-    if (viewer?.url) URL.revokeObjectURL(viewer.url)
-    setViewer({
-      url: createPdfObjectUrl(pdf.blob),
-      title: `CERFA — ${label}`,
-    })
   }
 
   const packYear =
@@ -479,10 +496,15 @@ export function InterventionsPage() {
                 <button
                   type="button"
                   title="Voir le CERFA"
-                  className="touch-target inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist sm:flex-none"
+                  disabled={openingId === i.id}
+                  className="touch-target inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-ink active:bg-mist disabled:opacity-60 sm:flex-none"
                   onClick={() => void openCerfa(i.id, label)}
                 >
-                  <Eye className="h-4 w-4 text-accent" />
+                  {openingId === i.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-accent" />
+                  )}
                   PDF
                 </button>
                 <button

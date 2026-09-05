@@ -8,6 +8,7 @@ import {
 import {
   QUEUE_RETRY_MS,
   isDueForRetry,
+  matchQueuedItem,
   mergeQueueDests,
   queueItemStillPending,
 } from '../src/lib/documentQueue'
@@ -34,6 +35,34 @@ const now = Date.parse('2026-09-05T12:00:00.000Z')
 assert.equal(isDueForRetry({ lastTryAt: '2026-09-05T11:50:00.000Z' }, now), false)
 assert.equal(isDueForRetry({ lastTryAt: '2026-09-05T11:44:59.000Z' }, now), true)
 assert.equal(isDueForRetry({ lastTryAt: '2026-09-05T11:40:00.000Z' }, now), true)
+
+assert.equal(
+  matchQueuedItem(
+    {
+      relPath: 'ClimaZEN/Documents/Clients/ACME/CERFA/CERFA-15497-04-2026-09-05.pdf',
+      fileName: 'CERFA-15497-04-2026-09-05.pdf',
+    },
+    { fileName: 'CERFA-15497-04-2026-09-05.pdf' },
+  ),
+  true,
+)
+assert.equal(
+  matchQueuedItem(
+    {
+      relPath: 'ClimaZEN/Documents/Clients/ACME/CERFA/CERFA-15497-04-2026-09-05-abcd1234.pdf',
+      fileName: 'CERFA-15497-04-2026-09-05-abcd1234.pdf',
+    },
+    { needle: 'abcd1234' },
+  ),
+  true,
+)
+assert.equal(
+  matchQueuedItem(
+    { relPath: 'ClimaZEN/Documents/2026/CERFA/autre.pdf', fileName: 'autre.pdf' },
+    { fileName: 'CERFA-15497-04-2026-09-05.pdf' },
+  ),
+  false,
+)
 
 const pwd = 'secret-societe-99'
 const plain = new Blob([Uint8Array.from([1, 2, 3, 4, 5, 9])], {

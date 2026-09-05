@@ -156,11 +156,42 @@ export async function countQueueBackup(): Promise<number> {
   return list.filter((x) => queueItemStillPending(x.dests)).length
 }
 
+export function matchQueuedItem(
+  item: Pick<QueueBackupItem, 'relPath' | 'fileName'>,
+  opts: { relPaths?: string[]; fileName?: string; needle?: string },
+): boolean {
+  if (opts.relPaths?.some((p) => p && p === item.relPath)) return true
+  const fileName = String(opts.fileName || '').trim()
+  if (fileName) {
+    if (item.fileName === fileName) return true
+    if (item.relPath.endsWith(`/${fileName}`)) return true
+  }
+  const needle = String(opts.needle || '').trim()
+  if (needle.length >= 8) {
+    if (item.relPath.includes(needle) || item.fileName.includes(needle)) return true
+  }
+  return false
+}
+
 export async function getQueuedDocument(relPath: string): Promise<Blob | null> {
+  const found = await findQueuedDocument({ relPaths: relPath ? [relPath] : [] })
+  return found?.blob || null
+}
+
+export async function findQueuedDocument(opts: {
+  relPaths?: string[]
+  fileName?: string
+  needle?: string
+}): Promise<{ blob: Blob; relPath: string; fileName: string } | null> {
+  if (typeof indexedDB === 'undefined') return null
   const list = await listQueueBackup()
-  const hit = list.find((x) => x.relPath === relPath)
+  const hit = list.find((x) => matchQueuedItem(x, opts))
   if (!hit) return null
-  return new Blob([hit.data], { type: hit.mime || 'application/pdf' })
+  return {
+    blob: new Blob([hit.data], { type: hit.mime || 'application/pdf' }),
+    relPath: hit.relPath,
+    fileName: hit.fileName,
+  }
 }
 
 export async function flushQueueBackup(
