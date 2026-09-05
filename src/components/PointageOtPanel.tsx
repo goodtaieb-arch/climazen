@@ -280,6 +280,9 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
           <p className="text-xs font-bold uppercase tracking-wide text-sky-900">
             Pointage porte-à-porte
           </p>
+          <p className="mt-0.5 text-[11px] text-muted">
+            Heures verrouillées après le bouton. Oubli « en cours » : bureau ou Aide IA (GPS).
+          </p>
           <p className="font-display text-base font-semibold text-ink">
             {last
               ? `${POINTAGE_ACTION_LABELS[last.action]} · ${formatHeureIso(last.at)}`

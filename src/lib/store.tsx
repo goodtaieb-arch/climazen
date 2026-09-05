@@ -245,6 +245,25 @@ type Store = {
     e: Omit<import('./pointage').PointageEvent, 'id' | 'createdAt'> & { id?: string },
   ) => string
   annulerPointageEvent: (id: string, motif?: string) => void
+  corrigerPointageEvent: (
+    id: string,
+    patch: Partial<
+      Pick<
+        import('./pointage').PointageEvent,
+        | 'at'
+        | 'date'
+        | 'geo'
+        | 'geoRefused'
+        | 'geoError'
+        | 'note'
+        | 'otId'
+        | 'chantierId'
+        | 'corrigePar'
+        | 'corrigeMotif'
+        | 'corrigeAt'
+      >
+    >,
+  ) => void
   upsertPointageBureauJour: (
     j: Omit<PointageBureauJour, 'id' | 'updatedAt'> & { id?: string },
   ) => string
@@ -2012,6 +2031,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const corrigerPointageEvent = useCallback(
+    (
+      id: string,
+      patch: Partial<
+        Pick<
+          PointageEvent,
+          | 'at'
+          | 'date'
+          | 'geo'
+          | 'geoRefused'
+          | 'geoError'
+          | 'note'
+          | 'otId'
+          | 'chantierId'
+          | 'corrigePar'
+          | 'corrigeMotif'
+          | 'corrigeAt'
+        >
+      >,
+    ) => {
+      setData((d) => ({
+        ...d,
+        pointageEvents: parsePointageEvents(d.pointageEvents).map((e) =>
+          e.id === id ? { ...e, ...patch } : e,
+        ),
+      }))
+    },
+    [],
+  )
+
   const upsertPointageBureauJour = useCallback(
     (j: Omit<PointageBureauJour, 'id' | 'updatedAt'> & { id?: string }) => {
       const now = new Date().toISOString()
@@ -3490,6 +3539,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,
+      corrigerPointageEvent,
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,
@@ -3577,6 +3627,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,
+      corrigerPointageEvent,
       upsertPointageBureauJour,
       syncAgendaFromSources,
       syncOtsDepuisContrats,

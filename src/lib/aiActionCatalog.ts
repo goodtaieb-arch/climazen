@@ -63,6 +63,14 @@ export const AI_ACTION_DOMAINS = [
     ],
   },
   {
+    id: 'corriger_pointage',
+    label: 'Corriger un oubli de pointage (arrivée site)',
+    examples: [
+      'J’ai oublié de pointer en cours, arrivé à 10h15',
+      'Corrige le pointage arrivée sur site',
+    ],
+  },
+  {
     id: 'decaler_ot',
     label: 'Décaler heure INT (Agenda)',
     examples: ['Décale l’INT de 7h à 9h', 'INT de Karim de 7h00 à 9h00'],
@@ -155,7 +163,8 @@ export const AI_HOW_I_WORK = `Comment je fonctionne (à retenir) :
 5) Je ne SUPPRIME pas (annuler INT = interdit). Croix rouge Agenda = retirer du tech.
 6) Je retrouve une INT par le nom EXACT du tech (équipe) — je ne déforme jamais un nom.
 7) Décaler l’heure : « décale l’INT de 7h à 9h » → je propose → « oui » = heure changée sur l’Agenda (sans ouvrir la fiche INT).
-8) Signature, clôture INT, PDF CERFA final = toujours vous.`
+8) Oubli de pointer « en cours » à l’arrivée : le tech ne modifie pas les heures. « J’ai oublié de pointer en cours, arrivé à 10h15 » → je propose → « oui » = je vérifie le GPS et je corrige. Sinon le bureau corrige sur Pointeuse.
+9) Signature, clôture INT, PDF CERFA final = toujours vous.`
 
 export const AI_UNIFIED_SYSTEM_RULES = `${AI_HUMAN_GATE}
 
@@ -178,6 +187,7 @@ Règles d’or :
 9) « Décale l’INT de 7h à 9h » : l’app locale propose le décalage d’heure ; après « oui » l’heure change sur l’Agenda — NE PAS ouvrir la fiche INT complète, NE PAS inventer de navigation formulaire.
 10) NOMS DE PERSONNES : INTERDIT d’inventer, corriger ou découper un nom (ex. « Benali » → « Ben Lai »). Copie EXACTEMENT le nom du message utilisateur OU le nom officiel de la liste Équipe / INT du contexte. Si tu ne trouves pas, dis « je ne trouve pas X » avec le même orthographe, et propose les techs proches de la liste.
 11) « INT de [tech] aujourd’hui » : cherche dans le contexte INT + équipe. Si trouvé, cite le n° INT officiel. Pour décaler avec heures précises, l’app locale gère ; sinon cite le n° et l’heure actuelle.
+12) Oubli « en cours d’intervention » : le tech n’a PAS le droit de modifier l’horodatage. Propose une correction (GPS obligatoire à la validation). Le bureau peut aussi corriger sans GPS sur Pointeuse.
 
 Actions JSON (à la FIN de la réponse, un seul bloc) :
 

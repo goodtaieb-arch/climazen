@@ -34,6 +34,10 @@ import {
 } from '../lib/assistantChainePiece'
 import { buildAiPendingValidation } from '../lib/aiPendingValidation'
 import {
+  proposerCorrigerPointageArrivee,
+  wantsCorrigerPointageArrivee,
+} from '../lib/pointageCorrection'
+import {
   executeTerrainAction,
   parseTerrainIntent,
   type PendingTerrainAction,
@@ -119,6 +123,8 @@ export function AideAssistant() {
     upsertPieceVeille,
     upsertOrdreTravail,
     upsertAiPendingValidation,
+    addPointageEvent,
+    corrigerPointageEvent,
     appEdition,
   } = useStore()
   const { user, listTeam } = useAuth()
@@ -299,6 +305,8 @@ export function AideAssistant() {
         upsertPieceDetachee,
         upsertPieceVeille,
         upsertOrdreTravail,
+        addPointageEvent,
+        corrigerPointageEvent,
       })
       setPendingTerrain(null)
       pushAssistant(result.message)
@@ -415,6 +423,48 @@ export function AideAssistant() {
         }
         setPendingTerrain(null)
         pushAssistant(answerOtLookupOuDeplacer(data, q, team))
+        return
+      }
+
+      // Correction pointage (oubli « en cours ») — GPS à la validation
+      if (wantsCorrigerPointageArrivee(q)) {
+        if (!agentOk) {
+          pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
+          return
+        }
+        setSource('local')
+        setPendingCreate(null)
+        const proposal = proposerCorrigerPointageArrivee({
+          text: q,
+          data,
+          userId: user?.id,
+          userName: user?.fullName || user?.email,
+          team,
+        })
+        if (!proposal.ok) {
+          setPendingTerrain(null)
+          pushAssistant(proposal.error)
+          return
+        }
+        const p = proposal.proposition
+        setPendingTerrain({
+          kind: 'corriger_pointage',
+          userId: p.userId,
+          userName: p.userName,
+          otId: p.otId,
+          otNumero: p.otNumero,
+          chantierId: p.chantierId,
+          date: p.date,
+          heure: p.heure,
+          summary: p.summary,
+        })
+        pushAssistant(p.summary)
+        notifyResponsable({
+          title: 'Proposition corriger pointage',
+          summary: p.summary,
+          kind: 'autre',
+          textForInfer: q,
+        })
         return
       }
 
