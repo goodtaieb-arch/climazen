@@ -19,6 +19,7 @@ import {
   peutVoirIdentitesRh,
   type RhAccessActor,
 } from './rhDocuments'
+import { normalizePersonnelStockageDocsUserIds } from './documentArchive'
 import { mergePointageRegles, parsePointageEvents, parsePointageBureauJours } from './pointage'
 import { stashPendingEdition, type AppEdition } from './appEdition'
 
@@ -509,6 +510,7 @@ export async function saveOrgDataRemote(
       personnelDossiers: protectedRh.personnelDossiers,
       personnelRhAccesUserIds: protectedRh.personnelRhAccesUserIds,
       personnelRetiresUserIds: protectedRh.personnelRetiresUserIds,
+      personnelStockageDocsUserIds: remote.data.personnelStockageDocsUserIds,
     }
   }
   const light = stripHeavy(toSave)
@@ -887,6 +889,14 @@ export function resolveRemoteVsLocal(
       }
   const personnelDossiers = protectedRh.personnelDossiers
   const personnelRhAccesUserIds = protectedRh.personnelRhAccesUserIds
+  const personnelStockageDocsUserIds = normalizePersonnelStockageDocsUserIds(
+    mergeIdLists(remote.personnelStockageDocsUserIds, local.personnelStockageDocsUserIds),
+  )
+  const documentsArchives = mergeByIdLatest(
+    remote.documentsArchives,
+    local.documentsArchives,
+    preferOnTie,
+  )
   const personnelRetiresUserIds = mergeIdLists(
     remote.personnelRetiresUserIds,
     local.personnelRetiresUserIds,
@@ -972,6 +982,8 @@ export function resolveRemoteVsLocal(
     pointageBureauJours,
     personnelDossiers,
     personnelRhAccesUserIds,
+    personnelStockageDocsUserIds,
+    documentsArchives,
     personnelRetiresUserIds,
     deletedEntityIds,
   }

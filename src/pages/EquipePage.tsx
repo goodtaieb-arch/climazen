@@ -12,6 +12,7 @@ import {
   UserPlus,
   UserX,
   UserCheck,
+  HardDrive,
 } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { generateTempPassword, type UserAccount } from '../lib/auth'
@@ -185,6 +186,7 @@ export function EquipePage() {
     data,
     upsertPersonnelDossier,
     setPersonnelRhAcces,
+    setPersonnelStockageDocs,
     setPersonnelTelephone,
     setPersonnelPoste,
     setPersonnelLienCloud,
@@ -550,6 +552,7 @@ export function EquipePage() {
             }
             const resume = resumeAlertesDossier(effective)
             const hasRhAcces = (data.personnelRhAccesUserIds || []).includes(m.id)
+            const hasCoffreAcces = (data.personnelStockageDocsUserIds || []).includes(m.id)
             const racineCloud = data.operateur.lienCloudRhRacine
             const open = openMemberId === m.id
             const posteLabel = labelPostePersonnel(dossier?.poste)
@@ -735,6 +738,22 @@ export function EquipePage() {
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {hasRhAcces ? 'Identités : oui' : 'Donner accès identités'}
+                </button>
+              )}
+              {isOwner && m.role !== 'owner' && m.id !== user?.id && (
+                <button
+                  type="button"
+                  onClick={() => setPersonnelStockageDocs(m.id, !hasCoffreAcces)}
+                  className={[
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold',
+                    hasCoffreAcces
+                      ? 'bg-accent-soft text-slate'
+                      : 'border border-line text-muted hover:bg-mist',
+                  ].join(' ')}
+                  title="Autorise à ouvrir le NAS / cloud Documents. Le bureau sort CERFA et rapports depuis l’app, sans ouvrir le coffre."
+                >
+                  <HardDrive className="h-3.5 w-3.5" />
+                  {hasCoffreAcces ? 'Coffre docs : oui' : 'Accès coffre documents'}
                 </button>
               )}
               {isOwner && m.role === 'operateur' && m.id !== user?.id && (

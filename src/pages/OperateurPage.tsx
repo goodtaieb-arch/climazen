@@ -9,6 +9,7 @@ import { Nav3dIcon } from '../components/Nav3dIcon'
 import { normalizeLienCloudRh } from '../lib/rhDocuments'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
+import { archivePriveConfigure } from '../lib/documentArchive'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 import {
   APP_EDITION_DESCRIPTIONS,
@@ -37,7 +38,7 @@ function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operate
 
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
-  const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition } =
+  const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition, exporterCopieSecoursExcel } =
     useStore()
   const { organization, isOwner, refreshUser, user, listTeam } = useAuth()
 
@@ -51,6 +52,8 @@ export function OperateurPage() {
   const [expertMake, setExpertMake] = useState(Boolean(data.operateur.facturationWebhookUrl?.trim()))
   const [editionBusy, setEditionBusy] = useState(false)
   const [editionMsg, setEditionMsg] = useState('')
+  const [excelBusy, setExcelBusy] = useState(false)
+  const [excelMsg, setExcelMsg] = useState('')
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
 
@@ -156,12 +159,8 @@ export function OperateurPage() {
         return
       }
     }
-    if (form.docsStockageMode === 'prive' && !prive) {
-      setFormError('Mode serveur privé : renseignez l’URL de base du serveur.')
-      return
-    }
     if (form.docsStockageMode === 'cloud' && !docsCloud && !racine) {
-      setFormError('Mode cloud : renseignez le lien Documents (ou le dossier cloud RH).')
+      setFormError('Lien cloud Documents : réservé au personnel désigné — collez un lien https.')
       return
     }
     setSaving(true)
@@ -173,7 +172,11 @@ export function OperateurPage() {
         lienCloudDocsRacine: normalizeLienCloudRh(form.lienCloudDocsRacine) || '',
         serveurPriveDocsUrl: prive,
         serveurPriveDocsToken: (form.serveurPriveDocsToken || '').trim() || undefined,
-        docsStockageMode: form.docsStockageMode || 'telechargement',
+        docsStockageMode: prive
+          ? 'prive'
+          : form.docsStockageMode === 'cloud'
+            ? 'cloud'
+            : 'prive',
       })
       setDirty(false)
       void refreshUser().catch(() => undefined)
@@ -485,16 +488,19 @@ export function OperateurPage() {
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">
-            Documents générés (PDF)
+            Coffre documents (hors site)
           </h2>
           <p className="mb-3 text-sm text-muted">
-            Logo société sur les PDF + enregistrement vers le cloud ou le serveur privé de
-            l’entreprise. Une copie reste aussi sur ClimaZEN (compte organisation).
+            Les PDF (CERFA, rapports, devis…) ne sont <strong>jamais</strong> enregistrés sur
+            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. Le coffre, c’est votre
+            NAS / Nextcloud. Le bureau n’ouvre pas ce serveur : il sort le document depuis l’app,
+            comme s’il était sur le site. Seul le gérant (et le personnel coché dans Équipe →
+            Accès coffre) peut voir l’URL et le jeton.
           </p>
           <label className="mb-3 block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Destination d’enregistrement</span>
+            <span className="mb-1 block font-semibold text-ink">Destination</span>
             <select
-              value={form.docsStockageMode || 'telechargement'}
+              value={form.docsStockageMode === 'cloud' && !form.serveurPriveDocsUrl ? 'cloud' : 'prive'}
               onChange={(e) =>
                 patchForm({
                   docsStockageMode: e.target.value as Operateur['docsStockageMode'],
@@ -502,47 +508,77 @@ export function OperateurPage() {
               }
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
-              <option value="telechargement">Téléchargement local (+ copie ClimaZEN)</option>
-              <option value="cloud">Cloud (Drive / OneDrive / SharePoint)</option>
-              <option value="prive">Serveur privé société (WebDAV / NAS / Nextcloud)</option>
+              <option value="prive">Serveur privé société (NAS / Nextcloud / WebDAV)</option>
+              <option value="cloud">Lien cloud (personnel désigné seulement — pas d’envoi auto)</option>
             </select>
           </label>
           <Field
-            label="Lien dossier Documents (cloud)"
-            value={form.lienCloudDocsRacine || ''}
-            onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
-          />
-          <p className="mt-1.5 text-xs text-muted">
-            {cloudPasteHint(form.lienCloudDocsRacine) ||
-              'Si vide, repli sur le dossier cloud RH. Créez l’arborescence ci-dessous dans ce dossier.'}
-          </p>
-          <Field
-            label="URL base serveur privé"
+            label="URL base serveur privé (obligatoire pour l’archive auto)"
             value={form.serveurPriveDocsUrl || ''}
-            onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
-            className="mt-3"
+            onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
           />
           <p className="mt-1.5 text-xs text-muted">
-            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user/ClimaZEN/Documents — CORS
-            doit autoriser climazen.fr pour l’upload automatique.
+            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — l’app crée
+            ClimaZEN/Documents/… toute seule. Le bureau n’a pas besoin d’y aller.
           </p>
           <Field
-            label="Jeton serveur privé (optionnel)"
+            label="Jeton serveur privé (optionnel, gérant seulement)"
             value={form.serveurPriveDocsToken || ''}
             onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
             className="mt-3"
           />
+          <Field
+            label="Lien dossier cloud (personnel désigné — pas le bureau)"
+            value={form.lienCloudDocsRacine || ''}
+            onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
+            className="mt-3"
+          />
+          <p className="mt-1.5 text-xs text-muted">
+            {cloudPasteHint(form.lienCloudDocsRacine) ||
+              'Le bureau ne clique pas ici. CERFA et rapports s’ouvrent depuis Interventions / INT.'}
+          </p>
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
             <p className="text-xs font-bold uppercase text-muted">
-              Arborescence à créer sur votre entreprise
+              Arborescence créée sur le coffre
             </p>
             <pre className="mt-2 overflow-x-auto whitespace-pre text-[11px] leading-relaxed text-ink">
               {arborescenceDocumentsEntreprise().join('\n')}
             </pre>
             <p className="mt-2 text-xs text-muted">
-              Créez ces dossiers une fois (cloud ou NAS). ClimaZEN propose le chemin exact à
-              chaque enregistrement (ex. ClimaZEN/Documents/2026/Devis/…).
+              {archivePriveConfigure(form)
+                ? 'Coffre joignable depuis l’app — le bureau télécharge via ClimaZEN.'
+                : 'Sans URL NAS, un PDF généré ne peut pas être archivé (téléchargement local de secours seulement).'}
             </p>
+          </div>
+          <div className="mt-3 rounded-xl border border-line bg-white p-3">
+            <p className="text-sm font-semibold text-ink">Copie Excel de secours</p>
+            <p className="mt-1 text-xs text-muted">
+              Clients, sites, équipements, équipe (sans CNI), INT, stock, pièces, contrats,
+              devis… Si on perd tout, on reconstitue une société. Fichier :{' '}
+              <span className="font-mono">ClimaZEN/Documents/Secours/climazen-donnees.xlsx</span>
+              . Mise à jour auto ~1 min 30 après une sauvegarde, ou maintenant :
+            </p>
+            <button
+              type="button"
+              disabled={excelBusy}
+              onClick={() => {
+                setExcelBusy(true)
+                setExcelMsg('')
+                void exporterCopieSecoursExcel({ alsoDownload: true })
+                  .then((r) => {
+                    setExcelMsg(r.message)
+                    setTimeout(() => setExcelMsg(''), 6000)
+                  })
+                  .catch((err) => {
+                    setExcelMsg(err instanceof Error ? err.message : 'Copie Excel impossible')
+                  })
+                  .finally(() => setExcelBusy(false))
+              }}
+              className="mt-2 h-10 rounded-xl bg-slate px-4 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {excelBusy ? 'Mise à jour…' : 'Mettre à jour la copie Excel'}
+            </button>
+            {excelMsg ? <p className="mt-2 text-xs text-muted">{excelMsg}</p> : null}
           </div>
         </div>
 
