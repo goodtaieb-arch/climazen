@@ -60,7 +60,7 @@ export function ClientSiteSignature({
   const [clientAgrees, setClientAgrees] = useState(false)
   const importedIds = useRef(new Set<string>())
   const nomPrefillDone = useRef(false)
-  /** Ne prendre que les signatures distantes de cette session / cet OT */
+  /** Ne prendre que les signatures distantes de cette session / cette INT */
   const sessionStartedAt = useRef(new Date().toISOString())
 
   const awaitingRemote = clientAbsent && !image
@@ -266,7 +266,7 @@ export function ClientSiteSignature({
 
     await navigator.clipboard.writeText(url)
     setRemoteMsg(
-      'Lien copié. Collez-le dans un SMS / WhatsApp au client. Attendez sa signature avant de clôturer l’OT.',
+      'Lien copié. Collez-le dans un SMS / WhatsApp au client. Attendez sa signature avant de clôturer l’INT.',
     )
   }
 

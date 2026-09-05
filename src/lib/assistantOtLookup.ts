@@ -140,7 +140,7 @@ export function matchTechInTeam(
     .sort((a, b) => b.score - a.score)
 }
 
-/** Techs cités sur les OT (nom stocké) en plus de l’équipe. */
+/** Techs cités sur les INT (nom stocké) en plus de l’équipe. */
 export function techsFromOts(data: AppData): TeamMemberLite[] {
   const map = new Map<string, TeamMemberLite>()
   for (const o of data.ordresTravail || []) {
@@ -225,6 +225,7 @@ export function extractDecalerHeures(raw: string): { from?: string; to?: string 
   }
   const toOnly = t.match(
     /\b(?:passe[rz]?|mets?|mettre|remets?|remettre|pose[rz]?)\s+(?:l['’])?(?:ot|ordre)?\s*(?:a|à|vers)\s+(\d{1,2})\s*[h:.]?\s*(\d{2})?/i,
+
   ) || t.match(/\b(?:a|à|vers)\s+(\d{1,2})\s*[h:.]?\s*(\d{2})?\b/i)
   if (toOnly) {
     return { to: parseHeureToken(toOnly[1], toOnly[2]) }
@@ -276,8 +277,8 @@ export function proposeDecalerOt(
     return {
       ok: false,
       message: [
-        `Pour décaler un OT, indiquez l’heure cible (ex. « décale l’OT de 7h à 9h » ou « OT de Karim à 9h »).`,
-        `Puis répondez « oui » — je change l’heure sur l’Agenda, sans ouvrir la fiche OT.`,
+        `Pour décaler une INT, indiquez l’heure cible (ex. « décale l’INT de 7h à 9h » ou « INT de Karim à 9h »).`,
+        `Puis répondez « oui » — je change l’heure sur l’Agenda, sans ouvrir la fiche INT.`,
       ].join('\n'),
     }
   }
@@ -344,21 +345,21 @@ export function proposeDecalerOt(
     return {
       ok: false,
       message: [
-        `Aucun OT ouvert trouvé${heures.from ? ` à ${heures.from}` : ''} pour ${dateLabel}${
+        `Aucune INT ouverte trouvé${heures.from ? ` à ${heures.from}` : ''} pour ${dateLabel}${
           nameQuery ? ` (${nameQuery})` : ''
         }.`,
-        `Ex. : « décale l’OT de 7h à 9h » ou « OT de Karim Benali de 7h à 9h ».`,
+        `Ex. : « décale l’INT de 7h à 9h » ou « INT de Karim Benali de 7h à 9h ».`,
       ].join('\n'),
     }
   }
 
   if (candidates.length > 1) {
     const lines = [
-      `Plusieurs OT possibles — précisez le n° ou le tech :`,
+      `Plusieurs INT possibles — précisez le n° ou le tech :`,
       ``,
       ...candidates.slice(0, 6).map((o) => formatOtLine(o, data.chantiers, data.clients)),
       ``,
-      `Ex. : « décale OT${candidates[0].numero} à ${heures.to} ».`,
+      `Ex. : « décale ${formatOtNumero(candidates[0].numero) || candidates[0].numero} à ${heures.to} ».`,
     ]
     return { ok: false, message: lines.join('\n') }
   }
@@ -374,7 +375,7 @@ export function proposeDecalerOt(
 
   const site = data.chantiers?.find((s) => s.id === ot.chantierId)
   const summary = [
-    `Je propose de décaler l’heure (pas d’ouverture de fiche OT) :`,
+    `Je propose de décaler l’heure (pas d’ouverture de fiche INT) :`,
     `• ${formatOtNumero(ot.numero)} — ${(ot.action || '').slice(0, 70)}`,
     site?.nom ? `• Site : ${site.nom}` : null,
     ot.technicien ? `• Tech : ${ot.technicien}` : null,
@@ -462,8 +463,8 @@ export function answerOtLookupOuDeplacer(
 
   if (!nameQuery) {
     return [
-      `Pour décaler / retrouver un OT, donnez le tech tel qu’il est dans l’équipe (ex. « OT de Karim Benali aujourd’hui »).`,
-      `Je ne change jamais un nom : je cherche uniquement dans l’équipe et les OT.`,
+      `Pour décaler / retrouver une INT, donnez le tech tel qu’il est dans l’équipe (ex. « INT de Karim Benali aujourd’hui »).`,
+      `Je ne change jamais un nom : je cherche uniquement dans l’équipe et les INT.`,
       ``,
       `Sur l’Agenda : recliquer le bloc = déplacer ; croix rouge = retirer du tech.`,
     ].join('\n')
@@ -505,12 +506,12 @@ export function answerOtLookupOuDeplacer(
   }
 
   if (ots.length) {
-    lines.push(``, `OT de ${officialName} pour ${dateLabel} :`)
+    lines.push(``, `INT de ${officialName} pour ${dateLabel} :`)
     for (const o of ots) lines.push(formatOtLine(o, data.chantiers, data.clients))
   } else if (otsAny.length) {
     lines.push(
       ``,
-      `Aucun OT pour ${dateLabel}. OT ouverts de ${officialName} (autres jours) :`,
+      `Aucune INT pour ${dateLabel}. INT ouvertes de ${officialName} (autres jours) :`,
     )
     for (const o of otsAny) {
       lines.push(
@@ -518,7 +519,7 @@ export function answerOtLookupOuDeplacer(
       )
     }
   } else {
-    lines.push(``, `Aucun OT ouvert trouvé pour ${officialName}.`)
+    lines.push(``, `Aucune INT ouverte trouvée pour ${officialName}.`)
   }
 
   if (wantsMove) {
@@ -526,13 +527,13 @@ export function answerOtLookupOuDeplacer(
     if (heures.to) {
       lines.push(
         ``,
-        `Indiquez clairement « de ${heures.from || 'Xh'} à ${heures.to} » avec le tech ou le n° OT — je proposerai le décalage, puis « oui » applique l’heure sur l’Agenda (sans ouvrir la fiche).`,
+        `Indiquez clairement « de ${heures.from || 'Xh'} à ${heures.to} » avec le tech ou le n° INT — je proposerai le décalage, puis « oui » applique l’heure sur l’Agenda (sans ouvrir la fiche).`,
       )
     } else {
       lines.push(
         ``,
-        `Pour décaler sans perdre de temps : « décale l’OT de ${officialName} de 7h à 9h » → je propose, vous dites « oui », l’heure change sur l’Agenda.`,
-        `Croix rouge Agenda = retirer du tech (pas supprimer l’OT).`,
+        `Pour décaler sans perdre de temps : « décale l’INT de ${officialName} de 7h à 9h » → je propose, vous dites « oui », l’heure change sur l’Agenda.`,
+        `Croix rouge Agenda = retirer du tech (pas supprimer l’INT).`,
       )
     }
   }
@@ -569,8 +570,8 @@ export function buildOtTeamCatalog(
   const lines = [
     'RÈGLE NOMS : ne jamais inventer ni déformer un nom. Copier EXACTEMENT depuis cette liste ou le message utilisateur.',
     `Équipe (noms officiels) : ${names.length ? names.join(' · ') : '(vide)'}`,
-    `Totaux : ${otsMonth.length} OT ouverts ce mois (${ym}) · ${otsToday.length} aujourd’hui (${today}) · ${openAll.length} toutes dates`,
-    `OT ouverts (échantillon, max ${max}) :`,
+    `Totaux : ${otsMonth.length} INT ouvertes ce mois (${ym}) · ${otsToday.length} aujourd’hui (${today}) · ${openAll.length} toutes dates`,
+    `INT ouvertes (échantillon, max ${max}) :`,
   ]
   const sample = [...openAll]
     .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))

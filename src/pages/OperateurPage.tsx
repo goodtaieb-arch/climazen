@@ -279,7 +279,7 @@ export function OperateurPage() {
         <p className="mt-3 text-xs text-muted">{APP_EDITION_SOLO_HINT}</p>
         {appEdition === 'light' ? (
           <p className="mt-2 text-xs text-muted">
-            OT, agenda et contrats maintenance sont inclus. Besoin de plusieurs techniciens,
+            INT, agenda et contrats maintenance sont inclus. Besoin de plusieurs techniciens,
             pointeuse ou RH ? Passez à <strong>Pro</strong> — vos données restent en place.
           </p>
         ) : null}
@@ -330,7 +330,7 @@ export function OperateurPage() {
         <section className="rounded-2xl border border-line bg-white p-5">
           <h2 className="font-display text-lg font-semibold">Assistant IA</h2>
           <p className="mt-1 text-sm text-muted">
-            Édition Pro : {AI_TIER_LABELS.agent} inclus (OT, CERFA, agenda). L’IA cloud utilise
+            Édition Pro : {AI_TIER_LABELS.agent} inclus (INT, CERFA, agenda). L’IA cloud utilise
             la clé de votre société (OpenAI et/ou Claude).
           </p>
         </section>
@@ -447,7 +447,7 @@ export function OperateurPage() {
           onChange={(v) => patchForm({ ticketNotificationEmail: v || undefined })}
         />
         <p className="-mt-2 text-xs text-muted">
-          Portail GMAO : à chaque signalement client, un OT est créé et un e-mail part ici (ou
+          Portail GMAO : à chaque signalement client, une INT est créée et un e-mail part ici (ou
           l’e-mail société + gérant).
         </p>
 

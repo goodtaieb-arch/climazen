@@ -36,7 +36,7 @@ import {
 } from '../src/lib/pointage'
 
 assert.ok(POINTAGE_CNIL_NOTICE.includes('Aucun suivi GPS continu'))
-assert.ok(POINTAGE_CNIL_NOTICE.includes('OT'))
+assert.ok(POINTAGE_CNIL_NOTICE.includes('INT'))
 
 const vide = blankPointageRegles()
 assert.equal(vide.active, false)
@@ -245,7 +245,7 @@ const csv = exportJourneesCsv([jour])
 assert.ok(csv.startsWith('Date;'))
 assert.ok(csv.includes('Jean'))
 assert.ok(csv.includes(String(jour.payeMin)))
-assert.ok(csv.includes('Intervention OT'))
+assert.ok(csv.includes('Intervention INT'))
 assert.equal(csvEscape('a;b'), '"a;b"')
 assert.ok(csv.includes('Porte-à-porte'))
 
@@ -314,7 +314,7 @@ assert.equal(mixJour.trajetRetenuMin, 10 + 15)
 assert.equal(mixJour.travailMin, 30 + 20 + 90 + 25 + 15 + 20 + 60)
 assert.equal(mixJour.payeMin, mixJour.travailMin + mixJour.trajetRetenuMin)
 const mixCsv = exportJourneesCsv([mixJour])
-assert.ok(mixCsv.includes('Déplacement hors OT'))
+assert.ok(mixCsv.includes('Déplacement hors INT'))
 assert.ok(mixCsv.includes('Franchise domicile'))
 assert.ok(mixCsv.includes('Travail (min)'))
 

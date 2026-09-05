@@ -117,13 +117,13 @@ export function OtCommandeLinkFields({
           Chaîne commerciale
         </p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-950/80">
-          Devis, contrat, commande pièce, garantie ou sous-traitance — pour rattacher l’OT à la
-          commande métier (1 devis peut couvrir plusieurs OT / jours).
+          Devis, contrat, commande pièce, garantie ou sous-traitance — pour rattacher l’INT à la
+          commande métier (1 devis peut couvrir plusieurs INT / jours).
         </p>
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-semibold text-ink">Origine de l’OT</span>
+        <span className="mb-1 block font-semibold text-ink">Origine de l’INT</span>
         <select
           value={origine}
           onChange={(e) => applyOrigine(e.target.value as OrigineOt)}
@@ -226,7 +226,7 @@ export function OtCommandeLinkFields({
         lienType === 'devis' ||
         lienType === 'devis_regule') && (
         <label className="block text-sm">
-          <span className="mb-1 block font-semibold text-ink">Devis (1 devis → plusieurs OT)</span>
+          <span className="mb-1 block font-semibold text-ink">Devis (1 devis → plusieurs INT)</span>
           <select
             value={value.devisId || ''}
             onChange={(e) => {
@@ -379,7 +379,7 @@ export function OtCommandeLinkFields({
       ) : null}
 
       <p className="text-[10px] leading-relaxed text-muted">
-        F-Gas : si fluide manipulé → CERFA 15497 lié à l’OT (stock bouteille décrémenté). Signatures
+        F-Gas : si fluide manipulé → CERFA 15497 lié à l’INT (stock bouteille décrémenté). Signatures
         tech + client avant facture / régule.
       </p>
     </div>

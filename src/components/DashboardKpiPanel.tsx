@@ -101,7 +101,7 @@ function WeekChart({ kpi }: { kpi: DashboardKpi }) {
         ))}
       </div>
       {!hasAny ? (
-        <p className="mt-1 text-center text-[11px] text-muted">Pas encore d’OT sur la période.</p>
+        <p className="mt-1 text-center text-[11px] text-muted">Pas encore d’INT sur la période.</p>
       ) : null}
     </div>
   )
@@ -139,7 +139,7 @@ export function DashboardKpiPanel() {
         </div>
         {kpi.otOuverts > 0 ? (
           <p className="text-xs font-semibold text-muted">
-            Avancement OT ouverts {kpi.avgAvancementOuverts} %
+            Avancement INT ouvertes {kpi.avgAvancementOuverts} %
           </p>
         ) : null}
       </div>
@@ -185,7 +185,7 @@ export function DashboardKpiPanel() {
           <SplitBar leftPct={kpi.preventifPct} leftClass="bg-accent" rightClass="bg-orange-500" />
           <p className="mt-1.5 text-[11px] text-muted">
             {empty
-              ? 'Les graphiques se remplissent dès les premiers OT.'
+              ? 'Les graphiques se remplissent dès les premiers INT.'
               : `${kpi.preventif} visites / entretiens · ${kpi.curatif} dépannages`}
           </p>
         </div>
@@ -246,7 +246,7 @@ export function DashboardKpiPanel() {
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <KpiCard
           to="/app/ot"
-          label="OT ouverts"
+          label="INT ouvertes"
           value={kpi.otOuverts}
           hint={kpi.avgAvancementOuverts ? `${kpi.avgAvancementOuverts} % avancés` : undefined}
         />
@@ -323,7 +323,7 @@ export function DashboardKpiPanel() {
         {isOwner && kpi.chargeParTech.length > 0 ? (
           <div className="mt-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              <Wrench className="h-3.5 w-3.5" /> Charge par tech (OT ouverts)
+              <Wrench className="h-3.5 w-3.5" /> Charge par tech (INT ouvertes)
             </p>
             <ul className="mt-1.5 space-y-1">
               {kpi.chargeParTech.map((t) => (
@@ -337,7 +337,7 @@ export function DashboardKpiPanel() {
         ) : null}
         <p className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted">
           <span className="inline-flex items-center gap-1">
-            <ClipboardList className="h-3 w-3" /> OT
+            <ClipboardList className="h-3 w-3" /> INT
           </span>
           <span className="inline-flex items-center gap-1">
             <CalendarClock className="h-3 w-3" /> Agenda contrat

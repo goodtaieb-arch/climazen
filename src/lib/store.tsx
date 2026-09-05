@@ -52,7 +52,12 @@ import {
 } from './cerfaBatch'
 import { assertDetecteurValidePourCerfa } from './detecteurs'
 import { nextNumeroIntervention } from './numeroIntervention'
-import { nextNumeroOt, blankOrdreTravail, type OrdreTravail } from './ordreTravail'
+import {
+  nextNumeroOt,
+  blankOrdreTravail,
+  formatOtNumero,
+  type OrdreTravail,
+} from './ordreTravail'
 import type { ContratMaintenance } from './contratMaintenance'
 import { contratsActifsForSite } from './contratMaintenance'
 import { applyContratSigneSync } from './contratSync'
@@ -251,7 +256,7 @@ type Store = {
   scinderOtContrat: (otId: string) => { created: number } | null
   /** Tickets portail client → OT bureau (cloud). */
   syncClientPortalTickets: () => Promise<number>
-  /** Crée un OT pour une action terrain — retourne { id, numero }. */
+  /** Crée une INT pour une action terrain — retourne { id, numero }. */
   createOtForAction: (opts: {
     typeOt: import('./ordreTravail').TypeOt
     action: string
@@ -1260,8 +1265,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (i.ordreTravailId === id) return true
           if (ot?.interventionId && i.id === ot.interventionId) return true
           if (ot?.numero && i.numeroIntervention) {
-            const a = i.numeroIntervention.replace(/^OT\s*/i, '').trim()
-            const b = ot.numero.replace(/^OT\s*/i, '').trim()
+            const a = i.numeroIntervention.replace(/^(?:INT|OT|DI)\s*/i, '').trim()
+            const b = ot.numero.replace(/^(?:INT|OT|DI)\s*/i, '').trim()
             if (a && b && (a === b || i.numeroIntervention === ot.numero)) return true
           }
           return false
@@ -1561,8 +1566,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const genererDevisReguleDepuisOt = useCallback((otId: string) => {
     const d = dataRef.current
     const ot = (d.ordresTravail || []).find((o) => o.id === otId)
-    if (!ot) throw new Error('OT introuvable.')
-    if (!ot.clientId) throw new Error('Client manquant sur l’OT.')
+    if (!ot) throw new Error('INT introuvable.')
+    if (!ot.clientId) throw new Error('Client manquant sur l’INT.')
     const now = new Date().toISOString()
     const devisId = uuid()
     const numero = nextNumeroDevis(d.devis || [], 'regularisation')
@@ -1574,7 +1579,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clientId: ot.clientId,
       chantierId: ot.chantierId,
       otOrigineId: ot.id,
-      libelle: `Régularisation — OT${ot.numero} — ${ot.action || 'Intervention'}`,
+      libelle: `Régularisation — ${formatOtNumero(ot.numero) || ot.numero} — ${ot.action || 'Intervention'}`,
       lignes: [
         {
           id: uuid(),
@@ -1583,7 +1588,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           horsContrat: true,
         },
       ],
-      notes: 'Généré depuis l’OT — à compléter (pièces, temps, fluides).',
+      notes: 'Généré depuis l’INT — à compléter (pièces, temps, fluides).',
       createdAt: now,
       updatedAt: now,
     }
@@ -1610,8 +1615,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const genererFactureDepuisOt = useCallback((otId: string) => {
     const d = dataRef.current
     const ot = (d.ordresTravail || []).find((o) => o.id === otId)
-    if (!ot) throw new Error('OT introuvable.')
-    if (!ot.clientId) throw new Error('Client manquant sur l’OT.')
+    if (!ot) throw new Error('INT introuvable.')
+    if (!ot.clientId) throw new Error('Client manquant sur l’INT.')
     if (!ot.signatureClientImage || !ot.signatureTechnicienImage) {
       throw new Error('Signatures tech + client requises avant facture.')
     }
@@ -1627,7 +1632,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       chantierId: ot.chantierId,
       otId: ot.id,
       devisId: ot.devisId,
-      libelle: `Facture — OT${ot.numero} — ${ot.action || 'Intervention'}`,
+      libelle: `Facture — ${formatOtNumero(ot.numero) || ot.numero} — ${ot.action || 'Intervention'}`,
       createdAt: now,
       updatedAt: now,
     }
@@ -1648,7 +1653,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const devis = (d.devis || []).find((x) => x.id === devisId)
     if (!devis) throw new Error('Devis introuvable.')
     if (devis.statut !== 'accepte' && devis.statut !== 'execute') {
-      throw new Error('Le devis doit être accepté avant de créer un OT d’exécution.')
+      throw new Error('Le devis doit être accepté avant de créer une INT d’exécution.')
     }
     const now = new Date().toISOString()
     const id = uuid()

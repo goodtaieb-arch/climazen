@@ -151,7 +151,7 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
               }
               className="mt-1 inline-flex min-h-9 items-center rounded-lg border border-indigo-300 bg-indigo-50 px-3 text-xs font-bold text-indigo-950"
             >
-              Préremplir l’OT avec cette synthèse
+              Préremplir l’INT avec cette synthèse
             </button>
           ) : null}
         </div>

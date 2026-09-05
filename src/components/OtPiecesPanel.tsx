@@ -41,7 +41,7 @@ export function OtPiecesPanel({ otId, otNumero, clientId, chantierId, readOnly }
         otNumero,
         clientId,
         chantierId,
-        motif: motif.trim() || `OT ${otNumero || otId}`,
+        motif: motif.trim() || `INT ${otNumero || otId}`,
       })
       setPieceId('')
       setQty('1')
@@ -87,7 +87,7 @@ export function OtPiecesPanel({ otId, otNumero, clientId, chantierId, readOnly }
           })}
         </ul>
       ) : (
-        <p className="text-xs text-muted">Aucune pièce sortie sur cet OT.</p>
+        <p className="text-xs text-muted">Aucune pièce sortie sur cette INT.</p>
       )}
 
       {canEdit ? (

@@ -144,7 +144,7 @@ export function ScanEquipementPage() {
 
   const hint = useMemo(
     () =>
-      'Cadrez le QR collé sur la machine (OT de cet équipement) ou le QR du bâtiment (parc + ticket).',
+      'Cadrez le QR collé sur la machine (INT de cet équipement) ou le QR du bâtiment (parc + ticket).',
     [],
   )
 
@@ -169,7 +169,7 @@ export function ScanEquipementPage() {
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-ink">QR étiquette ClimaZEN</p>
             <p className="text-sm text-muted">
-              Machine → OT prérempli. Bâtiment (local technique / accueil) → tout le parc et un
+              Machine → INT prérempli. Bâtiment (local technique / accueil) → tout le parc et un
               ticket de panne.
             </p>
           </div>
@@ -183,7 +183,7 @@ export function ScanEquipementPage() {
         </div>
         {error ? <p className="mt-3 text-sm font-semibold text-danger">{error}</p> : null}
         {resolvedMsg ? (
-          <p className="mt-3 text-sm font-semibold text-accent">Ouverture OT : {resolvedMsg}</p>
+          <p className="mt-3 text-sm font-semibold text-accent">Ouverture INT : {resolvedMsg}</p>
         ) : null}
       </div>
 

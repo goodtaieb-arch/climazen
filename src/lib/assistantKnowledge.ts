@@ -99,7 +99,7 @@ Fluides F-Gas restent sur /app/stock (bouteilles).`,
       'intervention',
     ],
     paths: ['/app/agenda', '/app/ot', '/app/appel'],
-    answer: `Je ne peux pas annuler (= supprimer) une intervention (INT / OT / DI).
+    answer: `Je ne peux pas annuler (= supprimer) une intervention (INT / INT / DI).
 
 Pour corriger le planning :
 • Agenda → croix rouge sur le bloc = retirer l’INT du tech (revient dans « à poser »)
@@ -260,8 +260,8 @@ Dans les menus : « Surnom (N° de série : BOT-XXX) ». Jamais mettre « Transf
     keywords: ['signature', 'signer', 'technicien', 'client', 'detenteur', 'détenteur'],
     paths: ['/app/appel', '/app/equipe', '/app/interventions'],
     answer: `Signatures :
-- Technicien : Équipe → son dossier (/app/equipe/…) — signature personnelle, invisible aux collègues. Reprise auto sur OT et CERFA.
-- Client : signature à chaque intervention (pad vide sur chaque nouvel OT / CERFA / fiche). Pas de réutilisation auto de l’ancienne signature site.
+- Technicien : Équipe → son dossier (/app/equipe/…) — signature personnelle, invisible aux collègues. Reprise auto sur INT et CERFA.
+- Client : signature à chaque intervention (pad vide sur chaque nouvel INT / CERFA / fiche). Pas de réutilisation auto de l’ancienne signature site.
 
 Pour clôturer : signatures tech + client sur l’intervention, puis « Clôturer signé ».`,
   },
@@ -272,7 +272,7 @@ Pour clôturer : signatures tech + client sur l’intervention, puis « Clôture
     paths: ['/app/operateur'],
     answer: `Mon entreprise (/app/operateur) — administration seulement :
 - Raison sociale, SIRET, attestation de capacité.
-- Logo (apparaît sur le rapport OT).
+- Logo (apparaît sur le rapport INT).
 - Dossier cloud RH : UN lien général (Drive / OneDrive / SharePoint). ClimaZEN classe ClimaZEN → Dossiers techniciens → nom du tech → catégorie.
 Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : Mon profil.`,
   },
@@ -316,7 +316,7 @@ Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : M
     ],
     paths: ['/app/equipe', '/app/profil'],
     answer: `Dossier de chaque technicien (Équipe → Dossier, ou Mon profil → Mon dossier) :
-• Signature CERFA personnelle — seul le tech la voit et la modifie ; reprise auto sur OT / CERFA.
+• Signature CERFA personnelle — seul le tech la voit et la modifie ; reprise auto sur INT / CERFA.
 • Identité (CNI / passeport / titre de séjour), permis, carte Vitale, visite médicale.
 • Attestation d’aptitude fluides (cat. I–IV) — obligatoire pour le froid, validité typique 5 ans.
 • Habilitation électrique (BR, B1V…) — obligatoire dès qu’on touche à l’électrique, recyclage ~3 ans.
@@ -347,7 +347,7 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
     paths: ['/app'],
     answer: `Sur mobile (Chrome / Android) :
 - Bouton « Dicter » sur panne, observations, rapport d’action, CERFA.
-- Micro en bas à gauche : dites « stock », « appel », « interventions », « OT », « INT », « scan », « GPS », « CERFA », « sites » ou « aide ».
+- Micro en bas à gauche : dites « stock », « appel », « interventions », « INT », « INT », « scan », « GPS », « CERFA », « sites » ou « aide ».
 Sur iPhone, la dictée peut être limitée selon Safari.`,
   },
 ]

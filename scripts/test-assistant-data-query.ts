@@ -22,7 +22,7 @@ const otherMonth = ym.endsWith('01')
   ? `${Number(ym.slice(0, 4)) - 1}-12-10`
   : `${ym.slice(0, 4)}-${String(Number(ym.slice(5, 7)) - 1).padStart(2, '0')}-10`
 
-assert.ok(/OT/i.test(normalizeOtTypos('Combien de or reste')))
+assert.ok(/INT/i.test(normalizeOtTypos('Combien de or reste')))
 
 const data = {
   ...emptyData(),
@@ -167,7 +167,7 @@ const snap = buildLiveDataSnapshot(data, {
 assert.ok(/DONNÉES RÉELLES/.test(snap))
 assert.ok(/TOTAUX/.test(snap))
 assert.ok(/RECHERCHE/.test(snap))
-assert.ok(/2 ouverts/.test(snap) || /ouverts en/.test(snap))
+assert.ok(/2 ouvertes/.test(snap) || /ouvertes en/.test(snap))
 assert.ok(/Frigo Sud/.test(snap))
 assert.ok(/accès total|N’IMPORTE|IMPORTE quelle/i.test(snap))
 

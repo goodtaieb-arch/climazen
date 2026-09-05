@@ -392,11 +392,11 @@ export function TechnicienDossierPage() {
           <div className="sm:col-span-2">
             <h2 className="font-display mb-1 flex items-center gap-2 text-base font-semibold text-ink">
               <PenLine className="h-4 w-4 text-accent" />
-              Ma signature (CERFA / OT)
+              Ma signature (CERFA / INT)
             </h2>
             <p className="mb-1 text-sm text-muted">
               Signature personnelle — uniquement la vôtre. Personne d’autre dans l’équipe ne peut
-              la voir ni la modifier. Elle s’applique automatiquement sur vos OT et CERFA.
+              la voir ni la modifier. Elle s’applique automatiquement sur vos INT et CERFA.
             </p>
           </div>
           <Field label="Nom du signataire *" value={signNom} onChange={setSignNom} required />

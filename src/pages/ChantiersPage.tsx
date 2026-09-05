@@ -1143,7 +1143,7 @@ export function ChantiersPage() {
                 </span>
               </div>
               <p className="mt-1.5 text-sm text-muted">
-                Accès rapide · chaque action = OT unique (OT2026…) + rapport
+                Accès rapide · chaque action = INT unique (OT2026…) + rapport
               </p>
             </div>
           </div>
@@ -2180,7 +2180,7 @@ export function ChantiersPage() {
                   : 'Quels équipements pour cette intervention ?'}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {picker.site.nom} — un n° OT (OT2026…) sera attribué automatiquement.
+              {picker.site.nom} — un n° INT (OT2026…) sera attribué automatiquement.
               {picker.mode === 'maintenance'
                 ? ' Le CERFA suffit pour la maintenance fluide ; la fiche checklist est optionnelle.'
                 : picker.mode === 'intervention'
@@ -2437,7 +2437,7 @@ export function ChantiersPage() {
           <div className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-line bg-white p-5 shadow-xl sm:rounded-2xl">
             <h2 className="font-display text-xl font-semibold">Se mettre en intervention</h2>
             <p className="mt-1 text-sm text-muted">
-              {intervChoiceSite.nom} — chaque action reçoit un OT unique (OT2026…).
+              {intervChoiceSite.nom} — chaque action reçoit une INT unique (OT2026…).
             </p>
             <div className="mt-5 space-y-3">
               {siteAvecFluideFrigorigene(intervChoiceSite) ? (
@@ -2472,7 +2472,7 @@ export function ChantiersPage() {
                 <span>
                   <span className="block text-base">Rapport sans CERFA</span>
                     <span className="block text-sm font-medium text-muted">
-                      Fiche d’intervention signée — même série OT
+                      Fiche d’intervention signée — même série INT
                     </span>
                 </span>
               </button>
@@ -2521,7 +2521,7 @@ export function ChantiersPage() {
                   </button>
                 ) : (
                   <p className="rounded-xl border border-dashed border-line bg-foam/60 px-3 py-3 text-sm text-muted">
-                    Équipement sans fluide — pas de CERFA. Un rapport sur l’OT suffit ; la fiche
+                    Équipement sans fluide — pas de CERFA. Un rapport sur l’INT suffit ; la fiche
                     checklist reste optionnelle.
                   </p>
                 )}

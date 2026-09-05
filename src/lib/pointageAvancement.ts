@@ -287,7 +287,7 @@ export function labelAvancementTech(av: TechAvancementJour): string {
     av.porteAPorteMin > 0
       ? `Réel ${formatMinutesHhMm(av.porteAPorteMin)}`
       : av.interventionMin > 0
-        ? `OT ${formatMinutesHhMm(av.interventionMin)}`
+        ? `INT ${formatMinutesHhMm(av.interventionMin)}`
         : ''
   const bits = [reel, plan].filter(Boolean)
   if (av.planifieMin > 0) bits.push(`${av.pctOtFait} %`)

@@ -655,8 +655,8 @@ export function AppelOtPage() {
       role === 'bureau_maintenance'
         ? 'Cochez les fiches que le tech devra remplir (checklist clim, chaufferie….).'
         : equipementIds.length > 1
-          ? `${equipementIds.length} équipements liés — CERFA si fluide, sinon rapport OT.`
-          : 'Équipement lié — CERFA si fluide, sinon rapport OT.',
+          ? `${equipementIds.length} équipements liés — CERFA si fluide, sinon rapport INT.`
+          : 'Équipement lié — CERFA si fluide, sinon rapport INT.',
     )
   }
 
@@ -727,7 +727,7 @@ export function AppelOtPage() {
             (otForm.numero &&
               (interv.numeroIntervention || '').startsWith(`${otForm.numero}-`))),
       )
-      // Même OT + équipement : reprendre la fiche existante (même signée) — évite double déduction stock
+      // Même INT + équipement : reprendre la fiche existante (même signée) — évite double déduction stock
       let existingDraft =
         candidates.find((c) =>
           (data.stockMouvements || []).some((m) => m.interventionId === c.id),
@@ -1055,7 +1055,7 @@ export function AppelOtPage() {
 
   const validatePresenceDuJour = () => {
     if (isOtCloture(otForm.statut)) {
-      alert('OT déjà clôturé.')
+      alert('INT déjà clôturée.')
       return
     }
     if (!otForm.signatureTechnicienImage) {
@@ -1123,7 +1123,7 @@ export function AppelOtPage() {
     }
     if (motif === 'bureau_sous_traitant') {
       if (!rapportSousTraitantOk(otForm)) {
-        alert('Joignez le rapport du sous-traitant pour clôturer cet OT.')
+        alert('Joignez le rapport du sous-traitant pour clôturer cette INT.')
         return
       }
       persistOt({
@@ -1190,7 +1190,7 @@ export function AppelOtPage() {
     })
     if (rapportOtSuffit(otForm.docsRequis) && !(otForm.rapportAction || '').trim()) {
       alert(
-        'Pas de fiche type pour cet équipement — remplissez le rapport d’action sur l’OT.',
+        'Pas de fiche type pour cet équipement — remplissez le rapport d’action sur l’INT.',
       )
       return
     }
@@ -1218,7 +1218,7 @@ export function AppelOtPage() {
         return
       }
       alert(
-        'Signature client requise sur l’OT.\n\n' +
+        'Signature client requise sur l’INT.\n\n' +
           'Si le client est absent : cochez « Client absent », envoyez le lien SMS/e-mail, ' +
           'attendez qu’il signe, puis recliquez sur Clôturer.',
       )
@@ -1228,7 +1228,7 @@ export function AppelOtPage() {
     if (otForm.interventionPartielle || (pct > 0 && pct < 100)) {
       const ok = window.confirm(
         `Avancement actuel : ${pct} %.\n\n` +
-          'Clôturer classe l’OT comme terminé (100 %).\n' +
+          'Clôturer classe l’INT comme terminé (100 %).\n' +
           'Si le chantier continue, annulez et utilisez « Valider la présence du jour ».',
       )
       if (!ok) return
@@ -1261,7 +1261,7 @@ export function AppelOtPage() {
     for (const draft of linked) {
       upsertIntervention({
         ...draft,
-        // Même n° OT pour tous les CERFA de l’intervention (plus de -1/-2)
+        // Même n° INT pour tous les CERFA de l’intervention (plus de -1/-2)
         numeroIntervention: otForm.numero || draft.numeroIntervention,
         status: 'signe',
         signatureOperateurImage:
@@ -1315,7 +1315,7 @@ export function AppelOtPage() {
           onClick={() => navigate(otId ? `/app/ot?id=${encodeURIComponent(otId)}` : '/app/ot')}
           className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-white px-3 text-sm font-semibold"
         >
-          <ArrowLeft className="h-4 w-4" /> OT
+          <ArrowLeft className="h-4 w-4" /> INT
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">
@@ -1326,7 +1326,7 @@ export function AppelOtPage() {
             {otForm.heure ? ` · ${otForm.heure.slice(0, 5)}` : ''}
             {otForm.statut ? ` · ${STATUT_OT_LABELS[otForm.statut] || otForm.statut}` : ''}
             {!isOwner
-              ? ' · OT & CERFA synchronisés sur le compte société'
+              ? ' · INT & CERFA synchronisés sur le compte société'
               : ''}
           </p>
         </div>
@@ -1334,7 +1334,7 @@ export function AppelOtPage() {
 
       {!isOwner ? (
         <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950">
-          Week-end / hors horaires bureau : créez l’OT ici — il vous est affecté. Le gérant et
+          Week-end / hors horaires bureau : créez l’INT ici — il vous est affecté. Le gérant et
           toute l’équipe le voient automatiquement (sync PC ↔ téléphone).
         </p>
       ) : role === 'bureau_depanage' ? (
@@ -1349,8 +1349,8 @@ export function AppelOtPage() {
         </p>
       ) : (
         <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted">
-          Les techniciens peuvent aussi créer un OT en astreinte — tout arrive dans le coffre
-          société. Si vous vous affectez l’OT, vous remplissez l’intervention (auto-entrepreneur
+          Les techniciens peuvent aussi créer une INT en astreinte — tout arrive dans le coffre
+          société. Si vous vous affectez l’INT, vous remplissez l’intervention (auto-entrepreneur
           / gérant sur site).
         </p>
       )}
@@ -1401,9 +1401,9 @@ export function AppelOtPage() {
 
       {otCloture && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-          <p className="font-semibold">OT clôturé</p>
+          <p className="font-semibold">INT clôturée</p>
           <p className="mt-0.5 text-muted">
-            Classé avec les OT terminés. Vous pouvez encore corriger une erreur, puis re-clôturer
+            Classé avec les INT terminés. Vous pouvez encore corriger une erreur, puis re-clôturer
             si besoin.
           </p>
         </div>
@@ -1430,7 +1430,7 @@ export function AppelOtPage() {
           ) : null}
           {' — '}
           {rapportOtSuffit(otForm.docsRequis)
-            ? 'pas de fiche type : le rapport d’OT suffit.'
+            ? 'pas de fiche type : le rapport d’INT suffit.'
             : 'la fiche s’ouvre sur ce niveau.'}{' '}
           Date déplaçable (urgence ou reprise partielle).
         </p>
@@ -1448,26 +1448,26 @@ export function AppelOtPage() {
         />
       ) : null}
 
-      {/* ——— Étape OT ——— */}
+      {/* ——— Étape INT ——— */}
       {step === 'ot' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <p className="text-sm text-muted">
-            Au téléphone ou en astreinte : créez l’OT tout de suite, même avant d’être sur site.
+            Au téléphone ou en astreinte : créez l’INT tout de suite, même avant d’être sur site.
             Tout est enregistré sur le compte société.
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">N° OT</span>
+              <span className="mb-1 block font-semibold text-ink">N° INT</span>
               <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
                 <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
-                  OT
+                  INT
                 </span>
                 <input
                   value={otBaseNumero(otForm.numero) || otForm.numero}
                   onChange={(e) =>
                     setOtForm({
                       ...otForm,
-                      numero: e.target.value.replace(/^OT\s*/i, '').trim(),
+                      numero: e.target.value.replace(/^(?:INT|OT|DI)\s*/i, '').trim(),
                     })
                   }
                   className="h-full min-w-0 flex-1 border-0 px-3 font-bold tracking-wide outline-none"
@@ -1523,7 +1523,7 @@ export function AppelOtPage() {
                     )
                     if (block) {
                       alert(
-                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’OT (Agenda → Absent).`,
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’INT (Agenda → Absent).`,
                       )
                       return
                     }
@@ -1600,7 +1600,7 @@ export function AppelOtPage() {
           {multiTechOt ? (
             <>
               <AgenceSelect
-                label="Agence / région de l’OT"
+                label="Agence / région de l’INT"
                 value={otForm.agenceCode}
                 onChange={(agenceCode) => setOtForm({ ...otForm, agenceCode })}
               />
@@ -1647,7 +1647,7 @@ export function AppelOtPage() {
                 }}
               />
               <p className="text-[11px] text-muted">
-                Cochez plusieurs techs si renfort. Avec l’heure planning ci-dessus, l’OT apparaît
+                Cochez plusieurs techs si renfort. Avec l’heure planning ci-dessus, l’INT apparaît
                 sur l’Agenda de chacun.
               </p>
             </>
@@ -1664,7 +1664,7 @@ export function AppelOtPage() {
             onClick={saveOtStep}
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:w-auto"
           >
-            Enregistrer l’OT <ArrowRight className="h-4 w-4" />
+            Enregistrer l’INT <ArrowRight className="h-4 w-4" />
           </button>
         </section>
       )}
@@ -2040,7 +2040,7 @@ export function AppelOtPage() {
               <div>
                 <p className="text-sm font-semibold text-sky-950">Agenda — qui intervient ?</p>
                 <p className="text-xs text-muted">
-                  Cochez un ou plusieurs techs et l’heure : chacun voit l’OT sur son planning.
+                  Cochez un ou plusieurs techs et l’heure : chacun voit l’INT sur son planning.
                 </p>
               </div>
               <label className="block max-w-xs text-sm">
@@ -2069,7 +2069,7 @@ export function AppelOtPage() {
                   className="h-11 w-full rounded-xl border border-line bg-white px-3"
                 />
                 <span className="mt-1 block text-[11px] text-muted">
-                  Sans heure → OT dans « sans planning » sur l’Agenda.
+                  Sans heure → INT dans « sans planning » sur l’Agenda.
                 </span>
               </label>
               <TechnicienAssignField
@@ -2111,7 +2111,7 @@ export function AppelOtPage() {
           {role === 'bureau_depanage' &&
           (otForm.equipementId || (otForm.equipementIds && otForm.equipementIds.length > 0)) ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
-              <p className="font-semibold">OT prêt pour le terrain</p>
+              <p className="font-semibold">INT prêt pour le terrain</p>
               <p className="mt-0.5 text-xs">
                 {otForm.technicien
                   ? `${otForm.technicien} ouvrira l’étape 5 Intervention (rapport, CERFA, signatures).`
@@ -2179,7 +2179,7 @@ export function AppelOtPage() {
                       onClick={() => {
                         if (
                           !confirm(
-                            `Scinder cet OT en ${selectedEquipIds.length} OT (1 par équipement) ? L’OT regroupé sera remplacé.`,
+                            `Scinder cette INT en ${selectedEquipIds.length} INT (1 par équipement) ? L’INT regroupée sera remplacée.`,
                           )
                         ) {
                           return
@@ -2195,12 +2195,12 @@ export function AppelOtPage() {
                           alert('Impossible de scinder (il faut au moins 2 équipements liés au contrat).')
                           return
                         }
-                        alert(`${result.created} OT créés — 1 par équipement.`)
+                        alert(`${result.created} INT créée(s) — 1 par équipement.`)
                         navigate('/app/ot')
                       }}
                       className="rounded-full border border-amber-400 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-950 hover:bg-amber-100"
                     >
-                      Scinder en 1 OT / équipement
+                      Scinder en 1 INT / équipement
                     </button>
                   ) : null}
                   {selectedEquipIds.length > 0 && (
@@ -2478,7 +2478,7 @@ export function AppelOtPage() {
               })}
               <p className="text-xs text-muted">
                 CERFA : toujours accessible au tech. Obligatoire s’il touche au fluide / gaz.
-                Pas de fiche type → le rapport d’OT suffit.
+                Pas de fiche type → le rapport d’INT suffit.
               </p>
               <SousTraitantOtFields
                 form={otForm}
@@ -2567,7 +2567,7 @@ export function AppelOtPage() {
                     )
                     if (block) {
                       alert(
-                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’OT.`,
+                        `Impossible : tech en ${labelIndispoCourte(block.absence)} — ne pas poser d’INT.`,
                       )
                       return
                     }
@@ -2591,7 +2591,7 @@ export function AppelOtPage() {
           {rapportOtSuffit(otForm.docsRequis) ? (
             <p className="rounded-xl border border-line bg-mist/50 px-3 py-2 text-sm text-ink">
               Pas de fiche type pour cet équipement — le <strong>rapport d’action</strong> de
-              l’OT suffit.
+              l’INT suffit.
             </p>
           ) : null}
 
@@ -2847,7 +2847,7 @@ export function AppelOtPage() {
               }}
               className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold"
             >
-              Enregistrer l’OT
+              Enregistrer l’INT
             </button>
             {!otCloture && (
               <button
@@ -2878,8 +2878,8 @@ export function AppelOtPage() {
             {awaitingRemoteSignature && !otForm.signatureClientImage
               ? 'Client absent : attendez que le client signe via le lien SMS/e-mail. La signature arrive seule — ensuite le bouton Clôturer se réactive.'
               : otCloture
-                ? 'OT déjà clôturé — modification exceptionnelle en cas d’erreur.'
-                : 'Présence du jour : signatures + « Valider la présence » (OT reste ouvert). Clôturer signé = chantier terminé.'}
+                ? 'INT déjà clôturée — modification exceptionnelle en cas d’erreur.'
+                : 'Présence du jour : signatures + « Valider la présence » (INT reste ouvert). Clôturer signé = chantier terminé.'}
           </p>
             </>
           )}
@@ -2888,7 +2888,7 @@ export function AppelOtPage() {
 
       <div className="flex flex-wrap gap-3 pb-8 text-sm">
         <Link to="/app/ot" className="font-semibold text-accent hover:underline">
-          Liste des OT
+          Liste des INT
         </Link>
         {client?.telephone ? (
           <a

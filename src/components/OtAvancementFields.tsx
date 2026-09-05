@@ -46,7 +46,7 @@ export function OtAvancementFields({ form, disabled, onChange }: Props) {
       </div>
       <p className="text-xs text-muted">
         Maintenance / réparation sur plusieurs passages : indiquez le % fait, puis faites signer le
-        client pour valider la <strong>présence du jour</strong> — sans clôturer l’OT.
+        client pour valider la <strong>présence du jour</strong> — sans clôturer l’INT.
       </p>
       <label className="flex items-start gap-2 text-sm">
         <input

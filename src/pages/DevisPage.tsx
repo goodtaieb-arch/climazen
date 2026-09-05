@@ -269,7 +269,7 @@ export function DevisPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-semibold">Lien OT (optionnel)</span>
+            <span className="mb-1 block font-semibold">Lien INT (optionnel)</span>
             <select
               value={form.otOrigineId || ''}
               onChange={(e) =>
@@ -289,12 +289,12 @@ export function DevisPage() {
                 ))}
             </select>
             <span className="mt-1 block text-[11px] text-muted">
-              Relie ce devis à un OT (ex. régularisation après dépannage).
+              Relie ce devis à une INT (ex. régularisation après dépannage).
             </span>
           </label>
           {otOrigine ? (
             <p className="text-xs text-muted">
-              OT lié :{' '}
+              INT liée :{' '}
               <Link
                 to={`/app/ot?id=${otOrigine.id}`}
                 className="font-semibold text-accent underline"
@@ -376,11 +376,11 @@ export function DevisPage() {
                   onClick={() => {
                     const { id, numero } = creerOtDepuisDevis(existing.id)
                     navigate(`/app/ot?id=${encodeURIComponent(id)}`)
-                    alert(`OT ${numero} créé depuis le devis.`)
+                    alert(`INT ${numero} créé depuis le devis.`)
                   }}
                   className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
                 >
-                  Créer OT d’exécution
+                  Créer INT d’exécution
                 </button>
                 <button
                   type="button"
@@ -413,7 +413,7 @@ export function DevisPage() {
           </div>
           {ots.length ? (
             <div className="border-t border-line pt-3 text-sm">
-              <p className="font-semibold">OT liés</p>
+              <p className="font-semibold">INT liées</p>
               <ul className="mt-1 space-y-1">
                 {ots.map((o) => (
                   <li key={o.id}>
@@ -471,7 +471,7 @@ export function DevisPage() {
       {list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
           <FileText className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          Aucun devis — créez-en un ou générez une régularisation depuis un OT.
+          Aucun devis — créez-en un ou générez une régularisation depuis une INT.
         </p>
       ) : (
         <div className="space-y-4">
@@ -495,7 +495,7 @@ export function DevisPage() {
                         <p className="text-xs text-muted">
                           {STATUT_DEVIS_LABELS[d.statut]}
                           {d.montantHt != null ? ` · ${d.montantHt} € HT` : ''}
-                          {d.otOrigineId ? ' · lié OT' : ''}
+                          {d.otOrigineId ? ' · lié INT' : ''}
                         </p>
                       </div>
                     </Link>

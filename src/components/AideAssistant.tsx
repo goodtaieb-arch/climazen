@@ -68,25 +68,25 @@ function welcomeForTier(tier: ReturnType<typeof resolveAiTier>): string {
 
 ${aiTierUpsellMessage('none') ?? ''}
 
-À la sortie de la bêta : chatbot d’aide gratuit, Agent IA (OT, CERFA, agenda…) en option payante.`
+À la sortie de la bêta : chatbot d’aide gratuit, Agent IA (INT, CERFA, agenda…) en option payante.`
   }
   if (tier === 'chatbot') {
     return `Bonjour — je suis le ${AI_TIER_LABELS.chatbot} ClimaZEN (guide et questions sur l’app).
 
-Pour créer des OT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
+Pour créer des INT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
   }
   return (
-    'Intelligence ClimaZEN — je lis toutes vos données (OT, clients, sites, stock, devis, agenda…) et je propose, vous validez.\n\n' +
+    'Intelligence ClimaZEN — je lis toutes vos données (INT, clients, sites, stock, devis, agenda…) et je propose, vous validez.\n\n' +
     AI_HOW_I_WORK +
     '\n\nPosez n’importe quelle question métier — pas besoin d’une formule spéciale.\n' +
     'Exemples (indicatifs) :\n' +
-    '• « Combien d’OT restent à clôturer ce mois ? »\n' +
-    '• « Analyse le rapport OT — pièces à commander »\n' +
+    '• « Combien d’INT restent à clôturer ce mois ? »\n' +
+    '• « Analyse le rapport INT — pièces à commander »\n' +
     '• « Ventilo bruyant à changer — lance la chaîne devis »\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
-    '• « Décale l’OT de 7h à 9h » (puis « oui »)\n' +
-    '• « Crée un OT pour Mr Martin, site Atelier »\n\n' +
-    'Je ne déforme jamais un nom. Interdit : supprimer un OT (croix rouge Agenda = retirer).'
+    '• « Décale l’INT de 7h à 9h » (puis « oui »)\n' +
+    '• « Crée une INT pour Mr Martin, site Atelier »\n\n' +
+    'Je ne déforme jamais un nom. Interdit : supprimer une INT (croix rouge Agenda = retirer).'
   )
 }
 
@@ -427,7 +427,7 @@ export function AideAssistant() {
         setSource('local')
         pushAssistant(
           AI_HOW_I_WORK +
-            '\n\nExemples : « décale l’OT de 7h à 9h » · « OT de Karim Benali aujourd’hui » · « combien de filtre M5 ? »',
+            '\n\nExemples : « décale l’INT de 7h à 9h » · « INT de Karim Benali aujourd’hui » · « combien de filtre M5 ? »',
         )
         return
       }
@@ -726,7 +726,7 @@ export function AideAssistant() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={
                 agentOk
-                  ? 'Ex. devis Dupont… / commande pièce… / OT…'
+                  ? 'Ex. devis Dupont… / commande pièce… / INT…'
                   : 'Question sur l’app ClimaZEN…'
               }
               className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-sm"
@@ -754,7 +754,7 @@ export function AideAssistant() {
                 Passer à l’Agent IA
               </Link>
               {' '}
-              — création OT/CERFA et actions terrain
+              — création INT/CERFA et actions terrain
             </p>
           ) : null}
             </>

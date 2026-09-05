@@ -103,7 +103,7 @@ export function PointageBureauPanel({ className = '' }: { className?: string }) 
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-violet-900">Pointage bureau</p>
         <p className="font-display text-base font-semibold text-ink">
-          Heure de début, de fin et pause — sans déplacement OT
+          Heure de début, de fin et pause — sans déplacement INT
         </p>
         {maJournee && maJournee.payeMin > 0 ? (
           <p className="text-xs text-muted">

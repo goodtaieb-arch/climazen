@@ -369,7 +369,7 @@ export function EquipePage() {
             Tout est stocké sur le <strong>compte société</strong> (employeur) — pas sur un téléphone isolé.
           </li>
           <li>
-            Flux typique : le gérant prend l’appel client → crée l’OT →{' '}
+            Flux typique : le gérant prend l’appel client → crée l’INT →{' '}
             <strong>affecte un technicien</strong>. Détecteur de fuite : dans Mon profil.
           </li>
           <li>
@@ -379,7 +379,7 @@ export function EquipePage() {
             métier. Tapez une ligne membre pour ouvrir dossier, photos, MDP, suppression.
           </li>
           <li>
-            Astreinte week-end : le technicien peut aussi créer l’OT / CERFA lui-même — tout arrive
+            Astreinte week-end : le technicien peut aussi créer l’INT / CERFA lui-même — tout arrive
             dans le <strong>coffre société</strong> (visible par le gérant).
           </li>
           <li>
@@ -794,7 +794,7 @@ export function EquipePage() {
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title={`Retirer ${pendingDelete?.fullName || 'ce technicien'} de l’équipe ?`}
-        message="Il disparaît de la liste, ne pourra plus se connecter, et ne sera plus proposé pour les OT / détecteurs. Les CERFA déjà faits restent. L’e-mail reste réservé (vous ne pourrez pas recréer le même compte)."
+        message="Il disparaît de la liste, ne pourra plus se connecter, et ne sera plus proposé pour les INT / détecteurs. Les CERFA déjà faits restent. L’e-mail reste réservé (vous ne pourrez pas recréer le même compte)."
         confirmLabel="Supprimer de l’équipe"
         onConfirm={() => void onConfirmDelete()}
         onCancel={() => setPendingDelete(null)}

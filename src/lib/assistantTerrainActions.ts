@@ -327,6 +327,7 @@ function parseCreateEquipementsIntent(raw: string, n: string): PendingTerrainAct
   const mentionsEquip = /clim|monobloc|split|pac|equipement|climati/.test(n)
   const wantsAdd =
     /(?:ajoute|ajouter|creer|cree|installe|mettre|mets)\s+(?:des?\s+|les?\s+|une?\s+|deux\s+|2\s+)?/.test(
+
       n,
     ) || /(?:deux|2|plusieurs)\s+(?:clim|equipement|monobloc)/.test(n)
   const multiLoc = locs.length >= 2
@@ -437,6 +438,7 @@ function parseCreateClientIntent(raw: string, n: string): PendingTerrainAction |
   const civ =
     raw.match(
       /(?:mr|m\.|monsieur|mme|madame)\s+([A-Za-zÀ-ÿ'’-]+)(?:\s+([A-Za-zÀ-ÿ'’-]+))?/i,
+
     ) || null
   if (civ) {
     prenom = (civ[1] || '').trim()
@@ -1200,9 +1202,9 @@ export async function executeTerrainAction(
   }
 
   if (action.kind === 'decaler_ot') {
-    if (!deps.upsertOrdreTravail) throw new Error('Décalage OT indisponible.')
+    if (!deps.upsertOrdreTravail) throw new Error('Décalage INT indisponible.')
     const ot = (deps.data.ordresTravail || []).find((o) => o.id === action.otId)
-    if (!ot) throw new Error(`OT ${action.otNumero} introuvable.`)
+    if (!ot) throw new Error(`INT ${action.otNumero} introuvable.`)
     const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = ot
     deps.upsertOrdreTravail({
       ...rest,
@@ -1221,7 +1223,7 @@ export async function executeTerrainAction(
       throw new Error('Chaîne pièce / devis / commande indisponible.')
     }
     const ot = (deps.data.ordresTravail || []).find((o) => o.id === action.otId)
-    if (!ot) throw new Error(`OT ${action.otNumero} introuvable.`)
+    if (!ot) throw new Error(`INT ${action.otNumero} introuvable.`)
     const client = deps.data.clients?.find((c) => c.id === action.clientId)
     if (!client) throw new Error('Client introuvable pour la chaîne commerciale.')
 
@@ -1243,7 +1245,7 @@ export async function executeTerrainAction(
         chantierId: action.chantierId,
         otId: action.otId,
         destination: 'ot',
-        libelle: `Pièces OT${action.otNumero} — ${libellePieces}`,
+        libelle: `Pièces ${formatOtNumero(action.otNumero) || action.otNumero} — ${libellePieces}`,
         referencePiece: action.pieces[0]?.designation,
         quantite: action.pieces.reduce((s, p) => s + (p.quantite || 1), 0),
         notes: action.pieces.map((p) => `• ${p.designation} — ${p.motif}`).join('\n'),
@@ -1275,11 +1277,11 @@ export async function executeTerrainAction(
         type: 'regularisation',
         chantierId: action.chantierId,
         otOrigineId: action.otId,
-        libelle: `Devis pièces — OT${action.otNumero} — ${libellePieces}`,
+        libelle: `Devis pièces — ${formatOtNumero(action.otNumero) || action.otNumero} — ${libellePieces}`,
         lignes,
         montantHt,
         notes:
-          `Généré depuis le rapport OT (validation humaine).` +
+          `Généré depuis le rapport INT (validation humaine).` +
           (commandeId ? ` Demande fournisseur liée.` : '') +
           ` Complétez les prix si besoin, envoyez au client, puis « Lancer commande » après acceptation.`,
       })
@@ -1305,7 +1307,7 @@ export async function executeTerrainAction(
     return {
       message: [
         `Chaîne pièce lancée pour ${formatOtNumero(action.otNumero)} : ${bits.join(' + ')}.`,
-        `OT passé en « en attente de pièce ».`,
+        `INT passée en « en attente de pièce ».`,
         `Ensuite : prix fournisseur → finalisez le devis client → client accepte → « Lancer commande ».`,
       ].join(' '),
       navigateTo: devisId

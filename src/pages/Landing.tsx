@@ -525,7 +525,7 @@ export function Landing() {
               </div>
 
               <p className="mt-4 text-sm font-semibold leading-snug text-white">
-                L’IA remplit à votre place — OT, CERFA, agenda &amp; stock
+                L’IA remplit à votre place — INT, CERFA, agenda &amp; stock
               </p>
               <p className="mt-2 text-[13px] leading-relaxed text-teal-50/90">
                 Vous dictez. ClimaZEN prépare les documents, l’agenda et les fiches terrain. Le
@@ -539,7 +539,7 @@ export function Landing() {
               <ul className="mt-4 space-y-1.5 text-[12px] font-medium text-teal-50/95">
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
-                  OT + CERFA brouillon
+                  INT + CERFA brouillon
                 </li>
                 <li className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-200" />
@@ -672,7 +672,7 @@ export function Landing() {
               <p className="mt-2 text-sm text-muted">{APP_EDITION_PRICING.light.detail}</p>
               <ul className="mt-5 space-y-2.5 text-sm text-slate">
                 {[
-                  'OT, agenda & contrats maintenance',
+                  'INT, agenda & contrats maintenance',
                   'CERFA F-Gas & stock fluides (obligatoire)',
                   'Mon entreprise (SIRET, attestation…)',
                   'Un seul utilisateur — gratuit pour toujours',
@@ -727,7 +727,7 @@ export function Landing() {
                   'Plusieurs techniciens & comptes opérateurs',
                   'Pointeuse, RH & pilotage équipe',
                   'Devis / commandes / magasin pièces',
-                  'Agent IA inclus (OT, CERFA, OpenAI clé société)',
+                  'Agent IA inclus (INT, CERFA, OpenAI clé société)',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />

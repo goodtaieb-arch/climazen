@@ -55,7 +55,7 @@ export function EquipementHistoriquePanel({ entries, title = 'Historique mainten
                     to={`/app/appel?ot=${encodeURIComponent(e.otId)}`}
                     className="mt-1 inline-block text-xs font-semibold text-accent underline"
                   >
-                    Voir l’OT
+                    Voir l’INT
                   </Link>
                 ) : null}
               </div>

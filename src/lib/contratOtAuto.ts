@@ -756,7 +756,7 @@ export function buildOtDraftsDepuisContrats(input: {
                   ? inferCategorieFicheEquipement(g.lignes[0].equipement)
                   : 'type'
               }).`
-            : 'Pas de fiche type — le rapport d’OT suffit.'
+            : 'Pas de fiche type — le rapport d’INT suffit.'
 
       drafts.push({
         date: v0.date,
@@ -769,12 +769,12 @@ export function buildOtDraftsDepuisContrats(input: {
           eqNoms.length ? `Équipements : ${eqNoms.join(', ')}` : '',
           ficheHint,
           nEq > 1
-            ? 'Un seul OT pour tout le site — vous pouvez scinder par équipement si besoin.'
+            ? 'Une seule INT pour tout le site — vous pouvez scinder par équipement si besoin.'
             : '',
           anySousTraitant
             ? allSousTraitant
               ? 'Équipements sous-traités : clôture tech accompagnant ou bureau + rapport ST.'
-              : 'Certains équipements sont sous-traités — vérifier le détail sur l’OT.'
+              : 'Certains équipements sont sous-traités — vérifier le détail sur l’INT.'
             : 'Date déplaçable si urgence ou reprise d’une visite partielle.',
         ]
           .filter(Boolean)
@@ -900,7 +900,7 @@ export function scinderOtContratParEquipement(
       rapportAction: '',
       observations: [
         ot.observations || '',
-        `Scindé depuis OT multi-équipements (équipement : ${nom}).`,
+        `Scindé depuis INT multi-équipements (équipement : ${nom}).`,
       ]
         .filter(Boolean)
         .join('\n'),

@@ -19,7 +19,7 @@ export const CATEGORIE_FICHE_LABELS: Record<CategorieFicheEquipement, string> = 
   chaufferie: 'Fiche chaufferie P2/P3',
   cta_vmc: 'Fiche CTA / VMC',
   etancheite: 'CERFA étanchéité',
-  aucune: 'Rapport d’OT (pas de fiche type)',
+  aucune: 'Rapport d’INT (pas de fiche type)',
 }
 
 function haystack(eq: Pick<Equipement, 'type' | 'nom'> | { type?: string; nom?: string }): string {

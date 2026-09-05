@@ -319,7 +319,7 @@ export function StockPiecesPage() {
   const recevoirCommande = (commandeId: string) => {
     if (!peutGererPiecesDetachees) return
     marquerCommandeRecue(commandeId)
-    setMsg('Commande reçue — stock mis à jour, OT débloqué si lié.')
+    setMsg('Commande reçue — stock mis à jour, INT débloqué si lié.')
     setTimeout(() => setMsg(''), 3000)
   }
 
@@ -418,7 +418,7 @@ export function StockPiecesPage() {
             </button>
             <button
               type="button"
-              title="Sortie OT"
+              title="Sortie INT"
               onClick={() => openMouvement(p, 'sortie_ot')}
               className="rounded-lg border border-line p-2 hover:bg-mist"
             >
@@ -462,7 +462,7 @@ export function StockPiecesPage() {
                     {m.sens === 'entree' ? '+' : '−'}
                     {m.quantite} → {m.quantiteApres}
                   </span>
-                  {m.otNumero ? <span>OT {m.otNumero}</span> : null}
+                  {m.otNumero ? <span>INT {m.otNumero}</span> : null}
                   {m.motif ? <span className="text-muted">{m.motif}</span> : null}
                 </li>
               ))}
@@ -1029,7 +1029,7 @@ export function StockPiecesPage() {
               />
               {mouvementKind === 'sortie_ot' ? (
                 <label className="text-sm">
-                  <span className="mb-1 block text-xs font-semibold text-muted">OT lié</span>
+                  <span className="mb-1 block text-xs font-semibold text-muted">INT liée</span>
                   <select
                     value={mouvementOtId}
                     onChange={(e) => setMouvementOtId(e.target.value)}

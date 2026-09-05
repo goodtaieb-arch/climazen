@@ -273,7 +273,7 @@ export function OrdresTravailPage() {
   const onSave = (e: FormEvent) => {
     e.preventDefault()
     if (!form.action.trim()) {
-      alert('Indiquez l’action / mission de l’OT.')
+      alert('Indiquez l’action / mission de l’INT.')
       return
     }
     const siteRow = data.chantiers.find((c) => c.id === form.chantierId)
@@ -296,7 +296,7 @@ export function OrdresTravailPage() {
 
   const onValiderPresence = () => {
     if (isOtCloture(form.statut)) {
-      alert('OT déjà clôturé.')
+      alert('INT déjà clôturée.')
       return
     }
     if (!form.signatureTechnicienImage) {
@@ -381,7 +381,7 @@ export function OrdresTravailPage() {
             onClick={() => navigate('/app/ot')}
             className="inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-white px-3 text-sm font-semibold"
           >
-            <ArrowLeft className="h-4 w-4" /> Liste OT
+            <ArrowLeft className="h-4 w-4" /> Liste INT
           </button>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">
             {form.numero ? formatOtNumero(form.numero) : OT_LABEL.newItem}
@@ -391,15 +391,18 @@ export function OrdresTravailPage() {
         <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-line bg-white p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">N° OT</span>
+              <span className="mb-1 block font-semibold text-ink">N° INT</span>
               <div className="flex h-11 overflow-hidden rounded-xl border border-line bg-white">
                 <span className="grid shrink-0 place-items-center bg-emerald-50 px-2.5 text-sm font-extrabold text-emerald-800">
-                  OT
+                  INT
                 </span>
                 <input
                   value={otBaseNumero(form.numero) || form.numero}
                   onChange={(e) =>
-                    setForm({ ...form, numero: e.target.value.replace(/^OT\s*/i, '').trim() })
+                    setForm({
+                      ...form,
+                      numero: e.target.value.replace(/^(?:INT|OT|DI)\s*/i, '').trim(),
+                    })
                   }
                   className="h-full min-w-0 flex-1 border-0 px-3 font-bold tracking-wide outline-none"
                   placeholder="26081702"
@@ -426,7 +429,7 @@ export function OrdresTravailPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block font-semibold text-ink">Type d’OT</span>
+              <span className="mb-1 block font-semibold text-ink">Type d’INT</span>
               <select
                 value={form.typeOt}
                 onChange={(e) => setForm({ ...form, typeOt: e.target.value as TypeOt })}
@@ -557,7 +560,7 @@ export function OrdresTravailPage() {
             onChange={(patch) => setForm({ ...form, ...patch })}
             onGenererDevisRegule={() => {
               if (!existing?.id) {
-                alert('Enregistrez d’abord l’OT.')
+                alert('Enregistrez d’abord l’INT.')
                 return
               }
               try {
@@ -575,7 +578,7 @@ export function OrdresTravailPage() {
             }}
             onGenererFacture={() => {
               if (!existing?.id) {
-                alert('Enregistrez d’abord l’OT.')
+                alert('Enregistrez d’abord l’INT.')
                 return
               }
               try {
@@ -587,7 +590,7 @@ export function OrdresTravailPage() {
             }}
             onCreerCommandePiece={() => {
               if (!existing?.id) {
-                alert('Enregistrez d’abord l’OT.')
+                alert('Enregistrez d’abord l’INT.')
                 return
               }
               const qs = new URLSearchParams({
@@ -684,7 +687,7 @@ export function OrdresTravailPage() {
               type="submit"
               className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white"
             >
-              Enregistrer l’OT
+              Enregistrer l’INT
             </button>
             {!isOtCloture(form.statut) && (
               <button
@@ -755,7 +758,7 @@ export function OrdresTravailPage() {
         <SearchField
           value={q}
           onChange={setQ}
-          placeholder="N° OT, client, site, ville, tech, action, mois…"
+          placeholder="N° INT, client, site, ville, tech, action, mois…"
           testId="ot-search"
         />
         <select
@@ -795,7 +798,7 @@ export function OrdresTravailPage() {
           className="h-12 w-full rounded-xl border border-line bg-white px-3 text-base sm:w-auto md:h-11 md:text-sm"
         >
           <option value="tous">Toute l’équipe</option>
-          <option value="moi">Mes OT (affectés à moi)</option>
+          <option value="moi">Mes INT (affectées à moi)</option>
         </select>
         <select
           value={typeFilter}
@@ -1035,7 +1038,7 @@ export function OrdresTravailPage() {
                     const label = formatOtNumero(o.numero)
                     if (
                       !window.confirm(
-                        `Supprimer ${label} ?\n\nL’OT sera effacé définitivement (sync PC ↔ téléphone).`,
+                        `Supprimer ${label} ?\n\nL’INT sera effacée définitivement (sync PC ↔ téléphone).`,
                       )
                     ) {
                       return
@@ -1043,7 +1046,7 @@ export function OrdresTravailPage() {
                     deleteOrdreTravail(o.id)
                   }}
                   aria-label={`Supprimer ${formatOtNumero(o.numero)}`}
-                  title="Supprimer cet OT"
+                  title="Supprimer cette INT"
                   className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-danger"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -1055,12 +1058,12 @@ export function OrdresTravailPage() {
         {list.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-10 text-center text-sm text-muted">
             {statutFilter === 'clotures'
-              ? 'Aucun OT / demande clôturé pour l’instant.'
+              ? 'Aucune INT clôturée pour l’instant.'
               : statutFilter === 'attente_piece'
-                ? 'Aucun OT en attente de pièce.'
+                ? 'Aucune INT en attente de pièce.'
               : statutFilter === 'ouverts'
-                ? 'Aucun OT / demande ouvert. Créez-en un depuis Sites & Parc ou « Client appelle ».'
-                : 'Aucun OT / demande. Créez-en un depuis Sites & Parc ou ici.'}
+                ? 'Aucune INT ouverte. Créez-en une depuis Sites & Parc ou « Client appelle ».'
+                : 'Aucune INT. Créez-en une depuis Sites & Parc ou ici.'}
           </div>
         )}
       </div>
