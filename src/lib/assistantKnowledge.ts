@@ -36,6 +36,8 @@ Parcours principaux :
 6) Devis → /app/devis · Commandes → /app/commandes · Pièces → /app/stock-pieces.
 7) Mon entreprise → /app/operateur (clé OpenAI + numéro Twilio).
 
+Pointage : le tech ne modifie jamais une heure déjà enregistrée. Oubli « en cours » à l’arrivée → bureau (Pointeuse) ou Aide IA (vérifie le GPS puis corrige).
+
 Règles stock / CERFA :
 - Récupération temporaire → bouteilles Transfert / Service.
 - Démantèlement / récup. définitive → bouteilles Récupération.
@@ -105,6 +107,30 @@ Pour corriger le planning :
 • Agenda → croix rouge sur le bloc = retirer l’INT du tech (revient dans « à poser »)
 • Recliquer / reposer = déplacer l’heure ou changer de tech
 • Interventions → ouvrir l’INT pour modifier date, tech, action`,
+  },
+  {
+    id: 'pointage-oubli',
+    title: 'Oubli de pointer en cours / corriger les heures',
+    keywords: [
+      'pointage',
+      'pointeuse',
+      'oublie',
+      'oublié',
+      'en cours',
+      'arrivée',
+      'gps',
+      'heure',
+      'horodatage',
+      'corriger pointage',
+    ],
+    paths: ['/app/pointage', '/app'],
+    answer: `Le technicien ne peut pas modifier une heure déjà enregistrée (porte-à-porte).
+
+Oubli « En cours d’intervention » en arrivant sur site :
+• Appeler le bureau → Pointeuse → « Corriger une arrivée oubliée » (l’heure que le tech donne).
+• Ou Aide IA : « j’ai oublié de pointer en cours, arrivé à 10h15 » → « oui » → l’IA vérifie le GPS et corrige.
+
+Sans GPS, l’IA refuse — le bureau reste la solution.`,
   },
   {
     id: 'parcours-ot',

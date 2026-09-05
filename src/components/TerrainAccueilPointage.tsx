@@ -219,6 +219,10 @@ export function TerrainAccueilPointage() {
           <p className="text-[11px] font-semibold text-muted">Pas encore pointé aujourd’hui</p>
         )}
       </div>
+      <p className="px-1 text-[11px] text-muted">
+        Oubli « En cours d’intervention » à l’arrivée : ne changez pas l’heure vous-même — bureau
+        ou Aide IA (GPS).
+      </p>
       {!actif ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
           Pointeuse coupée par le bureau — les INT restent visibles.

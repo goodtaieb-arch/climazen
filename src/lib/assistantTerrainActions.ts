@@ -136,6 +136,7 @@ export type TerrainActionKind =
   | 'piece'
   | 'piece_veille'
   | 'decaler_ot'
+  | 'corriger_pointage'
   | 'chaine_piece'
 
 export type PendingTerrainAction =
@@ -233,6 +234,17 @@ export type PendingTerrainAction =
       heureFrom: string
       heureTo: string
       date: string
+      summary: string
+    }
+  | {
+      kind: 'corriger_pointage'
+      userId: string
+      userName: string
+      otId: string
+      otNumero: string
+      chantierId?: string
+      date: string
+      heure?: string
       summary: string
     }
   | {
@@ -941,6 +953,13 @@ export type TerrainDeps = {
       id?: string
     },
   ) => string
+  addPointageEvent?: (
+    e: Omit<import('./pointage').PointageEvent, 'id' | 'createdAt'> & { id?: string },
+  ) => string
+  corrigerPointageEvent?: (
+    id: string,
+    patch: Partial<import('./pointage').PointageEvent>,
+  ) => void
 }
 
 export async function executeTerrainAction(
@@ -1215,6 +1234,56 @@ export async function executeTerrainAction(
     return {
       message: `${formatOtNumero(ot.numero)} décalé : ${action.heureFrom} → ${action.heureTo}. Agenda mis à jour.`,
       navigateTo: `/app/agenda`,
+    }
+  }
+
+  if (action.kind === 'corriger_pointage') {
+    if (!deps.addPointageEvent || !deps.corrigerPointageEvent) {
+      throw new Error('Correction de pointage indisponible.')
+    }
+    const { capturerGeoPonctuel, parsePointageEvents, formatHeureIso } = await import('./pointage')
+    const { corrigerArriveeSite, isoArriveePourCorrection } = await import('./pointageCorrection')
+    const { isOtCloture } = await import('./ordreTravail')
+    const geoRes = await capturerGeoPonctuel()
+    if (!geoRes.ok) {
+      throw new Error(
+        `${geoRes.message} L’IA doit vérifier le GPS pour corriger l’arrivée. Sinon appelez le bureau (Pointeuse).`,
+      )
+    }
+    const events = parsePointageEvents(deps.data.pointageEvents)
+    const arriveeAt = isoArriveePourCorrection({
+      date: action.date,
+      heure: action.heure,
+      geo: geoRes.geo,
+    })
+    const ot = (deps.data.ordresTravail || []).find((o) => o.id === action.otId)
+    const result = corrigerArriveeSite({
+      events,
+      userId: action.userId,
+      userName: action.userName,
+      otId: action.otId,
+      chantierId: action.chantierId || ot?.chantierId,
+      arriveeAt,
+      geo: geoRes.geo,
+      geoRequired: true,
+      corrigePar: 'ia',
+      motif: action.heure
+        ? `Arrivée déclarée ${action.heure}, GPS vérifié`
+        : 'Heure d’arrivée = horodatage GPS sur site',
+    })
+    if (!result.ok) throw new Error(result.error)
+    if (result.mode === 'insert' && result.insert) {
+      deps.addPointageEvent(result.insert)
+    } else if (result.mode === 'update' && result.update) {
+      deps.corrigerPointageEvent(result.update.id, result.update.patch)
+    }
+    if (ot && deps.upsertOrdreTravail && !isOtCloture(ot.statut)) {
+      const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = ot
+      deps.upsertOrdreTravail({ ...rest, id: ot.id, statut: 'en_cours' })
+    }
+    return {
+      message: `Pointage corrigé : ${action.otNumero} en cours à ${formatHeureIso(arriveeAt)} (GPS vérifié).`,
+      navigateTo: `/app/pointage`,
     }
   }
 
