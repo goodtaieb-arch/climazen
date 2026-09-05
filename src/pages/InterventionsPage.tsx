@@ -17,7 +17,7 @@ import {
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
-import { loadCerfaPdf } from '../lib/pdfStore'
+import { loadCerfaPdf, pdfCtxFromData } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { MobileFab } from '../components/MobileFab'
@@ -159,9 +159,9 @@ export function InterventionsPage() {
   }
 
   const openCerfa = async (id: string, label: string) => {
-    const pdf = await loadCerfaPdf(id, user?.organizationId)
+    const pdf = await loadCerfaPdf(id, user?.organizationId, pdfCtxFromData(data))
     if (!pdf) {
-      alert('CERFA pas encore généré — ouvrez la fiche et cliquez « Enregistrer dans ClimaZEN ».')
+      alert('CERFA pas encore généré — ouvrez la fiche et enregistrez : le PDF s’ouvre depuis l’app (coffre hors site).')
       return
     }
     if (viewer?.url) URL.revokeObjectURL(viewer.url)

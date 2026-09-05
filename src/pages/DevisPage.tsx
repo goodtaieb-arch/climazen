@@ -27,7 +27,8 @@ import {
 import { loadCompanyLogoLocal } from '../lib/companyLogo'
 
 export function DevisPage() {
-  const { data, appEdition, upsertDevis, deleteDevis, creerOtDepuisDevis } = useStore()
+  const { data, appEdition, upsertDevis, deleteDevis, creerOtDepuisDevis, upsertDocumentArchive } =
+    useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -170,6 +171,8 @@ export function DevisPage() {
       docId: `devis-${devis.id}`,
       organizationId: user?.organizationId,
       operateur: data.operateur,
+      devisId: devis.id,
+      onArchived: upsertDocumentArchive,
     })
     setSaveMsg(result.message)
     setTimeout(() => setSaveMsg(''), 6000)

@@ -47,6 +47,8 @@ export function arborescenceDocumentsEntreprise(year = new Date().getFullYear())
   for (const k of kinds) {
     lines.push(`        ${k}/`)
   }
+  lines.push(`    Secours/`)
+  lines.push(`      climazen-donnees.xlsx`)
   return lines
 }
 
@@ -120,98 +122,6 @@ export function resolveServeurPriveBase(op?: OperateurDocsStockage | null): stri
   }
 }
 
-const IDB_NAME = 'climazen_docs'
-const IDB_STORE = 'pdfs'
-
-function openDocsDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, 1)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: 'id' })
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function saveDocLocal(id: string, blob: Blob, fileName: string, relPath: string) {
-  const db = await openDocsDb()
-  const buf = await blob.arrayBuffer()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite')
-    tx.objectStore(IDB_STORE).put({
-      id,
-      fileName,
-      relPath,
-      mime: 'application/pdf',
-      data: buf,
-      savedAt: new Date().toISOString(),
-    })
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-  db.close()
-}
-
-async function uploadSupabaseDoc(
-  organizationId: string,
-  relPath: string,
-  blob: Blob,
-): Promise<boolean> {
-  try {
-    const { getSupabase, isSupabaseConfigured } = await import('./supabase')
-    if (!isSupabaseConfigured()) return false
-    const sb = getSupabase()
-    const path = `${organizationId}/documents/${relPath}`
-    const { error } = await sb.storage.from('cerfa').upload(path, blob, {
-      contentType: 'application/pdf',
-      upsert: true,
-    })
-    if (error) {
-      console.error('ClimaZEN: upload doc supabase', error.message)
-      return false
-    }
-    return true
-  } catch (err) {
-    console.error('ClimaZEN: upload doc supabase', err)
-    return false
-  }
-}
-
-/** PUT vers serveur privé (WebDAV / Nextcloud / partage HTTP). */
-export async function uploadServeurPrive(opts: {
-  baseUrl: string
-  relPath: string
-  blob: Blob
-  token?: string
-}): Promise<{ ok: boolean; message: string }> {
-  const url = `${opts.baseUrl.replace(/\/+$/, '')}/${opts.relPath.split('/').map(encodeURIComponent).join('/')}`
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/pdf',
-  }
-  const token = (opts.token || '').trim()
-  if (token) headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`
-  try {
-    const res = await fetch(url, { method: 'PUT', headers, body: opts.blob })
-    if (res.ok || res.status === 201 || res.status === 204) {
-      return { ok: true, message: `Enregistré sur le serveur privé (${opts.relPath}).` }
-    }
-    return {
-      ok: false,
-      message: `Serveur privé HTTP ${res.status} — vérifiez l’URL, le CORS et le jeton. Chemin : ${opts.relPath}`,
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'erreur réseau'
-    return {
-      ok: false,
-      message: `Serveur privé injoignable (${msg}). Téléchargement local proposé. Chemin : ${opts.relPath}`,
-    }
-  }
-}
-
 export type SaveGeneratedDocResult = {
   mode: DocsStockageMode
   relPath: string
@@ -222,8 +132,8 @@ export type SaveGeneratedDocResult = {
 }
 
 /**
- * Enregistre un PDF généré selon la config société.
- * Toujours : IndexedDB + Supabase (si org) + action mode (cloud / privé / téléchargement).
+ * Enregistre un PDF généré : uniquement hors site (NAS / serveur privé).
+ * Pas d’IndexedDB, pas de bucket ClimaZEN — le bureau récupère le fichier via l’app.
  */
 export async function saveGeneratedDocument(opts: {
   blob: Blob
@@ -234,10 +144,11 @@ export async function saveGeneratedDocument(opts: {
   docId: string
   organizationId?: string | null
   operateur?: OperateurDocsStockage | null
-  /** Forcer un téléchargement même en mode cloud/privé (secours). */
   alsoDownload?: boolean
+  devisId?: string
+  commandeId?: string
+  onArchived?: (meta: import('./documentArchive').DocumentArchive) => void
 }): Promise<SaveGeneratedDocResult> {
-  const mode = resolveDocsStockageMode(opts.operateur)
   const relPath = cheminRelatifDocument({
     kind: opts.kind,
     fileName: opts.fileName,
@@ -245,72 +156,38 @@ export async function saveGeneratedDocument(opts: {
     clientNom: opts.clientNom,
   })
 
-  await saveDocLocal(opts.docId, opts.blob, opts.fileName, relPath)
-
-  let supabaseOk = false
-  if (opts.organizationId) {
-    supabaseOk = await uploadSupabaseDoc(opts.organizationId, relPath, opts.blob)
-  }
-
-  if (mode === 'prive') {
-    const base = resolveServeurPriveBase(opts.operateur)
-    if (!base) {
-      downloadBlob(opts.blob, opts.fileName)
-      return {
-        mode,
-        relPath,
-        supabaseOk,
-        priveOk: false,
-        message: `URL serveur privé manquante (Mon entreprise). PDF téléchargé. Placez-le dans : ${relPath}`,
-      }
-    }
-    const up = await uploadServeurPrive({
-      baseUrl: base,
-      relPath,
-      blob: opts.blob,
-      token: opts.operateur?.serveurPriveDocsToken,
-    })
-    if (!up.ok || opts.alsoDownload) downloadBlob(opts.blob, opts.fileName)
-    return {
-      mode,
-      relPath,
-      supabaseOk,
-      priveOk: up.ok,
-      message: up.ok
-        ? `${up.message}${supabaseOk ? ' · Copie cloud ClimaZEN OK.' : ''}`
-        : up.message,
-    }
-  }
-
-  if (mode === 'cloud') {
-    const href = resolveLienCloudDocs(opts.operateur)
-    let openedCloud = false
-    if (href) {
-      try {
-        window.open(href, '_blank', 'noopener,noreferrer')
-        openedCloud = true
-      } catch {
-        // ignore
-      }
-    }
-    downloadBlob(opts.blob, opts.fileName)
-    return {
-      mode,
-      relPath,
-      supabaseOk,
-      openedCloud,
-      message: href
-        ? `PDF téléchargé — rangez-le dans le cloud : ${relPath}${openedCloud ? ' (dossier ouvert).' : '.'}`
-        : `PDF téléchargé. Configurez le lien cloud documents (Mon entreprise). Chemin : ${relPath}`,
-    }
-  }
-
-  downloadBlob(opts.blob, opts.fileName)
-  return {
-    mode,
+  const { putDocumentExterne } = await import('./documentArchive')
+  const put = await putDocumentExterne({
+    operateur: opts.operateur,
     relPath,
-    supabaseOk,
-    message: `PDF téléchargé${supabaseOk ? ' · copie serveur ClimaZEN OK' : ''}.`,
+    blob: opts.blob,
+  })
+
+  if (put.ok && opts.onArchived) {
+    opts.onArchived({
+      id: crypto.randomUUID(),
+      kind: opts.kind,
+      fileName: opts.fileName,
+      relPath,
+      devisId: opts.devisId,
+      commandeId: opts.commandeId,
+      createdAt: new Date().toISOString(),
+      archivedAt: new Date().toISOString(),
+    })
+  }
+
+  if (opts.alsoDownload || !put.ok) {
+    downloadBlob(opts.blob, opts.fileName)
+  }
+
+  return {
+    mode: 'prive',
+    relPath,
+    supabaseOk: false,
+    priveOk: put.ok,
+    message: put.ok
+      ? `Document archivé hors site (${relPath}). Ouvert depuis l’app, pas depuis le NAS.`
+      : put.message,
   }
 }
 

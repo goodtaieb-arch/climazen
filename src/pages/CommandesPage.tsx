@@ -66,6 +66,7 @@ export function CommandesPage() {
     upsertCommandeFournisseur,
     deleteCommandeFournisseur,
     marquerCommandeRecue,
+    upsertDocumentArchive,
   } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -288,6 +289,8 @@ export function CommandesPage() {
       docId: `commande-${cmd.id}${isDevis ? '-devis' : ''}`,
       organizationId: user?.organizationId,
       operateur: data.operateur,
+      commandeId: cmd.id,
+      onArchived: upsertDocumentArchive,
     })
     setSaveMsg(result.message)
     setTimeout(() => setSaveMsg(''), 6000)

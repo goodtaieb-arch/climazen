@@ -33,7 +33,14 @@ import {
   updateOrganizationName,
 } from './auth'
 import { loadCompanyLogoLocal, saveCompanyLogoLocal } from './companyLogo'
-import { deleteCerfaPdf, saveCerfaPdf } from './pdfStore'
+import { deleteCerfaPdf, pdfCtxFromData, saveCerfaPdf } from './pdfStore'
+import {
+  archivePriveConfigure,
+  mergeArchive,
+  normalizePersonnelStockageDocsUserIds,
+  type DocumentArchive,
+} from './documentArchive'
+import { mettreAJourCopieSecours } from './exportSocieteExcel'
 import { receptionPreserved, outillageLigne, voitureLigne } from './attributionMateriel'
 import {
   buildBonRemiseMaterielPdf,
@@ -391,6 +398,14 @@ type Store = {
   deletePersonnelDocument: (userId: string, documentId: string) => void
   /** Gérant seulement : autorise un employé (secrétariat, accueil appels) à voir les identités. */
   setPersonnelRhAcces: (userId: string, granted: boolean) => void
+  /** Gérant : autorise un employé à ouvrir le NAS / cloud Documents (pas le bureau). */
+  setPersonnelStockageDocs: (userId: string, granted: boolean) => void
+  /** Index d’un PDF archivé hors site (métadonnées seulement). */
+  upsertDocumentArchive: (meta: DocumentArchive) => void
+  /** Met à jour la copie Excel de secours sur le NAS (+ téléchargement gérant). */
+  exporterCopieSecoursExcel: (opts?: {
+    alsoDownload?: boolean
+  }) => Promise<{ ok: boolean; message: string }>
   /** Gérant : portable pro du technicien (affiché dans Équipe). */
   setPersonnelTelephone: (userId: string, userName: string, telephone: string) => void
   /** Gérant : poste métier (tech CVC, secrétaire, directeur…). */
@@ -437,6 +452,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const syncingPull = useRef(false)
   const dataRef = useRef(data)
   dataRef.current = data
+  const excelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const scheduleCopieSecours = useCallback(() => {
+    const payload = dataRef.current
+    if (!archivePriveConfigure(payload.operateur)) return
+    if (excelTimer.current) clearTimeout(excelTimer.current)
+    excelTimer.current = setTimeout(() => {
+      void mettreAJourCopieSecours({
+        data: dataRef.current,
+        operateur: dataRef.current.operateur,
+      }).catch((err) => {
+        console.warn('ClimaZEN: copie Excel secours', err)
+      })
+    }, 90_000)
+  }, [])
 
   const applyEditionBootstrap = (payload: AppData): AppData => {
     const { appEdition, changed } = applyPendingEditionIfNeeded(payload)
@@ -796,6 +826,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setPendingSyncState(false)
           setSyncError(null)
           setOffline(false)
+          scheduleCopieSecours()
         })
         .catch((err) => {
           console.error(err)
@@ -806,7 +837,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
-  }, [data, orgId, hydrated, markPending])
+  }, [data, orgId, hydrated, markPending, scheduleCopieSecours])
 
   const clearSyncError = useCallback(() => setSyncError(null), [])
 
@@ -828,12 +859,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         markSynced(orgId)
         setPendingSyncState(false)
         setSyncError(null)
+        scheduleCopieSecours()
       } catch (err) {
         markPending(true)
         setSyncError(err instanceof Error ? err.message : 'Enregistrement cloud impossible')
       }
     },
-    [orgId, markPending],
+    [orgId, markPending, scheduleCopieSecours],
   )
 
   const persistNow = useCallback(
@@ -857,6 +889,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setPendingSyncState(false)
         setSyncError(null)
         setOffline(false)
+        scheduleCopieSecours()
       } catch (err) {
         console.error(err)
         markPending(true)
@@ -864,7 +897,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         throw err
       }
     },
-    [orgId, markPending],
+    [orgId, markPending, scheduleCopieSecours],
+  )
+
+  const upsertDocumentArchive = useCallback((meta: DocumentArchive) => {
+    const prev = dataRef.current
+    setData({
+      ...prev,
+      documentsArchives: mergeArchive(prev.documentsArchives, meta),
+    })
+  }, [])
+
+  const exporterCopieSecoursExcel = useCallback(
+    async (opts?: { alsoDownload?: boolean }) => {
+      const res = await mettreAJourCopieSecours({
+        data: dataRef.current,
+        operateur: dataRef.current.operateur,
+      })
+      if (opts?.alsoDownload && typeof window !== 'undefined') {
+        const { downloadBlob } = await import('./cerfaPdf')
+        downloadBlob(res.blob, 'climazen-donnees.xlsx')
+      }
+      return { ok: res.ok, message: res.message }
+    },
+    [],
   )
 
   const setOperateur = useCallback(
@@ -3101,7 +3157,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             data: next,
             signatureImage: user.signatureImage,
           })
-          await saveCerfaPdf(pdfIdBonRemise(bon.id), blob, bon.fileName, orgId)
+          await saveCerfaPdf(pdfIdBonRemise(bon.id), blob, bon.fileName, orgId, {
+            ...pdfCtxFromData(next),
+            kind: 'bon',
+            onArchived: (meta) => {
+              const cur = dataRef.current
+              const withArch = {
+                ...cur,
+                documentsArchives: mergeArchive(cur.documentsArchives, meta),
+              }
+              dataRef.current = withArch
+              setData(withArch)
+            },
+          })
           downloadBonRemisePdf(blob, bon.fileName)
         } catch (err) {
           console.error('ClimaZEN: PDF bon de remise', err)
@@ -3293,6 +3361,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData({
       ...prev,
       personnelRhAccesUserIds: [...current],
+    })
+  }, [])
+
+  const setPersonnelStockageDocs = useCallback((userId: string, granted: boolean) => {
+    const actor = rhActorRef.current
+    if (!actor?.isOwner) return
+    const id = String(userId || '').trim()
+    if (!id || id === actor.userId) return
+    const prev = dataRef.current
+    const current = new Set(
+      normalizePersonnelStockageDocsUserIds(prev.personnelStockageDocsUserIds),
+    )
+    if (granted) current.add(id)
+    else current.delete(id)
+    setData({
+      ...prev,
+      personnelStockageDocsUserIds: [...current],
     })
   }, [])
 
@@ -3519,6 +3604,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPersonnelDocument,
       deletePersonnelDocument,
       setPersonnelRhAcces,
+      setPersonnelStockageDocs,
+      upsertDocumentArchive,
+      exporterCopieSecoursExcel,
       setPersonnelTelephone,
       setPersonnelPoste,
       setPersonnelLienCloud,
@@ -3606,6 +3694,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertPersonnelDocument,
       deletePersonnelDocument,
       setPersonnelRhAcces,
+      setPersonnelStockageDocs,
+      upsertDocumentArchive,
+      exporterCopieSecoursExcel,
       setPersonnelTelephone,
       setPersonnelPoste,
       setPersonnelLienCloud,

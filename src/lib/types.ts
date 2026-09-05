@@ -118,9 +118,10 @@ export interface Operateur {
   lienCloudRhRacine?: string
   /**
    * Où enregistrer les PDF générés (devis, commandes, CERFA, fiches…).
-   * - cloud : ouvre le dossier cloud + télécharge pour ranger
-   * - prive : PUT vers le serveur privé (WebDAV / Nextcloud / NAS)
-   * - telechargement : fichier local uniquement (+ copie Supabase si org)
+   * Les fichiers ne sont JAMAIS stockés sur ClimaZEN — seulement hors site (NAS).
+   * - prive : PUT/GET via le proxy app (bureau n’ouvre pas le NAS)
+   * - cloud : lien pour le personnel désigné (pas d’upload auto Drive)
+   * - telechargement : repli local si le coffre n’est pas joignable
    */
   docsStockageMode?: 'cloud' | 'prive' | 'telechargement'
   /**
@@ -821,6 +822,16 @@ export interface AppData {
    * (secrétariat, accueil d’appels / agent IA). Le compte owner a toujours l’accès.
    */
   personnelRhAccesUserIds?: string[]
+  /**
+   * Personnel autorisé à ouvrir le coffre externe (NAS / cloud Documents).
+   * Le bureau n’y a pas accès : il sort CERFA / rapports via l’app.
+   * Le gérant a toujours l’accès.
+   */
+  personnelStockageDocsUserIds?: string[]
+  /**
+   * Index des PDF archivés hors site (chemin NAS uniquement — jamais le fichier).
+   */
+  documentsArchives?: import('./documentArchive').DocumentArchive[]
   /**
    * Techniciens retirés de l’équipe (départ société) — plus affichés, plus d’affectation.
    * Le compte Auth est aussi désactivé (plus de connexion).

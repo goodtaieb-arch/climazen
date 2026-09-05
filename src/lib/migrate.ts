@@ -18,6 +18,7 @@ import { addMonthsIso, resolveModeGestion } from './siteParc'
 import { BOUTEILLE_DEFAULTS, bouteilleDefaultsForFluide } from './bouteilleDefaults'
 import { purgeOrphanCerfaStock } from './stockMouvements'
 import { migratePersonnelDossiers, normalizePersonnelRhAccesUserIds, normalizePersonnelRetiresUserIds } from './rhDocuments'
+import { normalizePersonnelStockageDocsUserIds } from './documentArchive'
 import { parsePointageEvents, parsePointageRegles, parsePointageBureauJours } from './pointage'
 import { resolveAppEdition } from './appEdition'
 
@@ -304,6 +305,10 @@ export function migrateAppData(data: AppData): AppData {
     pointageBureauJours: parsePointageBureauJours(data.pointageBureauJours),
     personnelDossiers: migratePersonnelDossiers(data.personnelDossiers),
     personnelRhAccesUserIds: normalizePersonnelRhAccesUserIds(data.personnelRhAccesUserIds),
+    personnelStockageDocsUserIds: normalizePersonnelStockageDocsUserIds(
+      data.personnelStockageDocsUserIds,
+    ),
+    documentsArchives: Array.isArray(data.documentsArchives) ? data.documentsArchives : [],
     personnelRetiresUserIds: normalizePersonnelRetiresUserIds(data.personnelRetiresUserIds),
     deletedEntityIds: data.deletedEntityIds || {
       clients: [],

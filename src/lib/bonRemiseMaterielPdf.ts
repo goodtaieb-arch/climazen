@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { downloadBlob } from './cerfaPdf'
 import { embedCompanyLogo } from './pdfLogo'
-import { loadCerfaPdf } from './pdfStore'
+import { loadCerfaPdf, pdfCtxFromData } from './pdfStore'
 import type { AppData, BonRemiseMateriel, VoitureEtatLieux, VoitureMarqueCarrosserie } from './types'
 import {
   VOITURE_CARBURANT_LABELS,
@@ -452,7 +452,11 @@ export async function telechargerBonRemise(opts: {
   signatureImage?: string
 }) {
   const { bon, data, organizationId, signatureImage } = opts
-  const stored = await loadCerfaPdf(pdfIdBonRemise(bon.id), organizationId)
+  const stored = await loadCerfaPdf(
+    pdfIdBonRemise(bon.id),
+    organizationId,
+    pdfCtxFromData(data, { kind: 'bon' }),
+  )
   if (stored?.blob) {
     downloadBonRemisePdf(stored.blob, bon.fileName || stored.fileName)
     return

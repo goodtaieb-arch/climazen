@@ -18,7 +18,7 @@ import {
   type StockMouvementSens,
 } from '../lib/types'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
-import { loadCerfaPdf, saveCerfaPdf } from '../lib/pdfStore'
+import { loadCerfaPdf, pdfCtxFromData, saveCerfaPdf } from '../lib/pdfStore'
 import { Field } from './ClientsPage'
 import { PdfViewerModal } from '../components/PdfViewerModal'
 import { ClientSiteSignature } from '../components/ClientSiteSignature'
@@ -114,6 +114,7 @@ export function InterventionFormPage() {
     upsertChantier,
     applySiteClientSignature,
     setOperateur,
+    upsertDocumentArchive,
   } = useStore()
   const { user } = useAuth()
 
@@ -395,7 +396,11 @@ export function InterventionFormPage() {
     let revoked: string | null = null
     const interventionId = existing?.id
     if (!interventionId) return
-    void loadCerfaPdf(interventionId, user?.organizationId).then((pdf) => {
+    void loadCerfaPdf(
+      interventionId,
+      user?.organizationId,
+      pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+    ).then((pdf) => {
       if (!pdf) {
         setHasPdf(false)
         return
@@ -408,7 +413,14 @@ export function InterventionFormPage() {
     return () => {
       if (revoked) URL.revokeObjectURL(revoked)
     }
-  }, [existing?.id, existing?.cerfaPdfSavedAt, user?.organizationId])
+  }, [
+    existing?.id,
+    existing?.cerfaPdfSavedAt,
+    user?.organizationId,
+    data.operateur,
+    data.documentsArchives,
+    client?.raisonSociale,
+  ])
 
   // Reprendre un brouillon déjà lié au même OT / n° (évite une fiche vide)
   useEffect(() => {
@@ -1155,8 +1167,8 @@ export function InterventionFormPage() {
       chantier,
     })
     await saveCerfaPdf(savedId, blob, fileName, user?.organizationId, {
-      operateur: data.operateur,
-      clientNom: client?.raisonSociale,
+      ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+      onArchived: upsertDocumentArchive,
     })
 
     if (pdfUrl) URL.revokeObjectURL(pdfUrl)
@@ -1167,7 +1179,7 @@ export function InterventionFormPage() {
     setSavedMsg(
       nBottles > 0
         ? `Enregistré — ${nBottles} bouteille${nBottles > 1 ? 's' : ''} · ${manipQtyTotal} kg · CERFA ${fileName.replace(/\.pdf$/i, '')}`
-        : 'Enregistré dans ClimaZEN — le CERFA est ci-dessous (pas de mouvement de bouteille).',
+        : 'Enregistré — le CERFA est archivé hors site et affiché ci-dessous (pas de mouvement de bouteille).',
     )
     return savedId
   }
@@ -1319,8 +1331,8 @@ export function InterventionFormPage() {
         upsertIntervention(fullDraft)
         const blob = await buildCerfaPdf({ draft: fullDraft, client, chantier })
         await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId, {
-          operateur: data.operateur,
-          clientNom: client?.raisonSociale,
+          ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+          onArchived: upsertDocumentArchive,
         })
         done += 1
       }
@@ -1328,7 +1340,11 @@ export function InterventionFormPage() {
       // Recharger le PDF de la page courante
       const currentId = draftId || existing?.id
       if (currentId) {
-        const pdf = await loadCerfaPdf(currentId, user?.organizationId)
+        const pdf = await loadCerfaPdf(
+          currentId,
+          user?.organizationId,
+          pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+        )
         if (pdf) {
           if (pdfUrl) URL.revokeObjectURL(pdfUrl)
           setPdfUrl(URL.createObjectURL(pdf.blob))

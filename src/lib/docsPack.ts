@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf'
 import { buildCerfaPdf, downloadBlob } from './cerfaPdf'
 import { buildFicheMaintenanceClimPdf } from './ficheMaintenanceClimPdf'
 import type { FicheMaintenanceClim } from './ficheMaintenanceClim'
-import { loadCerfaPdf } from './pdfStore'
+import { loadCerfaPdf, pdfCtxFromData } from './pdfStore'
 import {
   TYPE_OT_LABELS,
   formatOtAvancement,
@@ -399,7 +399,11 @@ export async function collectOtDocsPack(opts: {
   for (const draft of intervList) {
     let blob: Blob | null = null
     let fileName = `CERFA-${safeName(draft.numeroIntervention || draft.id.slice(0, 8))}.pdf`
-    const stored = await loadCerfaPdf(draft.id, organizationId)
+    const stored = await loadCerfaPdf(
+      draft.id,
+      organizationId,
+      pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+    )
     if (stored?.blob) {
       blob = stored.blob
       if (stored.fileName) fileName = stored.fileName
@@ -651,7 +655,11 @@ export async function collectCerfaAnnuelPack(opts: {
     const site = data.chantiers.find((c) => c.id === draft.chantierId)
     let blob: Blob | null = null
     let fileName = `CERFA-${safeName(draft.numeroIntervention || draft.dateIntervention || draft.id.slice(0, 8))}.pdf`
-    const stored = await loadCerfaPdf(draft.id, organizationId)
+    const stored = await loadCerfaPdf(
+      draft.id,
+      organizationId,
+      pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+    )
     if (stored?.blob) {
       blob = stored.blob
       if (stored.fileName) fileName = stored.fileName

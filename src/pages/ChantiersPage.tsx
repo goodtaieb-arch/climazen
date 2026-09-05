@@ -50,7 +50,7 @@ import { calcTeqCO2FromFluide, findFluide, formatGwp } from '../lib/fluides'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { equipementsForCerfa, equipmentLabel, allEquipements, syncEquipementsFromFlat, findDuplicateEquipNom, findFirstDuplicateEquipNom } from '../lib/cerfaBatch'
 import { buildCerfaPdf } from '../lib/cerfaPdf'
-import { saveCerfaPdf } from '../lib/pdfStore'
+import { pdfCtxFromData, saveCerfaPdf } from '../lib/pdfStore'
 import { blankFicheMaintenanceClim } from '../lib/ficheMaintenanceClim'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { findEquipementById, type EquipQrHit } from '../lib/equipementQr'
@@ -180,6 +180,7 @@ export function ChantiersPage() {
     upsertFicheMaintenanceClim,
     createOtForAction,
     appEdition,
+    upsertDocumentArchive,
   } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -620,7 +621,10 @@ export function ChantiersPage() {
         for (const draft of drafts) {
           const blob = await buildCerfaPdf({ draft, client, chantier: s })
           const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
-          await saveCerfaPdf(draft.id, blob, fileName, user.organizationId)
+          await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
+            ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+            onArchived: upsertDocumentArchive,
+          })
           upsertIntervention({
             ...draft,
             hasCerfaPdf: true,
@@ -666,7 +670,10 @@ export function ChantiersPage() {
       for (const draft of drafts) {
         const blob = await buildCerfaPdf({ draft, client, chantier: s })
         const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
-        await saveCerfaPdf(draft.id, blob, fileName, user.organizationId)
+        await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
+          ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
+          onArchived: upsertDocumentArchive,
+        })
         upsertIntervention({
           ...draft,
           hasCerfaPdf: true,

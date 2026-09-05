@@ -42,6 +42,8 @@ export function emptyData(): AppData {
     pointageBureauJours: [],
     personnelDossiers: [],
     personnelRhAccesUserIds: [],
+    personnelStockageDocsUserIds: [],
+    documentsArchives: [],
     personnelRetiresUserIds: [],
     aiPendingValidations: [],
     deletedEntityIds: {
@@ -105,6 +107,8 @@ export function loadData(organizationId?: string | null): AppData {
       pointageBureauJours: parsed.pointageBureauJours || [],
       personnelDossiers: parsed.personnelDossiers || [],
       personnelRhAccesUserIds: parsed.personnelRhAccesUserIds || [],
+      personnelStockageDocsUserIds: parsed.personnelStockageDocsUserIds || [],
+      documentsArchives: parsed.documentsArchives || [],
       personnelRetiresUserIds: parsed.personnelRetiresUserIds || [],
       deletedEntityIds: parsed.deletedEntityIds || {
         clients: [],
@@ -225,6 +229,8 @@ export function seedDemoData(): AppData {
     interventions: [],
     personnelDossiers: [],
     personnelRhAccesUserIds: [],
+    personnelStockageDocsUserIds: [],
+    documentsArchives: [],
     personnelRetiresUserIds: [],
   }
 }

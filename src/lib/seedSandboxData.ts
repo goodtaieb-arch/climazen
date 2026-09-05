@@ -495,6 +495,8 @@ export function seedSandboxData(ownerUserId?: string): AppData {
     pointageBureauJours: [],
     personnelDossiers,
     personnelRhAccesUserIds: [],
+    personnelStockageDocsUserIds: [],
+    documentsArchives: [],
     personnelRetiresUserIds: [],
     deletedEntityIds: {
       clients: [],
