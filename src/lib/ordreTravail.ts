@@ -220,7 +220,7 @@ export function upsertVisitePresence(
 
 /** Étapes du parcours appel client → intervention. */
 export const PARCOURS_APPEL_STEPS = [
-  { id: 'ot', label: 'Appel / INT', hint: 'Décrire la demande' },
+  { id: 'ot', label: 'INT', hint: 'Décrire la demande' },
   { id: 'client', label: 'Client', hint: 'Qui appelle' },
   { id: 'site', label: 'Site', hint: 'Où intervenir' },
   { id: 'equipement', label: 'Équipement', hint: 'Sur place' },
@@ -321,6 +321,8 @@ export interface OrdreTravail {
   devisId?: string
   /** Commande fournisseur (pièce en attente) */
   commandeFournisseurId?: string
+  /** Astreinte (hors horaires bureau / week-end / nuit) — posée depuis Intervenir. */
+  astreinte?: boolean
   /** OT créé depuis un ticket portail client */
   ticketClient?: boolean
   ticketClientId?: string
@@ -413,7 +415,12 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     rapportSousTraitant: '',
     registreSecuriteConfirme: false,
     heure: undefined,
+    astreinte: false,
   }
+}
+
+export function otEstAstreinte(ot: { astreinte?: boolean } | null | undefined): boolean {
+  return Boolean(ot?.astreinte)
 }
 
 /** Natures CERFA suggérées selon le type d’OT. */
