@@ -325,12 +325,15 @@ Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : M
       'excel',
       'secours',
       'stockage',
+      'queue',
+      'chiffrement',
+      'drive',
     ],
     paths: ['/app/operateur', '/app/interventions', '/app/equipe'],
     answer: `Les PDF ne sont pas stockés sur ClimaZEN (place + sécurité). Tout part sur le NAS / Nextcloud de la société.
 Le bureau n’ouvre jamais le coffre : il sort CERFA, rapport, devis depuis l’app, comme si le fichier était sur le site.
 Seul le gérant (et les personnes cochées « Accès coffre documents » dans Équipe) voit l’URL / le jeton.
-Une copie Excel à jour (clients, sites, équipements, équipe sans CNI, INT, stock…) est dans ClimaZEN/Documents/Secours/climazen-donnees.xlsx — pour tout régénérer si on perd le site.`,
+Une copie Excel chiffrée (AES-256) est dans ClimaZEN/Documents/Secours/climazen-donnees.xlsx.enc. NAS et cloud miroir peuvent recevoir en même temps. Si le serveur est down : file queue_backup, retry toutes les 15 min, le bureau n’est pas bloqué.`,
   },
   {
     id: 'profil',

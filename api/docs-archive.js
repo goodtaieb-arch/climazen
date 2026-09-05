@@ -86,7 +86,7 @@ export default async function handler(req, res) {
     bad(res, 400, 'Chemin document invalide.')
     return
   }
-  if (action !== 'put' && action !== 'get') {
+  if (action !== 'put' && action !== 'get' && action !== 'exists') {
     bad(res, 400, 'Action inconnue.')
     return
   }
@@ -124,6 +124,38 @@ export default async function handler(req, res) {
         return
       }
       res.status(200).json({ ok: true, message: `Archivé hors site : ${relPath}` })
+      return
+    }
+
+    if (action === 'exists') {
+      try {
+        const head = await fetch(url, { method: 'HEAD', headers })
+        if (head.ok || head.status === 200 || head.status === 204) {
+          res.status(200).json({ ok: true, exists: true })
+          return
+        }
+        if (head.status === 404) {
+          bad(res, 404, `Document introuvable (${head.status}).`)
+          return
+        }
+      } catch {
+        /* HEAD non supporté → GET léger */
+      }
+      const probe = await fetch(url, { method: 'GET', headers })
+      if (probe.ok) {
+        res.status(200).json({ ok: true, exists: true })
+        return
+      }
+      if (probe.status === 404) {
+        bad(res, 404, 'Document introuvable.')
+        return
+      }
+      res.status(200).json({
+        ok: true,
+        exists: false,
+        unsupported: probe.status === 405 || probe.status === 501,
+        message: `Vérification HTTP ${probe.status}`,
+      })
       return
     }
 

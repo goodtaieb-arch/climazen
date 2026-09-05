@@ -10,6 +10,7 @@ import { normalizeLienCloudRh } from '../lib/rhDocuments'
 import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
 import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
 import { archivePriveConfigure } from '../lib/documentArchive'
+import { countQueueBackup, flushQueueBackup } from '../lib/documentQueue'
 import { AppEditionBadge } from '../components/AppEditionBadge'
 import {
   APP_EDITION_DESCRIPTIONS,
@@ -54,6 +55,9 @@ export function OperateurPage() {
   const [editionMsg, setEditionMsg] = useState('')
   const [excelBusy, setExcelBusy] = useState(false)
   const [excelMsg, setExcelMsg] = useState('')
+  const [queueCount, setQueueCount] = useState(0)
+  const [queueMsg, setQueueMsg] = useState('')
+  const [queueBusy, setQueueBusy] = useState(false)
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
 
@@ -99,6 +103,15 @@ export function OperateurPage() {
     data.ordresTravail,
     user?.organizationId,
   ])
+
+  useEffect(() => {
+    if (!isOwner) return
+    void countQueueBackup().then(setQueueCount).catch(() => undefined)
+    const t = window.setInterval(() => {
+      void countQueueBackup().then(setQueueCount).catch(() => undefined)
+    }, 30_000)
+    return () => window.clearInterval(t)
+  }, [isOwner])
 
   if (!isOwner) {
     return <Navigate to="/app/profil" replace />
@@ -159,8 +172,21 @@ export function OperateurPage() {
         return
       }
     }
-    if (form.docsStockageMode === 'cloud' && !docsCloud && !racine) {
-      setFormError('Lien cloud Documents : réservé au personnel désigné — collez un lien https.')
+    const cloudDav = (form.serveurCloudDocsUrl || '').trim()
+    if (cloudDav) {
+      try {
+        const u = new URL(cloudDav)
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+          setFormError('Cloud miroir : URL http(s) requise.')
+          return
+        }
+      } catch {
+        setFormError('Cloud miroir : URL invalide.')
+        return
+      }
+    }
+    if ((form.coffreExcelMotDePasse || '').trim() && (form.coffreExcelMotDePasse || '').trim().length < 8) {
+      setFormError('Mot de passe Excel : 8 caractères minimum.')
       return
     }
     setSaving(true)
@@ -172,11 +198,12 @@ export function OperateurPage() {
         lienCloudDocsRacine: normalizeLienCloudRh(form.lienCloudDocsRacine) || '',
         serveurPriveDocsUrl: prive,
         serveurPriveDocsToken: (form.serveurPriveDocsToken || '').trim() || undefined,
-        docsStockageMode: prive
-          ? 'prive'
-          : form.docsStockageMode === 'cloud'
-            ? 'cloud'
-            : 'prive',
+        serveurCloudDocsUrl: (form.serveurCloudDocsUrl || '').trim() || undefined,
+        serveurCloudDocsToken: (form.serveurCloudDocsToken || '').trim() || undefined,
+        docsDestNas: form.docsDestNas !== false,
+        docsDestCloud: Boolean(form.docsDestCloud),
+        coffreExcelMotDePasse: (form.coffreExcelMotDePasse || '').trim() || undefined,
+        docsStockageMode: form.docsDestCloud && !prive ? 'cloud' : 'prive',
       })
       setDirty(false)
       void refreshUser().catch(() => undefined)
@@ -491,73 +518,135 @@ export function OperateurPage() {
             Coffre documents (hors site)
           </h2>
           <p className="mb-3 text-sm text-muted">
-            Les PDF (CERFA, rapports, devis…) ne sont <strong>jamais</strong> enregistrés sur
-            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. Le coffre, c’est votre
-            NAS / Nextcloud. Le bureau n’ouvre pas ce serveur : il sort le document depuis l’app,
-            comme s’il était sur le site. Seul le gérant (et le personnel coché dans Équipe →
-            Accès coffre) peut voir l’URL et le jeton.
+            Les PDF ne sont jamais sur ClimaZEN. Envoi simultané possible vers le NAS et un cloud
+            miroir. Si le serveur est down, le fichier va dans <strong>queue_backup</strong> (local,
+            temporaire) et l’app réessaie toutes les 15 min jusqu’à confirmation — le bureau n’est
+            pas bloqué.
           </p>
-          <label className="mb-3 block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Destination</span>
-            <select
-              value={form.docsStockageMode === 'cloud' && !form.serveurPriveDocsUrl ? 'cloud' : 'prive'}
-              onChange={(e) =>
-                patchForm({
-                  docsStockageMode: e.target.value as Operateur['docsStockageMode'],
-                })
-              }
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="prive">Serveur privé société (NAS / Nextcloud / WebDAV)</option>
-              <option value="cloud">Lien cloud (personnel désigné seulement — pas d’envoi auto)</option>
-            </select>
-          </label>
+          <div className="mb-3 space-y-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={form.docsDestNas !== false}
+                onChange={(e) => patchForm({ docsDestNas: e.target.checked })}
+              />
+              <span>
+                <strong>Serveur NAS / WebDAV local</strong>
+                <span className="block text-xs text-muted">Nextcloud, Synology, dossier société.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={Boolean(form.docsDestCloud)}
+                onChange={(e) => patchForm({ docsDestCloud: e.target.checked })}
+              />
+              <span>
+                <strong>Cloud externe (Google Drive / OneDrive)</strong>
+                <span className="block text-xs text-muted">
+                  Miroir WebDAV (rclone, RaiDrive, OneDrive WebDAV, Nextcloud). L’API Drive native
+                  exige un compte Google — le miroir écrit comme le NAS, en même temps.
+                </span>
+              </span>
+            </label>
+          </div>
           <Field
-            label="URL base serveur privé (obligatoire pour l’archive auto)"
+            label="URL NAS / WebDAV"
             value={form.serveurPriveDocsUrl || ''}
             onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
           />
           <p className="mt-1.5 text-xs text-muted">
-            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — l’app crée
-            ClimaZEN/Documents/… toute seule. Le bureau n’a pas besoin d’y aller.
+            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user
           </p>
           <Field
-            label="Jeton serveur privé (optionnel, gérant seulement)"
+            label="Jeton NAS (optionnel)"
             value={form.serveurPriveDocsToken || ''}
             onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
             className="mt-3"
           />
           <Field
-            label="Lien dossier cloud (personnel désigné — pas le bureau)"
+            label="URL cloud miroir WebDAV (Drive / OneDrive / rclone)"
+            value={form.serveurCloudDocsUrl || ''}
+            onChange={(v) => patchForm({ serveurCloudDocsUrl: v || undefined, docsDestCloud: true })}
+            className="mt-3"
+          />
+          <Field
+            label="Jeton cloud miroir (optionnel)"
+            value={form.serveurCloudDocsToken || ''}
+            onChange={(v) => patchForm({ serveurCloudDocsToken: v || undefined })}
+            className="mt-3"
+          />
+          <Field
+            label="Lien dossier cloud (personnel désigné — ouverture manuelle, pas le bureau)"
             value={form.lienCloudDocsRacine || ''}
             onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
             className="mt-3"
           />
           <p className="mt-1.5 text-xs text-muted">
             {cloudPasteHint(form.lienCloudDocsRacine) ||
-              'Le bureau ne clique pas ici. CERFA et rapports s’ouvrent depuis Interventions / INT.'}
+              'Le bureau sort CERFA / rapports depuis l’app, jamais depuis Drive.'}
           </p>
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
-            <p className="text-xs font-bold uppercase text-muted">
-              Arborescence créée sur le coffre
-            </p>
+            <p className="text-xs font-bold uppercase text-muted">Arborescence coffre</p>
             <pre className="mt-2 overflow-x-auto whitespace-pre text-[11px] leading-relaxed text-ink">
               {arborescenceDocumentsEntreprise().join('\n')}
             </pre>
             <p className="mt-2 text-xs text-muted">
               {archivePriveConfigure(form)
-                ? 'Coffre joignable depuis l’app — le bureau télécharge via ClimaZEN.'
-                : 'Sans URL NAS, un PDF généré ne peut pas être archivé (téléchargement local de secours seulement).'}
+                ? 'Coffre joignable — file d’attente si coupure.'
+                : 'Sans URL NAS ou cloud, les PDF restent en queue_backup jusqu’à configuration.'}
             </p>
           </div>
           <div className="mt-3 rounded-xl border border-line bg-white p-3">
-            <p className="text-sm font-semibold text-ink">Copie Excel de secours</p>
+            <p className="text-sm font-semibold text-ink">File d’attente queue_backup</p>
             <p className="mt-1 text-xs text-muted">
-              Clients, sites, équipements, équipe (sans CNI), INT, stock, pièces, contrats,
-              devis… Si on perd tout, on reconstitue une société. Fichier :{' '}
-              <span className="font-mono">ClimaZEN/Documents/Secours/climazen-donnees.xlsx</span>
-              . Mise à jour auto ~1 min 30 après une sauvegarde, ou maintenant :
+              {queueCount > 0
+                ? `${queueCount} document${queueCount > 1 ? 's' : ''} en attente de confirmation NAS / cloud.`
+                : 'Aucun document en attente.'}
             </p>
+            <button
+              type="button"
+              disabled={queueBusy}
+              onClick={() => {
+                setQueueBusy(true)
+                setQueueMsg('')
+                void flushQueueBackup(form, { force: true })
+                  .then((r) => {
+                    setQueueCount(r.remaining)
+                    setQueueMsg(
+                      r.flushed
+                        ? `${r.flushed} envoyé${r.flushed > 1 ? 's' : ''} — ${r.remaining} restant${r.remaining > 1 ? 's' : ''}.`
+                        : r.remaining
+                          ? 'Toujours en attente (serveur encore injoignable).'
+                          : 'File vide.',
+                    )
+                  })
+                  .catch((err) => {
+                    setQueueMsg(err instanceof Error ? err.message : 'Retry impossible')
+                  })
+                  .finally(() => setQueueBusy(false))
+              }}
+              className="mt-2 h-10 rounded-xl border border-line px-4 text-sm font-semibold text-ink hover:bg-mist disabled:opacity-60"
+            >
+              {queueBusy ? 'Envoi…' : 'Réessayer maintenant'}
+            </button>
+            {queueMsg ? <p className="mt-2 text-xs text-muted">{queueMsg}</p> : null}
+          </div>
+          <div className="mt-3 rounded-xl border border-line bg-white p-3">
+            <p className="text-sm font-semibold text-ink">Copie Excel de secours (chiffrée)</p>
+            <p className="mt-1 text-xs text-muted">
+              AES-256-GCM. Jamais envoyée en clair. Fichier :{' '}
+              <span className="font-mono">ClimaZEN/Documents/Secours/climazen-donnees.xlsx.enc</span>
+            </p>
+            <Field
+              label="Mot de passe Excel (8 caractères min., gérant seulement)"
+              type="password"
+              value={form.coffreExcelMotDePasse || ''}
+              onChange={(v) => patchForm({ coffreExcelMotDePasse: v || undefined })}
+              className="mt-3"
+            />
             <button
               type="button"
               disabled={excelBusy}
@@ -567,7 +656,7 @@ export function OperateurPage() {
                 void exporterCopieSecoursExcel({ alsoDownload: true })
                   .then((r) => {
                     setExcelMsg(r.message)
-                    setTimeout(() => setExcelMsg(''), 6000)
+                    setTimeout(() => setExcelMsg(''), 8000)
                   })
                   .catch((err) => {
                     setExcelMsg(err instanceof Error ? err.message : 'Copie Excel impossible')
@@ -576,7 +665,7 @@ export function OperateurPage() {
               }}
               className="mt-2 h-10 rounded-xl bg-slate px-4 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {excelBusy ? 'Mise à jour…' : 'Mettre à jour la copie Excel'}
+              {excelBusy ? 'Mise à jour…' : 'Mettre à jour la copie Excel chiffrée'}
             </button>
             {excelMsg ? <p className="mt-2 text-xs text-muted">{excelMsg}</p> : null}
           </div>

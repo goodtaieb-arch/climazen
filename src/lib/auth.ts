@@ -679,6 +679,17 @@ export function mergeOperateurPreferFilled(
       remote?.serveurPriveDocsToken,
       local?.serveurPriveDocsToken,
     ),
+    docsDestNas: remote?.docsDestNas ?? local?.docsDestNas,
+    docsDestCloud: remote?.docsDestCloud ?? local?.docsDestCloud,
+    serveurCloudDocsUrl: pickNonEmpty(remote?.serveurCloudDocsUrl, local?.serveurCloudDocsUrl),
+    serveurCloudDocsToken: pickNonEmpty(
+      remote?.serveurCloudDocsToken,
+      local?.serveurCloudDocsToken,
+    ),
+    coffreExcelMotDePasse: pickNonEmpty(
+      remote?.coffreExcelMotDePasse,
+      local?.coffreExcelMotDePasse,
+    ),
   }
 }
 

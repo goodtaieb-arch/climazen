@@ -136,6 +136,14 @@ export interface Operateur {
   serveurPriveDocsUrl?: string
   /** Jeton Bearer optionnel pour l’upload serveur privé. */
   serveurPriveDocsToken?: string
+  /** Envoi auto NAS (défaut oui). */
+  docsDestNas?: boolean
+  /** Envoi auto cloud miroir (WebDAV Drive / OneDrive). */
+  docsDestCloud?: boolean
+  serveurCloudDocsUrl?: string
+  serveurCloudDocsToken?: string
+  /** Mot de passe AES-256 de climazen-donnees.xlsx.enc */
+  coffreExcelMotDePasse?: string
   /**
    * Installations de destination habituelles (CERFA [13]) —
    * préremplit le menu (Climalife, Gazechim, Dépôt…) + texte libre.
