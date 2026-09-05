@@ -23,6 +23,7 @@ import {
   formatLienCommande,
   formatOtAvancement,
   techIdsOt,
+  otEstAstreinte,
   clampAvancementPct,
   lastVisitePresence,
   upsertVisitePresence,
@@ -750,7 +751,7 @@ export function OrdresTravailPage() {
           onClick={openNew}
           className="hidden min-h-12 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover md:inline-flex"
         >
-          <Plus className="h-4 w-4" /> Client appelle
+          <Plus className="h-4 w-4" /> Intervenir
         </button>
       </div>
 
@@ -942,6 +943,11 @@ export function OrdresTravailPage() {
                       {o.localisationClient ? ` · ${o.localisationClient}` : ''}
                     </span>
                   ) : null}
+                  {otEstAstreinte(o) ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
+                      Astreinte
+                    </span>
+                  ) : null}
                   {formatOtAvancement(o) ? (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-950">
                       Partiel {formatOtAvancement(o)}
@@ -1062,13 +1068,13 @@ export function OrdresTravailPage() {
               : statutFilter === 'attente_piece'
                 ? 'Aucune INT en attente de pièce.'
               : statutFilter === 'ouverts'
-                ? 'Aucune INT ouverte. Créez-en une depuis Sites & Parc ou « Client appelle ».'
+                ? 'Aucune INT ouverte. Créez-en une depuis Sites & Parc ou « Intervenir ».'
                 : 'Aucune INT. Créez-en une depuis Sites & Parc ou ici.'}
           </div>
         )}
       </div>
 
-      <MobileFab label="Client appelle" onClick={openNew} />
+      <MobileFab label="Intervenir" onClick={openNew} />
     </div>
   )
 }

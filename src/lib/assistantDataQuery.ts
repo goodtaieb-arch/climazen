@@ -141,7 +141,7 @@ function formatOtBrief(o: OrdreTravail, data: AppData): string {
   const type = TYPE_OT_LABELS[o.typeOt] || o.typeOt
   const st = STATUT_OT_LABELS[o.statut as StatutOt] || o.statut || '—'
   const heure = (o.heure || '').slice(0, 5)
-  return `• ${formatOtNumero(o.numero)} — ${type} · ${st}${heure ? ` · ${heure}` : ''} · ${otDate(o)}${
+  return `• ${formatOtNumero(o.numero)} — ${type}${o.astreinte ? ' · astreinte' : ''} · ${st}${heure ? ` · ${heure}` : ''} · ${otDate(o)}${
     o.technicien ? ` · ${o.technicien}` : ''
   }${where ? ` · ${where}` : ''} — ${(o.action || '').slice(0, 70)}`
 }

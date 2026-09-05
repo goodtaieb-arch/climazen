@@ -12,7 +12,8 @@ type Props = {
 }
 
 /**
- * Agent d’accueil téléphonique (OpenAI) — analyse + notif responsable secteur.
+ * Agent d’accueil téléphonique (IA Cloud : OpenAI et/ou Claude) — analyse + notif responsable.
+ * Non affiché sur le dossier INT : l’Aide IA permanente couvre déjà ça.
  */
 export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
   const { data, upsertAiPendingValidation } = useStore()
@@ -84,12 +85,12 @@ export function PhoneReceptionPanel({ onApplyOtAction }: Props) {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-base font-bold text-indigo-950">
-            Agent accueil téléphone (OpenAI)
+            Aide appel (IA)
           </h2>
           <p className="mt-0.5 text-xs text-indigo-900/80">
-            Collez ou dictez la transcription — Lola propose, le responsable du secteur valide
-            sur Accueil. Elle peut aussi répondre sur le stock pièces (« est-ce arrivé ? »,
-            « préviens-moi quand… »).
+            Collez ou dictez la transcription — Lola propose (Cloud : OpenAI et/ou Claude), le
+            responsable du secteur valide sur Accueil. Elle peut aussi répondre sur le stock
+            pièces (« est-ce arrivé ? », « préviens-moi quand… »).
           </p>
           <AiLearningInfoNotice variant="compact" className="mt-2" />
         </div>

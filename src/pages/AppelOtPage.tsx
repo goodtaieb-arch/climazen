@@ -23,7 +23,6 @@ import { FluideSelect } from '../components/FluideSelect'
 import { DecimalField } from '../components/DecimalField'
 import { PlaquePhotoButton } from '../components/PlaquePhotoButton'
 import { VoiceDictationButton } from '../components/VoiceDictationButton'
-import { PhoneReceptionPanel } from '../components/PhoneReceptionPanel'
 import type { PlaqueFields } from '../lib/plaqueOcr'
 import { allEquipements, findDuplicateEquipNom } from '../lib/cerfaBatch'
 import { calcTeqCO2FromFluide } from '../lib/fluides'
@@ -56,6 +55,7 @@ import {
   upsertVisitePresence,
   formatOtAvancement,
   techIdsOt,
+  otEstAstreinte,
   OT_LABEL,
   type TypeOt,
   type StatutOt,
@@ -1298,6 +1298,13 @@ export function AppelOtPage() {
     toucheGaz: otForm.toucheGaz,
   })
   const otCloture = isOtCloture(otForm.statut)
+  const isDossierExistant = Boolean(otId || otIdParam || existing)
+  const astreinte = otEstAstreinte(otForm)
+
+  const setAstreinte = (next: boolean) => {
+    setOtForm((f) => ({ ...f, astreinte: next }))
+    if (otId) persistOt({ astreinte: next })
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -1311,51 +1318,33 @@ export function AppelOtPage() {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">
-            {isOwner ? 'Client appelle' : 'Urgence / astreinte'}
+            {isDossierExistant ? 'Intervention' : 'Intervenir'}
           </h1>
           <p className="truncate text-xs text-muted">
             {otForm.numero ? formatOtNumero(otForm.numero) : OT_LABEL.newItem} · date {otForm.date || '—'}
             {otForm.heure ? ` · ${otForm.heure.slice(0, 5)}` : ''}
             {otForm.statut ? ` · ${STATUT_OT_LABELS[otForm.statut] || otForm.statut}` : ''}
-            {!isOwner
-              ? ' · INT & CERFA synchronisés sur le compte société'
-              : ''}
           </p>
         </div>
+        {astreinte ? (
+          <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-950">
+            Astreinte
+          </span>
+        ) : null}
       </div>
 
-      {!isOwner ? (
-        <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950">
-          Week-end / hors horaires bureau : créez l’INT ici — il vous est affecté. Le gérant et
-          toute l’équipe le voient automatiquement (sync PC ↔ téléphone).
-        </p>
-      ) : role === 'bureau_depanage' ? (
+      {!isDossierExistant && role === 'bureau_depanage' ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
           Dépannage préparé au bureau : vous allez jusqu’à l’équipement. L’étape 5 Intervention
           est pour le tech affecté — c’est lui qui la remplit sur place.
         </p>
-      ) : role === 'bureau_maintenance' ? (
+      ) : null}
+      {!isDossierExistant && role === 'bureau_maintenance' ? (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
           Maintenance : à l’étape 5, cochez les fiches que le tech devra remplir (ex. checklist
           clim). Le CERFA reste toujours accessible ; s’il touche au gaz, il est obligatoire.
         </p>
-      ) : (
-        <p className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted">
-          Les techniciens peuvent aussi créer une INT en astreinte — tout arrive dans le coffre
-          société. Si vous vous affectez l’INT, vous remplissez l’intervention (auto-entrepreneur
-          / gérant sur site).
-        </p>
-      )}
-
-      <PhoneReceptionPanel
-        onApplyOtAction={(action) => {
-          setOtForm((f) => ({
-            ...f,
-            action: action.trim(),
-            typeOt: f.typeOt || 'depanage',
-          }))
-        }}
-      />
+      ) : null}
 
       {/* Stepper */}
       <ol className="flex gap-1 overflow-x-auto pb-1">
@@ -1432,17 +1421,40 @@ export function AppelOtPage() {
         <RegistreSecuriteBanner />
       ) : null}
 
-      {otEstMaintenancePreparee(otForm.typeOt) || otForm.contratId ? (
-        <RegistreSecuriteBanner />
-      ) : null}
-
       {/* ——— Étape INT ——— */}
       {step === 'ot' && (
         <section className="space-y-3 rounded-2xl border border-line bg-white p-4">
           <p className="text-sm text-muted">
-            Au téléphone ou en astreinte : créez l’INT tout de suite, même avant d’être sur site.
-            Tout est enregistré sur le compte société.
+            {isDossierExistant
+              ? 'Complétez l’INT : description, client, site, puis documents et signatures.'
+              : 'Nouvelle INT — même avant d’être sur site. Cochez astreinte si vous êtes hors horaires bureau, week-end ou nuit.'}
           </p>
+          {!isDossierExistant || astreinte ? (
+            <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+              <input
+                type="checkbox"
+                checked={astreinte}
+                onChange={(e) => setAstreinte(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-amber-700"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-amber-950">C’est une astreinte</span>
+                <span className="mt-0.5 block text-xs text-amber-950/80">
+                  Hors horaires bureau, week-end ou nuit. Visible sur l’INT, l’accueil et le planning.
+                </span>
+              </span>
+            </label>
+          ) : (
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
+              <input
+                type="checkbox"
+                checked={astreinte}
+                onChange={(e) => setAstreinte(e.target.checked)}
+                className="h-5 w-5 accent-amber-700"
+              />
+              C’est une astreinte
+            </label>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="block text-sm">
               <span className="mb-1 block font-semibold text-ink">N° INT</span>
@@ -2402,6 +2414,7 @@ export function AppelOtPage() {
           <div className="rounded-xl bg-mist/60 px-3 py-2 text-sm">
             <p className="font-semibold text-ink">
               {TYPE_OT_LABELS[otForm.typeOt]} · {formatOtNumero(otForm.numero)}
+              {astreinte ? ' · astreinte' : ''}
               {formatOtAvancement(otForm) ? ` · ${formatOtAvancement(otForm)}` : ''}
             </p>
             <p className="text-muted">{otForm.action}</p>

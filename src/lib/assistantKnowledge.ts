@@ -28,13 +28,15 @@ ACCÈS DONNÉES (ouvert, pas cas par cas) :
 - Si un rapport d’intervention mentionne une pièce HS / à changer / bruyante : oriente vers la chaîne « demande devis fournisseur + devis client » (validation humaine).
 
 Parcours principaux :
-1) Client appelle → /app/appel (Intervention / INT) → client, site, équipements → docs → signatures → Clôturer (HUMAIN).
+1) Intervenir → /app/appel (nouvelle INT, case astreinte si besoin) ou dossier INT déjà ouverte (Rédiger / signer / fin) → client, site, équipements → docs → signatures → Clôturer (HUMAIN).
 2) CERFA → /app/interventions (PDF final = HUMAIN).
 3) Stock fluides → /app/stock.
 4) Clients / Sites → équipements.
 5) Agenda → /app/agenda.
 6) Devis → /app/devis · Commandes → /app/commandes · Pièces → /app/stock-pieces.
-7) Mon entreprise → /app/operateur (clé OpenAI + numéro Twilio).
+7) Mon entreprise → /app/operateur (clé IA Cloud : OpenAI et/ou Claude + numéro Twilio).
+
+Astreinte : Accueil → Intervenir (nouvelle INT) → cocher « C’est une astreinte ». Le dossier d’une INT déjà ouverte (Rédiger / signer / fin) reste simple — pas d’agent accueil IA (le bouton Aide IA est déjà permanent).
 
 Pointage : le tech ne modifie jamais une heure déjà enregistrée. Oubli « en cours » à l’arrivée → bureau (Pointeuse) ou Aide IA (vérifie le GPS puis corrige).
 
@@ -134,7 +136,7 @@ Sans GPS, l’IA refuse — le bureau reste la solution.`,
   },
   {
     id: 'parcours-ot',
-    title: 'Parcours Intervention / Client appelle',
+    title: 'Parcours Intervention / Intervenir',
     keywords: [
       'ot',
       'int',
@@ -142,7 +144,10 @@ Sans GPS, l’IA refuse — le bureau reste la solution.`,
       'ordre',
       'intervention',
       'appel',
+      'intervenir',
       'client appelle',
+      'astreinte',
+      'urgence',
       'cloturer',
       'clôturer',
       'parcours',
@@ -155,10 +160,13 @@ Sans GPS, l’IA refuse — le bureau reste la solution.`,
     ],
     paths: ['/app/appel', '/app/ot'],
     answer: `Parcours terrain typique :
-1. Accueil → « Client appelle » (ou Interventions).
-2. Remplir Intervention → Client → Site → Équipement(s).
-3. Étape Documents : CERFA (si fluide), fiche checklist optionnelle, signatures.
-4. « Valider la présence du jour » (signature client, même si le travail n’est pas fini) ou « Clôturer signé » quand c’est terminé.
+1. Accueil → « Intervenir » (nouvelle INT) ou Mes interventions → « Rédiger / signer / fin » (INT déjà ouverte).
+2. Nouvelle INT : cochez « C’est une astreinte » si hors horaires / week-end / nuit.
+3. Remplir INT → Client → Site → Équipement(s).
+4. Étape Documents : CERFA (si fluide), fiche checklist optionnelle, signatures.
+5. « Valider la présence du jour » (signature client, même si le travail n’est pas fini) ou « Clôturer signé » quand c’est terminé.
+
+Le dossier d’une INT déjà ouverte est volontairement simple. L’IA c’est le bouton Aide IA (permanent) — Cloud OpenAI et/ou Claude, pas un second panneau « accueil téléphone » dans l’INT.
 
 Chantier sur plusieurs jours : cochez « Intervention partielle », mettez le %, faites signer le client à chaque passage. L’intervention reste ouverte jusqu’à clôture.
 
