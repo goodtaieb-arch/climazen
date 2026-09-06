@@ -48,10 +48,10 @@ export async function handleOauthCallback(provider, req, res) {
     }
 
     const { serviceKey } = getSupabaseConfig()
-    if (!serviceKey) return fail('not_configured')
+    if (!serviceKey) return fail('supabase_missing')
 
     const creds = providerCredentials(provider)
-    if (!creds.ok) return fail('not_configured')
+    if (!creds.ok) return fail('provider_not_configured')
 
     const code = String(query.get('code') || '')
     const state = String(query.get('state') || '')

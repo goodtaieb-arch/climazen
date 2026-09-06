@@ -39,7 +39,8 @@ export function cloudProviderLabel(provider) {
 }
 
 export function microsoftTenant() {
-  return String(process.env.MICROSOFT_TENANT_ID || 'common').trim() || 'common'
+  const tenant = String(process.env.MICROSOFT_TENANT_ID || process.env.AZURE_TENANT_ID || '').trim()
+  return tenant || 'common'
 }
 
 /**
@@ -63,33 +64,46 @@ export function redirectUriFor(provider, req) {
   return `${publicBaseUrl(req)}/api/auth/${provider}/callback`
 }
 
+/** Premier nom d’variable renseigné — tolère les nommages usuels sur Vercel. */
+function envAny(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim()
+    if (value) return value
+  }
+  return ''
+}
+
+const PROVIDER_ENV = {
+  google: {
+    id: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_CLIENT_ID'],
+    secret: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_CLIENT_SECRET'],
+  },
+  microsoft: {
+    id: ['MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_CLIENT_ID', 'AZURE_CLIENT_ID'],
+    secret: ['MICROSOFT_OAUTH_CLIENT_SECRET', 'MICROSOFT_CLIENT_SECRET', 'AZURE_CLIENT_SECRET'],
+  },
+}
+
 /** @returns {{ ok: true, clientId: string, clientSecret: string } | { ok: false, error: string }} */
 export function providerCredentials(provider) {
-  if (provider === 'google') {
-    const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim()
-    const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim()
-    if (!clientId || !clientSecret) {
-      return {
-        ok: false,
-        error:
-          'Google Drive non configuré côté serveur : ajoutez GOOGLE_OAUTH_CLIENT_ID et GOOGLE_OAUTH_CLIENT_SECRET sur Vercel, puis Redeploy.',
-      }
-    }
-    return { ok: true, clientId, clientSecret }
+  const names = PROVIDER_ENV[provider]
+  if (!names) return { ok: false, error: 'Fournisseur cloud inconnu.' }
+
+  const clientId = envAny(names.id)
+  const clientSecret = envAny(names.secret)
+  if (clientId && clientSecret) return { ok: true, clientId, clientSecret }
+
+  // Dire lequel des deux manque : sur Vercel, l’oubli le plus courant est le
+  // secret, ou une variable ajoutée sans cocher l’environnement Production.
+  const manquant = !clientId && !clientSecret
+    ? `${names.id[0]} et ${names.secret[0]}`
+    : !clientId
+      ? names.id[0]
+      : names.secret[0]
+  return {
+    ok: false,
+    error: `${cloudProviderLabel(provider)} non configuré côté serveur : ${manquant} absent sur Vercel (environnement Production coché ?), puis Redeploy.`,
   }
-  if (provider === 'microsoft') {
-    const clientId = String(process.env.MICROSOFT_OAUTH_CLIENT_ID || '').trim()
-    const clientSecret = String(process.env.MICROSOFT_OAUTH_CLIENT_SECRET || '').trim()
-    if (!clientId || !clientSecret) {
-      return {
-        ok: false,
-        error:
-          'OneDrive / SharePoint non configuré côté serveur : ajoutez MICROSOFT_OAUTH_CLIENT_ID et MICROSOFT_OAUTH_CLIENT_SECRET sur Vercel, puis Redeploy.',
-      }
-    }
-    return { ok: true, clientId, clientSecret }
-  }
-  return { ok: false, error: 'Fournisseur cloud inconnu.' }
 }
 
 export function tokenEndpoint(provider) {
@@ -406,6 +420,10 @@ export function callbackErrorMessage(reason) {
     no_refresh_token:
       'Aucun refresh_token renvoyé : révoquez l’accès ClimaZEN dans votre compte cloud puis reconnectez-vous.',
     not_configured: 'Connexion cloud non configurée côté serveur (identifiants OAuth manquants).',
+    provider_not_configured:
+      'Identifiants OAuth du fournisseur absents sur Vercel. Vérifiez que les variables sont bien cochées pour l’environnement Production, puis Redeploy.',
+    supabase_missing:
+      'SUPABASE_SERVICE_ROLE_KEY absent sur Vercel : le serveur ne peut pas enregistrer le jeton.',
     sql_missing:
       'Tables cloud absentes : exécutez supabase/cloud-oauth.sql dans Supabase, puis réessayez.',
     exchange_failed: 'Le fournisseur a refusé l’échange du code. Vérifiez l’URI de redirection.',

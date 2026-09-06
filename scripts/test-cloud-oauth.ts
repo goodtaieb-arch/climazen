@@ -8,6 +8,7 @@ import {
   GOOGLE_DRIVE_SCOPE,
   MICROSOFT_SCOPES,
   normalizeCloudProvider,
+  providerCredentials,
   safeRedirectPath,
   scopesFor,
   tokenEndpoint,
@@ -154,6 +155,11 @@ assert.match(callbackErrorMessage('state_expired'), /expir/i)
 assert.match(callbackErrorMessage('no_refresh_token'), /refresh_token/)
 assert.match(callbackErrorMessage('inconnu'), /impossible/i)
 assert.match(cloudCallbackErrorText('state_invalid'), /Connecter/)
+// Les deux causes d’une connexion non configurée ne doivent pas se confondre
+assert.match(callbackErrorMessage('supabase_missing'), /SUPABASE_SERVICE_ROLE_KEY/)
+assert.match(callbackErrorMessage('provider_not_configured'), /Production/)
+assert.match(cloudCallbackErrorText('supabase_missing'), /SUPABASE_SERVICE_ROLE_KEY/)
+assert.match(cloudCallbackErrorText('provider_not_configured'), /Production/)
 
 assert.match(
   partageServiceAccountInstruction('service@climazen.iam.gserviceaccount.com'),
@@ -176,29 +182,68 @@ assert.match(koCallback?.message || '', /OneDrive/)
 assert.equal(cloudCallbackMessage(new URLSearchParams('cloud=dropbox&status=connected')), null)
 assert.equal(cloudCallbackMessage(new URLSearchParams('')), null)
 
+// --- Identifiants Vercel : nommages tolérés et message qui pointe l’oubli ----
+for (const name of [
+  'GOOGLE_OAUTH_CLIENT_ID',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'MICROSOFT_OAUTH_CLIENT_ID',
+  'MICROSOFT_OAUTH_CLIENT_SECRET',
+]) {
+  delete process.env[name]
+}
+const sansRien = providerCredentials('google')
+assert.equal(sansRien.ok, false)
+assert.match(sansRien.error || '', /GOOGLE_OAUTH_CLIENT_ID et GOOGLE_OAUTH_CLIENT_SECRET/)
+
+process.env.GOOGLE_OAUTH_CLIENT_ID = 'cid'
+const secretManquant = providerCredentials('google')
+assert.equal(secretManquant.ok, false)
+assert.match(secretManquant.error || '', /GOOGLE_OAUTH_CLIENT_SECRET/)
+assert.equal((secretManquant.error || '').includes('GOOGLE_OAUTH_CLIENT_ID et'), false)
+
+process.env.GOOGLE_CLIENT_SECRET = 'shhh'
+const viaAlias = providerCredentials('google')
+assert.equal(viaAlias.ok, true)
+assert.equal(viaAlias.clientSecret, 'shhh')
+
 // --- Le rewrite ?callback=… atteint bien le flux callback ---------------------
-// Sans service role, la fonction doit renvoyer l’utilisateur dans l’app avec un
-// motif lisible plutôt qu’une page blanche (aucun appel réseau ici).
-delete process.env.SUPABASE_SERVICE_ROLE_KEY
+// La fonction doit ramener l’utilisateur dans l’app avec un motif exploitable
+// plutôt qu’une page blanche (aucun appel réseau ici).
 const cloudOauthHandler = (await import('../api/cloud-oauth.js')).default
-const captured = { statusCode: 0, headers: {} as Record<string, string> }
-await cloudOauthHandler(
-  { method: 'GET', url: '/api/cloud-oauth?callback=google&code=abc&state=xyz', headers: {} },
-  {
-    set statusCode(v: number) {
-      captured.statusCode = v
+
+async function callbackRedirect(url: string): Promise<URL> {
+  const captured = { statusCode: 0, headers: {} as Record<string, string> }
+  await cloudOauthHandler(
+    { method: 'GET', url, headers: {} },
+    {
+      set statusCode(v: number) {
+        captured.statusCode = v
+      },
+      setHeader(k: string, v: string) {
+        captured.headers[k.toLowerCase()] = v
+      },
+      end() {},
     },
-    setHeader(k: string, v: string) {
-      captured.headers[k.toLowerCase()] = v
-    },
-    end() {},
-  },
+  )
+  assert.equal(captured.statusCode, 302)
+  return new URL(captured.headers.location)
+}
+
+delete process.env.SUPABASE_SERVICE_ROLE_KEY
+const sansSupabase = await callbackRedirect('/api/cloud-oauth?callback=google&code=abc&state=xyz')
+assert.equal(sansSupabase.pathname, '/app/operateur')
+assert.equal(sansSupabase.searchParams.get('cloud'), 'google')
+assert.equal(sansSupabase.searchParams.get('status'), 'error')
+assert.equal(sansSupabase.searchParams.get('reason'), 'supabase_missing')
+
+// Supabase présent mais identifiants Microsoft absents → motif distinct
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-de-test'
+const sansIdentifiants = await callbackRedirect(
+  '/api/cloud-oauth?callback=microsoft&code=abc&state=xyz',
 )
-assert.equal(captured.statusCode, 302)
-const back = new URL(captured.headers.location)
-assert.equal(back.pathname, '/app/operateur')
-assert.equal(back.searchParams.get('cloud'), 'google')
-assert.equal(back.searchParams.get('status'), 'error')
-assert.equal(back.searchParams.get('reason'), 'not_configured')
+assert.equal(sansIdentifiants.searchParams.get('cloud'), 'microsoft')
+assert.equal(sansIdentifiants.searchParams.get('reason'), 'provider_not_configured')
 
 console.log('test-cloud-oauth: ok')
