@@ -240,7 +240,11 @@ async function postForm(url, params) {
   if (!res.ok) {
     const msg =
       data?.error_description || data?.error?.message || data?.error || text || res.statusText
-    throw new Error(String(msg).slice(0, 400))
+    const err = new Error(String(msg).slice(0, 400))
+    // Code court du fournisseur (invalid_client, invalid_grant…) : c’est lui qui
+    // dit quoi corriger, sans jamais contenir de secret.
+    err.providerCode = String(data?.error?.code || data?.error || '').slice(0, 60)
+    throw err
   }
   return data || {}
 }
@@ -420,6 +424,10 @@ export function callbackErrorMessage(reason) {
     no_code: 'Le fournisseur n’a pas renvoyé de code d’autorisation. Relancez « Connecter ».',
     no_refresh_token:
       'Aucun refresh_token renvoyé : révoquez l’accès ClimaZEN dans votre compte cloud puis reconnectez-vous.',
+    exchange_failed:
+      'Le fournisseur a refusé d’échanger le code contre un jeton (Client secret ou URI de redirection).',
+    save_failed: 'Jetons obtenus, mais leur enregistrement dans Supabase a échoué.',
+    callback_failed: 'Le retour du fournisseur a échoué côté serveur.',
     not_configured: 'Connexion cloud non configurée côté serveur (identifiants OAuth manquants).',
     provider_not_configured:
       'Identifiants OAuth du fournisseur absents sur Vercel. Vérifiez que les variables sont bien cochées pour l’environnement Production, puis Redeploy.',
@@ -427,7 +435,6 @@ export function callbackErrorMessage(reason) {
       'SUPABASE_SERVICE_ROLE_KEY absent sur Vercel : le serveur ne peut pas enregistrer le jeton.',
     sql_missing:
       'Tables cloud absentes : exécutez supabase/cloud-oauth.sql dans Supabase, puis réessayez.',
-    exchange_failed: 'Le fournisseur a refusé l’échange du code. Vérifiez l’URI de redirection.',
   }
   return map[String(reason || '')] || 'Connexion cloud impossible. Réessayez.'
 }

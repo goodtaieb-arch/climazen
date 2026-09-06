@@ -100,7 +100,13 @@ export function cloudCallbackMessage(params: URLSearchParams): {
     }
   }
   if (params.get('status') !== 'error') return null
-  return { provider, ok: false, message: `${label} : ${cloudCallbackErrorText(params.get('reason'))}` }
+  const detail = (params.get('detail') || '').trim()
+  const texte = cloudCallbackErrorText(params.get('reason'))
+  return {
+    provider,
+    ok: false,
+    message: detail ? `${label} : ${texte} (${detail})` : `${label} : ${texte}`,
+  }
 }
 
 export function cloudCallbackErrorText(reason?: string | null): string {
@@ -123,6 +129,12 @@ export function cloudCallbackErrorText(reason?: string | null): string {
       return 'SUPABASE_SERVICE_ROLE_KEY absent sur Vercel : le serveur ne peut pas enregistrer le jeton.'
     case 'sql_missing':
       return 'tables absentes : exécutez supabase/cloud-oauth.sql dans Supabase.'
+    case 'exchange_failed':
+      return 'le fournisseur a refusé d’échanger le code contre un jeton. Vérifiez le Client secret sur Vercel, puis relancez « Connecter ».'
+    case 'save_failed':
+      return 'jetons obtenus mais impossible de les enregistrer dans Supabase. Vérifiez SUPABASE_SERVICE_ROLE_KEY et les tables cloud.'
+    case 'callback_failed':
+      return 'le retour du fournisseur a échoué côté serveur.'
     default:
       return 'connexion impossible. Réessayez.'
   }

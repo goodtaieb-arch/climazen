@@ -193,6 +193,15 @@ assert.match(callbackErrorMessage('supabase_missing'), /SUPABASE_SERVICE_ROLE_KE
 assert.match(callbackErrorMessage('provider_not_configured'), /Production/)
 assert.match(cloudCallbackErrorText('supabase_missing'), /SUPABASE_SERVICE_ROLE_KEY/)
 assert.match(cloudCallbackErrorText('provider_not_configured'), /Production/)
+// Échec d’échange et échec d’enregistrement se corrigent à des endroits
+// différents : aucun des deux ne doit retomber sur le texte générique
+const texteGenerique = cloudCallbackErrorText('inconnu')
+for (const reason of ['exchange_failed', 'save_failed', 'callback_failed']) {
+  assert.notEqual(cloudCallbackErrorText(reason), texteGenerique)
+  assert.notEqual(callbackErrorMessage(reason), callbackErrorMessage('inconnu'))
+}
+assert.match(cloudCallbackErrorText('exchange_failed'), /Client secret/i)
+assert.match(cloudCallbackErrorText('save_failed'), /Supabase/i)
 
 const okCallback = cloudCallbackMessage(
   new URLSearchParams('cloud=google&status=connected&compte=bureau@societe.fr'),
@@ -206,6 +215,13 @@ const koCallback = cloudCallbackMessage(
 )
 assert.equal(koCallback?.ok, false)
 assert.match(koCallback?.message || '', /OneDrive/)
+
+// La cause renvoyée par le fournisseur doit arriver jusqu’à l’écran
+const koDetail = cloudCallbackMessage(
+  new URLSearchParams('cloud=google&status=error&reason=exchange_failed&detail=invalid_client'),
+)
+assert.match(koDetail?.message || '', /invalid_client/)
+assert.match(koDetail?.message || '', /Client secret/i)
 assert.equal(cloudCallbackMessage(new URLSearchParams('cloud=dropbox&status=connected')), null)
 assert.equal(cloudCallbackMessage(new URLSearchParams('')), null)
 
