@@ -230,7 +230,7 @@ export function CloudConnectPanel({
       setMsg('')
     }
     const next = new URLSearchParams(params)
-    for (const key of ['cloud', 'status', 'reason', 'compte']) next.delete(key)
+    for (const key of ['cloud', 'status', 'reason', 'detail', 'compte']) next.delete(key)
     setParams(next, { replace: true })
   }, [params, setParams, reload])
 

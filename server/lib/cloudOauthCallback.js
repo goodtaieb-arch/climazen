@@ -28,12 +28,20 @@ function backToApp(res, base, path, params) {
   res.end()
 }
 
+/** Cause courte et non secrète, affichable telle quelle au gérant. */
+function causeCourte(err) {
+  const code = String(err?.providerCode || '').trim()
+  if (code) return code.slice(0, 60)
+  const msg = err instanceof Error ? err.message : String(err || '')
+  return msg.replace(/\s+/g, ' ').trim().slice(0, 140)
+}
+
 export async function handleOauthCallback(provider, req, res) {
   const base = publicBaseUrl(req)
   let redirectPath = '/app/operateur'
 
-  const fail = (reason) =>
-    backToApp(res, base, redirectPath, { cloud: provider, status: 'error', reason })
+  const fail = (reason, detail) =>
+    backToApp(res, base, redirectPath, { cloud: provider, status: 'error', reason, detail })
 
   try {
     if (req.method !== 'GET') {
@@ -71,7 +79,7 @@ export async function handleOauthCallback(provider, req, res) {
       })
     } catch (err) {
       console.error(`oauth-callback:${provider}:exchange`, err)
-      return fail('exchange_failed')
+      return fail('exchange_failed', causeCourte(err))
     }
 
     const refreshToken = String(tokens.refresh_token || '')
@@ -80,18 +88,29 @@ export async function handleOauthCallback(provider, req, res) {
     const accessToken = String(tokens.access_token || '')
     const accountLabel = accessToken ? await fetchAccountLabel(provider, accessToken) : ''
 
-    await saveCloudConnection({
-      orgId: consumed.orgId,
-      userId: consumed.userId,
-      provider,
-      refreshToken,
-      accessToken,
-      accessTokenExpiresAt: tokens.expires_in
-        ? new Date(Date.now() + Number(tokens.expires_in) * 1000).toISOString()
-        : null,
-      scope: String(tokens.scope || ''),
-      accountLabel,
-    })
+    // Jetons valides mais enregistrement impossible : c’est un tout autre
+    // problème que l’échange, et il se corrige côté Supabase.
+    try {
+      await saveCloudConnection({
+        orgId: consumed.orgId,
+        userId: consumed.userId,
+        provider,
+        refreshToken,
+        accessToken,
+        accessTokenExpiresAt: tokens.expires_in
+          ? new Date(Date.now() + Number(tokens.expires_in) * 1000).toISOString()
+          : null,
+        scope: String(tokens.scope || ''),
+        accountLabel,
+      })
+    } catch (err) {
+      console.error(`oauth-callback:${provider}:save`, err)
+      const msg = err instanceof Error ? err.message : ''
+      if (/cloud_oauth_states|organization_cloud_connections|schema cache|does not exist/i.test(msg)) {
+        return fail('sql_missing', causeCourte(err))
+      }
+      return fail('save_failed', causeCourte(err))
+    }
 
     void purgeExpiredOauthStates()
 
@@ -104,8 +123,8 @@ export async function handleOauthCallback(provider, req, res) {
     console.error(`oauth-callback:${provider}`, err)
     const msg = err instanceof Error ? err.message : ''
     if (/cloud_oauth_states|organization_cloud_connections|schema cache|does not exist/i.test(msg)) {
-      return fail('sql_missing')
+      return fail('sql_missing', causeCourte(err))
     }
-    return fail('exchange_failed')
+    return fail('callback_failed', causeCourte(err))
   }
 }

@@ -182,6 +182,24 @@ sous « Google ou Microsoft refuse la connexion ? » : elle est calculée par le
 serveur, donc toujours celle réellement envoyée. Comptez quelques minutes de
 propagation après l’avoir ajoutée.
 
+### Retour dans l’app avec un motif d’échec
+
+Depuis v243, le callback distingue l’étape qui a échoué et joint la cause courte
+renvoyée par le fournisseur ou par Supabase (`…&reason=…&detail=…`), reprise
+telle quelle dans le message affiché au gérant.
+
+| `reason` | Étape | À corriger |
+| --- | --- | --- |
+| `exchange_failed` | échange du code contre les jetons | `detail=invalid_client` → Client secret faux ou périmé sur Vercel ; `detail=redirect_uri_mismatch` → URI déclarée différente ; `detail=invalid_grant` → code déjà utilisé ou PKCE cassé |
+| `save_failed` | écriture dans Supabase | service role ou droits sur `organization_cloud_connections` |
+| `sql_missing` | tables absentes | exécuter `supabase/cloud-oauth.sql` |
+| `no_refresh_token` | Google n’a rien renvoyé | révoquer l’accès ClimaZEN dans le compte Google, puis reconnecter |
+| `callback_failed` | autre erreur serveur | voir `detail` et les logs Vercel |
+
+Un Client secret régénéré côté Google sans mise à jour sur Vercel est la cause
+la plus fréquente d’`exchange_failed` : le consentement réussit, seul l’échange
+serveur-à-serveur échoue.
+
 ### `Erreur 403 : access_denied` (Google)
 
 L’URI de redirection est bonne — Google l’affiche d’ailleurs dans les détails de
