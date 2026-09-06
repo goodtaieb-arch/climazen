@@ -98,6 +98,11 @@ SharePoint, le test exige la connexion OAuth (le message le dit clairement).
 Les actions d’écriture sont réservées au **gérant** (`role = owner`), vérifié
 côté serveur par `authorizeOrgRequest`.
 
+Les deux callbacks sont des **rewrites** (`vercel.json`) vers `/api/cloud-oauth`
+avec `?callback=google|microsoft` : le plan Vercel plafonne un déploiement à 12
+fonctions serverless, donc une seule fonction porte tout le flux cloud. Les URLs
+publiques — celles déclarées chez Google et Microsoft — ne changent pas.
+
 ## 7. Vérifier après déploiement
 
 1. Mon entreprise → **Connecter Google Drive** → écran de consentement Google →

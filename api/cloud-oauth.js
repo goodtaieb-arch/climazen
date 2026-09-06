@@ -6,10 +6,13 @@
  *   POST { action: 'disconnect' }
  *   POST { action: 'test-write' } → crée test-climazen.txt puis le supprime
  *
- * Le callback vit sur /api/auth/google/callback et /api/auth/microsoft/callback.
+ * Les callbacks /api/auth/google/callback et /api/auth/microsoft/callback sont
+ * servis par cette même fonction (rewrites vercel.json → ?callback=…) : le plan
+ * Vercel plafonne le déploiement à 12 fonctions serverless.
  */
 
 import { authorizeOrgRequest } from '../server/lib/authorizeOrg.js'
+import { handleOauthCallback } from '../server/lib/cloudOauthCallback.js'
 import { getSupabaseConfig } from '../server/lib/supabaseServer.js'
 import {
   buildAuthorizeUrl,
@@ -171,8 +174,22 @@ async function handleTestWrite(res, auth, body) {
   }
 }
 
+/** Provider du callback OAuth, injecté par les rewrites /api/auth/:provider/callback. */
+function callbackProviderOf(req) {
+  try {
+    const url = new URL(req.url || '/', 'https://climazen.fr')
+    return normalizeCloudProvider(url.searchParams.get('callback'))
+  } catch {
+    return ''
+  }
+}
+
 export default async function handler(req, res) {
   try {
+    // Retour du fournisseur : navigation top-level, sans session Supabase ni CORS
+    const callbackProvider = callbackProviderOf(req)
+    if (callbackProvider) return handleOauthCallback(callbackProvider, req, res)
+
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')

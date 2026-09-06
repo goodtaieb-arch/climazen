@@ -25,6 +25,14 @@
   ],
   "rewrites": [
     {
+      "source": "/api/auth/google/callback",
+      "destination": "/api/cloud-oauth?callback=google"
+    },
+    {
+      "source": "/api/auth/microsoft/callback",
+      "destination": "/api/cloud-oauth?callback=microsoft"
+    },
+    {
       "source": "/((?!api/|assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|version\\.json|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }

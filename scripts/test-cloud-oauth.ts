@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   buildAuthorizeUrl,
   callbackErrorMessage,
@@ -85,6 +86,20 @@ assert.equal(
 assert.match(tokenEndpoint('google'), /oauth2\.googleapis\.com/)
 assert.match(tokenEndpoint('microsoft'), /login\.microsoftonline\.com/)
 
+// --- Routes de callback : URLs publiques imposées, servies par cloud-oauth ---
+// (une seule fonction : le plan Vercel plafonne le déploiement à 12 fonctions)
+const vercelConfig = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')) as {
+  rewrites: Array<{ source: string; destination: string }>
+}
+for (const provider of ['google', 'microsoft']) {
+  const rewrite = vercelConfig.rewrites.find((r) => r.source === `/api/auth/${provider}/callback`)
+  assert.ok(rewrite, `rewrite manquant pour /api/auth/${provider}/callback`)
+  assert.equal(rewrite?.destination, `/api/cloud-oauth?callback=${provider}`)
+}
+const spaFallback = vercelConfig.rewrites.findIndex((r) => r.destination === '/index.html')
+const firstCallback = vercelConfig.rewrites.findIndex((r) => r.source.startsWith('/api/auth/'))
+assert.ok(firstCallback < spaFallback, 'les callbacks doivent précéder le fallback SPA')
+
 // --- Retour dans l’app : jamais vers un site externe -------------------------
 assert.equal(safeRedirectPath('/app/operateur'), '/app/operateur')
 assert.equal(safeRedirectPath('/app/equipe?tab=cloud'), '/app/equipe?tab=cloud')
@@ -160,5 +175,30 @@ assert.equal(koCallback?.ok, false)
 assert.match(koCallback?.message || '', /OneDrive/)
 assert.equal(cloudCallbackMessage(new URLSearchParams('cloud=dropbox&status=connected')), null)
 assert.equal(cloudCallbackMessage(new URLSearchParams('')), null)
+
+// --- Le rewrite ?callback=… atteint bien le flux callback ---------------------
+// Sans service role, la fonction doit renvoyer l’utilisateur dans l’app avec un
+// motif lisible plutôt qu’une page blanche (aucun appel réseau ici).
+delete process.env.SUPABASE_SERVICE_ROLE_KEY
+const cloudOauthHandler = (await import('../api/cloud-oauth.js')).default
+const captured = { statusCode: 0, headers: {} as Record<string, string> }
+await cloudOauthHandler(
+  { method: 'GET', url: '/api/cloud-oauth?callback=google&code=abc&state=xyz', headers: {} },
+  {
+    set statusCode(v: number) {
+      captured.statusCode = v
+    },
+    setHeader(k: string, v: string) {
+      captured.headers[k.toLowerCase()] = v
+    },
+    end() {},
+  },
+)
+assert.equal(captured.statusCode, 302)
+const back = new URL(captured.headers.location)
+assert.equal(back.pathname, '/app/operateur')
+assert.equal(back.searchParams.get('cloud'), 'google')
+assert.equal(back.searchParams.get('status'), 'error')
+assert.equal(back.searchParams.get('reason'), 'not_configured')
 
 console.log('test-cloud-oauth: ok')
