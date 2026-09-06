@@ -89,6 +89,10 @@ Deux mentions de cet écran se règlent dans Entra, sans toucher au code :
 
 ## 4. Tester les droits d’écriture
 
+Les outils techniques sont regroupés sous le dépliant **Diagnostic avancé** de
+**Mon entreprise**, replié par défaut pour ne pas encombrer le gérant. Il s’ouvre
+tout seul dès qu’une erreur de connexion s’affiche.
+
 Le bouton **Tester la connexion et les droits** écrit un vrai fichier
 `test-climazen.txt` avec le compte connecté en OAuth, puis le supprime. C’est le
 seul moyen de savoir si ClimaZEN pourra déposer les documents : un lien collé,
@@ -178,7 +182,7 @@ Pièges les plus fréquents : barre oblique finale, `www.`, `http` au lieu de
 enregistrée sous la plateforme *Single-page application* au lieu de *Web*.
 
 La page **Mon entreprise** affiche la valeur exacte, avec un bouton **Copier**,
-sous « Google ou Microsoft refuse la connexion ? » : elle est calculée par le
+sous **Diagnostic avancé** : elle est calculée par le
 serveur, donc toujours celle réellement envoyée. Comptez quelques minutes de
 propagation après l’avoir ajoutée.
 
@@ -211,5 +215,5 @@ l’application (§2) ; ajouter le compte aux *Test users* ne tient que 7 jours.
 1. Mon entreprise → **Connecter Google Drive** → écran de consentement Google →
    retour sur `/app/operateur` avec « Google Drive connecté ».
 2. Idem **Connecter OneDrive**.
-3. **Tester la connexion et les droits** → `test-climazen.txt` apparaît puis
+3. **Diagnostic avancé** → **Tester la connexion et les droits** → `test-climazen.txt` apparaît puis
    disparaît du Drive / OneDrive connecté.

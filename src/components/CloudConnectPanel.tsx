@@ -157,27 +157,66 @@ function UriACopier({ uri }: { uri: string }) {
 }
 
 /**
- * Réglage d’installation, replié : Google et Microsoft refusent la connexion
- * (redirect_uri_mismatch / invalid_request) tant que ces URI ne sont pas
- * déclarées au caractère près. On les affiche telles que le serveur les envoie.
+ * Outils techniques : test d’écriture réel et adresses de retour à déclarer
+ * chez le fournisseur. Repliés pour le gérant, mais ouverts d’office dès qu’une
+ * erreur survient — c’est le moment précis où ils servent.
  */
-function CloudDepannage({ redirectUris }: { redirectUris: Record<CloudProviderId, string> }) {
+export function CloudDiagnostic({
+  lienDossier,
+  providersConnectes,
+  redirectUris,
+  disabled,
+  ouvrir,
+  className = '',
+}: {
+  lienDossier?: string
+  providersConnectes?: CloudProviderId[]
+  redirectUris?: Record<CloudProviderId, string>
+  disabled?: boolean
+  /** Une erreur vient de s’afficher : déplier sans attendre un clic. */
+  ouvrir?: boolean
+  className?: string
+}) {
+  const [ouvert, setOuvert] = useState(Boolean(ouvrir))
+
+  useEffect(() => {
+    if (ouvrir) setOuvert(true)
+  }, [ouvrir])
+
+  const uris = PROVIDERS.filter((provider) => redirectUris?.[provider])
+
   return (
-    <details className="px-1 text-xs text-muted">
-      <summary className="cursor-pointer underline decoration-dotted underline-offset-2">
-        Google ou Microsoft refuse la connexion ?
-      </summary>
-      <p className="mt-2">
-        Ces adresses de retour doivent être déclarées à l’identique dans la console du fournisseur,
-        sans espace ni barre oblique finale. Comptez quelques minutes avant de réessayer.
-      </p>
-      {PROVIDERS.filter((provider) => redirectUris[provider]).map((provider) => (
-        <div key={provider} className="mt-3">
-          <p className="font-semibold text-ink">{CLOUD_PROVIDER_LABELS[provider]}</p>
-          <UriACopier uri={redirectUris[provider]} />
-          <p className="mt-1">{CLOUD_REDIRECT_CONSOLE_HINTS[provider]}</p>
+    <details
+      open={ouvert}
+      onToggle={(e) => setOuvert((e.currentTarget as HTMLDetailsElement).open)}
+      className={`rounded-xl border border-line bg-foam p-3 ${className}`}
+    >
+      <summary className="cursor-pointer text-sm font-semibold text-ink">Diagnostic avancé</summary>
+
+      <CloudWriteTest
+        className="mt-3"
+        lienDossier={lienDossier}
+        providersConnectes={providersConnectes}
+        disabled={disabled}
+      />
+
+      {uris.length ? (
+        <div className="mt-4 border-t border-line pt-3 text-xs text-muted">
+          <p className="font-semibold text-ink">Si Google ou Microsoft refuse la connexion</p>
+          <p className="mt-1">
+            Ces adresses de retour doivent être déclarées à l’identique dans la console du
+            fournisseur, sans espace ni barre oblique finale. Comptez quelques minutes avant de
+            réessayer.
+          </p>
+          {uris.map((provider) => (
+            <div key={provider} className="mt-3">
+              <p className="font-semibold text-ink">{CLOUD_PROVIDER_LABELS[provider]}</p>
+              <UriACopier uri={redirectUris?.[provider] || ''} />
+              <p className="mt-1">{CLOUD_REDIRECT_CONSOLE_HINTS[provider]}</p>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : null}
     </details>
   )
 }
@@ -344,16 +383,13 @@ export function CloudConnectPanel({
       {msg ? <p className="text-sm font-semibold text-teal-800">{msg}</p> : null}
       {err ? <p className="text-sm font-semibold text-rose-700">{err}</p> : null}
 
-      {/* Rien à tester tant qu’aucun cloud n’est connecté ni aucun lien collé. */}
-      {connectes.length || lienDossier?.trim() ? (
-        <CloudWriteTest
-          lienDossier={lienDossier}
-          providersConnectes={connectes}
-          disabled={!canEdit}
-        />
-      ) : null}
-
-      <CloudDepannage redirectUris={redirectUris} />
+      <CloudDiagnostic
+        lienDossier={lienDossier}
+        providersConnectes={connectes}
+        redirectUris={redirectUris}
+        disabled={!canEdit}
+        ouvrir={Boolean(err)}
+      />
     </div>
   )
 }

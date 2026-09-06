@@ -32,7 +32,7 @@ import { resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
-import { CloudConnectPanel, CloudWriteTest } from '../components/CloudConnectPanel'
+import { CloudConnectPanel, CloudDiagnostic } from '../components/CloudConnectPanel'
 import { TelephonyLolaPanel } from '../components/TelephonyLolaPanel'
 import { OpenaiOrgKeyPanel } from '../components/OpenaiOrgKeyPanel'
 import { GmaoImportPanel } from '../components/GmaoImportPanel'
@@ -676,7 +676,7 @@ export function OperateurPage() {
             </>
           )}
           {form.lienCloudDocsRacine?.trim() ? (
-            <CloudWriteTest lienDossier={form.lienCloudDocsRacine} className="mt-3" />
+            <CloudDiagnostic lienDossier={form.lienCloudDocsRacine} className="mt-3" />
           ) : null}
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
             <p className="text-xs font-bold uppercase text-muted">
