@@ -49,20 +49,21 @@ ClimaZEN, il faut passer par le **compte de service** (§4).
 `offline_access` est obligatoire : sans lui, Microsoft ne renvoie pas de
 `refresh_token` et la connexion serait perdue au bout d’une heure.
 
-## 4. Compte de service (option secours)
+## 4. Tester les droits d’écriture
 
-Quand le gérant colle un lien de dossier au lieu de connecter son cloud, l’app
-affiche :
+Le bouton **Tester la connexion et les droits** écrit un vrai fichier
+`test-climazen.txt` avec le compte connecté en OAuth, puis le supprime. C’est le
+seul moyen de savoir si ClimaZEN pourra déposer les documents : un lien collé,
+même valide, ne dit rien des droits.
 
-> Si vous utilisez un lien direct, vous devez partager votre dossier en mode
-> Éditeur avec notre compte de service `…`.
+Le test s’appuie toujours sur la connexion OAuth — il n’existe pas de compte de
+service : sans clic préalable sur « Connecter … », le test répond simplement
+qu’il faut connecter le service.
 
-Pour Google, créez un *service account* (IAM → Service accounts → clé JSON) et
-donnez son JSON à Vercel : le bouton **Tester la connexion et les droits**
-écrira alors avec ce compte.
-
-Microsoft n’a pas d’équivalent utilisable sur un simple lien : côté OneDrive /
-SharePoint, le test exige la connexion OAuth (le message le dit clairement).
+Côté Google, l’autorisation `drive.file` ne donne accès qu’aux fichiers créés
+par ClimaZEN. Tester un dossier existant créé à la main dans Drive échoue donc
+avec un message explicite : laissez le champ de lien vide pour tester à la
+racine du Drive connecté, et laissez ClimaZEN créer lui-même son arborescence.
 
 ## 5. Variables d’environnement Vercel
 
@@ -73,9 +74,6 @@ SharePoint, le test exige la connexion OAuth (le message le dit clairement).
 | `MICROSOFT_TENANT_ID` | non | `common` par défaut ; l’ID du tenant pour un mono-locataire (alias `AZURE_TENANT_ID`) |
 | `CLOUD_OAUTH_REDIRECT_BASE` | recommandé | ex. `https://climazen.fr` — doit correspondre à l’URI déclarée |
 | `CLOUD_TOKEN_SECRET` | recommandé | clé de chiffrement des jetons (à défaut : dérivée du service role) |
-| `CLIMAZEN_SERVICE_ACCOUNT_EMAIL` | secours | e-mail affiché au client pour le partage Éditeur |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | secours | JSON complet du compte de service Google |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | secours | alternative au JSON |
 
 `SUPABASE_SERVICE_ROLE_KEY` reste requis (lecture / écriture des deux tables).
 
@@ -131,5 +129,5 @@ Connecté en gérant, la page **Mon entreprise** affiche directement
 1. Mon entreprise → **Connecter Google Drive** → écran de consentement Google →
    retour sur `/app/operateur` avec « Google Drive connecté ».
 2. Idem **Connecter OneDrive**.
-3. Coller un lien de dossier partagé en Éditeur → **Tester la connexion et les
-   droits** → `test-climazen.txt` apparaît puis disparaît du dossier.
+3. **Tester la connexion et les droits** → `test-climazen.txt` apparaît puis
+   disparaît du Drive / OneDrive connecté.

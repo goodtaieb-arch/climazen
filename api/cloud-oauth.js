@@ -1,7 +1,7 @@
 /**
  * Vercel Serverless — /api/cloud-oauth
  * Pilotage des connexions cloud société (gérant) :
- *   GET                        → état des connexions + compte de service
+ *   GET                        → état des connexions
  *   POST { action: 'start' }   → URL d’autorisation OAuth2 (Google / Microsoft)
  *   POST { action: 'disconnect' }
  *   POST { action: 'test-write' } → crée test-climazen.txt puis le supprime
@@ -35,11 +35,6 @@ import {
   runMicrosoftWriteTest,
   TEST_FILE_NAME,
 } from '../server/lib/cloudWriteTest.js'
-import {
-  googleServiceAccountAccessToken,
-  googleServiceAccountConfigured,
-  serviceAccountEmail,
-} from '../server/lib/googleServiceAccount.js'
 
 function normalizeHttpsUrl(raw) {
   const s = String(raw || '').trim()
@@ -83,44 +78,24 @@ async function handleStart(req, res, auth, body) {
 }
 
 async function googleWriteTest(auth, folderUrl) {
-  const folderId = extractGoogleDriveFolderId(folderUrl)
-  const connected = await hasCloudConnection(auth.orgId, 'google')
-
-  if (!connected && !googleServiceAccountConfigured()) {
+  if (!(await hasCloudConnection(auth.orgId, 'google'))) {
     return {
       ok: false,
-      message:
-        'Google Drive n’est pas connecté. Cliquez sur « Connecter Google Drive », ou partagez le dossier en mode Éditeur avec notre compte de service.',
+      message: 'Google Drive n’est pas connecté. Cliquez sur « Connecter Google Drive ».',
     }
   }
-
-  if (connected) {
-    const token = await getAccessToken(auth.orgId, 'google')
-    const result = await runGoogleWriteTest({ accessToken: token, folderId })
-    // Dossier créé hors ClimaZEN : le scope drive.file ne le voit pas → compte de service
-    if (result.ok || !folderId || !googleServiceAccountConfigured()) return result
-    const saToken = await googleServiceAccountAccessToken()
-    return runGoogleWriteTest({ accessToken: saToken, folderId })
-  }
-
-  if (!folderId) {
-    return {
-      ok: false,
-      message:
-        'Lien Google Drive illisible. Collez le lien du dossier (…/drive/folders/…) partagé en mode Éditeur avec notre compte de service.',
-    }
-  }
-  const saToken = await googleServiceAccountAccessToken()
-  return runGoogleWriteTest({ accessToken: saToken, folderId })
+  const token = await getAccessToken(auth.orgId, 'google')
+  return runGoogleWriteTest({
+    accessToken: token,
+    folderId: extractGoogleDriveFolderId(folderUrl),
+  })
 }
 
 async function microsoftWriteTest(auth, folderUrl) {
-  const connected = await hasCloudConnection(auth.orgId, 'microsoft')
-  if (!connected) {
+  if (!(await hasCloudConnection(auth.orgId, 'microsoft'))) {
     return {
       ok: false,
-      message:
-        'OneDrive / SharePoint n’est pas connecté. Cliquez sur « Connecter OneDrive » : Microsoft n’autorise pas l’écriture par un compte de service externe sur un simple lien.',
+      message: 'OneDrive / SharePoint n’est pas connecté. Cliquez sur « Connecter OneDrive ».',
     }
   }
   const token = await getAccessToken(auth.orgId, 'microsoft')
@@ -213,8 +188,6 @@ export default async function handler(req, res) {
           google: providerCredentials('google').ok,
           microsoft: providerCredentials('microsoft').ok,
         },
-        serviceAccountEmail: serviceAccountEmail(),
-        serviceAccountReady: googleServiceAccountConfigured(),
       })
     }
 

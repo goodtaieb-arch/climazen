@@ -24,8 +24,6 @@ import { decryptSecret, encryptSecret, tokenEncryptionAvailable } from '../serve
 import {
   cloudCallbackErrorText,
   cloudCallbackMessage,
-  partageServiceAccountInstruction,
-  SERVICE_ACCOUNT_EMAIL_PLACEHOLDER,
 } from '../src/lib/cloudOauth'
 
 // --- Fournisseurs -----------------------------------------------------------
@@ -160,12 +158,6 @@ assert.match(callbackErrorMessage('supabase_missing'), /SUPABASE_SERVICE_ROLE_KE
 assert.match(callbackErrorMessage('provider_not_configured'), /Production/)
 assert.match(cloudCallbackErrorText('supabase_missing'), /SUPABASE_SERVICE_ROLE_KEY/)
 assert.match(cloudCallbackErrorText('provider_not_configured'), /Production/)
-
-assert.match(
-  partageServiceAccountInstruction('service@climazen.iam.gserviceaccount.com'),
-  /partager votre dossier en mode Éditeur avec notre compte de service service@climazen\.iam\.gserviceaccount\.com\.$/,
-)
-assert.ok(partageServiceAccountInstruction().includes(SERVICE_ACCOUNT_EMAIL_PLACEHOLDER))
 
 const okCallback = cloudCallbackMessage(
   new URLSearchParams('cloud=google&status=connected&compte=bureau@societe.fr'),

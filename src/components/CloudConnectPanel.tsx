@@ -11,7 +11,6 @@ import {
   fetchCloudConnections,
   GOOGLE_DRIVE_SCOPE,
   MICROSOFT_SCOPES,
-  partageServiceAccountInstruction,
   startCloudOauth,
   testCloudWrite,
   type CloudConnectionsStatus,
@@ -34,35 +33,22 @@ function providerFromManualLink(url: string): CloudProviderId | undefined {
 }
 
 /**
- * Option secours : le gérant a collé un lien de dossier au lieu de connecter
- * son cloud. Seul un vrai test d’écriture prouve le droit Éditeur.
+ * Un lien collé ne prouve rien : seul un vrai test d’écriture, avec le compte
+ * cloud connecté en OAuth, prouve que ClimaZEN peut déposer les documents.
  */
 export function CloudWriteTest({
   lienDossier,
-  serviceAccountEmail,
   disabled,
   className = '',
 }: {
   lienDossier?: string
-  serviceAccountEmail?: string
   disabled?: boolean
   className?: string
 }) {
-  const [email, setEmail] = useState(serviceAccountEmail || '')
   const [busy, setBusy] = useState(false)
   const [ok, setOk] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
   const [detail, setDetail] = useState('')
-
-  useEffect(() => {
-    if (serviceAccountEmail !== undefined) {
-      setEmail(serviceAccountEmail)
-      return
-    }
-    void fetchCloudConnections()
-      .then((res) => setEmail(res?.serviceAccountEmail || ''))
-      .catch(() => undefined)
-  }, [serviceAccountEmail])
 
   const provider = useMemo(() => providerFromManualLink(lienDossier || ''), [lienDossier])
 
@@ -87,19 +73,11 @@ export function CloudWriteTest({
 
   return (
     <div className={`rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-4 ${className}`}>
-      <p className="text-sm font-semibold text-amber-950">
-        {partageServiceAccountInstruction(email)}
-      </p>
-      {!email ? (
-        <p className="mt-1 text-xs text-amber-900/80">
-          Compte de service non configuré : ajoutez CLIMAZEN_SERVICE_ACCOUNT_EMAIL (et la clé du
-          compte de service Google) sur Vercel — voir docs/CLOUD-OAUTH.md.
-        </p>
-      ) : null}
-      <p className="mt-2 text-xs text-amber-900/80">
-        Le test crée réellement <span className="font-mono">{CLOUD_TEST_FILE_NAME}</span> dans le
-        dossier visé, puis le supprime. Un lien valide ne prouve rien : seul ce test prouve le droit
-        Éditeur.
+      <p className="text-sm font-semibold text-amber-950">Vérifier les droits d’écriture</p>
+      <p className="mt-1 text-xs text-amber-900/80">
+        Le test crée réellement <span className="font-mono">{CLOUD_TEST_FILE_NAME}</span> avec le
+        compte cloud connecté, puis le supprime. Un lien collé ne prouve rien : seul ce test prouve
+        que ClimaZEN peut déposer vos documents.
       </p>
       <button
         type="button"
@@ -274,11 +252,7 @@ export function CloudConnectPanel({
         )
       })}
 
-      <CloudWriteTest
-        lienDossier={lienDossier}
-        serviceAccountEmail={status?.serviceAccountEmail || ''}
-        disabled={!canEdit}
-      />
+      <CloudWriteTest lienDossier={lienDossier} disabled={!canEdit} />
 
       {msg ? <p className="text-sm font-semibold text-teal-800">{msg}</p> : null}
       {err ? <p className="text-sm font-semibold text-rose-700">{err}</p> : null}
