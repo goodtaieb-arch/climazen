@@ -5,24 +5,16 @@ import {
   CLOUD_CONNECT_BUTTON_LABELS,
   CLOUD_PROVIDER_LABELS,
   CLOUD_REDIRECT_CONSOLE_HINTS,
-  CLOUD_TEST_FILE_NAME,
   cloudCallbackMessage,
   disconnectCloud,
   explainCloudApiError,
   fetchCloudConnections,
-  GOOGLE_DRIVE_SCOPE,
-  MICROSOFT_SCOPES,
   startCloudOauth,
   testCloudWrite,
   type CloudConnectionsStatus,
   type CloudProviderId,
 } from '../lib/cloudOauth'
 import { cloudKindFromUrl } from '../lib/cloudLinkGuard'
-
-const PROVIDER_HINTS: Record<CloudProviderId, string> = {
-  google: `Autorisation Google demandée : ${GOOGLE_DRIVE_SCOPE} — ClimaZEN ne voit que les fichiers qu’il dépose.`,
-  microsoft: `Autorisation Microsoft Entra ID demandée : ${MICROSOFT_SCOPES.join(' + ')}.`,
-}
 
 const PROVIDERS: CloudProviderId[] = ['google', 'microsoft']
 
@@ -73,22 +65,19 @@ export function CloudWriteTest({
   }
 
   return (
-    <div className={`rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-4 ${className}`}>
-      <p className="text-sm font-semibold text-amber-950">Vérifier les droits d’écriture</p>
-      <p className="mt-1 text-xs text-amber-900/80">
-        Le test crée réellement <span className="font-mono">{CLOUD_TEST_FILE_NAME}</span> avec le
-        compte cloud connecté, puis le supprime. Un lien collé ne prouve rien : seul ce test prouve
-        que ClimaZEN peut déposer vos documents.
-      </p>
+    <div className={className}>
       <button
         type="button"
         disabled={Boolean(disabled) || busy}
         onClick={run}
-        className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-bold text-white disabled:opacity-50"
+        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         Tester la connexion et les droits
       </button>
+      <p className="mt-1.5 text-xs text-muted">
+        ClimaZEN dépose un fichier d’essai dans le dossier, puis le supprime.
+      </p>
       {message ? (
         <p className={`mt-2 text-sm font-semibold ${ok ? 'text-teal-800' : 'text-rose-700'}`}>
           {message}
@@ -99,12 +88,7 @@ export function CloudWriteTest({
   )
 }
 
-/**
- * Le fournisseur refuse la connexion (redirect_uri_mismatch côté Google,
- * invalid_request côté Microsoft) tant que cette URI n’est pas déclarée au
- * caractère près. On l’affiche donc telle que le serveur l’envoie.
- */
-function RedirectUriHint({ provider, uri }: { provider: CloudProviderId; uri: string }) {
+function UriACopier({ uri }: { uri: string }) {
   const [copied, setCopied] = useState(false)
 
   const copy = () => {
@@ -118,30 +102,44 @@ function RedirectUriHint({ provider, uri }: { provider: CloudProviderId; uri: st
   }
 
   return (
-    <details className="mt-3 rounded-lg border border-line bg-foam p-3 text-xs text-muted">
+    <div className="mt-1 flex flex-wrap items-center gap-2">
+      <code className="break-all rounded bg-white px-2 py-1 font-mono text-[11px] text-ink">
+        {uri}
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-line bg-white px-2 font-semibold text-ink"
+      >
+        <Copy className="h-3.5 w-3.5" />
+        {copied ? 'Copié' : 'Copier'}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Réglage d’installation, replié : Google et Microsoft refusent la connexion
+ * (redirect_uri_mismatch / invalid_request) tant que ces URI ne sont pas
+ * déclarées au caractère près. On les affiche telles que le serveur les envoie.
+ */
+function CloudDepannage({ redirectUris }: { redirectUris: Record<CloudProviderId, string> }) {
+  return (
+    <details className="rounded-xl border border-line bg-foam p-3 text-xs text-muted">
       <summary className="cursor-pointer font-semibold text-ink">
-        Connexion refusée par {CLOUD_PROVIDER_LABELS[provider]} ? Vérifiez l’URI de redirection
+        Google ou Microsoft refuse la connexion ?
       </summary>
       <p className="mt-2">
-        Déclarez exactement cette URI, sans espace ni barre oblique finale :
+        Ces adresses de retour doivent être déclarées à l’identique dans la console du fournisseur,
+        sans espace ni barre oblique finale. Comptez quelques minutes avant de réessayer.
       </p>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <code className="break-all rounded bg-white px-2 py-1 font-mono text-[11px] text-ink">
-          {uri}
-        </code>
-        <button
-          type="button"
-          onClick={copy}
-          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-line bg-white px-2 font-semibold text-ink"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {copied ? 'Copié' : 'Copier'}
-        </button>
-      </div>
-      <p className="mt-2">{CLOUD_REDIRECT_CONSOLE_HINTS[provider]}</p>
-      <p className="mt-1">
-        Après l’ajout, comptez quelques minutes de propagation côté fournisseur avant de réessayer.
-      </p>
+      {PROVIDERS.filter((provider) => redirectUris[provider]).map((provider) => (
+        <div key={provider} className="mt-3">
+          <p className="font-semibold text-ink">{CLOUD_PROVIDER_LABELS[provider]}</p>
+          <UriACopier uri={redirectUris[provider]} />
+          <p className="mt-1">{CLOUD_REDIRECT_CONSOLE_HINTS[provider]}</p>
+        </div>
+      ))}
     </details>
   )
 }
@@ -242,6 +240,8 @@ export function CloudConnectPanel({
   }
 
   const canEdit = status?.canEdit !== false
+  const redirectUris = status?.redirectUris || { google: '', microsoft: '' }
+  const unConnecte = PROVIDERS.some((p) => status?.connections?.[p]?.connected)
 
   return (
     <div className="space-y-3">
@@ -249,29 +249,27 @@ export function CloudConnectPanel({
         const state = status?.connections?.[provider]
         const available = status?.available?.[provider] !== false
         const connected = Boolean(state?.connected)
-        const redirectUri = status?.redirectUris?.[provider] || ''
         return (
           <div key={provider} className="rounded-xl border border-line bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="font-semibold text-ink">{CLOUD_PROVIDER_LABELS[provider]}</h3>
-                <p className="mt-1 text-xs text-muted">{PROVIDER_HINTS[provider]}</p>
                 {connected ? (
-                  <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-teal-800">
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-teal-800">
                     <CheckCircle2 className="h-4 w-4" />
                     Connecté{state?.accountLabel ? ` · ${state.accountLabel}` : ''}
                   </p>
                 ) : state?.needsReconnect ? (
-                  <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-amber-700">
                     <CloudOff className="h-4 w-4" />
-                    Jeton illisible — recliquez sur « Connecter ».
+                    Connexion expirée — recliquez sur « Connecter ».
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-muted">Pas encore connecté.</p>
+                  <p className="mt-1 text-sm text-muted">Pas encore connecté.</p>
                 )}
                 {!available ? (
                   <p className="mt-1 text-xs font-semibold text-amber-700">
-                    Identifiants OAuth absents sur le serveur — voir docs/CLOUD-OAUTH.md.
+                    Service momentanément indisponible — prévenez le support ClimaZEN.
                   </p>
                 ) : null}
               </div>
@@ -297,15 +295,19 @@ export function CloudConnectPanel({
                 ) : null}
               </div>
             </div>
-            {redirectUri ? <RedirectUriHint provider={provider} uri={redirectUri} /> : null}
           </div>
         )
       })}
 
-      <CloudWriteTest lienDossier={lienDossier} disabled={!canEdit} />
-
       {msg ? <p className="text-sm font-semibold text-teal-800">{msg}</p> : null}
       {err ? <p className="text-sm font-semibold text-rose-700">{err}</p> : null}
+
+      {/* Rien à tester tant qu’aucun cloud n’est connecté ni aucun lien collé. */}
+      {unConnecte || lienDossier?.trim() ? (
+        <CloudWriteTest lienDossier={lienDossier} disabled={!canEdit} />
+      ) : null}
+
+      <CloudDepannage redirectUris={redirectUris} />
     </div>
   )
 }

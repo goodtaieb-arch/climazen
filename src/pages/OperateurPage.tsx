@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Cloud, ExternalLink, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { useAuth } from '../lib/AuthContext'
@@ -59,50 +59,23 @@ function CloudLienActiver({
   hint: string
   className?: string
 }) {
-  const has = Boolean(normalizeLienCloudRh(value))
   return (
     <div className={className}>
       <Field label={label} value={value} onChange={onChange} />
       <p className="mt-1.5 text-xs text-muted">{hint}</p>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
-        <button
-          type="button"
-          onClick={onActivate}
-          disabled={busy}
-          className="inline-flex h-12 min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white sm:min-w-[14rem] sm:flex-none disabled:opacity-60"
-        >
-          {busy ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          ) : (
-            <ExternalLink className="h-4 w-4 shrink-0" />
-          )}
-          {busy ? 'Activation…' : 'Activer le lien'}
-        </button>
-        <a
-          href="https://drive.google.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink"
-        >
-          <Cloud className="h-4 w-4 text-accent" />
-          Ouvrir Google Drive
-        </a>
-        <a
-          href="https://onedrive.live.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink"
-        >
-          <Cloud className="h-4 w-4 text-sky-700" />
-          Ouvrir OneDrive
-        </a>
-      </div>
-      {!has ? (
-        <p className="mt-2 text-xs font-medium text-amber-800">
-          1) Ouvrez Drive ou OneDrive → 2) copiez le lien du dossier → 3) collez-le ci-dessus → 4)
-          Activer le lien.
-        </p>
-      ) : null}
+      <button
+        type="button"
+        onClick={onActivate}
+        disabled={busy}
+        className="mt-3 inline-flex h-12 min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white sm:w-auto sm:min-w-[14rem] disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+        ) : (
+          <ExternalLink className="h-4 w-4 shrink-0" />
+        )}
+        {busy ? 'Activation…' : 'Activer le lien'}
+      </button>
     </div>
   )
 }
@@ -571,43 +544,37 @@ export function OperateurPage() {
             {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
           </h2>
           <p className="mb-3 text-sm text-muted">
-            Connectez votre cloud une fois : ClimaZEN passe par le compte Google ou Microsoft de la
-            société (aucun mot de passe n’est stocké, seulement une autorisation révocable à tout
-            moment).{' '}
-            {appEdition === 'light' ? (
-              <>
-                Classement Google Drive, OneDrive ou SharePoint pour vos pièces administratives
-                (attestation de capacité, assurances…). Les PDF ClimaZEN peuvent aussi y être
-                rangés via la section Documents ci-dessous.
-              </>
-            ) : (
-              <>
-                Le bouton <strong>Photos pièces</strong> n’ouvre que le lien{' '}
-                <strong>exact de chaque opérateur</strong> (collé dans Équipe), et seulement s’il n’est{' '}
-                <strong>pas public</strong>. L’alerte dépend du cloud collé.
-              </>
-            )}
+            Une seule connexion suffit. ClimaZEN n’enregistre aucun mot de passe, n’accède qu’aux
+            fichiers qu’il dépose dans votre cloud, et l’autorisation reste révocable à tout moment.
+            Aucun scan n’est conservé sur ClimaZEN.
           </p>
           <CloudConnectPanel lienDossier={form.lienCloudRhRacine} />
-          <CloudLienActiver
-            className="mt-4"
-            label="Lien du dossier général (option secours)"
-            value={form.lienCloudRhRacine || ''}
-            onChange={(v) => patchForm({ lienCloudRhRacine: v })}
-            onActivate={() => void activerLienCloud('rh')}
-            busy={cloudBusy === 'rh'}
-            hint={
-              cloudPasteHint(form.lienCloudRhRacine) ||
-              'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé.'
-            }
-          />
-          {cloudMsg && cloudBusy !== 'docs' ? (
-            <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
-          ) : null}
-          <p className="mt-2 text-xs text-muted">
-            Créez une fois cette arborescence dans le cloud, puis rangez chaque pièce dans le bon
-            sous-dossier. Les scans ne sont pas stockés dans ClimaZEN.
-          </p>
+          <details className="mt-3 rounded-xl border border-line bg-white p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">
+              Pas de compte Google ou Microsoft ? Coller un lien de dossier
+            </summary>
+            <CloudLienActiver
+              className="mt-3"
+              label="Lien du dossier général"
+              value={form.lienCloudRhRacine || ''}
+              onChange={(v) => patchForm({ lienCloudRhRacine: v })}
+              onActivate={() => void activerLienCloud('rh')}
+              busy={cloudBusy === 'rh'}
+              hint={
+                cloudPasteHint(form.lienCloudRhRacine) ||
+                'Ouvrez Drive ou OneDrive, copiez le lien du dossier et collez-le ici. Le partage doit rester privé.'
+              }
+            />
+            {cloudMsg && cloudBusy !== 'docs' ? (
+              <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
+            ) : null}
+            {appEdition !== 'light' ? (
+              <p className="mt-2 text-xs text-muted">
+                Le bouton <strong>Photos pièces</strong> n’ouvre que le lien exact de chaque
+                opérateur (collé dans Équipe), et seulement s’il n’est pas public.
+              </p>
+            ) : null}
+          </details>
         </div>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
@@ -636,7 +603,7 @@ export function OperateurPage() {
             </select>
           </label>
           {form.docsStockageMode === 'cloud' ? (
-            <div className="mb-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-3">
+            <>
               <CloudLienActiver
                 label="Lien dossier cloud"
                 value={form.lienCloudDocsRacine || ''}
@@ -645,67 +612,68 @@ export function OperateurPage() {
                 busy={cloudBusy === 'docs'}
                 hint={
                   cloudPasteHint(form.lienCloudDocsRacine) ||
-                  'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
+                  'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.'
                 }
               />
               {cloudMsg ? (
                 <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
               ) : null}
-            </div>
+              <details className="mt-3 rounded-xl border border-line bg-white p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">
+                  NAS / Nextcloud en plus (optionnel)
+                </summary>
+                <Field
+                  label="URL base serveur privé"
+                  value={form.serveurPriveDocsUrl || ''}
+                  onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
+                  className="mt-3"
+                />
+                <Field
+                  label="Jeton serveur privé (optionnel)"
+                  value={form.serveurPriveDocsToken || ''}
+                  onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
+                  className="mt-3"
+                />
+              </details>
+            </>
           ) : (
             <>
-          <Field
-            label="URL base serveur privé (obligatoire pour l’archive auto)"
-            value={form.serveurPriveDocsUrl || ''}
-            onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
-          />
-          <p className="mt-1.5 text-xs text-muted">
-            Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — l’app crée
-            ClimaZEN/Documents/… toute seule. Le bureau n’a pas besoin d’y aller.
-          </p>
-          <Field
-            label="Jeton serveur privé (optionnel, gérant seulement)"
-            value={form.serveurPriveDocsToken || ''}
-            onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
-            className="mt-3"
-          />
-            </>
-          )}
-          {form.docsStockageMode !== 'cloud' ? (
-            <div className="mt-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-3">
-              <CloudLienActiver
-                label="Lien dossier cloud (personnel désigné — pas le bureau)"
-                value={form.lienCloudDocsRacine || ''}
-                onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
-                onActivate={() => void activerLienCloud('docs')}
-                busy={cloudBusy === 'docs'}
-                hint={
-                  cloudPasteHint(form.lienCloudDocsRacine) ||
-                  'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
-                }
-              />
-              {cloudMsg ? (
-                <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
-              ) : null}
-            </div>
-          ) : (
-            <details className="mt-3 rounded-xl border border-line bg-white p-3">
-              <summary className="cursor-pointer text-sm font-semibold text-ink">
-                NAS / Nextcloud (optionnel en plus du cloud)
-              </summary>
               <Field
-                label="URL base serveur privé"
+                label="URL base serveur privé (obligatoire pour l’archive auto)"
                 value={form.serveurPriveDocsUrl || ''}
-                onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
-                className="mt-3"
+                onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
               />
+              <p className="mt-1.5 text-xs text-muted">
+                Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — l’app crée
+                ClimaZEN/Documents/… toute seule. Le bureau n’a pas besoin d’y aller.
+              </p>
               <Field
-                label="Jeton serveur privé (optionnel)"
+                label="Jeton serveur privé (optionnel, gérant seulement)"
                 value={form.serveurPriveDocsToken || ''}
                 onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
                 className="mt-3"
               />
-            </details>
+              <details className="mt-3 rounded-xl border border-line bg-white p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">
+                  Dossier cloud en plus (personnel désigné — pas le bureau)
+                </summary>
+                <CloudLienActiver
+                  className="mt-3"
+                  label="Lien dossier cloud"
+                  value={form.lienCloudDocsRacine || ''}
+                  onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
+                  onActivate={() => void activerLienCloud('docs')}
+                  busy={cloudBusy === 'docs'}
+                  hint={
+                    cloudPasteHint(form.lienCloudDocsRacine) ||
+                    'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.'
+                  }
+                />
+                {cloudMsg ? (
+                  <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
+                ) : null}
+              </details>
+            </>
           )}
           {form.lienCloudDocsRacine?.trim() ? (
             <CloudWriteTest lienDossier={form.lienCloudDocsRacine} className="mt-3" />
