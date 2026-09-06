@@ -32,8 +32,8 @@ service role (API Vercel) peut les lire.
 
 Le scope `drive.file` est volontairement le plus étroit possible : ClimaZEN ne
 voit **que** les fichiers qu’il a créés ou que l’utilisateur lui a explicitement
-confiés. Pour écrire dans un dossier déjà existant qui n’a pas été créé par
-ClimaZEN, il faut passer par le **compte de service** (§4).
+confiés. Un dossier créé à la main dans Drive lui reste donc invisible : laissez
+ClimaZEN créer lui-même son arborescence.
 
 ## 3. Microsoft OneDrive / SharePoint
 
@@ -86,7 +86,7 @@ racine du Drive connecté, et laissez ClimaZEN créer lui-même son arborescence
 
 | Route | Méthode | Rôle |
 | --- | --- | --- |
-| `/api/cloud-oauth` | `GET` | état des connexions, e-mail du compte de service |
+| `/api/cloud-oauth` | `GET` | état des connexions et URI de redirection à déclarer |
 | `/api/cloud-oauth` | `POST { action: 'start' }` | crée l’état + PKCE, renvoie l’URL de consentement |
 | `/api/cloud-oauth` | `POST { action: 'disconnect' }` | oublie le jeton de la société |
 | `/api/cloud-oauth` | `POST { action: 'test-write' }` | crée puis supprime `test-climazen.txt` |
@@ -123,6 +123,26 @@ curl -si https://climazen.fr/api/auth/google/callback | grep -i location
 
 Connecté en gérant, la page **Mon entreprise** affiche directement
 « Identifiants OAuth absents sur le serveur » sous le service concerné.
+
+### `redirect_uri_mismatch` (Google) / `invalid_request … redirect_uri` (Microsoft)
+
+Le clic ouvre bien la page du fournisseur, mais celle-ci refuse avant même le
+consentement. L’URI envoyée par ClimaZEN n’est alors pas déclarée **au caractère
+près** côté console. Les valeurs attendues sont :
+
+```
+https://climazen.fr/api/auth/google/callback
+https://climazen.fr/api/auth/microsoft/callback
+```
+
+Pièges les plus fréquents : barre oblique finale, `www.`, `http` au lieu de
+`https`, l’URL `*.vercel.app` au lieu du domaine, ou — côté Entra — une URI
+enregistrée sous la plateforme *Single-page application* au lieu de *Web*.
+
+La page **Mon entreprise** affiche la valeur exacte, avec un bouton **Copier**,
+sous chaque service (« Connexion refusée ? Vérifiez l’URI de redirection ») :
+elle est calculée par le serveur, donc toujours celle réellement envoyée.
+Comptez quelques minutes de propagation après l’avoir ajoutée.
 
 ## 8. Vérifier après déploiement
 

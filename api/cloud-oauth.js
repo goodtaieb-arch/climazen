@@ -188,6 +188,12 @@ export default async function handler(req, res) {
           google: providerCredentials('google').ok,
           microsoft: providerCredentials('microsoft').ok,
         },
+        // Valeur exacte attendue par le fournisseur : à déclarer telle quelle,
+        // sinon Google répond redirect_uri_mismatch et Microsoft invalid_request.
+        redirectUris: {
+          google: redirectUriFor('google', req),
+          microsoft: redirectUriFor('microsoft', req),
+        },
       })
     }
 

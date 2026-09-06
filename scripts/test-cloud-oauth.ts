@@ -9,6 +9,8 @@ import {
   MICROSOFT_SCOPES,
   normalizeCloudProvider,
   providerCredentials,
+  publicBaseUrl,
+  redirectUriFor,
   safeRedirectPath,
   scopesFor,
   tokenEndpoint,
@@ -98,6 +100,36 @@ for (const provider of ['google', 'microsoft']) {
 const spaFallback = vercelConfig.rewrites.findIndex((r) => r.destination === '/index.html')
 const firstCallback = vercelConfig.rewrites.findIndex((r) => r.source.startsWith('/api/auth/'))
 assert.ok(firstCallback < spaFallback, 'les callbacks doivent précéder le fallback SPA')
+
+// --- redirect_uri : la valeur envoyée doit être déclarable telle quelle ------
+// Un écart d’un seul caractère et Google répond redirect_uri_mismatch.
+const baseAvant = process.env.CLOUD_OAUTH_REDIRECT_BASE
+process.env.CLOUD_OAUTH_REDIRECT_BASE = 'https://climazen.fr/'
+assert.equal(publicBaseUrl(undefined), 'https://climazen.fr')
+assert.equal(
+  redirectUriFor('google', undefined),
+  'https://climazen.fr/api/auth/google/callback',
+)
+assert.equal(
+  redirectUriFor('microsoft', undefined),
+  'https://climazen.fr/api/auth/microsoft/callback',
+)
+// À défaut de variable, la base suit l’hôte réellement appelé
+delete process.env.CLOUD_OAUTH_REDIRECT_BASE
+delete process.env.PUBLIC_BASE_URL
+assert.equal(
+  redirectUriFor('google', { headers: { host: 'climazen.fr' } }),
+  'https://climazen.fr/api/auth/google/callback',
+)
+// …et l’URI affichée au gérant est exactement celle documentée
+const docCloud = readFileSync(new URL('../docs/CLOUD-OAUTH.md', import.meta.url), 'utf8')
+for (const provider of ['google', 'microsoft'] as const) {
+  assert.ok(
+    docCloud.includes(redirectUriFor(provider, { headers: { host: 'climazen.fr' } })),
+    `URI de redirection ${provider} absente de docs/CLOUD-OAUTH.md`,
+  )
+}
+if (baseAvant) process.env.CLOUD_OAUTH_REDIRECT_BASE = baseAvant
 
 // --- Retour dans l’app : jamais vers un site externe -------------------------
 assert.equal(safeRedirectPath('/app/operateur'), '/app/operateur')

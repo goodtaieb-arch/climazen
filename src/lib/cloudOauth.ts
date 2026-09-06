@@ -25,6 +25,14 @@ export const MICROSOFT_SCOPES = ['Files.ReadWrite.All', 'offline_access'] as con
 /** Fichier créé (puis supprimé) par le test d’écriture. */
 export const CLOUD_TEST_FILE_NAME = 'test-climazen.txt'
 
+/** Où déclarer l’URI de redirection, côté console du fournisseur. */
+export const CLOUD_REDIRECT_CONSOLE_HINTS: Record<CloudProviderId, string> = {
+  google:
+    'Google Cloud Console → API et services → Identifiants → votre ID client OAuth → « URI de redirection autorisés ».',
+  microsoft:
+    'Microsoft Entra ID → Inscriptions d’applications → votre application → Authentification → plateforme « Web » → « URI de redirection ».',
+}
+
 export type CloudConnectionState = {
   connected: boolean
   needsReconnect: boolean
@@ -38,6 +46,8 @@ export type CloudConnectionsStatus = {
   canEdit: boolean
   connections: Record<CloudProviderId, CloudConnectionState>
   available: Record<CloudProviderId, boolean>
+  /** URI de redirection exacte à déclarer chez Google / Microsoft. */
+  redirectUris: Record<CloudProviderId, string>
   error?: string
   code?: string
 }
@@ -147,6 +157,7 @@ export async function fetchCloudConnections(): Promise<CloudConnectionsStatus | 
       canEdit: false,
       connections: { google: EMPTY_STATE, microsoft: EMPTY_STATE },
       available: { google: false, microsoft: false },
+      redirectUris: { google: '', microsoft: '' },
       error: data.error || `Erreur ${res.status}`,
       code: data.code,
     }
@@ -161,6 +172,10 @@ export async function fetchCloudConnections(): Promise<CloudConnectionsStatus | 
     available: {
       google: Boolean(data.available?.google),
       microsoft: Boolean(data.available?.microsoft),
+    },
+    redirectUris: {
+      google: String(data.redirectUris?.google || ''),
+      microsoft: String(data.redirectUris?.microsoft || ''),
     },
   }
 }
