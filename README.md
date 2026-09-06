@@ -37,6 +37,14 @@ VITE_SUPABASE_ANON_KEY=eyJ...
 
 Au premier login sur l’ordi, si d’anciennes données locales existent, un bandeau propose de les **importer vers le cloud**.
 
+## Connecter Google Drive / OneDrive (OAuth2)
+
+Dans **Mon entreprise**, les boutons « Connecter Google Drive » et « Connecter OneDrive »
+lancent un vrai consentement OAuth2 et enregistrent un `refresh_token` chiffré par société.
+
+Prérequis : exécuter [`supabase/cloud-oauth.sql`](supabase/cloud-oauth.sql) puis renseigner
+les identifiants OAuth sur Vercel — procédure complète dans [`docs/CLOUD-OAUTH.md`](docs/CLOUD-OAUTH.md).
+
 ## Démarrer
 
 ```bash
