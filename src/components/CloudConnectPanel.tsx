@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CheckCircle2, CloudOff, Loader2 } from 'lucide-react'
+import { CheckCircle2, CloudOff, Copy, Loader2 } from 'lucide-react'
 import {
   CLOUD_CONNECT_BUTTON_LABELS,
   CLOUD_PROVIDER_LABELS,
+  CLOUD_REDIRECT_CONSOLE_HINTS,
   CLOUD_TEST_FILE_NAME,
   cloudCallbackMessage,
   disconnectCloud,
@@ -11,7 +12,6 @@ import {
   fetchCloudConnections,
   GOOGLE_DRIVE_SCOPE,
   MICROSOFT_SCOPES,
-  partageServiceAccountInstruction,
   startCloudOauth,
   testCloudWrite,
   type CloudConnectionsStatus,
@@ -34,35 +34,22 @@ function providerFromManualLink(url: string): CloudProviderId | undefined {
 }
 
 /**
- * Option secours : le gérant a collé un lien de dossier au lieu de connecter
- * son cloud. Seul un vrai test d’écriture prouve le droit Éditeur.
+ * Un lien collé ne prouve rien : seul un vrai test d’écriture, avec le compte
+ * cloud connecté en OAuth, prouve que ClimaZEN peut déposer les documents.
  */
 export function CloudWriteTest({
   lienDossier,
-  serviceAccountEmail,
   disabled,
   className = '',
 }: {
   lienDossier?: string
-  serviceAccountEmail?: string
   disabled?: boolean
   className?: string
 }) {
-  const [email, setEmail] = useState(serviceAccountEmail || '')
   const [busy, setBusy] = useState(false)
   const [ok, setOk] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
   const [detail, setDetail] = useState('')
-
-  useEffect(() => {
-    if (serviceAccountEmail !== undefined) {
-      setEmail(serviceAccountEmail)
-      return
-    }
-    void fetchCloudConnections()
-      .then((res) => setEmail(res?.serviceAccountEmail || ''))
-      .catch(() => undefined)
-  }, [serviceAccountEmail])
 
   const provider = useMemo(() => providerFromManualLink(lienDossier || ''), [lienDossier])
 
@@ -87,19 +74,11 @@ export function CloudWriteTest({
 
   return (
     <div className={`rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-4 ${className}`}>
-      <p className="text-sm font-semibold text-amber-950">
-        {partageServiceAccountInstruction(email)}
-      </p>
-      {!email ? (
-        <p className="mt-1 text-xs text-amber-900/80">
-          Compte de service non configuré : ajoutez CLIMAZEN_SERVICE_ACCOUNT_EMAIL (et la clé du
-          compte de service Google) sur Vercel — voir docs/CLOUD-OAUTH.md.
-        </p>
-      ) : null}
-      <p className="mt-2 text-xs text-amber-900/80">
-        Le test crée réellement <span className="font-mono">{CLOUD_TEST_FILE_NAME}</span> dans le
-        dossier visé, puis le supprime. Un lien valide ne prouve rien : seul ce test prouve le droit
-        Éditeur.
+      <p className="text-sm font-semibold text-amber-950">Vérifier les droits d’écriture</p>
+      <p className="mt-1 text-xs text-amber-900/80">
+        Le test crée réellement <span className="font-mono">{CLOUD_TEST_FILE_NAME}</span> avec le
+        compte cloud connecté, puis le supprime. Un lien collé ne prouve rien : seul ce test prouve
+        que ClimaZEN peut déposer vos documents.
       </p>
       <button
         type="button"
@@ -117,6 +96,53 @@ export function CloudWriteTest({
       ) : null}
       {detail ? <p className="mt-1 text-xs text-muted">{detail}</p> : null}
     </div>
+  )
+}
+
+/**
+ * Le fournisseur refuse la connexion (redirect_uri_mismatch côté Google,
+ * invalid_request côté Microsoft) tant que cette URI n’est pas déclarée au
+ * caractère près. On l’affiche donc telle que le serveur l’envoie.
+ */
+function RedirectUriHint({ provider, uri }: { provider: CloudProviderId; uri: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    void navigator.clipboard
+      ?.writeText(uri)
+      .then(() => {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(() => setCopied(false))
+  }
+
+  return (
+    <details className="mt-3 rounded-lg border border-line bg-foam p-3 text-xs text-muted">
+      <summary className="cursor-pointer font-semibold text-ink">
+        Connexion refusée par {CLOUD_PROVIDER_LABELS[provider]} ? Vérifiez l’URI de redirection
+      </summary>
+      <p className="mt-2">
+        Déclarez exactement cette URI, sans espace ni barre oblique finale :
+      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <code className="break-all rounded bg-white px-2 py-1 font-mono text-[11px] text-ink">
+          {uri}
+        </code>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-line bg-white px-2 font-semibold text-ink"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {copied ? 'Copié' : 'Copier'}
+        </button>
+      </div>
+      <p className="mt-2">{CLOUD_REDIRECT_CONSOLE_HINTS[provider]}</p>
+      <p className="mt-1">
+        Après l’ajout, comptez quelques minutes de propagation côté fournisseur avant de réessayer.
+      </p>
+    </details>
   )
 }
 
@@ -223,6 +249,7 @@ export function CloudConnectPanel({
         const state = status?.connections?.[provider]
         const available = status?.available?.[provider] !== false
         const connected = Boolean(state?.connected)
+        const redirectUri = status?.redirectUris?.[provider] || ''
         return (
           <div key={provider} className="rounded-xl border border-line bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -270,15 +297,12 @@ export function CloudConnectPanel({
                 ) : null}
               </div>
             </div>
+            {redirectUri ? <RedirectUriHint provider={provider} uri={redirectUri} /> : null}
           </div>
         )
       })}
 
-      <CloudWriteTest
-        lienDossier={lienDossier}
-        serviceAccountEmail={status?.serviceAccountEmail || ''}
-        disabled={!canEdit}
-      />
+      <CloudWriteTest lienDossier={lienDossier} disabled={!canEdit} />
 
       {msg ? <p className="text-sm font-semibold text-teal-800">{msg}</p> : null}
       {err ? <p className="text-sm font-semibold text-rose-700">{err}</p> : null}

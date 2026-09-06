@@ -112,7 +112,7 @@ export async function runGoogleWriteTest(opts) {
       return {
         ok: false,
         message:
-          'Google Drive : dossier introuvable pour ClimaZEN. Partagez-le en mode Éditeur avec notre compte de service, ou reconnectez Google Drive et choisissez un dossier créé par ClimaZEN.',
+          'Google Drive : ce dossier est invisible pour ClimaZEN. L’autorisation demandée (drive.file) ne donne accès qu’aux fichiers créés par ClimaZEN : videz le champ pour tester à la racine du Drive connecté, puis laissez ClimaZEN créer lui-même ses dossiers.',
         detail,
       }
     }
@@ -120,7 +120,7 @@ export async function runGoogleWriteTest(opts) {
       return {
         ok: false,
         message:
-          'Google Drive : droit d’écriture refusé. Le dossier doit être partagé en mode Éditeur (pas Lecteur).',
+          'Google Drive : droit d’écriture refusé. Le compte connecté doit pouvoir écrire dans ce Drive.',
         detail,
       }
     }
@@ -190,14 +190,14 @@ export async function runMicrosoftWriteTest(opts) {
         return {
           ok: false,
           message:
-            'OneDrive / SharePoint : accès refusé sur ce lien. Le compte connecté doit être Éditeur du dossier.',
+            'OneDrive / SharePoint : accès refusé sur ce lien. Le compte connecté doit pouvoir écrire dans ce dossier.',
           detail: folder.detail,
         }
       }
       return {
         ok: false,
         message:
-          'OneDrive / SharePoint : dossier introuvable depuis ce lien. Vérifiez le lien et le partage en mode Éditeur.',
+          'OneDrive / SharePoint : dossier introuvable depuis ce lien. Vérifiez le lien, ou videz le champ pour tester à la racine du OneDrive connecté.',
         detail: folder.detail,
       }
     }
@@ -219,7 +219,7 @@ export async function runMicrosoftWriteTest(opts) {
       return {
         ok: false,
         message:
-          'OneDrive / SharePoint : droit d’écriture refusé. Le dossier doit être partagé en mode Éditeur (pas Lecture seule).',
+          'OneDrive / SharePoint : droit d’écriture refusé. Le compte connecté doit être Éditeur du dossier (pas Lecture seule).',
         detail,
       }
     }

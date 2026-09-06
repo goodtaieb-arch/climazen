@@ -9,6 +9,8 @@ import {
   MICROSOFT_SCOPES,
   normalizeCloudProvider,
   providerCredentials,
+  publicBaseUrl,
+  redirectUriFor,
   safeRedirectPath,
   scopesFor,
   tokenEndpoint,
@@ -24,8 +26,6 @@ import { decryptSecret, encryptSecret, tokenEncryptionAvailable } from '../serve
 import {
   cloudCallbackErrorText,
   cloudCallbackMessage,
-  partageServiceAccountInstruction,
-  SERVICE_ACCOUNT_EMAIL_PLACEHOLDER,
 } from '../src/lib/cloudOauth'
 
 // --- Fournisseurs -----------------------------------------------------------
@@ -101,6 +101,36 @@ const spaFallback = vercelConfig.rewrites.findIndex((r) => r.destination === '/i
 const firstCallback = vercelConfig.rewrites.findIndex((r) => r.source.startsWith('/api/auth/'))
 assert.ok(firstCallback < spaFallback, 'les callbacks doivent précéder le fallback SPA')
 
+// --- redirect_uri : la valeur envoyée doit être déclarable telle quelle ------
+// Un écart d’un seul caractère et Google répond redirect_uri_mismatch.
+const baseAvant = process.env.CLOUD_OAUTH_REDIRECT_BASE
+process.env.CLOUD_OAUTH_REDIRECT_BASE = 'https://climazen.fr/'
+assert.equal(publicBaseUrl(undefined), 'https://climazen.fr')
+assert.equal(
+  redirectUriFor('google', undefined),
+  'https://climazen.fr/api/auth/google/callback',
+)
+assert.equal(
+  redirectUriFor('microsoft', undefined),
+  'https://climazen.fr/api/auth/microsoft/callback',
+)
+// À défaut de variable, la base suit l’hôte réellement appelé
+delete process.env.CLOUD_OAUTH_REDIRECT_BASE
+delete process.env.PUBLIC_BASE_URL
+assert.equal(
+  redirectUriFor('google', { headers: { host: 'climazen.fr' } }),
+  'https://climazen.fr/api/auth/google/callback',
+)
+// …et l’URI affichée au gérant est exactement celle documentée
+const docCloud = readFileSync(new URL('../docs/CLOUD-OAUTH.md', import.meta.url), 'utf8')
+for (const provider of ['google', 'microsoft'] as const) {
+  assert.ok(
+    docCloud.includes(redirectUriFor(provider, { headers: { host: 'climazen.fr' } })),
+    `URI de redirection ${provider} absente de docs/CLOUD-OAUTH.md`,
+  )
+}
+if (baseAvant) process.env.CLOUD_OAUTH_REDIRECT_BASE = baseAvant
+
 // --- Retour dans l’app : jamais vers un site externe -------------------------
 assert.equal(safeRedirectPath('/app/operateur'), '/app/operateur')
 assert.equal(safeRedirectPath('/app/equipe?tab=cloud'), '/app/equipe?tab=cloud')
@@ -160,12 +190,6 @@ assert.match(callbackErrorMessage('supabase_missing'), /SUPABASE_SERVICE_ROLE_KE
 assert.match(callbackErrorMessage('provider_not_configured'), /Production/)
 assert.match(cloudCallbackErrorText('supabase_missing'), /SUPABASE_SERVICE_ROLE_KEY/)
 assert.match(cloudCallbackErrorText('provider_not_configured'), /Production/)
-
-assert.match(
-  partageServiceAccountInstruction('service@climazen.iam.gserviceaccount.com'),
-  /partager votre dossier en mode Éditeur avec notre compte de service service@climazen\.iam\.gserviceaccount\.com\.$/,
-)
-assert.ok(partageServiceAccountInstruction().includes(SERVICE_ACCOUNT_EMAIL_PLACEHOLDER))
 
 const okCallback = cloudCallbackMessage(
   new URLSearchParams('cloud=google&status=connected&compte=bureau@societe.fr'),

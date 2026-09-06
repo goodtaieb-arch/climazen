@@ -25,8 +25,13 @@ export const MICROSOFT_SCOPES = ['Files.ReadWrite.All', 'offline_access'] as con
 /** Fichier créé (puis supprimé) par le test d’écriture. */
 export const CLOUD_TEST_FILE_NAME = 'test-climazen.txt'
 
-/** E-mail affiché si le compte de service n’est pas encore configuré sur Vercel. */
-export const SERVICE_ACCOUNT_EMAIL_PLACEHOLDER = '[EMAIL_SERVICE_CLIMAZEN]'
+/** Où déclarer l’URI de redirection, côté console du fournisseur. */
+export const CLOUD_REDIRECT_CONSOLE_HINTS: Record<CloudProviderId, string> = {
+  google:
+    'Google Cloud Console → API et services → Identifiants → votre ID client OAuth → « URI de redirection autorisés ».',
+  microsoft:
+    'Microsoft Entra ID → Inscriptions d’applications → votre application → Authentification → plateforme « Web » → « URI de redirection ».',
+}
 
 export type CloudConnectionState = {
   connected: boolean
@@ -41,8 +46,8 @@ export type CloudConnectionsStatus = {
   canEdit: boolean
   connections: Record<CloudProviderId, CloudConnectionState>
   available: Record<CloudProviderId, boolean>
-  serviceAccountEmail: string
-  serviceAccountReady: boolean
+  /** URI de redirection exacte à déclarer chez Google / Microsoft. */
+  redirectUris: Record<CloudProviderId, string>
   error?: string
   code?: string
 }
@@ -75,12 +80,6 @@ async function authHeaders(): Promise<Record<string, string>> {
   } catch {
     return {}
   }
-}
-
-/** Consigne à afficher quand le gérant colle un lien de dossier à la main. */
-export function partageServiceAccountInstruction(email?: string): string {
-  const compte = (email || '').trim() || SERVICE_ACCOUNT_EMAIL_PLACEHOLDER
-  return `Si vous utilisez un lien direct, vous devez partager votre dossier en mode Éditeur avec notre compte de service ${compte}.`
 }
 
 /** Message affiché au retour du fournisseur (?cloud=…&status=…). */
@@ -158,8 +157,7 @@ export async function fetchCloudConnections(): Promise<CloudConnectionsStatus | 
       canEdit: false,
       connections: { google: EMPTY_STATE, microsoft: EMPTY_STATE },
       available: { google: false, microsoft: false },
-      serviceAccountEmail: '',
-      serviceAccountReady: false,
+      redirectUris: { google: '', microsoft: '' },
       error: data.error || `Erreur ${res.status}`,
       code: data.code,
     }
@@ -175,8 +173,10 @@ export async function fetchCloudConnections(): Promise<CloudConnectionsStatus | 
       google: Boolean(data.available?.google),
       microsoft: Boolean(data.available?.microsoft),
     },
-    serviceAccountEmail: data.serviceAccountEmail || '',
-    serviceAccountReady: Boolean(data.serviceAccountReady),
+    redirectUris: {
+      google: String(data.redirectUris?.google || ''),
+      microsoft: String(data.redirectUris?.microsoft || ''),
+    },
   }
 }
 
