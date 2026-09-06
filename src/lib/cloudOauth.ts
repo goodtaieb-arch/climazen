@@ -22,9 +22,6 @@ export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 /** Scopes Microsoft Graph demandés. */
 export const MICROSOFT_SCOPES = ['Files.ReadWrite.All', 'offline_access'] as const
 
-/** Fichier créé (puis supprimé) par le test d’écriture. */
-export const CLOUD_TEST_FILE_NAME = 'test-climazen.txt'
-
 /** Où déclarer l’URI de redirection, côté console du fournisseur. */
 export const CLOUD_REDIRECT_CONSOLE_HINTS: Record<CloudProviderId, string> = {
   google:
