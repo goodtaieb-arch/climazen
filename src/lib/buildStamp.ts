@@ -5,7 +5,7 @@
 export const APP_VERSION = 'v242'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-06-v242-cloud-access-denied'
+export const APP_BUILD = '2026-09-06-v242-cloud-test-ecriture'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

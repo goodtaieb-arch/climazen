@@ -71,6 +71,22 @@ Microsoft Entra ID n’a pas d’équivalent : aucune publication n’est requis
 `offline_access` est obligatoire : sans lui, Microsoft ne renvoie pas de
 `refresh_token` et la connexion serait perdue au bout d’une heure.
 
+### L’écran Microsoft annonce « un accès total à tous les fichiers »
+
+C’est le libellé imposé par Microsoft pour `Files.ReadWrite.All` en permission
+**déléguée**. « Total » ne veut pas dire « toute l’organisation » : l’application
+hérite uniquement des droits du compte qui autorise, et jamais plus. Ce scope
+est nécessaire pour écrire ailleurs que dans le OneDrive personnel du compte —
+bibliothèques SharePoint et dossiers partagés. `Files.ReadWrite`, plus étroit,
+suffirait pour le seul OneDrive personnel mais ferait échouer SharePoint.
+
+Deux mentions de cet écran se règlent dans Entra, sans toucher au code :
+
+| Mention | Réglage |
+| --- | --- |
+| « L’éditeur n’a pas fourni de liens vers ses conditions d’utilisation » | *Branding & properties* → *Terms of service URL* `https://climazen.fr/cgu` et *Privacy statement URL* `https://climazen.fr/confidentialite` |
+| « non vérifié » | *Publisher verification* — nécessite un compte Microsoft Partner Network |
+
 ## 4. Tester les droits d’écriture
 
 Le bouton **Tester la connexion et les droits** écrit un vrai fichier

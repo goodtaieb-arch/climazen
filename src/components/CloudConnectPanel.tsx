@@ -31,36 +31,71 @@ function providerFromManualLink(url: string): CloudProviderId | undefined {
  */
 export function CloudWriteTest({
   lienDossier,
+  providersConnectes,
   disabled,
   className = '',
 }: {
   lienDossier?: string
+  /** Services déjà connectés : testés quand aucun lien n’est saisi. */
+  providersConnectes?: CloudProviderId[]
   disabled?: boolean
   className?: string
 }) {
   const [busy, setBusy] = useState(false)
-  const [ok, setOk] = useState<boolean | null>(null)
-  const [message, setMessage] = useState('')
-  const [detail, setDetail] = useState('')
+  const [resultats, setResultats] = useState<
+    Array<{ cle: string; titre: string; ok: boolean; message: string; detail?: string }>
+  >([])
 
   const provider = useMemo(() => providerFromManualLink(lienDossier || ''), [lienDossier])
 
   const run = () => {
     setBusy(true)
-    setMessage('')
-    setDetail('')
-    setOk(null)
+    setResultats([])
     const url = (lienDossier || '').trim()
-    void testCloudWrite({ url: url || undefined, provider })
-      .then((res) => {
-        setOk(res.ok)
-        setMessage(res.message)
-        setDetail(res.detail || '')
-      })
-      .catch((e: unknown) => {
-        setOk(false)
-        setMessage(e instanceof Error ? e.message : 'Test impossible.')
-      })
+    // Un lien collé désigne le dossier à tester ; sinon on teste ce qui est
+    // connecté, sans quoi le serveur n’aurait aucun cloud à viser.
+    const cibles: Array<{ cle: string; titre: string; url?: string; provider?: CloudProviderId }> =
+      url
+        ? [{ cle: 'lien', titre: '', url, provider }]
+        : (providersConnectes || []).map((p) => ({
+            cle: p,
+            titre: CLOUD_PROVIDER_LABELS[p],
+            provider: p,
+          }))
+
+    if (!cibles.length) {
+      setBusy(false)
+      setResultats([
+        {
+          cle: 'aucun',
+          titre: '',
+          ok: false,
+          message: 'Connectez d’abord Google Drive ou OneDrive, ou collez un lien de dossier.',
+        },
+      ])
+      return
+    }
+
+    void Promise.all(
+      cibles.map((cible) =>
+        testCloudWrite({ url: cible.url, provider: cible.provider })
+          .then((res) => ({
+            cle: cible.cle,
+            titre: cible.titre,
+            ok: res.ok,
+            message: res.message,
+            detail: res.detail,
+          }))
+          .catch((e: unknown) => ({
+            cle: cible.cle,
+            titre: cible.titre,
+            ok: false,
+            message: e instanceof Error ? e.message : 'Test impossible.',
+            detail: undefined,
+          })),
+      ),
+    )
+      .then(setResultats)
       .finally(() => setBusy(false))
   }
 
@@ -78,12 +113,15 @@ export function CloudWriteTest({
       <p className="mt-1.5 text-xs text-muted">
         ClimaZEN dépose un fichier d’essai dans le dossier, puis le supprime.
       </p>
-      {message ? (
-        <p className={`mt-2 text-sm font-semibold ${ok ? 'text-teal-800' : 'text-rose-700'}`}>
-          {message}
-        </p>
-      ) : null}
-      {detail ? <p className="mt-1 text-xs text-muted">{detail}</p> : null}
+      {resultats.map((r) => (
+        <div key={r.cle} className="mt-2">
+          <p className={`text-sm font-semibold ${r.ok ? 'text-teal-800' : 'text-rose-700'}`}>
+            {r.titre ? `${r.titre} : ` : ''}
+            {r.message}
+          </p>
+          {r.detail ? <p className="mt-1 text-xs text-muted">{r.detail}</p> : null}
+        </div>
+      ))}
     </div>
   )
 }
@@ -241,7 +279,7 @@ export function CloudConnectPanel({
 
   const canEdit = status?.canEdit !== false
   const redirectUris = status?.redirectUris || { google: '', microsoft: '' }
-  const unConnecte = PROVIDERS.some((p) => status?.connections?.[p]?.connected)
+  const connectes = PROVIDERS.filter((p) => status?.connections?.[p]?.connected)
 
   return (
     <div className="space-y-3">
@@ -307,8 +345,12 @@ export function CloudConnectPanel({
       {err ? <p className="text-sm font-semibold text-rose-700">{err}</p> : null}
 
       {/* Rien à tester tant qu’aucun cloud n’est connecté ni aucun lien collé. */}
-      {unConnecte || lienDossier?.trim() ? (
-        <CloudWriteTest lienDossier={lienDossier} disabled={!canEdit} />
+      {connectes.length || lienDossier?.trim() ? (
+        <CloudWriteTest
+          lienDossier={lienDossier}
+          providersConnectes={connectes}
+          disabled={!canEdit}
+        />
       ) : null}
 
       <CloudDepannage redirectUris={redirectUris} />

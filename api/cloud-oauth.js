@@ -102,6 +102,13 @@ async function microsoftWriteTest(auth, folderUrl) {
   return runMicrosoftWriteTest({ accessToken: token, shareUrl: folderUrl })
 }
 
+/** Seul fournisseur connecté, s’il n’y en a qu’un — sinon rien à deviner. */
+async function seulCloudConnecte(orgId) {
+  const connections = await listCloudConnections(orgId)
+  const connectes = ['google', 'microsoft'].filter((p) => connections?.[p]?.connected)
+  return connectes.length === 1 ? connectes[0] : ''
+}
+
 async function handleTestWrite(res, auth, body) {
   const folderUrl = normalizeHttpsUrl(body.url)
   if (body.url && !folderUrl) {
@@ -112,12 +119,15 @@ async function handleTestWrite(res, auth, body) {
   }
 
   const detected = detectCloudProviderFromUrl(folderUrl)
-  const provider = normalizeCloudProvider(body.provider) || detected
+  // Sans lien ni fournisseur explicite, tester le cloud déjà connecté : le
+  // gérant qui vient de brancher OneDrive attend un test, pas une question.
+  const provider =
+    normalizeCloudProvider(body.provider) || detected || (await seulCloudConnecte(auth.orgId))
   if (!provider) {
     return res.status(200).json({
       ok: false,
       message:
-        'Cloud non reconnu. Collez un lien Google Drive, OneDrive ou SharePoint, ou choisissez un service à connecter.',
+        'Aucun cloud à tester : connectez Google Drive ou OneDrive, ou collez un lien de dossier.',
     })
   }
   if (folderUrl && detected && detected !== provider) {
