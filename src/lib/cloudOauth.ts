@@ -106,7 +106,7 @@ export function cloudCallbackMessage(params: URLSearchParams): {
 export function cloudCallbackErrorText(reason?: string | null): string {
   switch (String(reason || '')) {
     case 'access_denied':
-      return 'autorisation refusée sur la page du fournisseur. Rien n’a été enregistré.'
+      return 'accès refusé sur la page du fournisseur. Si Google affiche « accès bloqué », l’écran de consentement OAuth est encore en mode Test : publiez-le, ou ajoutez ce compte aux testeurs.'
     case 'state_invalid':
       return 'lien de connexion invalide ou déjà utilisé. Relancez « Connecter ».'
     case 'state_expired':
