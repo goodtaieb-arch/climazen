@@ -32,6 +32,7 @@ import { resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
 import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
+import { CloudConnectPanel, CloudWriteTest } from '../components/CloudConnectPanel'
 import { TelephonyLolaPanel } from '../components/TelephonyLolaPanel'
 import { OpenaiOrgKeyPanel } from '../components/OpenaiOrgKeyPanel'
 import { GmaoImportPanel } from '../components/GmaoImportPanel'
@@ -48,6 +49,7 @@ function CloudLienActiver({
   onActivate,
   busy,
   hint,
+  className = '',
 }: {
   label: string
   value: string
@@ -55,10 +57,11 @@ function CloudLienActiver({
   onActivate: () => void
   busy: boolean
   hint: string
+  className?: string
 }) {
   const has = Boolean(normalizeLienCloudRh(value))
   return (
-    <div>
+    <div className={className}>
       <Field label={label} value={value} onChange={onChange} />
       <p className="mt-1.5 text-xs text-muted">{hint}</p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
@@ -568,6 +571,9 @@ export function OperateurPage() {
             {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
           </h2>
           <p className="mb-3 text-sm text-muted">
+            Connectez votre cloud une fois : ClimaZEN passe par le compte Google ou Microsoft de la
+            société (aucun mot de passe n’est stocké, seulement une autorisation révocable à tout
+            moment).{' '}
             {appEdition === 'light' ? (
               <>
                 Classement Google Drive, OneDrive ou SharePoint pour vos pièces administratives
@@ -576,15 +582,16 @@ export function OperateurPage() {
               </>
             ) : (
               <>
-                Un classement (Google Drive, OneDrive ou SharePoint). Le bouton{' '}
-                <strong>Photos pièces</strong> n’ouvre que le lien{' '}
+                Le bouton <strong>Photos pièces</strong> n’ouvre que le lien{' '}
                 <strong>exact de chaque opérateur</strong> (collé dans Équipe), et seulement s’il n’est{' '}
                 <strong>pas public</strong>. L’alerte dépend du cloud collé.
               </>
             )}
           </p>
+          <CloudConnectPanel lienDossier={form.lienCloudRhRacine} />
           <CloudLienActiver
-            label="Lien du dossier général"
+            className="mt-4"
+            label="Lien du dossier général (option secours)"
             value={form.lienCloudRhRacine || ''}
             onChange={(v) => patchForm({ lienCloudRhRacine: v })}
             onActivate={() => void activerLienCloud('rh')}
@@ -700,6 +707,9 @@ export function OperateurPage() {
               />
             </details>
           )}
+          {form.lienCloudDocsRacine?.trim() ? (
+            <CloudWriteTest lienDossier={form.lienCloudDocsRacine} className="mt-3" />
+          ) : null}
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
             <p className="text-xs font-bold uppercase text-muted">
               Arborescence créée sur le coffre

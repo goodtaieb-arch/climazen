@@ -1,0 +1,247 @@
+/**
+ * Connexions cloud société — Google Drive (OAuth2) et Microsoft OneDrive /
+ * SharePoint (Entra ID). Le navigateur ne voit jamais de refresh_token :
+ * il demande une URL d’autorisation au serveur, puis suit la redirection.
+ */
+
+export type CloudProviderId = 'google' | 'microsoft'
+
+export const CLOUD_PROVIDER_LABELS: Record<CloudProviderId, string> = {
+  google: 'Google Drive',
+  microsoft: 'OneDrive / SharePoint',
+}
+
+export const CLOUD_CONNECT_BUTTON_LABELS: Record<CloudProviderId, string> = {
+  google: 'Connecter Google Drive',
+  microsoft: 'Connecter OneDrive',
+}
+
+/** Scope Google demandé — fichiers créés / ouverts par ClimaZEN uniquement. */
+export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+
+/** Scopes Microsoft Graph demandés. */
+export const MICROSOFT_SCOPES = ['Files.ReadWrite.All', 'offline_access'] as const
+
+/** Fichier créé (puis supprimé) par le test d’écriture. */
+export const CLOUD_TEST_FILE_NAME = 'test-climazen.txt'
+
+/** E-mail affiché si le compte de service n’est pas encore configuré sur Vercel. */
+export const SERVICE_ACCOUNT_EMAIL_PLACEHOLDER = '[EMAIL_SERVICE_CLIMAZEN]'
+
+export type CloudConnectionState = {
+  connected: boolean
+  needsReconnect: boolean
+  accountLabel: string
+  scope: string
+  connectedAt: string
+}
+
+export type CloudConnectionsStatus = {
+  ok: boolean
+  canEdit: boolean
+  connections: Record<CloudProviderId, CloudConnectionState>
+  available: Record<CloudProviderId, boolean>
+  serviceAccountEmail: string
+  serviceAccountReady: boolean
+  error?: string
+  code?: string
+}
+
+export type CloudWriteTestResult = {
+  ok: boolean
+  message: string
+  detail?: string
+  cleaned?: boolean
+  provider?: CloudProviderId
+}
+
+const EMPTY_STATE: CloudConnectionState = {
+  connected: false,
+  needsReconnect: false,
+  accountLabel: '',
+  scope: '',
+  connectedAt: '',
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { getSupabase, isSupabaseConfigured } = await import('./supabase')
+  if (!isSupabaseConfigured()) return {}
+  try {
+    const sb = getSupabase()
+    const { data } = await sb.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) return {}
+    return { Authorization: `Bearer ${token}` }
+  } catch {
+    return {}
+  }
+}
+
+/** Consigne à afficher quand le gérant colle un lien de dossier à la main. */
+export function partageServiceAccountInstruction(email?: string): string {
+  const compte = (email || '').trim() || SERVICE_ACCOUNT_EMAIL_PLACEHOLDER
+  return `Si vous utilisez un lien direct, vous devez partager votre dossier en mode Éditeur avec notre compte de service ${compte}.`
+}
+
+/** Message affiché au retour du fournisseur (?cloud=…&status=…). */
+export function cloudCallbackMessage(params: URLSearchParams): {
+  provider: CloudProviderId
+  ok: boolean
+  message: string
+} | null {
+  const raw = params.get('cloud')
+  if (raw !== 'google' && raw !== 'microsoft') return null
+  const provider: CloudProviderId = raw
+  const label = CLOUD_PROVIDER_LABELS[provider]
+  if (params.get('status') === 'connected') {
+    const compte = (params.get('compte') || '').trim()
+    return {
+      provider,
+      ok: true,
+      message: compte
+        ? `${label} connecté — compte ${compte}. ClimaZEN peut y déposer vos documents.`
+        : `${label} connecté. ClimaZEN peut y déposer vos documents.`,
+    }
+  }
+  if (params.get('status') !== 'error') return null
+  return { provider, ok: false, message: `${label} : ${cloudCallbackErrorText(params.get('reason'))}` }
+}
+
+export function cloudCallbackErrorText(reason?: string | null): string {
+  switch (String(reason || '')) {
+    case 'access_denied':
+      return 'autorisation refusée sur la page du fournisseur. Rien n’a été enregistré.'
+    case 'state_invalid':
+      return 'lien de connexion invalide ou déjà utilisé. Relancez « Connecter ».'
+    case 'state_expired':
+      return 'lien de connexion expiré (10 minutes). Relancez « Connecter ».'
+    case 'no_code':
+      return 'aucun code d’autorisation renvoyé. Relancez « Connecter ».'
+    case 'no_refresh_token':
+      return 'aucun refresh_token renvoyé. Révoquez l’accès ClimaZEN dans votre compte cloud, puis reconnectez-vous.'
+    case 'not_configured':
+      return 'connexion non configurée côté serveur (identifiants OAuth manquants sur Vercel).'
+    case 'sql_missing':
+      return 'tables absentes : exécutez supabase/cloud-oauth.sql dans Supabase.'
+    default:
+      return 'connexion impossible. Réessayez.'
+  }
+}
+
+export function explainCloudApiError(raw?: string): string {
+  const e = String(raw || '').trim()
+  if (!e) return ''
+  if (/service role non configur/i.test(e)) {
+    return 'Ajoutez SUPABASE_SERVICE_ROLE_KEY sur Vercel (Supabase → Settings → API → service_role), puis Redeploy.'
+  }
+  if (/cloud_oauth_states|organization_cloud_connections|sql_missing|Tables cloud absentes/i.test(e)) {
+    return 'Exécutez supabase/cloud-oauth.sql dans Supabase SQL Editor, puis réessayez.'
+  }
+  return e
+}
+
+export async function fetchCloudConnections(): Promise<CloudConnectionsStatus | null> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return null
+  const res = await fetch('/api/cloud-oauth', { headers })
+  const data = (await res.json().catch(() => ({}))) as Partial<CloudConnectionsStatus> & {
+    error?: string
+    code?: string
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      canEdit: false,
+      connections: { google: EMPTY_STATE, microsoft: EMPTY_STATE },
+      available: { google: false, microsoft: false },
+      serviceAccountEmail: '',
+      serviceAccountReady: false,
+      error: data.error || `Erreur ${res.status}`,
+      code: data.code,
+    }
+  }
+  return {
+    ok: true,
+    canEdit: Boolean(data.canEdit),
+    connections: {
+      google: { ...EMPTY_STATE, ...(data.connections?.google || {}) },
+      microsoft: { ...EMPTY_STATE, ...(data.connections?.microsoft || {}) },
+    },
+    available: {
+      google: Boolean(data.available?.google),
+      microsoft: Boolean(data.available?.microsoft),
+    },
+    serviceAccountEmail: data.serviceAccountEmail || '',
+    serviceAccountReady: Boolean(data.serviceAccountReady),
+  }
+}
+
+/**
+ * Clic sur « Connecter … » : le serveur crée l’état anti-CSRF + PKCE et renvoie
+ * l’URL d’autorisation. Le navigateur y est ensuite redirigé.
+ */
+export async function startCloudOauth(
+  provider: CloudProviderId,
+  redirectPath = '/app/operateur',
+): Promise<{ ok: boolean; authorizeUrl?: string; error?: string }> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return { ok: false, error: 'Session requise — reconnectez-vous.' }
+  const res = await fetch('/api/cloud-oauth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ action: 'start', provider, redirectPath }),
+  })
+  const data = (await res.json().catch(() => ({}))) as {
+    authorizeUrl?: string
+    error?: string
+  }
+  if (!res.ok || !data.authorizeUrl) {
+    return { ok: false, error: explainCloudApiError(data.error) || `Erreur ${res.status}` }
+  }
+  return { ok: true, authorizeUrl: data.authorizeUrl }
+}
+
+export async function disconnectCloud(
+  provider: CloudProviderId,
+): Promise<{ ok: boolean; error?: string }> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return { ok: false, error: 'Session requise — reconnectez-vous.' }
+  const res = await fetch('/api/cloud-oauth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ action: 'disconnect', provider }),
+  })
+  const data = (await res.json().catch(() => ({}))) as { error?: string }
+  if (!res.ok) return { ok: false, error: explainCloudApiError(data.error) || `Erreur ${res.status}` }
+  return { ok: true }
+}
+
+/** Test d’écriture réel : crée test-climazen.txt sur le dossier visé, puis le supprime. */
+export async function testCloudWrite(opts: {
+  provider?: CloudProviderId
+  url?: string
+}): Promise<CloudWriteTestResult> {
+  const headers = await authHeaders()
+  if (!headers.Authorization) return { ok: false, message: 'Session requise — reconnectez-vous.' }
+  const res = await fetch('/api/cloud-oauth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ action: 'test-write', provider: opts.provider, url: opts.url }),
+  })
+  const data = (await res.json().catch(() => ({}))) as Partial<CloudWriteTestResult> & {
+    error?: string
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      message: explainCloudApiError(data.error || data.message) || `Erreur ${res.status}`,
+    }
+  }
+  return {
+    ok: Boolean(data.ok),
+    message: data.message || (data.ok ? 'Test réussi.' : 'Test échoué.'),
+    detail: data.detail,
+    cleaned: data.cleaned,
+    provider: data.provider,
+  }
+}

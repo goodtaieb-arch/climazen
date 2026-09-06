@@ -1,0 +1,287 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { CheckCircle2, CloudOff, Loader2 } from 'lucide-react'
+import {
+  CLOUD_CONNECT_BUTTON_LABELS,
+  CLOUD_PROVIDER_LABELS,
+  CLOUD_TEST_FILE_NAME,
+  cloudCallbackMessage,
+  disconnectCloud,
+  explainCloudApiError,
+  fetchCloudConnections,
+  GOOGLE_DRIVE_SCOPE,
+  MICROSOFT_SCOPES,
+  partageServiceAccountInstruction,
+  startCloudOauth,
+  testCloudWrite,
+  type CloudConnectionsStatus,
+  type CloudProviderId,
+} from '../lib/cloudOauth'
+import { cloudKindFromUrl } from '../lib/cloudLinkGuard'
+
+const PROVIDER_HINTS: Record<CloudProviderId, string> = {
+  google: `Autorisation Google demandée : ${GOOGLE_DRIVE_SCOPE} — ClimaZEN ne voit que les fichiers qu’il dépose.`,
+  microsoft: `Autorisation Microsoft Entra ID demandée : ${MICROSOFT_SCOPES.join(' + ')}.`,
+}
+
+const PROVIDERS: CloudProviderId[] = ['google', 'microsoft']
+
+function providerFromManualLink(url: string): CloudProviderId | undefined {
+  const kind = cloudKindFromUrl(url)
+  if (kind === 'drive') return 'google'
+  if (kind === 'onedrive' || kind === 'sharepoint') return 'microsoft'
+  return undefined
+}
+
+/**
+ * Option secours : le gérant a collé un lien de dossier au lieu de connecter
+ * son cloud. Seul un vrai test d’écriture prouve le droit Éditeur.
+ */
+export function CloudWriteTest({
+  lienDossier,
+  serviceAccountEmail,
+  disabled,
+  className = '',
+}: {
+  lienDossier?: string
+  serviceAccountEmail?: string
+  disabled?: boolean
+  className?: string
+}) {
+  const [email, setEmail] = useState(serviceAccountEmail || '')
+  const [busy, setBusy] = useState(false)
+  const [ok, setOk] = useState<boolean | null>(null)
+  const [message, setMessage] = useState('')
+  const [detail, setDetail] = useState('')
+
+  useEffect(() => {
+    if (serviceAccountEmail !== undefined) {
+      setEmail(serviceAccountEmail)
+      return
+    }
+    void fetchCloudConnections()
+      .then((res) => setEmail(res?.serviceAccountEmail || ''))
+      .catch(() => undefined)
+  }, [serviceAccountEmail])
+
+  const provider = useMemo(() => providerFromManualLink(lienDossier || ''), [lienDossier])
+
+  const run = () => {
+    setBusy(true)
+    setMessage('')
+    setDetail('')
+    setOk(null)
+    const url = (lienDossier || '').trim()
+    void testCloudWrite({ url: url || undefined, provider })
+      .then((res) => {
+        setOk(res.ok)
+        setMessage(res.message)
+        setDetail(res.detail || '')
+      })
+      .catch((e: unknown) => {
+        setOk(false)
+        setMessage(e instanceof Error ? e.message : 'Test impossible.')
+      })
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div className={`rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-4 ${className}`}>
+      <p className="text-sm font-semibold text-amber-950">
+        {partageServiceAccountInstruction(email)}
+      </p>
+      {!email ? (
+        <p className="mt-1 text-xs text-amber-900/80">
+          Compte de service non configuré : ajoutez CLIMAZEN_SERVICE_ACCOUNT_EMAIL (et la clé du
+          compte de service Google) sur Vercel — voir docs/CLOUD-OAUTH.md.
+        </p>
+      ) : null}
+      <p className="mt-2 text-xs text-amber-900/80">
+        Le test crée réellement <span className="font-mono">{CLOUD_TEST_FILE_NAME}</span> dans le
+        dossier visé, puis le supprime. Un lien valide ne prouve rien : seul ce test prouve le droit
+        Éditeur.
+      </p>
+      <button
+        type="button"
+        disabled={Boolean(disabled) || busy}
+        onClick={run}
+        className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-bold text-white disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        Tester la connexion et les droits
+      </button>
+      {message ? (
+        <p className={`mt-2 text-sm font-semibold ${ok ? 'text-teal-800' : 'text-rose-700'}`}>
+          {message}
+        </p>
+      ) : null}
+      {detail ? <p className="mt-1 text-xs text-muted">{detail}</p> : null}
+    </div>
+  )
+}
+
+/**
+ * Mon entreprise — vraie connexion OAuth2 aux clouds société.
+ * Le bouton ne renvoie plus vers une page externe : il lance le consentement du
+ * fournisseur, puis ClimaZEN garde un refresh_token chiffré côté serveur.
+ */
+export function CloudConnectPanel({
+  lienDossier,
+  redirectPath = '/app/operateur',
+}: {
+  /** Lien de dossier saisi à la main dans le formulaire (option secours). */
+  lienDossier?: string
+  redirectPath?: string
+}) {
+  const [params, setParams] = useSearchParams()
+  const [status, setStatus] = useState<CloudConnectionsStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<'' | CloudProviderId>('')
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  const reload = useCallback(async () => {
+    const res = await fetchCloudConnections()
+    setLoading(false)
+    if (!res) {
+      setErr('Session requise — reconnectez-vous.')
+      return
+    }
+    setStatus(res)
+    if (res.error) setErr(explainCloudApiError(res.error))
+  }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  // Retour du fournisseur : /app/operateur?cloud=google&status=connected
+  useEffect(() => {
+    const callback = cloudCallbackMessage(params)
+    if (!callback) return
+    if (callback.ok) {
+      setMsg(callback.message)
+      setErr('')
+      void reload()
+    } else {
+      setErr(callback.message)
+      setMsg('')
+    }
+    const next = new URLSearchParams(params)
+    for (const key of ['cloud', 'status', 'reason', 'compte']) next.delete(key)
+    setParams(next, { replace: true })
+  }, [params, setParams, reload])
+
+  const connect = (provider: CloudProviderId) => {
+    setBusy(provider)
+    setErr('')
+    setMsg('')
+    void startCloudOauth(provider, redirectPath)
+      .then((res) => {
+        if (!res.ok || !res.authorizeUrl) {
+          setBusy('')
+          setErr(res.error || 'Connexion impossible.')
+          return
+        }
+        window.location.assign(res.authorizeUrl)
+      })
+      .catch((e: unknown) => {
+        setBusy('')
+        setErr(e instanceof Error ? e.message : 'Connexion impossible.')
+      })
+  }
+
+  const disconnect = (provider: CloudProviderId) => {
+    if (!confirm(`Déconnecter ${CLOUD_PROVIDER_LABELS[provider]} ? ClimaZEN oubliera le jeton.`)) {
+      return
+    }
+    setBusy(provider)
+    setErr('')
+    setMsg('')
+    void disconnectCloud(provider)
+      .then(async (res) => {
+        if (!res.ok) setErr(res.error || 'Déconnexion impossible.')
+        else setMsg(`${CLOUD_PROVIDER_LABELS[provider]} déconnecté.`)
+        await reload()
+      })
+      .finally(() => setBusy(''))
+  }
+
+  if (loading) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted">
+        <Loader2 className="h-4 w-4 animate-spin" /> Chargement des connexions cloud…
+      </p>
+    )
+  }
+
+  const canEdit = status?.canEdit !== false
+
+  return (
+    <div className="space-y-3">
+      {PROVIDERS.map((provider) => {
+        const state = status?.connections?.[provider]
+        const available = status?.available?.[provider] !== false
+        const connected = Boolean(state?.connected)
+        return (
+          <div key={provider} className="rounded-xl border border-line bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-ink">{CLOUD_PROVIDER_LABELS[provider]}</h3>
+                <p className="mt-1 text-xs text-muted">{PROVIDER_HINTS[provider]}</p>
+                {connected ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-teal-800">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Connecté{state?.accountLabel ? ` · ${state.accountLabel}` : ''}
+                  </p>
+                ) : state?.needsReconnect ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+                    <CloudOff className="h-4 w-4" />
+                    Jeton illisible — recliquez sur « Connecter ».
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-muted">Pas encore connecté.</p>
+                )}
+                {!available ? (
+                  <p className="mt-1 text-xs font-semibold text-amber-700">
+                    Identifiants OAuth absents sur le serveur — voir docs/CLOUD-OAUTH.md.
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!canEdit || !available || busy === provider}
+                  onClick={() => connect(provider)}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate px-4 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {busy === provider ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {connected ? 'Reconnecter' : CLOUD_CONNECT_BUTTON_LABELS[provider]}
+                </button>
+                {connected || state?.needsReconnect ? (
+                  <button
+                    type="button"
+                    disabled={!canEdit || busy === provider}
+                    onClick={() => disconnect(provider)}
+                    className="inline-flex min-h-10 items-center rounded-xl border border-line bg-white px-3 text-sm font-semibold text-danger disabled:opacity-50"
+                  >
+                    Déconnecter
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      <CloudWriteTest
+        lienDossier={lienDossier}
+        serviceAccountEmail={status?.serviceAccountEmail || ''}
+        disabled={!canEdit}
+      />
+
+      {msg ? <p className="text-sm font-semibold text-teal-800">{msg}</p> : null}
+      {err ? <p className="text-sm font-semibold text-rose-700">{err}</p> : null}
+    </div>
+  )
+}
