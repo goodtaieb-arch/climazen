@@ -121,6 +121,10 @@ export function cloudCallbackErrorText(reason?: string | null): string {
       return 'aucun refresh_token renvoyé. Révoquez l’accès ClimaZEN dans votre compte cloud, puis reconnectez-vous.'
     case 'not_configured':
       return 'connexion non configurée côté serveur (identifiants OAuth manquants sur Vercel).'
+    case 'provider_not_configured':
+      return 'identifiants OAuth absents sur Vercel. Vérifiez que les variables sont cochées pour l’environnement Production, puis relancez un déploiement.'
+    case 'supabase_missing':
+      return 'SUPABASE_SERVICE_ROLE_KEY absent sur Vercel : le serveur ne peut pas enregistrer le jeton.'
     case 'sql_missing':
       return 'tables absentes : exécutez supabase/cloud-oauth.sql dans Supabase.'
     default:

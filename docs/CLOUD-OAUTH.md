@@ -68,9 +68,9 @@ SharePoint, le test exige la connexion OAuth (le message le dit clairement).
 
 | Variable | Obligatoire | Rôle |
 | --- | --- | --- |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Drive | client OAuth Google |
-| `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` | OneDrive | application Entra ID |
-| `MICROSOFT_TENANT_ID` | non | `common` par défaut ; l’ID du tenant pour un mono-locataire |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Drive | client OAuth Google (alias acceptés : `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`) |
+| `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` | OneDrive | application Entra ID (alias : `MICROSOFT_CLIENT_*`, `AZURE_CLIENT_*`) |
+| `MICROSOFT_TENANT_ID` | non | `common` par défaut ; l’ID du tenant pour un mono-locataire (alias `AZURE_TENANT_ID`) |
 | `CLOUD_OAUTH_REDIRECT_BASE` | recommandé | ex. `https://climazen.fr` — doit correspondre à l’URI déclarée |
 | `CLOUD_TOKEN_SECRET` | recommandé | clé de chiffrement des jetons (à défaut : dérivée du service role) |
 | `CLIMAZEN_SERVICE_ACCOUNT_EMAIL` | secours | e-mail affiché au client pour le partage Éditeur |
@@ -103,7 +103,30 @@ avec `?callback=google|microsoft` : le plan Vercel plafonne un déploiement à 1
 fonctions serverless, donc une seule fonction porte tout le flux cloud. Les URLs
 publiques — celles déclarées chez Google et Microsoft — ne changent pas.
 
-## 7. Vérifier après déploiement
+> **Une variable ajoutée ne s’applique pas aux déploiements déjà en ligne.**
+> Sur Vercel, les variables sont attachées au déploiement : après un ajout ou
+> une modification, il faut cocher l’environnement **Production** puis relancer
+> un déploiement (Deployments → … → Redeploy).
+
+## 7. Diagnostic rapide
+
+Sans être connecté, deux appels suffisent à situer un problème :
+
+```bash
+curl -s https://climazen.fr/api/cloud-oauth
+# 401 "Session requise."            → SUPABASE_SERVICE_ROLE_KEY est bien lu
+# 503 "service role non configuré"  → SUPABASE_SERVICE_ROLE_KEY manque
+
+curl -si https://climazen.fr/api/auth/google/callback | grep -i location
+# …reason=no_code                 → tout est configuré (il manquait juste le code)
+# …reason=provider_not_configured → identifiants OAuth absents en Production
+# …reason=supabase_missing        → SUPABASE_SERVICE_ROLE_KEY absent
+```
+
+Connecté en gérant, la page **Mon entreprise** affiche directement
+« Identifiants OAuth absents sur le serveur » sous le service concerné.
+
+## 8. Vérifier après déploiement
 
 1. Mon entreprise → **Connecter Google Drive** → écran de consentement Google →
    retour sur `/app/operateur` avec « Google Drive connecté ».
