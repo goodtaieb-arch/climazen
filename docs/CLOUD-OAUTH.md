@@ -29,11 +29,33 @@ service role (API Vercel) peut les lire.
    - `https://climazen.fr/api/auth/google/callback`
    - `http://localhost:5173/api/auth/google/callback` (dev, optionnel)
 6. Copier le *Client ID* et le *Client secret* dans Vercel.
+7. **OAuth consent screen → Publish app** : indispensable, voir ci-dessous.
 
 Le scope `drive.file` est volontairement le plus étroit possible : ClimaZEN ne
 voit **que** les fichiers qu’il a créés ou que l’utilisateur lui a explicitement
 confiés. Un dossier créé à la main dans Drive lui reste donc invisible : laissez
 ClimaZEN créer lui-même son arborescence.
+
+### Publier l’écran de consentement (sinon « Accès bloqué »)
+
+Un projet Google neuf reste en statut **Testing**. Dans cet état, seuls les
+comptes inscrits dans *Test users* peuvent autoriser l’application : tous les
+autres reçoivent `Erreur 403 : access_denied` avec le message « n’a pas terminé
+la procédure de validation de Google ».
+
+Ajouter des testeurs dépanne, mais ne suffit pas : en mode Testing, Google
+**expire les autorisations au bout de 7 jours**, refresh_token compris. La
+connexion d’un gérant se casserait donc toutes les semaines.
+
+La bonne configuration est donc **OAuth consent screen → Publish app**
+(statut *In production*). Comme `drive.file` est un scope *non sensible*, cette
+publication ne déclenche ni évaluation de sécurité ni vérification des scopes.
+Tant que la marque (nom + logo) n’est pas vérifiée, Google peut afficher un
+écran d’avertissement contournable via *Paramètres avancés → Continuer* ; la
+*brand verification* le supprime, mais elle n’est pas nécessaire au
+fonctionnement.
+
+Microsoft Entra ID n’a pas d’équivalent : aucune publication n’est requise.
 
 ## 3. Microsoft OneDrive / SharePoint
 
@@ -48,6 +70,22 @@ ClimaZEN créer lui-même son arborescence.
 
 `offline_access` est obligatoire : sans lui, Microsoft ne renvoie pas de
 `refresh_token` et la connexion serait perdue au bout d’une heure.
+
+### L’écran Microsoft annonce « un accès total à tous les fichiers »
+
+C’est le libellé imposé par Microsoft pour `Files.ReadWrite.All` en permission
+**déléguée**. « Total » ne veut pas dire « toute l’organisation » : l’application
+hérite uniquement des droits du compte qui autorise, et jamais plus. Ce scope
+est nécessaire pour écrire ailleurs que dans le OneDrive personnel du compte —
+bibliothèques SharePoint et dossiers partagés. `Files.ReadWrite`, plus étroit,
+suffirait pour le seul OneDrive personnel mais ferait échouer SharePoint.
+
+Deux mentions de cet écran se règlent dans Entra, sans toucher au code :
+
+| Mention | Réglage |
+| --- | --- |
+| « L’éditeur n’a pas fourni de liens vers ses conditions d’utilisation » | *Branding & properties* → *Terms of service URL* `https://climazen.fr/cgu` et *Privacy statement URL* `https://climazen.fr/confidentialite` |
+| « non vérifié » | *Publisher verification* — nécessite un compte Microsoft Partner Network |
 
 ## 4. Tester les droits d’écriture
 
@@ -140,9 +178,15 @@ Pièges les plus fréquents : barre oblique finale, `www.`, `http` au lieu de
 enregistrée sous la plateforme *Single-page application* au lieu de *Web*.
 
 La page **Mon entreprise** affiche la valeur exacte, avec un bouton **Copier**,
-sous chaque service (« Connexion refusée ? Vérifiez l’URI de redirection ») :
-elle est calculée par le serveur, donc toujours celle réellement envoyée.
-Comptez quelques minutes de propagation après l’avoir ajoutée.
+sous « Google ou Microsoft refuse la connexion ? » : elle est calculée par le
+serveur, donc toujours celle réellement envoyée. Comptez quelques minutes de
+propagation après l’avoir ajoutée.
+
+### `Erreur 403 : access_denied` (Google)
+
+L’URI de redirection est bonne — Google l’affiche d’ailleurs dans les détails de
+la requête — mais l’écran de consentement est resté en mode **Testing**. Publiez
+l’application (§2) ; ajouter le compte aux *Test users* ne tient que 7 jours.
 
 ## 8. Vérifier après déploiement
 

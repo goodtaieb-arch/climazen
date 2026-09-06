@@ -413,7 +413,8 @@ export async function fetchAccountLabel(provider, accessToken) {
 /** Message d’erreur du callback → texte lisible par le gérant. */
 export function callbackErrorMessage(reason) {
   const map = {
-    access_denied: 'Autorisation refusée sur la page du fournisseur. Rien n’a été enregistré.',
+    access_denied:
+      'Accès refusé sur la page du fournisseur. Côté Google, un « accès bloqué » signifie que l’écran de consentement OAuth est encore en mode Test.',
     state_invalid: 'Lien de connexion invalide ou déjà utilisé. Relancez « Connecter ».',
     state_expired: 'Lien de connexion expiré (10 minutes). Relancez « Connecter ».',
     no_code: 'Le fournisseur n’a pas renvoyé de code d’autorisation. Relancez « Connecter ».',

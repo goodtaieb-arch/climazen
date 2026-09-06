@@ -181,6 +181,9 @@ assert.match(testFileContent(new Date('2026-01-02T03:04:05.000Z')), /2026-01-02T
 
 // --- Messages ---------------------------------------------------------------
 assert.match(callbackErrorMessage('access_denied'), /refus/i)
+// Cause n°1 côté Google : écran de consentement laissé en mode Test
+assert.match(callbackErrorMessage('access_denied'), /mode Test/i)
+assert.match(cloudCallbackErrorText('access_denied'), /mode Test/i)
 assert.match(callbackErrorMessage('state_expired'), /expir/i)
 assert.match(callbackErrorMessage('no_refresh_token'), /refresh_token/)
 assert.match(callbackErrorMessage('inconnu'), /impossible/i)
