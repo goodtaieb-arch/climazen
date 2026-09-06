@@ -5,7 +5,7 @@
  * - Bureau qui prépare pour un autre tech :
  *   - dépannage → pas l’étape 5 (le tech l’ouvre sur place)
  *   - maintenance → étape 5 pour cocher les fiches que le tech doit remplir
- * - CERFA toujours accessible ; obligatoire si le tech touche au gaz / fluide.
+ * - CERFA : pas dans le menu tech. S’ouvre seulement s’il coche « j’ai touché au gaz ».
  */
 
 import {
@@ -95,22 +95,25 @@ export function peutAccederEtapeIntervention(
   return roleParcoursOt(access, ot, userId) !== 'bureau_depanage'
 }
 
-/** CERFA obligatoire : le tech a touché au gaz, ou équipement fluide (sauf s’il dit non). */
+/** CERFA obligatoire seulement si le tech a coché « j’ai touché au gaz ». */
 export function techDoitRemplirCerfa(opts: {
-  hasFluide: boolean
+  hasFluide?: boolean
   toucheGaz?: boolean
 }): boolean {
-  if (opts.toucheGaz === false) return false
-  if (opts.toucheGaz === true) return true
-  return Boolean(opts.hasFluide)
+  return opts.toucheGaz === true
 }
 
 export function docsEffectifsRequis(opts: {
   docsRequis?: unknown
-  hasFluide: boolean
+  hasFluide?: boolean
   toucheGaz?: boolean
+  /** Si le bureau n’a rien coché : fiches déduites de l’équipement (chaudière → chaufferie, etc.). */
+  docsAuto?: unknown
 }): DocOtRequis[] {
-  const set = new Set(parseDocsOtRequis(opts.docsRequis))
+  const sansCerfa = (list: DocOtRequis[]) => list.filter((d) => d !== 'cerfa')
+  const fromBureau = sansCerfa(parseDocsOtRequis(opts.docsRequis))
+  const auto = sansCerfa(parseDocsOtRequis(opts.docsAuto))
+  const set = new Set<DocOtRequis>(fromBureau.length ? fromBureau : auto)
   if (techDoitRemplirCerfa(opts)) set.add('cerfa')
   return DOCS_OT_REQUIS.filter((d) => set.has(d))
 }
@@ -119,6 +122,7 @@ export type DocsOtRemplis = Partial<Record<DocOtRequis, boolean>>
 
 export function docsManquantsPourCloture(opts: {
   docsRequis?: unknown
+  docsAuto?: unknown
   hasFluide: boolean
   toucheGaz?: boolean
   remplis: DocsOtRemplis
@@ -130,8 +134,8 @@ export function docsManquantsPourCloture(opts: {
 }
 
 /** Aucune fiche type → le rapport d’action sur l’OT suffit. */
-export function rapportOtSuffit(docsRequis?: unknown): boolean {
-  return parseDocsOtRequis(docsRequis).filter((d) => d !== 'cerfa').length === 0
+export function rapportOtSuffit(docsRequis?: unknown, docsAuto?: unknown): boolean {
+  return docsEffectifsRequis({ docsRequis, docsAuto }).filter((d) => d !== 'cerfa').length === 0
 }
 
 export const REGISTRE_SECURITE_AVERTISSEMENT =

@@ -67,6 +67,7 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'CERFA',
     img: ICON3D.cerfa,
     to: '/app/interventions',
+    terrainHidden: true,
   },
   stock: {
     id: 'stock',
@@ -174,7 +175,6 @@ export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
   'appel',
   'temps_hors_int',
   'scan_qr',
-  'cerfa',
   'stock',
   'agenda',
   'profil',

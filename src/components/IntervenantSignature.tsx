@@ -49,7 +49,10 @@ export function IntervenantSignature({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileImg, profileNom, profileQual, user?.id])
 
-  const usingProfile = !!(profileImg && image && image === profileImg)
+  const usingProfile = !!(profileImg && (!image || image === profileImg))
+
+  // Déjà en dossier : appliquée tout seul, rien à afficher (le tech ne réfléchit pas).
+  if (usingProfile) return null
 
   return (
     <div className="rounded-xl border border-line bg-mist/40 p-4 space-y-3">

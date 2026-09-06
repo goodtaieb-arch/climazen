@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import {
   CheckSquare,
   Download,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
+import { isTerrainUi } from '../lib/uiMode'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
 import { loadCerfaPdf, pdfCtxFromData } from '../lib/pdfStore'
 import { PdfViewerModal } from '../components/PdfViewerModal'
@@ -35,6 +36,15 @@ import {
 } from '../lib/docsPack'
 
 export function InterventionsPage() {
+  const { peutVoirIdentitesRh } = useStore()
+  const { isOwner } = useAuth()
+  if (isTerrainUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })) {
+    return <Navigate to="/app" replace />
+  }
+  return <InterventionsListe />
+}
+
+function InterventionsListe() {
   const { data, deleteIntervention, upsertIntervention } = useStore()
   const { user } = useAuth()
   const [viewer, setViewer] = useState<{ url: string; title: string } | null>(null)

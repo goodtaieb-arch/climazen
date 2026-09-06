@@ -60,6 +60,24 @@ export function docsRequisPourEquipement(
   return []
 }
 
+/** Fiches maintenance seulement (pas le CERFA — il s’ouvre via « j’ai touché au gaz »). */
+export function docsFichesPourEquipements(
+  eqs: Array<Pick<Equipement, 'type' | 'nom'> | { type?: string; nom?: string } | null | undefined>,
+): Exclude<DocOtRequis, 'cerfa'>[] {
+  const seen = new Set<DocOtRequis>()
+  for (const eq of eqs) {
+    for (const d of docsRequisPourEquipement(eq || undefined)) {
+      if (d !== 'cerfa') seen.add(d)
+    }
+  }
+  const order: Exclude<DocOtRequis, 'cerfa'>[] = [
+    'fiche_clim',
+    'fiche_chaufferie',
+    'fiche_cta_vmc',
+  ]
+  return order.filter((d) => seen.has(d))
+}
+
 export function ficheExistePourEquipement(
   eq?: Pick<Equipement, 'type' | 'nom'> | { type?: string; nom?: string } | null,
 ): boolean {
