@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import { Cloud, ExternalLink, Loader2 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { useAuth } from '../lib/AuthContext'
@@ -7,7 +8,11 @@ import { FACTURATION_PLATEFORMES, type Operateur } from '../lib/types'
 import { fileToCompanyLogoDataUrl } from '../lib/companyLogo'
 import { Nav3dIcon } from '../components/Nav3dIcon'
 import { normalizeLienCloudRh } from '../lib/rhDocuments'
-import { verifyCloudLinkRestricted, cloudPasteHint } from '../lib/cloudLinkGuard'
+import {
+  verifyCloudLinkRestricted,
+  cloudPasteHint,
+  openExactOperatorCloudLink,
+} from '../lib/cloudLinkGuard'
 import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
 import { archivePriveConfigure } from '../lib/documentArchive'
 import { AppEditionBadge } from '../components/AppEditionBadge'
@@ -36,6 +41,69 @@ function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operate
   return { ...operateur, raisonSociale: orgName.trim() }
 }
 
+function CloudLienActiver({
+  label,
+  value,
+  onChange,
+  onActivate,
+  busy,
+  hint,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onActivate: () => void
+  busy: boolean
+  hint: string
+}) {
+  const has = Boolean(normalizeLienCloudRh(value))
+  return (
+    <div>
+      <Field label={label} value={value} onChange={onChange} />
+      <p className="mt-1.5 text-xs text-muted">{hint}</p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
+        <button
+          type="button"
+          onClick={onActivate}
+          disabled={busy}
+          className="inline-flex h-12 min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 text-sm font-bold text-white sm:min-w-[14rem] sm:flex-none disabled:opacity-60"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          ) : (
+            <ExternalLink className="h-4 w-4 shrink-0" />
+          )}
+          {busy ? 'Activation…' : 'Activer le lien'}
+        </button>
+        <a
+          href="https://drive.google.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink"
+        >
+          <Cloud className="h-4 w-4 text-accent" />
+          Ouvrir Google Drive
+        </a>
+        <a
+          href="https://onedrive.live.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink"
+        >
+          <Cloud className="h-4 w-4 text-sky-700" />
+          Ouvrir OneDrive
+        </a>
+      </div>
+      {!has ? (
+        <p className="mt-2 text-xs font-medium text-amber-800">
+          1) Ouvrez Drive ou OneDrive → 2) copiez le lien du dossier → 3) collez-le ci-dessus → 4)
+          Activer le lien.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
   const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition, exporterCopieSecoursExcel } =
@@ -54,6 +122,8 @@ export function OperateurPage() {
   const [editionMsg, setEditionMsg] = useState('')
   const [excelBusy, setExcelBusy] = useState(false)
   const [excelMsg, setExcelMsg] = useState('')
+  const [cloudBusy, setCloudBusy] = useState<'docs' | 'rh' | null>(null)
+  const [cloudMsg, setCloudMsg] = useState('')
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
 
@@ -119,73 +189,112 @@ export function OperateurPage() {
     }
   }
 
-  const onSubmitCompany = async (e: FormEvent) => {
-    e.preventDefault()
+  const persistOperateur = async (patch?: Partial<Operateur>): Promise<boolean> => {
+    const next = { ...form, ...patch }
     setFormError('')
-    const racine = (form.lienCloudRhRacine || '').trim()
+    const racine = (next.lienCloudRhRacine || '').trim()
     if (racine && !normalizeLienCloudRh(racine)) {
       setFormError('Lien cloud RH invalide — collez un lien https (Drive, OneDrive, SharePoint).')
-      return
+      return false
     }
     if (racine) {
       const check = await verifyCloudLinkRestricted(racine)
       if (!check.ok) {
         setFormError(check.message)
-        return
+        return false
       }
     }
-    const docsCloud = (form.lienCloudDocsRacine || '').trim()
+    const docsCloud = (next.lienCloudDocsRacine || '').trim()
     if (docsCloud && !normalizeLienCloudRh(docsCloud)) {
       setFormError('Lien cloud Documents invalide — https Drive / OneDrive / SharePoint.')
-      return
+      return false
     }
     if (docsCloud) {
       const check = await verifyCloudLinkRestricted(docsCloud)
       if (!check.ok) {
         setFormError(`Documents : ${check.message}`)
-        return
+        return false
       }
     }
-    const prive = (form.serveurPriveDocsUrl || '').trim()
+    const prive = (next.serveurPriveDocsUrl || '').trim()
     if (prive) {
       try {
         const u = new URL(prive)
         if (u.protocol !== 'https:' && u.protocol !== 'http:') {
           setFormError('Serveur privé : URL http(s) requise.')
-          return
+          return false
         }
       } catch {
         setFormError('Serveur privé : URL invalide.')
-        return
+        return false
       }
     }
-    if (form.docsStockageMode === 'cloud' && !docsCloud && !racine) {
+    if (next.docsStockageMode === 'cloud' && !docsCloud && !racine) {
       setFormError('Lien cloud Documents : réservé au personnel désigné — collez un lien https.')
-      return
+      return false
     }
     setSaving(true)
     try {
-      await setOperateur({
-        ...form,
-        facturationWebhookUrl: expertMake ? form.facturationWebhookUrl : '',
-        lienCloudRhRacine: normalizeLienCloudRh(form.lienCloudRhRacine) || '',
-        lienCloudDocsRacine: normalizeLienCloudRh(form.lienCloudDocsRacine) || '',
+      const savedOp = {
+        ...next,
+        facturationWebhookUrl: expertMake ? next.facturationWebhookUrl : '',
+        lienCloudRhRacine: normalizeLienCloudRh(next.lienCloudRhRacine) || '',
+        lienCloudDocsRacine: normalizeLienCloudRh(next.lienCloudDocsRacine) || '',
         serveurPriveDocsUrl: prive,
-        serveurPriveDocsToken: (form.serveurPriveDocsToken || '').trim() || undefined,
-        docsStockageMode: prive
-          ? 'prive'
-          : form.docsStockageMode === 'cloud'
-            ? 'cloud'
-            : 'prive',
-      })
+        serveurPriveDocsToken: (next.serveurPriveDocsToken || '').trim() || undefined,
+        docsStockageMode:
+          next.docsStockageMode === 'cloud' || (!prive && Boolean(docsCloud))
+            ? ('cloud' as const)
+            : ('prive' as const),
+      }
+      await setOperateur(savedOp)
+      setForm(savedOp)
       setDirty(false)
       void refreshUser().catch(() => undefined)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
+      return true
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Enregistrement impossible')
+      return false
     } finally {
       setSaving(false)
+    }
+  }
+
+  const onSubmitCompany = async (e: FormEvent) => {
+    e.preventDefault()
+    await persistOperateur()
+  }
+
+  const activerLienCloud = async (which: 'docs' | 'rh') => {
+    const raw = which === 'docs' ? form.lienCloudDocsRacine : form.lienCloudRhRacine
+    const href = normalizeLienCloudRh(raw)
+    if (!href) {
+      setFormError(
+        'Collez d’abord le lien du dossier (Google Drive, OneDrive ou SharePoint), puis appuyez sur Activer le lien.',
+      )
+      return
+    }
+    setCloudBusy(which)
+    setCloudMsg('')
+    setFormError('')
+    try {
+      const ok = await persistOperateur(
+        which === 'docs'
+          ? { lienCloudDocsRacine: href, docsStockageMode: 'cloud' }
+          : { lienCloudRhRacine: href },
+      )
+      if (!ok) return
+      const opened = await openExactOperatorCloudLink(href)
+      if (!opened.ok) {
+        setFormError(opened.message)
+        return
+      }
+      setCloudMsg('Lien activé — le dossier s’ouvre. Connectez-vous si le cloud le demande.')
+      setTimeout(() => setCloudMsg(''), 8000)
+    } finally {
+      setCloudBusy(null)
     }
   }
 
@@ -474,13 +583,21 @@ export function OperateurPage() {
               </>
             )}
           </p>
-          <Field
+          <CloudLienActiver
             label="Lien du dossier général"
             value={form.lienCloudRhRacine || ''}
             onChange={(v) => patchForm({ lienCloudRhRacine: v })}
+            onActivate={() => void activerLienCloud('rh')}
+            busy={cloudBusy === 'rh'}
+            hint={
+              cloudPasteHint(form.lienCloudRhRacine) ||
+              'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé.'
+            }
           />
-          <p className="mt-1.5 text-xs text-muted">{cloudPasteHint(form.lienCloudRhRacine)}</p>
-          <p className="mt-1.5 text-xs text-muted">
+          {cloudMsg && cloudBusy !== 'docs' ? (
+            <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
+          ) : null}
+          <p className="mt-2 text-xs text-muted">
             Créez une fois cette arborescence dans le cloud, puis rangez chaque pièce dans le bon
             sous-dossier. Les scans ne sont pas stockés dans ClimaZEN.
           </p>
@@ -492,15 +609,14 @@ export function OperateurPage() {
           </h2>
           <p className="mb-3 text-sm text-muted">
             Les PDF (CERFA, rapports, devis…) ne sont <strong>jamais</strong> enregistrés sur
-            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. Le coffre, c’est votre
-            NAS / Nextcloud. Le bureau n’ouvre pas ce serveur : il sort le document depuis l’app,
-            comme s’il était sur le site. Seul le gérant (et le personnel coché dans Équipe →
-            Accès coffre) peut voir l’URL et le jeton.
+            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. NAS / Nextcloud ou un
+            dossier Drive / OneDrive. Le bureau n’ouvre pas ce serveur : il sort le document depuis
+            l’app. Seul le gérant (et le personnel coché dans Équipe → Accès coffre) voit l’URL.
           </p>
           <label className="mb-3 block text-sm">
             <span className="mb-1 block font-semibold text-ink">Destination</span>
             <select
-              value={form.docsStockageMode === 'cloud' && !form.serveurPriveDocsUrl ? 'cloud' : 'prive'}
+              value={form.docsStockageMode === 'cloud' ? 'cloud' : 'prive'}
               onChange={(e) =>
                 patchForm({
                   docsStockageMode: e.target.value as Operateur['docsStockageMode'],
@@ -509,9 +625,28 @@ export function OperateurPage() {
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
               <option value="prive">Serveur privé société (NAS / Nextcloud / WebDAV)</option>
-              <option value="cloud">Lien cloud (personnel désigné seulement — pas d’envoi auto)</option>
+              <option value="cloud">Lien cloud (Google Drive / OneDrive — bouton Activer)</option>
             </select>
           </label>
+          {form.docsStockageMode === 'cloud' ? (
+            <div className="mb-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-3">
+              <CloudLienActiver
+                label="Lien dossier cloud"
+                value={form.lienCloudDocsRacine || ''}
+                onChange={(v) => patchForm({ lienCloudDocsRacine: v, docsStockageMode: 'cloud' })}
+                onActivate={() => void activerLienCloud('docs')}
+                busy={cloudBusy === 'docs'}
+                hint={
+                  cloudPasteHint(form.lienCloudDocsRacine) ||
+                  'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
+                }
+              />
+              {cloudMsg ? (
+                <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
+              ) : null}
+            </div>
+          ) : (
+            <>
           <Field
             label="URL base serveur privé (obligatoire pour l’archive auto)"
             value={form.serveurPriveDocsUrl || ''}
@@ -527,16 +662,44 @@ export function OperateurPage() {
             onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
             className="mt-3"
           />
-          <Field
-            label="Lien dossier cloud (personnel désigné — pas le bureau)"
-            value={form.lienCloudDocsRacine || ''}
-            onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
-            className="mt-3"
-          />
-          <p className="mt-1.5 text-xs text-muted">
-            {cloudPasteHint(form.lienCloudDocsRacine) ||
-              'Le bureau ne clique pas ici. CERFA et rapports s’ouvrent depuis Interventions / INT.'}
-          </p>
+            </>
+          )}
+          {form.docsStockageMode !== 'cloud' ? (
+            <div className="mt-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-3">
+              <CloudLienActiver
+                label="Lien dossier cloud (personnel désigné — pas le bureau)"
+                value={form.lienCloudDocsRacine || ''}
+                onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
+                onActivate={() => void activerLienCloud('docs')}
+                busy={cloudBusy === 'docs'}
+                hint={
+                  cloudPasteHint(form.lienCloudDocsRacine) ||
+                  'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
+                }
+              />
+              {cloudMsg ? (
+                <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
+              ) : null}
+            </div>
+          ) : (
+            <details className="mt-3 rounded-xl border border-line bg-white p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-ink">
+                NAS / Nextcloud (optionnel en plus du cloud)
+              </summary>
+              <Field
+                label="URL base serveur privé"
+                value={form.serveurPriveDocsUrl || ''}
+                onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
+                className="mt-3"
+              />
+              <Field
+                label="Jeton serveur privé (optionnel)"
+                value={form.serveurPriveDocsToken || ''}
+                onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
+                className="mt-3"
+              />
+            </details>
+          )}
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
             <p className="text-xs font-bold uppercase text-muted">
               Arborescence créée sur le coffre
