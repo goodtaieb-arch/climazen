@@ -125,8 +125,8 @@ function UriACopier({ uri }: { uri: string }) {
  */
 function CloudDepannage({ redirectUris }: { redirectUris: Record<CloudProviderId, string> }) {
   return (
-    <details className="rounded-xl border border-line bg-foam p-3 text-xs text-muted">
-      <summary className="cursor-pointer font-semibold text-ink">
+    <details className="px-1 text-xs text-muted">
+      <summary className="cursor-pointer underline decoration-dotted underline-offset-2">
         Google ou Microsoft refuse la connexion ?
       </summary>
       <p className="mt-2">
@@ -278,7 +278,11 @@ export function CloudConnectPanel({
                   type="button"
                   disabled={!canEdit || !available || busy === provider}
                   onClick={() => connect(provider)}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate px-4 text-sm font-semibold text-white disabled:opacity-50"
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-50 ${
+                    connected
+                      ? 'border border-line bg-white text-ink'
+                      : 'bg-slate text-white'
+                  }`}
                 >
                   {busy === provider ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {connected ? 'Reconnecter' : CLOUD_CONNECT_BUTTON_LABELS[provider]}
