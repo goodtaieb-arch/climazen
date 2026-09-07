@@ -50,11 +50,12 @@ import { canUseChatbot, resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 
 const VOICE_ACTIVATION_HINT_MS = 10_000
+const WAKE_LISTEN_WINDOW_MS = 5000
 
 /**
  * Main libre terrain — micro simple.
  * Appui micro → « Je vous écoute » → ordre → exécution → réécoute.
- * 2 s de silence sans parole → coupe (comme un second appui micro).
+ * 5 s de silence sans parole → coupe (comme un second appui micro).
  * « Dis Lola » (veille) = même effet qu’un appui micro.
  */
 export function VoiceCommandsFab() {
@@ -78,7 +79,7 @@ export function VoiceCommandsFab() {
   const interimRef = useRef('')
   const pendingLeftoverRef = useRef('')
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wakeRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wakeStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeActivationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activationHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef = useRef(data)
@@ -101,10 +102,10 @@ export function VoiceCommandsFab() {
     }
   }
 
-  const clearWakeRestart = () => {
-    if (wakeRestartRef.current) {
-      clearTimeout(wakeRestartRef.current)
-      wakeRestartRef.current = null
+  const clearWakeStop = () => {
+    if (wakeStopTimerRef.current) {
+      clearTimeout(wakeStopTimerRef.current)
+      wakeStopTimerRef.current = null
     }
   }
 
@@ -133,7 +134,7 @@ export function VoiceCommandsFab() {
 
   const stopWake = () => {
     wakeWantRef.current = false
-    clearWakeRestart()
+    clearWakeStop()
     clearWakeActivation()
     setWakeHint(false)
     try {
@@ -149,7 +150,7 @@ export function VoiceCommandsFab() {
       wantListenRef.current = false
       wakeWantRef.current = false
       clearSilence()
-      clearWakeRestart()
+      clearWakeStop()
       clearWakeActivation()
       clearActivationHint()
       cancelSpeech()
@@ -410,11 +411,9 @@ export function VoiceCommandsFab() {
       persistWake(false)
       stopWake()
     } else {
-      // Micro coupé → veille « dis Lola » = prochain appui micro
+      // Arrêt réel : ne pas relancer un second micro de veille en boucle.
       persistWake(true)
-      window.setTimeout(() => {
-        if (!wantListenRef.current) startWake()
-      }, 400)
+      stopWake()
     }
   }
 
@@ -426,10 +425,10 @@ export function VoiceCommandsFab() {
       runTranscript(raw)
       return
     }
-    // 2 s de silence sans ordre → comme un second appui sur le micro
+    // 5 s de silence sans ordre → comme un second appui sur le micro
     if (wantListenRef.current && !speakingRef.current) {
       stop()
-      setHint('Micro coupé — dis « Lola » ou retouche le micro')
+      setHint('Micro coupé — retouchez le micro pour réessayer')
     }
   }
 
@@ -453,7 +452,7 @@ export function VoiceCommandsFab() {
     rec.maxAlternatives = 2
     wakeWantRef.current = true
     setWakeHint(true)
-    setHint('Dis « Lola » pour le micro')
+    setHint('Dis « Lola » — écoute pendant 5 secondes')
     let activatingCommand = false
 
     const finishWakeActivation = () => {
@@ -477,7 +476,7 @@ export function VoiceCommandsFab() {
       pendingLeftoverRef.current = leftover
       activatingCommand = true
       wakeWantRef.current = false
-      clearWakeRestart()
+      clearWakeStop()
       setWakeHint(false)
       setHint('Lola entendue — activation du micro…')
       // abort() est asynchrone dans Chrome. Attendre onend avant start()
@@ -532,16 +531,8 @@ export function VoiceCommandsFab() {
         return
       }
       if (!wakeWantRef.current || wantListenRef.current) return
-      clearWakeRestart()
-      wakeRestartRef.current = setTimeout(() => {
-        wakeRestartRef.current = null
-        if (!wakeWantRef.current || wantListenRef.current) return
-        try {
-          rec.start()
-        } catch {
-          startWake()
-        }
-      }, 2500)
+      stopWake()
+      setHint('')
     }
     wakeRecRef.current = rec
     try {
@@ -549,6 +540,13 @@ export function VoiceCommandsFab() {
       persistWake(true)
       clearActivationHint()
       setNeedsActivation(false)
+      clearWakeStop()
+      wakeStopTimerRef.current = setTimeout(() => {
+        wakeStopTimerRef.current = null
+        if (!wakeWantRef.current || wantListenRef.current) return
+        stopWake()
+        setHint('')
+      }, WAKE_LISTEN_WINDOW_MS)
     } catch {
       wakeWantRef.current = false
       setWakeHint(false)
@@ -687,7 +685,7 @@ export function VoiceCommandsFab() {
           finishBuffer()
         } else {
           stop({ disarmWake: false })
-          setHint('Micro coupé — dis « Lola » ou retouche le micro')
+          setHint('Micro coupé — retouchez le micro pour réessayer')
           setShowHelp(false)
         }
       } else {
@@ -844,8 +842,8 @@ export function VoiceCommandsFab() {
         {showHelp && (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>Touche micro → « Je vous écoute » → donne l’ordre</li>
-            <li>« Dis Lola » = même effet que toucher le micro</li>
-            <li>Silence 2 s sans parole → micro coupé tout seul</li>
+            <li>Au démarrage, « Dis Lola » écoute pendant 5 s</li>
+            <li>Silence 5 s sans parole → micro coupé tout seul</li>
             <li>« Mets-moi en déplacement vers le site »</li>
             <li>« Je suis arrivé » / « en cours »</li>
             <li>« Pause » / « Arrête la pause »</li>

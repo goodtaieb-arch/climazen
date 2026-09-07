@@ -31,7 +31,7 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 export const SPEECH_SILENCE_MS = 4800
 
 /** Silence pour valider une commande / couper le micro (ms). */
-export const SPEECH_COMMAND_SILENCE_MS = 2000
+export const SPEECH_COMMAND_SILENCE_MS = 5000
 
 /** Pref : après un 1er micro, écouter « dis Lola » = appui micro. */
 export const VOICE_WAKE_AUTO_KEY = 'climazen.voiceWakeAuto'
