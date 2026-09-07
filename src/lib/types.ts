@@ -425,6 +425,11 @@ export interface StockItem {
   /** Libellé véhicule / dépôt (ex. « Véhicule A », « Camion 12 »). */
   emplacementLabel?: string
   /**
+   * Agence (département) du stock atelier — pour multi-sites société.
+   * Véhicule : déduit de l’agence du technicien assigné si absent.
+   */
+  agenceCode?: string
+  /**
    * Technicien qui a la bouteille (hors atelier / dépôt).
    * Utile si plusieurs techs — masqué en entreprise solo.
    */

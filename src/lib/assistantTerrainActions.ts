@@ -1073,9 +1073,12 @@ export async function executeTerrainAction(
       quantiteInitialeKg: action.quantiteKg,
       capaciteMaxKg: action.capaciteMaxKg,
       emplacement: 'vehicule',
+      assigneeUserId: deps.userId,
+      assigneeName: deps.userName,
+      emplacementLabel: deps.userName ? `Véhicule ${deps.userName}` : undefined,
     })
     return {
-      message: `Bouteille ${action.numeroContenant} ajoutée au stock. Complétez fluide / kg si besoin.`,
+      message: `Bouteille ${action.numeroContenant} ajoutée à votre véhicule. Complétez fluide / kg si besoin.`,
       navigateTo: `/app/stock?highlight=${encodeURIComponent(id)}`,
     }
   }

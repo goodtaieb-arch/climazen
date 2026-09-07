@@ -36,6 +36,16 @@ import { LabelHint } from '../components/LabelHint'
 import { SearchField, matchesQuery } from '../components/SearchField'
 import { BarcodeScanButton } from '../components/BarcodeScanButton'
 import { BouteillePhotoButton } from '../components/BouteillePhotoButton'
+import { AgenceFilterChips, AgenceSelect } from '../components/AgenceSelect'
+import { agencesDuMembre, parseAgenceCode } from '../lib/agences'
+import { dossierForUser } from '../lib/rhDocuments'
+import { isBureauUi } from '../lib/uiMode'
+import {
+  filtreStockFluidesPourViewer,
+  kgStockFluides,
+  resumeStockFluides,
+  stockFluidesParEmplacement,
+} from '../lib/stockVisibilite'
 import {
   adrInfoForFluide,
   findFluide,
@@ -89,6 +99,10 @@ function today() {
 const blank = (opts?: {
   fluide?: string
   contenantType?: ContenantType
+  emplacement?: 'atelier' | 'vehicule'
+  assigneeUserId?: string
+  assigneeName?: string
+  agenceCode?: string
 }): Omit<StockItem, 'id' | 'updatedAt'> => {
   const contenantType = opts?.contenantType || 'vierge'
   const fluide =
@@ -97,6 +111,7 @@ const blank = (opts?: {
   const defs = bouteilleDefaultsForFluide(fluide)
   const entree = today()
   const annees = anneesValiditeContenant(contenantType)
+  const emplacement = opts?.emplacement || 'atelier'
   return {
     fluide,
     contenantType,
@@ -105,9 +120,10 @@ const blank = (opts?: {
     quantiteKg: contenantDemarreVide(contenantType) ? 0 : 0,
     quantiteInitialeKg: 0,
     capaciteMaxKg: defs.capaciteMaxKg,
-    emplacement: 'atelier',
-    assigneeUserId: undefined,
-    assigneeName: undefined,
+    emplacement,
+    agenceCode: emplacement === 'atelier' ? opts?.agenceCode : undefined,
+    assigneeUserId: emplacement === 'vehicule' ? opts?.assigneeUserId : undefined,
+    assigneeName: emplacement === 'vehicule' ? opts?.assigneeName : undefined,
     origineClientId: undefined,
     origineDestructionDistributeur: false,
     bsffReference: '',
@@ -298,8 +314,10 @@ export function StockPage() {
     enregistrerDestructionBouteille,
     enregistrerTransfertInterneBouteille,
     enregistrerPerteEmissionBouteille,
+    peutVoirIdentitesRh,
   } = useStore()
-  const { user, listTeam } = useAuth()
+  const { user, listTeam, isOwner } = useAuth()
+  const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const [searchParams, setSearchParams] = useSearchParams()
   const [team, setTeam] = useState<UserAccount[]>([])
   const [form, setForm] = useState(blank)
@@ -308,6 +326,9 @@ export function StockPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [regsOpen, setRegsOpen] = useState(false)
   const [techOpen, setTechOpen] = useState(false)
+  const [agenceFilter, setAgenceFilter] = useState<string[]>([])
+  const [agenceFilterReady, setAgenceFilterReady] = useState(false)
+  const [techFilter, setTechFilter] = useState('')
   const [retourId, setRetourId] = useState<string | null>(null)
   const [retourForm, setRetourForm] = useState({
     bonRetourConsigne: '',
@@ -393,6 +414,45 @@ export function StockPage() {
   /** Solo (auto-entrepreneur) : pas d’affectation tech sur les bouteilles. */
   const isSolo = team.length <= 1
 
+  const monDossier = useMemo(
+    () => dossierForUser(data.personnelDossiers, user?.id),
+    [data.personnelDossiers, user?.id],
+  )
+
+  const mesAgences = useMemo(
+    () =>
+      agencesDuMembre({
+        agenceCode: monDossier?.agenceCode,
+        agencesCouvertes: monDossier?.agencesCouvertes,
+      }),
+    [monDossier],
+  )
+
+  useEffect(() => {
+    if (agenceFilterReady) return
+    if (bureau && mesAgences.length) setAgenceFilter(mesAgences)
+    setAgenceFilterReady(true)
+  }, [bureau, mesAgences, agenceFilterReady])
+
+  const blankForViewer = (opts?: {
+    fluide?: string
+    contenantType?: ContenantType
+  }) => {
+    if (!bureau && user?.id) {
+      return blank({
+        ...opts,
+        emplacement: 'vehicule',
+        assigneeUserId: user.id,
+        assigneeName: user.fullName || user.email || 'Moi',
+      })
+    }
+    return blank({
+      ...opts,
+      emplacement: 'atelier',
+      agenceCode: parseAgenceCode(monDossier?.agenceCode),
+    })
+  }
+
   const resolveStockAssigneeName = (uid: string) => {
     if (!uid) return undefined
     const member = team.find((m) => m.id === uid)
@@ -428,7 +488,7 @@ export function StockPage() {
     if (!wantType && !fluide) return
     setEditId(null)
     setForm(
-      blank({
+      blankForViewer({
         fluide: fluide || undefined,
         contenantType: wantType || undefined,
       }),
@@ -447,7 +507,7 @@ export function StockPage() {
   useEffect(() => {
     if (searchParams.get('scan') !== '1') return
     setEditId(null)
-    setForm(blank())
+    setForm(blankForViewer())
     setOpen(true)
     setRegsOpen(false)
     setTechOpen(false)
@@ -479,32 +539,91 @@ export function StockPage() {
     setSearchParams(next, { replace: true })
   }, [searchParams, data.stock, setSearchParams])
 
+  const stockVisible = useMemo(
+    () =>
+      filtreStockFluidesPourViewer({
+        stock: data.stock,
+        mode: bureau ? 'bureau' : 'terrain',
+        userId: user?.id,
+        techId: bureau ? techFilter || null : null,
+        agenceCodes: bureau ? agenceFilter : undefined,
+        dossiers: data.personnelDossiers,
+      }),
+    [
+      data.stock,
+      data.personnelDossiers,
+      bureau,
+      user?.id,
+      techFilter,
+      agenceFilter,
+    ],
+  )
+
   const actifStock = useMemo(
     () =>
-      data.stock.filter(
+      stockVisible.filter((s) =>
+        matchesQuery(
+          [s.fluide, s.numeroContenant, s.surnom, s.contenantType, s.bsffReference, s.codeUn, s.notes]
+            .filter(Boolean)
+            .join(' '),
+          q,
+        ),
+      ),
+    [stockVisible, q],
+  )
+  const retournees = useMemo(
+    () =>
+      filtreStockFluidesPourViewer({
+        stock: data.stock,
+        mode: bureau ? 'bureau' : 'terrain',
+        userId: user?.id,
+        techId: bureau ? techFilter || null : null,
+        agenceCodes: bureau ? agenceFilter : undefined,
+        dossiers: data.personnelDossiers,
+        includeRetournees: true,
+      }).filter(
         (s) =>
-          !isBouteilleRetournee(s) &&
+          isBouteilleRetournee(s) &&
           matchesQuery(
-            [s.fluide, s.numeroContenant, s.surnom, s.contenantType, s.bsffReference, s.codeUn, s.notes]
+            [s.fluide, s.numeroContenant, s.surnom, s.contenantType, s.bsffReference]
               .filter(Boolean)
               .join(' '),
             q,
           ),
       ),
-    [data.stock, q],
+    [
+      data.stock,
+      data.personnelDossiers,
+      bureau,
+      user?.id,
+      techFilter,
+      agenceFilter,
+      q,
+    ],
   )
-  const retournees = useMemo(
-    () =>
-      data.stock.filter(
-        (s) =>
-          isBouteilleRetournee(s) &&
-          matchesQuery(
-            [s.fluide, s.numeroContenant, s.surnom, s.contenantType, s.bsffReference].filter(Boolean).join(' '),
-            q,
-          ),
-      ),
-    [data.stock, q],
+
+  const resumeEmp = useMemo(
+    () => resumeStockFluides(stockVisible, data.personnelDossiers),
+    [stockVisible, data.personnelDossiers],
   )
+  const parEmplacement = useMemo(
+    () => stockFluidesParEmplacement(actifStock),
+    [actifStock],
+  )
+
+  const agencesDispo = useMemo(() => {
+    const set = new Set<string>(mesAgences)
+    for (const s of data.stock || []) {
+      if (isBouteilleRetournee(s)) continue
+      const code =
+        parseAgenceCode(s.agenceCode) ||
+        (s.assigneeUserId
+          ? parseAgenceCode(dossierForUser(data.personnelDossiers, s.assigneeUserId)?.agenceCode)
+          : undefined)
+      if (code) set.add(code)
+    }
+    return [...set].sort()
+  }, [data.stock, data.personnelDossiers, mesAgences])
 
   const stockUtilisable = useMemo(
     () => actifStock.filter((s) => isStockUtilisablePropre(s)),
@@ -590,11 +709,35 @@ export function StockPage() {
     if (
       !isSolo &&
       (form.emplacement || 'atelier') === 'vehicule' &&
-      !form.assigneeUserId
+      !form.assigneeUserId &&
+      bureau
     ) {
       alert('Indiquez le technicien qui a la bouteille (hors atelier / dépôt).')
       return
     }
+
+    const emplacementFinal =
+      !bureau && user?.id ? 'vehicule' : form.emplacement || 'atelier'
+    const assigneeFinal =
+      emplacementFinal === 'vehicule'
+        ? !bureau && user?.id
+          ? user.id
+          : !isSolo
+            ? form.assigneeUserId || undefined
+            : form.assigneeUserId || user?.id || undefined
+        : undefined
+    const assigneeNameFinal =
+      emplacementFinal === 'vehicule'
+        ? (!bureau && user
+            ? user.fullName || user.email || 'Moi'
+            : form.assigneeName?.trim() ||
+              resolveStockAssigneeName(assigneeFinal || '') ||
+              undefined)
+        : undefined
+    const agenceFinal =
+      emplacementFinal === 'atelier'
+        ? parseAgenceCode(form.agenceCode) || parseAgenceCode(monDossier?.agenceCode)
+        : undefined
 
     if (
       !editId &&
@@ -680,22 +823,15 @@ export function StockPage() {
           : form.capaciteMaxKg,
       tareKg: form.tareKg ?? defs.tareKg,
       pressionEpreuveBar: form.pressionEpreuveBar ?? defs.pressionEpreuveBar,
-      emplacement: form.emplacement || 'atelier',
+      emplacement: emplacementFinal,
       emplacementLabel:
-        (form.emplacement || 'atelier') === 'vehicule'
+        emplacementFinal === 'vehicule'
           ? form.emplacementLabel?.trim() ||
-            (form.assigneeName?.trim() ? `Véhicule ${form.assigneeName.trim()}` : undefined)
+            (assigneeNameFinal?.trim() ? `Véhicule ${assigneeNameFinal.trim()}` : undefined)
           : undefined,
-      assigneeUserId:
-        !isSolo && (form.emplacement || 'atelier') === 'vehicule'
-          ? form.assigneeUserId || undefined
-          : undefined,
-      assigneeName:
-        !isSolo && (form.emplacement || 'atelier') === 'vehicule'
-          ? form.assigneeName?.trim() ||
-            resolveStockAssigneeName(form.assigneeUserId || '') ||
-            undefined
-          : undefined,
+      agenceCode: agenceFinal,
+      assigneeUserId: assigneeFinal,
+      assigneeName: assigneeNameFinal,
       origineClientId:
         (contenantType === 'recuperation' || contenantType === 'recycle') &&
         !form.origineDestructionDistributeur
@@ -873,7 +1009,9 @@ export function StockPage() {
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold tracking-tight">Stock fluides</h1>
             <p className="mt-1 text-muted">
-              Gaz utilisable (charge) séparé du gaz récupéré (déchet → BSFF / traitement).
+              {bureau
+                ? 'Atelier + véhicules de chaque technicien, totaux et par agence.'
+                : 'Votre stock véhicule uniquement — atelier et autres vans visibles au bureau.'}
             </p>
           </div>
         </div>
@@ -882,7 +1020,7 @@ export function StockPage() {
             type="button"
             onClick={() => {
               setEditId(null)
-              setForm(blank({ contenantType: 'recuperation' }))
+              setForm(blankForViewer({ contenantType: 'recuperation' }))
               setRegsOpen(false)
               setTechOpen(false)
               setOpen(true)
@@ -895,7 +1033,7 @@ export function StockPage() {
             type="button"
             onClick={() => {
               setEditId(null)
-              setForm(blank())
+              setForm(blankForViewer())
               setRegsOpen(false)
               setTechOpen(false)
               setOpen(true)
@@ -913,6 +1051,127 @@ export function StockPage() {
         placeholder="Rechercher fluide, n° bouteille, BSFF…"
         testId="stock-search"
       />
+
+      {bureau && !isSolo ? (
+        <div className="flex flex-wrap items-end gap-3">
+          {agencesDispo.length > 0 ? (
+            <AgenceFilterChips
+              selected={agenceFilter}
+              onChange={setAgenceFilter}
+              codes={agencesDispo}
+            />
+          ) : null}
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold text-muted">Véhicule tech</span>
+            <select
+              value={techFilter}
+              onChange={(e) => setTechFilter(e.target.value)}
+              className="h-10 min-w-[12rem] rounded-xl border border-line bg-white px-3 text-sm"
+            >
+              <option value="">Tous + atelier</option>
+              {team.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.fullName || m.email}
+                  {m.id === user?.id ? ' (moi)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+
+      {bureau ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-line bg-white px-4 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-muted">
+              Atelier / dépôt
+            </div>
+            <div className="mt-0.5 font-display text-2xl font-bold text-ink">
+              {resumeEmp.atelierKg}{' '}
+              <span className="text-base font-semibold text-muted">kg</span>
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {resumeEmp.atelierCount} bouteille{resumeEmp.atelierCount > 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-sky-900">
+              Véhicules techniciens
+            </div>
+            <div className="mt-0.5 font-display text-2xl font-bold text-sky-950">
+              {resumeEmp.vehiculesKg}{' '}
+              <span className="text-base font-semibold text-sky-800/80">kg</span>
+            </div>
+            <p className="mt-1 text-xs text-sky-900/80">
+              {resumeEmp.vehiculesCount} bouteille
+              {resumeEmp.vehiculesCount > 1 ? 's' : ''} · {parEmplacement.vehiculesParTech.length}{' '}
+              van{parEmplacement.vehiculesParTech.length > 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-teal-200 bg-teal-50/70 px-4 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-teal-900">
+              Total (atelier + vans)
+            </div>
+            <div className="mt-0.5 font-display text-2xl font-bold text-teal-950">
+              {resumeEmp.totalKg}{' '}
+              <span className="text-base font-semibold text-teal-800/80">kg</span>
+            </div>
+            <p className="mt-1 text-xs text-teal-900/80">
+              {resumeEmp.atelierCount + resumeEmp.vehiculesCount} bouteille
+              {resumeEmp.atelierCount + resumeEmp.vehiculesCount > 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {bureau && resumeEmp.parAgence.length > 1 ? (
+        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+          <div className="border-b border-line px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted">
+            Par agence
+          </div>
+          <ul className="divide-y divide-line">
+            {resumeEmp.parAgence.map((a) => (
+              <li
+                key={a.agenceCode}
+                className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5 text-sm"
+              >
+                <span className="font-semibold text-ink">{a.label}</span>
+                <span className="text-muted">
+                  Atelier {a.atelierKg} kg · Vans {a.vehiculesKg} kg ·{' '}
+                  <strong className="text-ink">{a.totalKg} kg</strong>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : bureau && resumeEmp.parAgence.length === 1 ? (
+        <p className="text-xs text-muted">
+          Agence : {resumeEmp.parAgence[0].label} — atelier {resumeEmp.parAgence[0].atelierKg} kg
+          · vans {resumeEmp.parAgence[0].vehiculesKg} kg
+        </p>
+      ) : null}
+
+      {bureau && !techFilter && parEmplacement.vehiculesParTech.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setTechFilter('')}
+            className="rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-muted"
+          >
+            Atelier · {kgStockFluides(parEmplacement.atelier)} kg
+          </button>
+          {parEmplacement.vehiculesParTech.map((v) => (
+            <button
+              key={v.techId || v.techLabel}
+              type="button"
+              onClick={() => v.techId && setTechFilter(v.techId)}
+              className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-950 hover:bg-sky-100"
+            >
+              {v.techLabel} · {kgStockFluides(v.bouteilles)} kg ({v.bouteilles.length})
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
@@ -1324,25 +1583,45 @@ export function StockPage() {
 
           <label className="block text-sm">
             <span className="mb-1 block font-semibold text-ink">Emplacement</span>
-            <select
-              value={form.emplacement || 'atelier'}
-              onChange={(e) => {
-                const emplacement = e.target.value as 'atelier' | 'vehicule'
-                setForm({
-                  ...form,
-                  emplacement,
-                  ...(emplacement === 'atelier'
-                    ? { assigneeUserId: undefined, assigneeName: undefined, emplacementLabel: undefined }
-                    : {}),
-                })
-              }}
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="atelier">Atelier / dépôt</option>
-              <option value="vehicule">Chez un technicien / véhicule</option>
-            </select>
+            {bureau ? (
+              <select
+                value={form.emplacement || 'atelier'}
+                onChange={(e) => {
+                  const emplacement = e.target.value as 'atelier' | 'vehicule'
+                  setForm({
+                    ...form,
+                    emplacement,
+                    ...(emplacement === 'atelier'
+                      ? {
+                          assigneeUserId: undefined,
+                          assigneeName: undefined,
+                          emplacementLabel: undefined,
+                          agenceCode:
+                            form.agenceCode || parseAgenceCode(monDossier?.agenceCode),
+                        }
+                      : { agenceCode: undefined }),
+                  })
+                }}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              >
+                <option value="atelier">Atelier / dépôt</option>
+                <option value="vehicule">Chez un technicien / véhicule</option>
+              </select>
+            ) : (
+              <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-950">
+                Votre véhicule
+                {user?.fullName ? ` · ${user.fullName}` : ''}
+              </p>
+            )}
           </label>
-          {(form.emplacement || 'atelier') === 'vehicule' && (
+          {bureau && (form.emplacement || 'atelier') === 'atelier' ? (
+            <AgenceSelect
+              value={form.agenceCode}
+              onChange={(next) => setForm({ ...form, agenceCode: next })}
+              label="Agence atelier"
+            />
+          ) : null}
+          {(form.emplacement || 'atelier') === 'vehicule' && bureau ? (
             <>
               {!isSolo && (
                 <label className="block text-sm">
@@ -1370,7 +1649,7 @@ export function StockPage() {
                     ))}
                   </select>
                   <p className="mt-1 text-[11px] text-muted">
-                    Qui a la bouteille hors atelier — visible pour toute l’équipe.
+                    Qui a la bouteille hors atelier — le tech ne voit que son van.
                   </p>
                 </label>
               )}
@@ -1386,7 +1665,18 @@ export function StockPage() {
                 />
               </label>
             </>
-          )}
+          ) : null}
+          {!bureau ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-semibold text-ink">Nom du véhicule (optionnel)</span>
+              <input
+                value={form.emplacementLabel || ''}
+                onChange={(e) => setForm({ ...form, emplacementLabel: e.target.value })}
+                placeholder="ex. Ma camionnette"
+                className="h-11 w-full rounded-xl border border-line bg-white px-3"
+              />
+            </label>
+          ) : null}
 
           <div className="sm:col-span-2 overflow-hidden rounded-xl border border-line">
             <button
@@ -2413,9 +2703,16 @@ export function StockPage() {
           </section>
         )}
 
-        {data.stock.length === 0 && (
+        {stockVisible.length === 0 && data.stock.length === 0 && (
           <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-muted">
             Stock vide — ajoutez vos bouteilles (neuves ou récup).
+          </p>
+        )}
+        {stockVisible.length === 0 && data.stock.length > 0 && (
+          <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-muted">
+            {bureau
+              ? 'Aucune bouteille pour ce filtre (agence / technicien).'
+              : 'Aucune bouteille dans votre véhicule — ajoutez-en ou demandez un transfert depuis l’atelier.'}
           </p>
         )}
       </div>
@@ -2425,7 +2722,7 @@ export function StockPage() {
         hidden={open || !!retourId || !!destrId || !!trfId || !!perteId}
         onClick={() => {
           setEditId(null)
-          setForm(blank())
+          setForm(blankForViewer())
           setRegsOpen(false)
           setTechOpen(false)
           setOpen(true)
