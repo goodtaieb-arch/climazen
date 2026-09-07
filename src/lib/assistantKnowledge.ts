@@ -442,6 +442,8 @@ Chrome / Android recommandé ; iPhone Safari souvent limité.`,
 • Chaufferie : détecteur CO
 • Toiture : harnais
 • Électricité / SAT : consignation, VAT
+• Bouteilles gaz clim / chalumeau : bien attachées, zone sécurisée
+• Chaleur : boire de l’eau et se rafraîchir
 Les messages tournent pour ne pas toujours répéter le même. Après un pointage, le rappel peut être lu à voix haute (main libre).`,
   },
 ]
