@@ -11,6 +11,7 @@ import {
 } from './postePersonnel'
 import type { PersonnelDossier } from './rhDocuments'
 import { matchAgenceFilter, agencesDuMembre } from './agences'
+import type { AiAssignOtSlot } from './lolaAssignOt'
 
 export type AiPendingSource = 'assistant' | 'phone' | 'voice' | 'system'
 
@@ -24,6 +25,12 @@ export type AiPendingKind =
   | 'autre'
 
 export type AiPendingStatut = 'a_valider' | 'validee' | 'refusee' | 'expiree'
+
+/** Action réellement applicable à la validation Accueil (pas un simple texte). */
+export type AiPendingProposal = {
+  type: 'assign_ot'
+  slot: AiAssignOtSlot
+}
 
 export type AiPendingValidation = {
   id: string
@@ -49,6 +56,15 @@ export type AiPendingValidation = {
   decidedByUserId?: string
   decidedByName?: string
   decidedAt?: string
+  /** Lot Lola (plusieurs INT / plusieurs techs). */
+  batchId?: string
+  /** Tech concerné — bouton « Valider » par personne. */
+  techUserId?: string
+  techName?: string
+  otId?: string
+  /** Si présent : Valider écrit vraiment (agenda / INT). */
+  proposal?: AiPendingProposal
+  applyError?: string
 }
 
 const SECTEUR_KEYWORDS: { re: RegExp; id: PostePersonnelId }[] = [
@@ -121,7 +137,8 @@ export function resolveResponsableSecteur(
     return s
   }
 
-  const pool = encadrants.length > 0 ? encadrants : list
+  const pool = encadrants
+  if (pool.length === 0) return null
   const ranked = [...pool].sort((a, b) => score(b) - score(a))
   const best = ranked[0]
   if (!best || score(best) <= 0) {
@@ -157,6 +174,11 @@ export function buildAiPendingValidation(input: {
   notifyEmailFallback?: string
   id?: string
   now?: string
+  batchId?: string
+  techUserId?: string
+  techName?: string
+  otId?: string
+  proposal?: AiPendingProposal
 }): AiPendingValidation {
   const now = input.now || new Date().toISOString()
   const text = [input.textForInfer, input.title, input.summary, input.callerHint]
@@ -186,7 +208,53 @@ export function buildAiPendingValidation(input: {
     assigneeName: assignee?.userName,
     notifyEmail: input.notifyEmailFallback,
     statut: 'a_valider',
+    batchId: input.batchId,
+    techUserId: input.techUserId,
+    techName: input.techName,
+    otId: input.otId,
+    proposal: input.proposal,
   }
+}
+
+export type AiPendingTechGroup = {
+  key: string
+  techUserId: string
+  techName: string
+  secteur?: PostePersonnelId
+  batchId?: string
+  items: AiPendingValidation[]
+}
+
+/** Groupe les propositions d’affectation par technicien (Accueil). */
+export function groupPendingByTech(
+  list: AiPendingValidation[] | undefined,
+): { groups: AiPendingTechGroup[]; others: AiPendingValidation[] } {
+  const items = list || []
+  const others: AiPendingValidation[] = []
+  const map = new Map<string, AiPendingTechGroup>()
+  for (const x of items) {
+    const isAssign = x.proposal?.type === 'assign_ot' || Boolean(x.techUserId && x.otId)
+    const techId = x.techUserId || x.proposal?.slot.techUserId
+    if (!isAssign || !techId) {
+      others.push(x)
+      continue
+    }
+    const key = `${x.batchId || 'solo'}::${techId}`
+    const existing = map.get(key)
+    if (existing) {
+      existing.items.push(x)
+    } else {
+      map.set(key, {
+        key,
+        techUserId: techId,
+        techName: x.techName || x.proposal?.slot.techName || 'Technicien',
+        secteur: x.secteur || x.proposal?.slot.secteur,
+        batchId: x.batchId,
+        items: [x],
+      })
+    }
+  }
+  return { groups: [...map.values()], others }
 }
 
 export function pendingValidationsForUser(

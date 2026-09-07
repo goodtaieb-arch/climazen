@@ -119,8 +119,12 @@ Le PDF final = toujours vous (Lola ne le génère pas).`,
     path: '/app/agenda',
     howTo: `Agenda (/app/agenda) : RDV, maintenances, rappels, absences posées.
 Croix rouge sur un bloc INT = retirer du tech (revient dans « à poser »).
-Recliquer / glisser = changer d’heure ou de tech.`,
-    sayToLola: ['Agenda RDV demain 14h pour Mr Martin site Atelier'],
+Recliquer / glisser = changer d’heure ou de tech.
+Lola peut préparer un lot : « Affecte 2 INT à chaque tech » → Accueil (Valider par tech / par INT). Un tech ne change pas de secteur.`,
+    sayToLola: [
+      'Agenda RDV demain 14h pour Mr Martin site Atelier',
+      'Affecte 2 INT à chaque tech, sans changer de secteur',
+    ],
     canPropose: true,
   },
   {
@@ -355,7 +359,7 @@ function nq(raw: string): string {
 }
 
 const CREATE_VERBS =
-  /\b(cree|creer|ajoute|ajouter|planifie|programme|pose|prend|prendre|decaler|decale|lance|prepare|preparer|commande|commander|enregistre|nouveau|nouvelle|fais moi|faites moi)\b/
+  /\b(cree|creer|ajoute|ajouter|planifie|programme|pose|prend|prendre|decaler|decale|lance|prepare|preparer|commande|commander|enregistre|nouveau|nouvelle|fais moi|faites moi|affecte|affecter|attribue|attribuer|reparti|repartir)\b/
 
 const HOWTO_RE =
   /\b(comment|ou cliquer|ou trouver|ou est le bouton|a quoi sert|c est quoi|explique|tutoriel|guide moi|aide moi|je (suis|me) perdu|je ne (sais|comprends)|montre moi comment|apprendre|formateur)\b/

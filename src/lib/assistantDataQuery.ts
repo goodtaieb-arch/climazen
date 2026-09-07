@@ -383,7 +383,7 @@ export function buildLiveDataSnapshot(
     '1) Tu as accès en lecture à TOUTES les données listées (totaux = exacts même si listes tronquées).',
     '2) Réponds à N’IMPORTE quelle question métier à partir de ce bloc + résultats recherche — pas besoin d’une formulation magique.',
     '3) « or » / « o.t » = INT. N’invente jamais un chiffre ni un nom absent.',
-    '4) Écriture (créer/modifier) = proposition seulement, validation humaine « oui » obligatoire.',
+    '4) Écriture (créer/modifier) = proposition. Un lot planning va sur Accueil (valider par tech / par INT). Action simple = « oui ».',
   )
 
   return lines.join('\n')

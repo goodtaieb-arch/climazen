@@ -86,6 +86,7 @@ import {
   type Facture,
 } from './chaineCommerciale'
 import type { AgendaEvent } from './agenda'
+import { applyAssignOtSlots } from './lolaAssignOt'
 import {
   parsePointageEvents,
   parsePointageRegles,
@@ -264,9 +265,23 @@ type Store = {
       createdAt?: string
     },
   ) => string
-  /** Valide ou refuse une proposition IA. */
+  upsertAiPendingValidations: (
+    items: Array<
+      Omit<import('./aiPendingValidation').AiPendingValidation, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+        createdAt?: string
+      }
+    >,
+  ) => string[]
+  /** Valide ou refuse une proposition IA (applique l’affectation INT si payload). */
   decideAiPendingValidation: (
     id: string,
+    decision: 'validee' | 'refusee',
+    opts?: { userId?: string; userName?: string },
+  ) => void
+  /** Valide / refuse plusieurs propositions (ex. tout un tech). */
+  decideAiPendingValidations: (
+    ids: string[],
     decision: 'validee' | 'refusee',
     opts?: { userId?: string; userName?: string },
   ) => void
@@ -2226,26 +2241,93 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const decideAiPendingValidation = useCallback(
-    (id: string, decision: 'validee' | 'refusee', opts?: { userId?: string; userName?: string }) => {
+  const upsertAiPendingValidations = useCallback(
+    (
+      items: Array<
+        Omit<import('./aiPendingValidation').AiPendingValidation, 'id' | 'createdAt' | 'updatedAt'> & {
+          id?: string
+          createdAt?: string
+        }
+      >,
+    ) => {
       const now = new Date().toISOString()
-      setData((d) => ({
-        ...d,
-        aiPendingValidations: (d.aiPendingValidations || []).map((x) =>
-          x.id === id
-            ? {
-                ...x,
-                statut: decision,
-                decidedAt: now,
-                updatedAt: now,
-                decidedByUserId: opts?.userId,
-                decidedByName: opts?.userName,
-              }
-            : x,
-        ),
-      }))
+      const prepared = items.map((v) => {
+        const id = v.id ?? uuid()
+        const next: import('./aiPendingValidation').AiPendingValidation = {
+          ...v,
+          id,
+          createdAt: v.createdAt ?? now,
+          updatedAt: now,
+        }
+        return next
+      })
+      setData((d) => {
+        let list = [...(d.aiPendingValidations || [])]
+        for (const next of prepared) {
+          const existing = list.find((x) => x.id === next.id)
+          if (existing) {
+            list = list.map((x) =>
+              x.id === next.id ? { ...next, createdAt: existing.createdAt } : x,
+            )
+          } else {
+            list = [next, ...list]
+          }
+        }
+        return { ...d, aiPendingValidations: list.slice(0, 200) }
+      })
+      return prepared.map((x) => x.id)
     },
     [],
+  )
+
+  const decideAiPendingValidations = useCallback(
+    (
+      ids: string[],
+      decision: 'validee' | 'refusee',
+      opts?: { userId?: string; userName?: string },
+    ) => {
+      const now = new Date().toISOString()
+      const idSet = new Set(ids.filter(Boolean))
+      if (idSet.size === 0) return
+      setData((d) => {
+        const list = d.aiPendingValidations || []
+        const targets = list.filter((x) => idSet.has(x.id) && x.statut === 'a_valider')
+        let ordresTravail = d.ordresTravail || []
+        if (decision === 'validee') {
+          const slots = targets
+            .map((x) => (x.proposal?.type === 'assign_ot' ? x.proposal.slot : null))
+            .filter((s): s is NonNullable<typeof s> => Boolean(s))
+          if (slots.length) {
+            ordresTravail = applyAssignOtSlots(ordresTravail, slots).ots
+          }
+        }
+        return {
+          ...d,
+          ordresTravail,
+          aiPendingValidations: list.map((x) =>
+            idSet.has(x.id) && x.statut === 'a_valider'
+              ? {
+                  ...x,
+                  statut: decision,
+                  decidedAt: now,
+                  updatedAt: now,
+                  decidedByUserId: opts?.userId,
+                  decidedByName: opts?.userName,
+                  applyError: undefined,
+                }
+              : x,
+          ),
+        }
+      })
+    },
+    [],
+  )
+
+  const decideAiPendingValidation = useCallback(
+    (id: string, decision: 'validee' | 'refusee', opts?: { userId?: string; userName?: string }) => {
+      decideAiPendingValidations([id], decision, opts)
+    },
+    [decideAiPendingValidations],
   )
 
   const upsertPointageRegles = useCallback((r: PointageRegles) => {
@@ -3832,7 +3914,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       decideDemandeAbsence,
       annulerDemandeAbsence,
       upsertAiPendingValidation,
+      upsertAiPendingValidations,
       decideAiPendingValidation,
+      decideAiPendingValidations,
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,
@@ -3927,7 +4011,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       decideDemandeAbsence,
       annulerDemandeAbsence,
       upsertAiPendingValidation,
+      upsertAiPendingValidations,
       decideAiPendingValidation,
+      decideAiPendingValidations,
       upsertPointageRegles,
       addPointageEvent,
       annulerPointageEvent,

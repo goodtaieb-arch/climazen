@@ -64,6 +64,11 @@ import {
 import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import type { UserAccount } from '../lib/auth'
+import {
+  parseAssignOtsIntent,
+  planAssignOts,
+  wantsAssignOts,
+} from '../lib/lolaAssignOt'
 
 type ChatLine = AideMessage & { id: string }
 
@@ -85,7 +90,7 @@ ${aiTierUpsellMessage('none') ?? ''}
 Pour créer des INT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
   }
   return (
-    'Lola — formateur ClimaZEN. Je lis vos données (INT, clients, stock, devis…) et je vous guide dans l’app. Je propose, vous validez.\n\n' +
+    'Lola — formateur ClimaZEN. Je lis vos données (INT, clients, stock, devis…) et je vous guide dans l’app. Pour le planning, je prépare tout le lot et j’envoie sur Accueil : vous validez par tech ou par INT.\n\n' +
     AI_HOW_I_WORK +
     '\n\nPosez n’importe quelle question — pas besoin d’une formule spéciale.\n' +
     'Exemples :\n' +
@@ -93,6 +98,7 @@ Pour créer des INT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER
     '• « Où est le client Dupont ? »\n' +
     '• « Comment faire un CERFA ? »\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
+    '• « Affecte 2 INT à chaque tech, sans changer de secteur »\n' +
     '• « Décale l’INT de 7h à 9h » (puis « oui »)\n' +
     '• « Crée une INT pour Mr Martin, site Atelier »\n\n' +
     'Je ne déforme jamais un nom. Interdit : supprimer une INT (croix rouge Agenda = retirer).'
@@ -129,6 +135,7 @@ export function AideAssistant() {
     upsertPieceVeille,
     upsertOrdreTravail,
     upsertAiPendingValidation,
+    upsertAiPendingValidations,
     addPointageEvent,
     corrigerPointageEvent,
     appEdition,
@@ -436,6 +443,56 @@ export function AideAssistant() {
         setPendingCreate(null)
         setPendingTerrain(null)
         pushAssistant('Création annulée.')
+        return
+      }
+
+      // Affecter N INT / tech (secteur conservé) → lot complet sur Accueil, pas de « oui » par ligne
+      if (wantsAssignOts(q)) {
+        if (!agentOk) {
+          pushAssistant(aiTierUpsellMessage(aiTier, APP_IS_BETA) ?? '')
+          return
+        }
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        const intent = parseAssignOtsIntent(q)
+        if (!intent) {
+          pushAssistant(
+            'Dites par exemple : « Affecte 2 INT à chaque tech, sans bouger le tech de son secteur ».',
+          )
+          return
+        }
+        const plan = planAssignOts({ data, team, intent })
+        if (!plan.ok) {
+          pushAssistant(plan.message)
+          return
+        }
+        const batchId = crypto.randomUUID()
+        upsertAiPendingValidations(
+          plan.slots.map((slot) =>
+            buildAiPendingValidation({
+              source: 'assistant',
+              kind: 'agenda',
+              title: `${formatOtNumero(slot.otNumero)} → ${slot.techName}`,
+              summary: `${slot.otAction} · ${slot.date} ${slot.heure}${
+                slot.siteLabel ? ` · ${slot.siteLabel}` : ''
+              }`,
+              textForInfer: `${q} ${slot.otAction} ${slot.secteur || ''}`,
+              secteur: slot.secteur,
+              dossiers: data.personnelDossiers,
+              retiresUserIds: data.personnelRetiresUserIds,
+              notifyEmailFallback: data.operateur.email || undefined,
+              batchId,
+              techUserId: slot.techUserId,
+              techName: slot.techName,
+              otId: slot.otId,
+              proposal: { type: 'assign_ot', slot },
+            }),
+          ),
+        )
+        pushAssistant(
+          `${plan.summary}\n\nOuvrez Accueil : Valider par tech (toutes ses INT) ou Valider INT (une seule). Après OK, les blocs apparaissent sur l’agenda.`,
+        )
         return
       }
 
