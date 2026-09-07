@@ -6,6 +6,7 @@ import {
   matchTechInTeam,
   findOtsForTechOnDate,
   wantsOtDeplacerOuDecaler,
+  wantsOtLookup,
   answerOtLookupOuDeplacer,
   extractDecalerHeures,
   proposeDecalerOt,
@@ -105,5 +106,8 @@ const propKarim = proposeDecalerOt(
   team,
 )
 assert.equal(propKarim.ok, true)
+
+assert.equal(wantsOtLookup('INT de Karim aujourd’hui'), true)
+assert.equal(wantsOtLookup('OT de Karim aujourd’hui'), true)
 
 console.log('test-assistant-ot-lookup: ok')

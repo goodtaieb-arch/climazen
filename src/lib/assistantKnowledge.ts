@@ -5,6 +5,7 @@
 
 import { AI_UNIFIED_SYSTEM_RULES, wantsAnnulerOt, answerAnnulerOtGuide, AI_HOW_I_WORK } from './aiActionCatalog'
 import { wantsStockPieceQuery, answerStockPieceQuery } from './assistantStockPieces'
+import { answerLolaLookup, answerLolaTrainer, trainerCatalogForPrompt } from './lolaTrainer'
 import type { AppData } from './types'
 
 export type AideTopic = {
@@ -24,7 +25,8 @@ ACCÈS DONNÉES (ouvert, pas cas par cas) :
 - Chaque message contient un bloc « DONNÉES RÉELLES DE LA SOCIÉTÉ » : totaux de TOUS les domaines (interventions/INT, clients, sites, devis, commandes, pièces, fluides, CERFA, agenda, équipe…) + une RECHERCHE libre sur les mots de la question.
 - Tu réponds à N’IMPORTE quelle question métier à partir de ce bloc. Pas besoin d’une formulation précise ni d’un exemple appris.
 - Les TOTAUX sont exacts même si une liste est tronquée. « or » / « o.t » / « ot » / « di » = INT (intervention).
-- Interdit d’inventer un chiffre, un client ou une INT absente du bloc. Si tu ne trouves pas : dis-le et propose comment reformuler ou où regarder dans l’app.
+- Interdit d’inventer un chiffre, un client ou une INT absente du bloc. Si tu ne trouves pas : dis-le, indique le menu /app/… et propose comment reformuler.
+- Tu es FORMATRICE : pour « comment / où cliquer / ouvre… », explique le parcours (étapes + chemin) comme un collègue qui connaît tout le site.
 - Si un rapport d’intervention mentionne une pièce HS / à changer / bruyante : oriente vers la chaîne « demande devis fournisseur + devis client » (validation humaine).
 
 Parcours principaux :
@@ -521,6 +523,14 @@ export function answerAideLocal(question: string, pathname = '', data?: AppData)
     return `${AI_HOW_I_WORK}\n\n— Assistant ClimaZEN (mode guide)`
   }
 
+  if (data) {
+    const lookup = answerLolaLookup(data, question)
+    if (lookup) return `${lookup}\n\n— Assistant ClimaZEN (mode guide)`
+  }
+
+  const trainer = answerLolaTrainer(question, pathname)
+  if (trainer) return `${trainer}\n\n— Assistant ClimaZEN (mode guide)`
+
   let best: AideTopic | null = null
   let bestScore = 0
   for (const topic of AIDE_TOPICS) {
@@ -557,5 +567,5 @@ export function buildAideContext(pathname: string): string {
   const blocks = (relevant.length ? relevant : AIDE_TOPICS.slice(0, 4)).map(
     (t) => `### ${t.title}\n${t.answer}`,
   )
-  return `Page actuelle : ${pathname || '/app'}\n\n${blocks.join('\n\n')}`
+  return `Page actuelle : ${pathname || '/app'}\n\n${blocks.join('\n\n')}\n\n${trainerCatalogForPrompt()}`
 }
