@@ -16,6 +16,7 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, techIdsOt } from '../lib/ordreTravail'
 import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
+import { SafetyTipBanner } from './SafetyTipBanner'
 import {
   POINTAGE_ACTION_HINTS,
   POINTAGE_ACTION_LABELS,
@@ -81,6 +82,8 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
   const [cibleDeplacement, setCibleDeplacement] = useState<PointageCible>('ot')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [safetyKey, setSafetyKey] = useState(0)
+  const [speakSafety, setSpeakSafety] = useState(false)
 
   useEffect(() => {
     if (otIdProp) setOtId(otIdProp)
@@ -124,6 +127,12 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
     : maJournee?.otIdCourant
       ? otsOuverts.find((o) => o.id === maJournee.otIdCourant)
       : undefined
+
+  const siteCourant = useMemo(() => {
+    const id = chantierId || otCourant?.chantierId
+    if (!id) return null
+    return data.chantiers.find((c) => c.id === id) || null
+  }, [chantierId, data.chantiers, otCourant?.chantierId])
 
   const punch = async (
     action: PointageAction,
@@ -215,6 +224,8 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
       }
       if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)} — heures mises à jour.`)
+      setSafetyKey((k) => k + 1)
+      setSpeakSafety(true)
     } finally {
       setBusy(false)
     }
@@ -428,6 +439,15 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
           {msg}
         </p>
       ) : null}
+
+      <SafetyTipBanner
+        lastAction={last?.action || null}
+        ot={otCourant || null}
+        site={siteCourant}
+        refreshKey={safetyKey}
+        speakOnce={speakSafety}
+        onSpoken={() => setSpeakSafety(false)}
+      />
 
       <p className="text-[11px] text-muted">
         Les heures comptent de la sortie domicile jusqu’au retour. Une action à la fois : le temps

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import { formatOtNumero, isOtCloture, otEstAstreinte, techIdsOt, TYPE_OT_LABELS } from '../lib/ordreTravail'
 import { infoMoisGenerationOt } from '../lib/contratOtAuto'
 import { PauseRepasEnCoursBar } from './PauseRepasEnCoursBar'
+import { SafetyTipBanner } from './SafetyTipBanner'
 import {
   POINTAGE_ACTION_LABELS,
   actionAutorisee,
@@ -44,6 +45,8 @@ export function TerrainAccueilPointage() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [safetyKey, setSafetyKey] = useState(0)
+  const [speakSafety, setSpeakSafety] = useState(false)
 
   const mesInt = useMemo(() => {
     if (!user?.id) return []
@@ -105,19 +108,42 @@ export function TerrainAccueilPointage() {
       }
       if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
       setMsg(`${POINTAGE_ACTION_LABELS[action]} · ${formatHeureIso(at)}`)
+      setSafetyKey((k) => k + 1)
+      setSpeakSafety(true)
     } finally {
       setBusy(false)
     }
   }
 
+  const otCourantPointage = useMemo(() => {
+    if (!last?.otId) return mesInt[0] || null
+    return (data.ordresTravail || []).find((o) => o.id === last.otId) || mesInt[0] || null
+  }, [data.ordresTravail, last?.otId, mesInt])
+  const siteCourantPointage = useMemo(() => {
+    if (!otCourantPointage?.chantierId) return null
+    return data.chantiers.find((c) => c.id === otCourantPointage.chantierId) || null
+  }, [data.chantiers, otCourantPointage?.chantierId])
+
+  const safetyBanner = (
+    <SafetyTipBanner
+      lastAction={last?.action || null}
+      ot={otCourantPointage}
+      site={siteCourantPointage}
+      refreshKey={safetyKey}
+      speakOnce={speakSafety}
+      onSpoken={() => setSpeakSafety(false)}
+    />
+  )
+
   if (mesInt.length === 0 && lastCanon === 'fin_journee') {
     return (
-      <section className="rounded-2xl border border-line bg-white p-4">
+      <section className="rounded-2xl border border-line bg-white p-4 space-y-2">
         <p className="text-sm font-semibold text-ink">Journée close</p>
         <p className="mt-1 text-xs text-muted">
           Trajet fin arrêté à l’arrivée. Aucune INT ouverte. Nouvelle INT : cercle Intervenir.
         </p>
         {msg ? <p className="mt-2 text-xs font-semibold text-emerald-800">{msg}</p> : null}
+        {safetyBanner}
       </section>
     )
   }
@@ -203,6 +229,7 @@ export function TerrainAccueilPointage() {
             {msg}
           </p>
         ) : null}
+        {safetyBanner}
       </section>
     )
   }
@@ -233,6 +260,7 @@ export function TerrainAccueilPointage() {
           {msg}
         </p>
       ) : null}
+      {safetyBanner}
       {journeeBar}
       <ul className="space-y-2">
         {mesInt.map((o) => {

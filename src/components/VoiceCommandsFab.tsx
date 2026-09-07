@@ -22,6 +22,7 @@ import {
   parlerPointageConfirme,
   parseHandsFreeIntent,
 } from '../lib/voiceHandsFree'
+import { pickSafetyTip } from '../lib/safetyTips'
 import {
   POINTAGE_ACTION_LABELS,
   actionAutorisee,
@@ -217,7 +218,15 @@ export function VoiceCommandsFab() {
         }
       }
       if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
-      replyAndResume(parlerPointageConfirme(action, cibleFinal))
+      const confirm = parlerPointageConfirme(action, cibleFinal)
+      const tip = pickSafetyTip({
+        lastAction: action,
+        ot: otId ? (d.ordresTravail || []).find((o) => o.id === otId) || null : null,
+        site: chantierId
+          ? d.chantiers.find((c) => c.id === chantierId) || null
+          : null,
+      })
+      replyAndResume(`${confirm} ${tip.speak}`)
     } catch {
       replyAndResume('Pointage impossible pour le moment.')
     }
@@ -491,6 +500,7 @@ export function VoiceCommandsFab() {
             <li>« Je suis arrivé » / « Pause repas »</li>
             <li>Autres questions → Lola répond à voix haute</li>
             <li>« Stop » pour couper l’écoute</li>
+            <li>Après un pointage : rappel sécurité lu à voix haute</li>
           </ul>
         )}
       </div>

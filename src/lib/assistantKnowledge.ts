@@ -417,8 +417,32 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
 • « Mets-moi en déplacement vers le site » / « vers le fournisseur »
 • « Je suis arrivé », « pause repas », « stop »
 • Autre question → Lola (intelligence) répond oralement.
+• Après un pointage : petit rappel sécurité (EPI, conduite, CO, harnais…) — messages qui tournent.
 Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
 Chrome / Android recommandé ; iPhone Safari souvent limité.`,
+  },
+  {
+    id: 'securite-rappels',
+    title: 'Rappels sécurité terrain',
+    keywords: [
+      'sécurité',
+      'securite',
+      'epi',
+      'harnais',
+      'détecteur co',
+      'alcool',
+      'conduite',
+      'rappel sécurité',
+    ],
+    paths: ['/app', '/app/pointage'],
+    answer: `Sur le téléphone tech, une bannière « Sécurité » rappelle les bons gestes :
+• Arrivée site : EPI, balisage
+• Déplacement : zéro alcool / stupéfiants, main libre
+• Une fois / semaine : huile et eau voiture
+• Chaufferie : détecteur CO
+• Toiture : harnais
+• Électricité / SAT : consignation, VAT
+Les messages tournent pour ne pas toujours répéter le même. Après un pointage, le rappel peut être lu à voix haute (main libre).`,
   },
 ]
 
