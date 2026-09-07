@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { parseVoiceCommand, textForSpeech } from '../src/lib/speech'
+import { parseVoiceCommand, textForSpeech, textForVoiceReply } from '../src/lib/speech'
 import {
   isDirectHandsFreeCommand,
   isWakePhrase,
@@ -128,5 +128,12 @@ assert.ok(oral.includes('Magasin Test') || oral.includes('Site Centre'))
 assert.ok(parlerMesInterventions(data, 'autre').includes('aucune'))
 
 assert.equal(textForSpeech('**Bonjour** • test'), 'Bonjour test')
+assert.equal(
+  textForVoiceReply(
+    'Client « Martin » créé. Vérifiez la fiche si besoin. Cette troisième phrase ne doit pas être lue.',
+  ),
+  'Client « Martin » créé. Vérifiez la fiche si besoin.',
+)
+assert.ok(textForVoiceReply('Résultat '.repeat(40)).length <= 160)
 
 console.log(`OK ${cases.length} commandes + main libre`)

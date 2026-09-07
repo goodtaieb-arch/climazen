@@ -55,7 +55,11 @@ import {
 } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { learnAiVocabulary, learnAiVocabularyCorrection } from '../lib/aiVocabulary'
-import { applySpeechCorrections, speakFr, textForSpeech } from '../lib/speech'
+import {
+  applySpeechCorrections,
+  speakFr,
+  textForVoiceReply,
+} from '../lib/speech'
 import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import type { UserAccount } from '../lib/auth'
@@ -183,7 +187,7 @@ export function AideAssistant() {
   const releaseHandsFreeVoice = (oral?: string) => {
     if (!speakNextRef.current) return
     speakNextRef.current = false
-    const spoken = oral ? textForSpeech(oral) : ''
+    const spoken = oral ? textForVoiceReply(oral) : ''
     if (spoken) {
       window.dispatchEvent(
         new CustomEvent('climazen:voice-spoke', { detail: { text: spoken.slice(0, 80) } }),
@@ -245,7 +249,7 @@ export function AideAssistant() {
     setLines((prev) => [...prev, { id: newId(), role: 'assistant', content }])
     if (speakNextRef.current) {
       speakNextRef.current = false
-      const oral = textForSpeech(content)
+      const oral = textForVoiceReply(content)
       window.dispatchEvent(
         new CustomEvent('climazen:voice-spoke', { detail: { text: oral.slice(0, 80) } }),
       )
@@ -367,6 +371,7 @@ export function AideAssistant() {
 
   const send = async (text: string) => {
     const q = text.trim()
+    const voiceRequest = speakNextRef.current
     if (!q) {
       releaseHandsFreeVoice()
       return
@@ -606,6 +611,16 @@ export function AideAssistant() {
           : undefined,
         chatbotOnly: !agentOk,
         organizationId,
+        voiceMode: voiceRequest,
+        userContext: `=== CONTEXTE UTILISATEUR COURANT ===
+Utilisateur : ${user?.fullName || 'nom non renseigné'}
+Rôle : ${user?.role || 'non renseigné'}
+Interface : ${
+          typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+            ? 'téléphone / terrain'
+            : 'ordinateur'
+        }
+Priorité : répondre selon les données visibles et les droits de cet utilisateur. Pour un technicien, privilégier ses interventions affectées, son pointage, le site courant et les actions terrain.`,
       })
       setSource(src)
 

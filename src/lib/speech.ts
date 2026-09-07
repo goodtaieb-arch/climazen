@@ -456,6 +456,29 @@ export function textForSpeech(raw: string, maxLen = 420): string {
 }
 
 /**
+ * Réponse orale Lola : garde l’information utile sans lire tout le contenu du chat.
+ * Une ou deux phrases courtes, avec une limite stricte adaptée au terrain.
+ */
+export function textForVoiceReply(raw: string, maxLen = 160): string {
+  const text = textForSpeech(raw, 800)
+  if (!text) return ''
+
+  const sentences = text.match(/[^.!?]+(?:[.!?]+|$)/g) || [text]
+  let spoken = ''
+  for (const sentence of sentences) {
+    const next = `${spoken} ${sentence.trim()}`.trim()
+    if (next.length > maxLen && spoken) break
+    spoken = next
+    if (spoken.split(/\s+/).length >= 8) break
+  }
+
+  if (spoken.length <= maxLen) return spoken
+  const sliced = spoken.slice(0, maxLen - 1)
+  const wordBoundary = sliced.lastIndexOf(' ')
+  return `${(wordBoundary >= Math.floor(maxLen * 0.65) ? sliced.slice(0, wordBoundary) : sliced).trim()}…`
+}
+
+/**
  * Lit une réponse à voix haute (fr-FR).
  * onEnd est appelé même si TTS indisponible (pour relancer l’écoute).
  */

@@ -27,6 +27,10 @@ export async function askAideAssistant(opts: {
   chatbotOnly?: boolean
   /** Société — vocabulaire technique Supabase injecté dans OpenAI. */
   organizationId?: string
+  /** Requête issue du mode main libre : réponse orale très courte. */
+  voiceMode?: boolean
+  /** Utilisateur et appareil courants, sans donnée sensible. */
+  userContext?: string
 }): Promise<AideReply> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')
   const question = lastUser?.content || ''
@@ -35,7 +39,15 @@ export async function askAideAssistant(opts: {
   let fallbackHint: string | undefined
   const context = [
     buildAideContext(pathname),
+    opts.userContext?.trim() || '',
     opts.entityCatalog?.trim() || '',
+    opts.voiceMode
+      ? `MODE VOCAL TERRAIN :
+- Réponds en français en 1 ou 2 phrases très courtes (25 mots maximum).
+- Donne d’abord le résultat ou l’action utile, sans introduction ni longue explication.
+- Si une action doit être validée, dis clairement qu’elle est préparée et demande « oui ».
+- Ne dis jamais qu’une action est exécutée tant que l’application ne l’a pas réellement enregistrée.`
+      : '',
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -68,6 +80,7 @@ export async function askAideAssistant(opts: {
         system: AIDE_SYSTEM_PROMPT,
         context,
         organizationId: opts.organizationId,
+        voiceMode: opts.voiceMode,
       }),
     })
     if (res.ok) {

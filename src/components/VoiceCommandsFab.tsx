@@ -16,6 +16,7 @@ import {
   isTtsSupported,
   parseVoiceCommand,
   speakFr,
+  textForVoiceReply,
   type SpeechRecognitionLike,
 } from '../lib/speech'
 import {
@@ -179,7 +180,7 @@ export function VoiceCommandsFab() {
     speakingRef.current = true
     setSpeaking(true)
     pauseRec()
-    speakFr(text, {
+    speakFr(textForVoiceReply(text), {
       onEnd: () => {
         speakingRef.current = false
         setSpeaking(false)
@@ -647,11 +648,11 @@ export function VoiceCommandsFab() {
       clearActivationHint()
       setNeedsActivation(false)
       setHint(
-        isTtsSupported() ? 'Je vous écoute…' : 'Main libre (voix orale indisponible)',
+        isTtsSupported() ? 'Comment je peux vous aider ?' : 'Main libre (voix orale indisponible)',
       )
       speakingRef.current = true
       setSpeaking(true)
-      speakFr('Je vous écoute.', {
+      speakFr('Comment je peux vous aider ?', {
         onEnd: () => {
           speakingRef.current = false
           setSpeaking(false)
