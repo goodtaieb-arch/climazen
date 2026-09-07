@@ -66,6 +66,90 @@ function cleanupSpeechFillers(raw: string): string {
 }
 
 /**
+ * Fusionne un nouveau morceau STT dans le buffer sans empiler les doublons.
+ * Chrome (continuous + restart) renvoie souvent la phrase complète à nouveau
+ * ou une version qui étend l’interim déjà finalisé.
+ */
+export function appendSpeechChunk(buffer: string, piece: string): string {
+  const b = (buffer || '').replace(/\s+/g, ' ').trim()
+  const p = (piece || '').replace(/\s+/g, ' ').trim()
+  if (!p) return b
+  if (!b) return p
+
+  const nb = normalizeSpeechText(b)
+  const np = normalizeSpeechText(p)
+  if (!np) return b
+  if (nb === np) return b
+  // Nouveau résultat = phrase entière qui contient déjà le buffer
+  if (np.startsWith(nb) && np.length >= nb.length) return p
+  // Même fin déjà enregistrée
+  if (nb.endsWith(np)) return b
+  // Chevauchement : fin du buffer == début du morceau (même découpage que normalize)
+  const bWords = nb.split(' ').filter(Boolean)
+  const pWords = np.split(' ').filter(Boolean)
+  const maxOverlap = Math.min(bWords.length, pWords.length)
+  for (let k = maxOverlap; k >= 2; k--) {
+    const end = bWords.slice(-k).join(' ')
+    const start = pWords.slice(0, k).join(' ')
+    if (end === start) {
+      const restWords = pWords.slice(k)
+      if (restWords.length === 0) return b
+      return `${b} ${restWords.join(' ')}`.trim()
+    }
+  }
+  // Le morceau est un préfixe / sous-partie déjà dans le buffer
+  if (nb.includes(` ${np} `) || nb.endsWith(` ${np}`) || nb.startsWith(`${np} `)) {
+    if (pWords.length >= 3) return b
+  }
+  return `${b} ${p}`.trim()
+}
+
+/**
+ * Enlève les mots / groupes répétés en boucle (dictée qui bégaye).
+ * Ex. « donc donc faites-moi la commande faites-moi la commande » → une fois.
+ */
+export function collapseSpeechRepetitions(raw: string): string {
+  let text = (raw || '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+
+  // Mots consécutifs identiques (donc donc donc)
+  text = text.replace(/\b([A-Za-zÀ-ÿ0-9'’-]+)(?:\s+\1\b)+/gi, '$1')
+
+  const words = text.split(/\s+/).filter(Boolean)
+  if (words.length < 4) return text
+
+  // N-grammes répétés (du plus long au plus court)
+  const maxN = Math.min(12, Math.floor(words.length / 2))
+  let out = words
+  for (let n = maxN; n >= 2; n--) {
+    const next: string[] = []
+    let i = 0
+    while (i < out.length) {
+      if (i + 2 * n <= out.length) {
+        const a = out.slice(i, i + n).map((w) => normalizeSpeechText(w)).join(' ')
+        const b = out.slice(i + n, i + 2 * n).map((w) => normalizeSpeechText(w)).join(' ')
+        if (a && a === b) {
+          next.push(...out.slice(i, i + n))
+          i += 2 * n
+          // Avaler d’éventuelles répétitions supplémentaires du même bloc
+          while (i + n <= out.length) {
+            const c = out.slice(i, i + n).map((w) => normalizeSpeechText(w)).join(' ')
+            if (c !== a) break
+            i += n
+          }
+          continue
+        }
+      }
+      next.push(out[i])
+      i += 1
+    }
+    out = next
+  }
+
+  return out.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+/**
  * Corrige les fluides mal dictés (iPhone / Safari découpe souvent R-410A → « R. 4 110 »).
  * À appliquer après chaque dictée — pas un problème micro, c’est la reconnaissance.
  */
@@ -124,10 +208,11 @@ export function normalizeSpeechFluides(raw: string): string {
  * → garde le sens corrigé au lieu d’empiler l’erreur.
  */
 export function applySpeechCorrections(raw: string): string {
-  let text = cleanupSpeechFillers(raw)
+  let text = collapseSpeechRepetitions(cleanupSpeechFillers(raw))
   if (!text) return ''
 
-  const finish = (s: string) => normalizeSpeechFluides(cleanupSpeechFillers(s))
+  const finish = (s: string) =>
+    normalizeSpeechFluides(collapseSpeechRepetitions(cleanupSpeechFillers(s)))
 
   // Recommencer / effacer
   const restart = text.match(
@@ -180,7 +265,11 @@ export function applySpeechCorrections(raw: string): string {
  * Fusionne les morceaux finaux d’une dictée continue + corrections.
  */
 export function mergeSpeechFinals(chunks: string[]): string {
-  return applySpeechCorrections(chunks.filter(Boolean).join(' '))
+  let merged = ''
+  for (const chunk of chunks) {
+    merged = appendSpeechChunk(merged, chunk)
+  }
+  return applySpeechCorrections(merged)
 }
 
 export type VoiceCommandId =

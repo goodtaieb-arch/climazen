@@ -8,6 +8,7 @@ import { isOtCloture } from '../lib/ordreTravail'
 import {
   SPEECH_COMMAND_SILENCE_MS,
   applySpeechCorrections,
+  appendSpeechChunk,
   cancelSpeech,
   getSpeechRecognitionCtor,
   isSpeechSupported,
@@ -341,7 +342,7 @@ export function VoiceCommandsFab() {
         const result = ev.results[i]
         const piece = result?.[0]?.transcript || ''
         if (result?.isFinal) {
-          bufferRef.current = `${bufferRef.current} ${piece}`.trim()
+          bufferRef.current = appendSpeechChunk(bufferRef.current, piece)
           setHint(applySpeechCorrections(bufferRef.current) || 'Écoute…')
         } else {
           interim += piece

@@ -3,6 +3,7 @@ import { Loader2, Mic, MicOff } from 'lucide-react'
 import {
   SPEECH_SILENCE_MS,
   applySpeechCorrections,
+  appendSpeechChunk,
   getSpeechRecognitionCtor,
   isSpeechSupported,
   mergeSpeechFinals,
@@ -147,8 +148,13 @@ export function VoiceDictationButton({
         if (result.isFinal) {
           const piece = best.trim()
           if (piece) {
-            finalsRef.current = [...finalsRef.current, piece]
-            commitFinals()
+            const prevJoined = finalsRef.current.join(' ')
+            const nextJoined = appendSpeechChunk(prevJoined, piece)
+            if (nextJoined !== prevJoined) {
+              // Reconstruire la liste en un seul segment propre (évite les doublons STT)
+              finalsRef.current = nextJoined ? [nextJoined] : []
+              commitFinals()
+            }
           }
         } else {
           interimText += best
