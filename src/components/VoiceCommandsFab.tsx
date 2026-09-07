@@ -75,6 +75,7 @@ export function VoiceCommandsFab() {
   const pendingLeftoverRef = useRef('')
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wakeActivationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
   const aiOkRef = useRef(false)
@@ -102,6 +103,13 @@ export function VoiceCommandsFab() {
     }
   }
 
+  const clearWakeActivation = () => {
+    if (wakeActivationTimerRef.current) {
+      clearTimeout(wakeActivationTimerRef.current)
+      wakeActivationTimerRef.current = null
+    }
+  }
+
   const persistWake = (on: boolean) => {
     try {
       if (on) localStorage.setItem(VOICE_WAKE_AUTO_KEY, '1')
@@ -114,6 +122,7 @@ export function VoiceCommandsFab() {
   const stopWake = () => {
     wakeWantRef.current = false
     clearWakeRestart()
+    clearWakeActivation()
     setWakeHint(false)
     try {
       wakeRecRef.current?.abort()
@@ -129,6 +138,7 @@ export function VoiceCommandsFab() {
       wakeWantRef.current = false
       clearSilence()
       clearWakeRestart()
+      clearWakeActivation()
       cancelSpeech()
       try {
         recRef.current?.abort()
@@ -431,6 +441,20 @@ export function VoiceCommandsFab() {
     wakeWantRef.current = true
     setWakeHint(true)
     setHint('Dis « Lola » pour le micro')
+    let activatingCommand = false
+
+    const finishWakeActivation = () => {
+      if (!activatingCommand) return
+      activatingCommand = false
+      clearWakeActivation()
+      wakeRecRef.current = null
+      // L’ancien SpeechRecognition est maintenant terminé : le nouveau peut
+      // prendre le micro sans provoquer InvalidStateError / audio-capture.
+      wakeActivationTimerRef.current = setTimeout(() => {
+        wakeActivationTimerRef.current = null
+        if (!wantListenRef.current) start()
+      }, 0)
+    }
 
     const onHeard = (raw: string) => {
       if (!wakeWantRef.current || wantListenRef.current) return
@@ -438,8 +462,20 @@ export function VoiceCommandsFab() {
       if (!isWakePhrase(text)) return
       const leftover = stripWakePhrase(text)
       pendingLeftoverRef.current = leftover
-      stopWake()
-      start()
+      activatingCommand = true
+      wakeWantRef.current = false
+      clearWakeRestart()
+      setWakeHint(false)
+      setHint('Lola entendue — activation du micro…')
+      // abort() est asynchrone dans Chrome. Attendre onend avant start()
+      // évite que les deux instances de reconnaissance se disputent le micro.
+      clearWakeActivation()
+      wakeActivationTimerRef.current = setTimeout(finishWakeActivation, 600)
+      try {
+        rec.abort()
+      } catch {
+        finishWakeActivation()
+      }
     }
 
     rec.onresult = (ev) => {
@@ -470,6 +506,10 @@ export function VoiceCommandsFab() {
       if (code === 'aborted' || code === 'no-speech') return
     }
     rec.onend = () => {
+      if (activatingCommand) {
+        finishWakeActivation()
+        return
+      }
       if (!wakeWantRef.current || wantListenRef.current) return
       clearWakeRestart()
       wakeRestartRef.current = setTimeout(() => {
