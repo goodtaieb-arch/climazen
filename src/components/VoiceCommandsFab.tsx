@@ -6,10 +6,7 @@ import { useAuth } from '../lib/AuthContext'
 import { openAddressInGps } from '../lib/mapsNav'
 import { isOtCloture } from '../lib/ordreTravail'
 import {
-  SPEECH_COMMAND_FAST_MS,
   SPEECH_COMMAND_SILENCE_MS,
-  SPEECH_RESTART_DELAY_MS,
-  VOICE_WAKE_AUTO_KEY,
   applySpeechCorrections,
   appendSpeechChunk,
   cancelSpeech,
@@ -23,13 +20,10 @@ import {
 import {
   AIDE_POINTAGE_VOIX,
   choisirOtPourDeplacement,
-  isDirectHandsFreeCommand,
-  isWakePhrase,
   otIdDepuisDernierPointage,
   parlerMesInterventions,
   parlerPointageConfirme,
   parseHandsFreeIntent,
-  stripWakePhrase,
 } from '../lib/voiceHandsFree'
 import {
   POINTAGE_ACTION_LABELS,
@@ -51,22 +45,10 @@ import { resetAlarmePauseRepas } from '../lib/pauseRepasAlarme'
 import { canUseChatbot, resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 
-type VoiceMode = 'off' | 'wake' | 'active'
-
-/** Coupe la veille si aucune activation « Lola » pendant ce délai. */
-const WAKE_IDLE_STOP_MS = 60_000
-/** Si Lola IA ne répond pas, relâche le micro. */
-const AIDE_VOICE_TIMEOUT_MS = 12_000
-/** En écoute active : silence vide → coupe le micro (plus de boucle infinie). */
-const ACTIVE_IDLE_STOP_MS = 8_000
-
-const LOLA_IA_OFF_ORAL =
-  'Lola n’est pas activée sur ce compte. Tu peux pointer à la voix : déplacement, en cours, pause, fin d’intervention. Dis stop pour couper le micro.'
-
 /**
- * Main libre terrain — micro en-tête.
- * Bouton micro → écoute active immédiate (commandes).
- * Veille « dis Lola » après une réponse, ou auto si déjà armée.
+ * Main libre terrain — micro simple.
+ * Appui micro → « Je vous écoute » → ordre → exécution → réécoute.
+ * Stop / retouche micro pour couper. Pas de veille « dis Lola ».
  */
 export function VoiceCommandsFab() {
   const navigate = useNavigate()
@@ -78,20 +60,18 @@ export function VoiceCommandsFab() {
   const [showHelp, setShowHelp] = useState(false)
   const [supported] = useState(() => isSpeechSupported())
   const recRef = useRef<SpeechRecognitionLike | null>(null)
-  const modeRef = useRef<VoiceMode>('off')
   const listeningRef = useRef(false)
+  const wantListenRef = useRef(false)
   const speakingRef = useRef(false)
   const bufferRef = useRef('')
   const interimRef = useRef('')
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wakeIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const activeIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const aideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
-  const aiTierRef = useRef(resolveAiTier({ appEdition, aiPlan: data.aiPlan, isBeta: APP_IS_BETA }))
-  aiTierRef.current = resolveAiTier({ appEdition, aiPlan: data.aiPlan, isBeta: APP_IS_BETA })
+  const aiOkRef = useRef(false)
+  aiOkRef.current = canUseChatbot(
+    resolveAiTier({ appEdition, aiPlan: data.aiPlan, isBeta: APP_IS_BETA }),
+  )
 
   const emitState = (on: boolean) => {
     listeningRef.current = on
@@ -106,96 +86,10 @@ export function VoiceCommandsFab() {
     }
   }
 
-  const clearRestart = () => {
-    if (restartTimerRef.current) {
-      clearTimeout(restartTimerRef.current)
-      restartTimerRef.current = null
-    }
-  }
-
-  const clearWakeIdle = () => {
-    if (wakeIdleTimerRef.current) {
-      clearTimeout(wakeIdleTimerRef.current)
-      wakeIdleTimerRef.current = null
-    }
-  }
-
-  const clearActiveIdle = () => {
-    if (activeIdleTimerRef.current) {
-      clearTimeout(activeIdleTimerRef.current)
-      activeIdleTimerRef.current = null
-    }
-  }
-
-  const clearAideTimeout = () => {
-    if (aideTimeoutRef.current) {
-      clearTimeout(aideTimeoutRef.current)
-      aideTimeoutRef.current = null
-    }
-  }
-
-  const clearAllTimers = () => {
-    clearSilence()
-    clearRestart()
-    clearWakeIdle()
-    clearActiveIdle()
-    clearAideTimeout()
-  }
-
-  const armWakeIdle = () => {
-    clearWakeIdle()
-    if (modeRef.current !== 'wake') return
-    wakeIdleTimerRef.current = setTimeout(() => {
-      wakeIdleTimerRef.current = null
-      if (modeRef.current !== 'wake') return
-      hardStop('Veille coupée — retouche le micro')
-    }, WAKE_IDLE_STOP_MS)
-  }
-
-  const armActiveIdle = () => {
-    clearActiveIdle()
-    if (modeRef.current !== 'active') return
-    activeIdleTimerRef.current = setTimeout(() => {
-      activeIdleTimerRef.current = null
-      if (modeRef.current !== 'active' || speakingRef.current) return
-      // Pas de parole utile → coupe (évite micro qui tourne sans fin)
-      if (!(bufferRef.current.trim() || interimRef.current.trim())) {
-        hardStop('Écoute terminée')
-      }
-    }, ACTIVE_IDLE_STOP_MS)
-  }
-
-  const persistWakeAuto = (on: boolean) => {
-    try {
-      if (on) localStorage.setItem(VOICE_WAKE_AUTO_KEY, '1')
-      else localStorage.removeItem(VOICE_WAKE_AUTO_KEY)
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const hardStop = (msg?: string) => {
-    modeRef.current = 'off'
-    persistWakeAuto(false)
-    clearAllTimers()
-    cancelSpeech()
-    speakingRef.current = false
-    setSpeaking(false)
-    bufferRef.current = ''
-    interimRef.current = ''
-    try {
-      recRef.current?.abort()
-    } catch {
-      /* ignore */
-    }
-    emitState(false)
-    if (msg) setHint(msg)
-  }
-
   useEffect(() => {
     return () => {
-      modeRef.current = 'off'
-      clearAllTimers()
+      wantListenRef.current = false
+      clearSilence()
       cancelSpeech()
       try {
         recRef.current?.abort()
@@ -207,8 +101,6 @@ export function VoiceCommandsFab() {
 
   const pauseRec = () => {
     clearSilence()
-    clearRestart()
-    clearActiveIdle()
     try {
       recRef.current?.stop()
     } catch {
@@ -216,83 +108,7 @@ export function VoiceCommandsFab() {
     }
   }
 
-  const scheduleRecStart = (why: 'resume' | 'restart') => {
-    if (modeRef.current === 'off' || speakingRef.current) return
-    clearRestart()
-    // Veille : plus long entre deux start() → moins de bips micro Chrome
-    const delay =
-      why === 'restart'
-        ? modeRef.current === 'wake'
-          ? Math.max(SPEECH_RESTART_DELAY_MS, 2800)
-          : SPEECH_RESTART_DELAY_MS
-        : 80
-    restartTimerRef.current = setTimeout(() => {
-      restartTimerRef.current = null
-      if (modeRef.current === 'off' || speakingRef.current) return
-      try {
-        recRef.current?.start()
-        emitState(true)
-        if (modeRef.current === 'wake') {
-          setHint('Veille — dis « Lola »')
-        } else {
-          setHint('Je vous écoute…')
-          armSilence()
-          armActiveIdle()
-        }
-      } catch {
-        // Déjà en écoute, ou session morte → recreate
-        beginRecognition(modeRef.current === 'active' ? 'active' : 'wake', { greet: false })
-      }
-    }, delay)
-  }
-
-  const enterWake = (opts?: { hint?: string }) => {
-    modeRef.current = 'wake'
-    persistWakeAuto(true)
-    bufferRef.current = ''
-    interimRef.current = ''
-    clearSilence()
-    clearActiveIdle()
-    clearAideTimeout()
-    setHint(opts?.hint || 'Veille — dis « Lola »')
-    armWakeIdle()
-    scheduleRecStart('resume')
-  }
-
-  const enterActive = (opts?: { greet?: boolean; leftover?: string }) => {
-    modeRef.current = 'active'
-    persistWakeAuto(true)
-    bufferRef.current = ''
-    interimRef.current = ''
-    clearWakeIdle()
-    clearAideTimeout()
-    if (opts?.leftover?.trim()) {
-      runTranscript(opts.leftover)
-      return
-    }
-    if (opts?.greet !== false) {
-      setHint('Je vous écoute…')
-      speakingRef.current = true
-      setSpeaking(true)
-      pauseRec()
-      speakFr('Je vous écoute.', {
-        onEnd: () => {
-          speakingRef.current = false
-          setSpeaking(false)
-          if (modeRef.current !== 'active') return
-          setHint('Je vous écoute…')
-          scheduleRecStart('resume')
-        },
-      })
-      return
-    }
-    setHint('Je vous écoute…')
-    scheduleRecStart('resume')
-  }
-
-  /** Réponse orale puis retour veille (évite écoute active infinie + bips). */
   const replyAndResume = (text: string, alsoHint?: string) => {
-    clearAideTimeout()
     setHint(alsoHint || text.slice(0, 80))
     speakingRef.current = true
     setSpeaking(true)
@@ -301,8 +117,16 @@ export function VoiceCommandsFab() {
       onEnd: () => {
         speakingRef.current = false
         setSpeaking(false)
-        if (modeRef.current === 'off') return
-        enterWake({ hint: 'Veille — dis « Lola »' })
+        if (wantListenRef.current) {
+          try {
+            recRef.current?.start()
+            emitState(true)
+            setHint('Je vous écoute…')
+            armSilence()
+          } catch {
+            start()
+          }
+        }
       },
     })
   }
@@ -380,7 +204,12 @@ export function VoiceCommandsFab() {
       const ot = otPrefer && !isOtCloture(otPrefer.statut)
         ? otPrefer
         : choisirOtPourDeplacement(d, user.id, today)
-      if (!ot && (canonWanted === 'intervention_en_cours' || action === 'fin_intervention' || (action === 'deplacement' && (cible === 'ot' || !cible)))) {
+      if (
+        !ot &&
+        (canonWanted === 'intervention_en_cours' ||
+          action === 'fin_intervention' ||
+          (action === 'deplacement' && (cible === 'ot' || !cible)))
+      ) {
         replyAndResume('Aucune intervention ouverte ne t’est affectée.')
         return
       }
@@ -437,8 +266,7 @@ export function VoiceCommandsFab() {
   const runTranscript = (raw: string) => {
     const cleaned = applySpeechCorrections(raw)
     if (!cleaned.trim()) {
-      if (modeRef.current === 'active') enterWake()
-      else if (modeRef.current === 'wake') armSilence()
+      if (wantListenRef.current) armSilence()
       return
     }
 
@@ -478,23 +306,17 @@ export function VoiceCommandsFab() {
       return
     }
 
-    // Phrase libre → Lola IA (si activée), sinon message oral clair
-    if (!canUseChatbot(aiTierRef.current)) {
-      replyAndResume(LOLA_IA_OFF_ORAL)
+    // Phrase libre → Lola IA seulement si activée ; sinon message court (évite micro bloqué)
+    if (!aiOkRef.current) {
+      replyAndResume(
+        'Je n’ai pas compris l’ordre. Dis par exemple : déplacement, en cours, pause, ou fin d’intervention.',
+      )
       return
     }
     setHint(`Lola : « ${cleaned.slice(0, 40)}… »`)
     speakingRef.current = true
     setSpeaking(true)
     pauseRec()
-    clearAideTimeout()
-    aideTimeoutRef.current = setTimeout(() => {
-      aideTimeoutRef.current = null
-      if (modeRef.current === 'off' || !speakingRef.current) return
-      replyAndResume(
-        'Pas de réponse de Lola. Dis stop pour couper, ou dis Lola pour réessayer.',
-      )
-    }, AIDE_VOICE_TIMEOUT_MS)
     window.dispatchEvent(
       new CustomEvent('climazen:aide-voice', {
         detail: { text: cleaned, speak: true },
@@ -503,58 +325,37 @@ export function VoiceCommandsFab() {
   }
 
   const stop = () => {
-    hardStop()
+    wantListenRef.current = false
+    clearSilence()
+    cancelSpeech()
+    speakingRef.current = false
+    setSpeaking(false)
+    bufferRef.current = ''
+    interimRef.current = ''
+    try {
+      recRef.current?.abort()
+    } catch {
+      /* ignore */
+    }
+    emitState(false)
   }
 
   const finishBuffer = () => {
     const raw = (bufferRef.current || interimRef.current).trim()
     bufferRef.current = ''
     interimRef.current = ''
-    const mode = modeRef.current
-    if (!raw) {
-      // Silence sans parole en actif → coupe le micro (demande utilisateur)
-      if (mode === 'active') hardStop('Écoute terminée')
-      return
-    }
-
-    if (mode === 'wake') {
-      if (isWakePhrase(raw)) {
-        const leftover = stripWakePhrase(raw)
-        enterActive({ greet: !leftover, leftover: leftover || undefined })
-        return
-      }
-      // Micro en veille mais ordre terrain clair → exécuter quand même
-      if (isDirectHandsFreeCommand(raw)) {
-        modeRef.current = 'active'
-        clearWakeIdle()
-        runTranscript(raw)
-        return
-      }
-      setHint('Veille — dis « Lola »')
-      armWakeIdle()
-      return
-    }
-
-    // Mode actif
-    const withoutWake = isWakePhrase(raw) ? stripWakePhrase(raw) : raw
-    if (!withoutWake) {
-      setHint('Je vous écoute…')
-      armSilence()
-      armActiveIdle()
-      return
-    }
-    runTranscript(withoutWake)
+    if (raw) runTranscript(raw)
+    else if (wantListenRef.current && !speakingRef.current) armSilence()
   }
 
-  const armSilence = (ms = SPEECH_COMMAND_SILENCE_MS) => {
+  const armSilence = () => {
     clearSilence()
-    if (modeRef.current === 'wake') return
     silenceTimerRef.current = setTimeout(() => {
       finishBuffer()
-    }, ms)
+    }, SPEECH_COMMAND_SILENCE_MS)
   }
 
-  const beginRecognition = (mode: 'wake' | 'active', opts?: { greet?: boolean }) => {
+  const start = () => {
     if (!supported) {
       setHint('Vocal indisponible sur ce navigateur')
       return
@@ -565,9 +366,6 @@ export function VoiceCommandsFab() {
     interimRef.current = ''
     const Ctor = getSpeechRecognitionCtor()
     if (!Ctor) return
-    clearRestart()
-    clearSilence()
-    clearActiveIdle()
     try {
       recRef.current?.abort()
     } catch {
@@ -578,169 +376,130 @@ export function VoiceCommandsFab() {
     rec.continuous = true
     rec.interimResults = true
     rec.maxAlternatives = 3
-    modeRef.current = mode
-    persistWakeAuto(true)
+    wantListenRef.current = true
 
     rec.onresult = (ev) => {
-      if (modeRef.current === 'off' || speakingRef.current) return
+      if (!wantListenRef.current || speakingRef.current) return
+      armSilence()
       let interim = ''
-      let gotFinal = false
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const result = ev.results[i]
         const piece = result?.[0]?.transcript || ''
         if (result?.isFinal) {
-          gotFinal = true
           bufferRef.current = appendSpeechChunk(bufferRef.current, piece)
           interimRef.current = ''
-          const preview = applySpeechCorrections(bufferRef.current)
-          if (modeRef.current === 'wake') {
-            setHint(preview ? `Veille : « ${preview.slice(0, 36)} »` : 'Veille — dis « Lola »')
-            armWakeIdle()
-            if (isWakePhrase(preview) && !stripWakePhrase(preview)) {
-              clearSilence()
-              finishBuffer()
-              return
-            }
-            if (isWakePhrase(preview) && stripWakePhrase(preview)) {
-              clearSilence()
-              silenceTimerRef.current = setTimeout(() => finishBuffer(), SPEECH_COMMAND_FAST_MS)
-              return
-            }
-            // Ordre terrain sans « Lola » pendant la veille → exécuter
-            if (isDirectHandsFreeCommand(preview)) {
-              clearSilence()
-              silenceTimerRef.current = setTimeout(() => finishBuffer(), SPEECH_COMMAND_FAST_MS)
-            }
-          } else {
-            setHint(preview || 'Écoute…')
-            clearActiveIdle()
-            const fast =
-              isDirectHandsFreeCommand(preview) || Boolean(parseVoiceCommand(preview))
-            armSilence(fast ? SPEECH_COMMAND_FAST_MS : SPEECH_COMMAND_SILENCE_MS)
-            armActiveIdle()
-          }
+          setHint(applySpeechCorrections(bufferRef.current) || 'Écoute…')
         } else {
           interim += piece
         }
       }
       if (interim.trim()) {
         interimRef.current = interim.trim()
-        const base = applySpeechCorrections(bufferRef.current)
-        const shown = `${base} ${interim}`.trim()
-        setHint(
-          modeRef.current === 'wake'
-            ? `Veille : « ${shown.slice(0, 36)} »`
-            : shown,
-        )
-        if (modeRef.current === 'active') {
-          // Relance le silence même sur interim (sinon texte affiché jamais exécuté)
-          if (!gotFinal) {
-            armSilence(SPEECH_COMMAND_SILENCE_MS)
-            armActiveIdle()
-          }
-        } else if (modeRef.current === 'wake') {
-          armWakeIdle()
-          const maybe = applySpeechCorrections(`${bufferRef.current} ${interim}`.trim())
-          if (isWakePhrase(maybe) || isDirectHandsFreeCommand(maybe)) {
-            clearSilence()
-            silenceTimerRef.current = setTimeout(() => finishBuffer(), SPEECH_COMMAND_SILENCE_MS)
-          }
-        }
+        setHint(`${applySpeechCorrections(bufferRef.current)} ${interim}`.trim())
       }
     }
     rec.onerror = (ev) => {
       const code = ev.error || ''
       if (code === 'not-allowed') {
-        hardStop('Autorisez le micro')
+        setHint('Autorisez le micro')
+        wantListenRef.current = false
+        emitState(false)
         return
       }
       if (code === 'aborted' || code === 'no-speech') return
-      hardStop('Commande interrompue')
+      setHint('Commande interrompue')
+      wantListenRef.current = false
+      clearSilence()
+      emitState(false)
     }
     rec.onend = () => {
-      if (modeRef.current === 'off' || speakingRef.current) {
-        if (modeRef.current === 'off') {
-          clearAllTimers()
+      if (!wantListenRef.current) {
+        clearSilence()
+        emitState(false)
+        return
+      }
+      if (speakingRef.current) return
+      // Si du texte est en attente, l’exécuter avant de relancer
+      if ((bufferRef.current || interimRef.current).trim()) {
+        if (!silenceTimerRef.current) finishBuffer()
+        return
+      }
+      try {
+        rec.start()
+      } catch {
+        // Session morte → recreate
+        try {
+          start()
+        } catch {
+          wantListenRef.current = false
           emitState(false)
         }
-        return
       }
-      // Flush si du texte est en attente et qu’aucun timer silence ne va le traiter
-      if ((bufferRef.current || interimRef.current).trim()) {
-        if (silenceTimerRef.current) return
-        finishBuffer()
-        return
-      }
-      scheduleRecStart('restart')
     }
     recRef.current = rec
     try {
       rec.start()
       emitState(true)
-      if (mode === 'wake') {
-        setHint('Veille — dis « Lola »')
-        armWakeIdle()
-      } else if (opts?.greet !== false) {
-        setHint(
-          isTtsSupported()
-            ? 'Je vous écoute…'
-            : 'Main libre (voix orale indisponible)',
-        )
-        speakingRef.current = true
-        setSpeaking(true)
-        speakFr('Je vous écoute.', {
-          onEnd: () => {
-            speakingRef.current = false
-            setSpeaking(false)
-            if (modeRef.current === 'active') {
-              setHint('Je vous écoute…')
-              scheduleRecStart('resume')
+      setHint(
+        isTtsSupported() ? 'Je vous écoute…' : 'Main libre (voix orale indisponible)',
+      )
+      speakingRef.current = true
+      setSpeaking(true)
+      speakFr('Je vous écoute.', {
+        onEnd: () => {
+          speakingRef.current = false
+          setSpeaking(false)
+          if (wantListenRef.current) {
+            setHint('Je vous écoute…')
+            try {
+              rec.start()
+            } catch {
+              /* déjà en écoute */
             }
-          },
-        })
-      } else {
-        setHint('Je vous écoute…')
-        armSilence()
-        armActiveIdle()
-      }
+            armSilence()
+          }
+        },
+      })
     } catch {
-      hardStop('Micro indisponible')
+      setHint('Micro indisponible')
+      wantListenRef.current = false
+      emitState(false)
     }
   }
 
   useEffect(() => {
     const onToggle = () => {
-      if (modeRef.current !== 'off' || speakingRef.current) {
-        if (bufferRef.current.trim() || interimRef.current.trim()) {
-          if (!speakingRef.current) finishBuffer()
-          else {
-            hardStop()
-            setHint('')
-            setShowHelp(false)
-          }
+      if (listeningRef.current || speakingRef.current || wantListenRef.current) {
+        if ((bufferRef.current || interimRef.current).trim() && !speakingRef.current) {
+          finishBuffer()
         } else {
-          hardStop()
+          stop()
           setHint('')
           setShowHelp(false)
         }
       } else {
-        // Bouton micro → écoute ACTIVE tout de suite (plus de veille bloquante)
-        beginRecognition('active', { greet: true })
+        start()
       }
     }
     const onHelp = () => {
       setShowHelp(true)
-      setHint('Main libre Lola')
+      setHint('Main libre — touche micro')
     }
     const onResume = () => {
-      clearAideTimeout()
       speakingRef.current = false
       setSpeaking(false)
-      if (modeRef.current === 'off') return
-      enterWake({ hint: 'Veille — dis « Lola »' })
+      if (wantListenRef.current) {
+        try {
+          recRef.current?.start()
+          emitState(true)
+          setHint('Je vous écoute…')
+          armSilence()
+        } catch {
+          start()
+        }
+      }
     }
     const onSpoke = (e: Event) => {
-      clearAideTimeout()
       const detail = (e as CustomEvent<{ text?: string }>).detail
       if (detail?.text) setHint(detail.text.slice(0, 80))
     }
@@ -757,42 +516,8 @@ export function VoiceCommandsFab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supported, user?.id])
 
-  // Auto-veille si le micro est déjà autorisé + préférence « wake auto »
-  useEffect(() => {
-    if (!supported || !user?.id) return
-    let cancelled = false
-    const tryAuto = async () => {
-      let prefer = false
-      try {
-        prefer = localStorage.getItem(VOICE_WAKE_AUTO_KEY) === '1'
-      } catch {
-        prefer = false
-      }
-      if (!prefer || cancelled) return
-      let granted = false
-      try {
-        const perm = await navigator.permissions?.query({
-          name: 'microphone' as PermissionName,
-        })
-        granted = perm?.state === 'granted'
-      } catch {
-        granted = true
-      }
-      if (!granted || cancelled || modeRef.current !== 'off') return
-      beginRecognition('wake')
-    }
-    void tryAuto()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supported, user?.id])
-
   if (!supported && !hint && !showHelp) return null
   if (!listening && !speaking && !hint && !showHelp) return null
-
-  const mode = modeRef.current
-  const wakeBanner = mode === 'wake' && (listening || Boolean(hint))
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[3.75rem] z-30 flex justify-center px-3 md:top-16">
@@ -801,14 +526,12 @@ export function VoiceCommandsFab() {
           <p className="font-medium leading-snug">
             {listening || speaking ? (
               <span
-                className={`inline-flex items-center gap-1.5 ${
-                  speaking ? 'text-sky-800' : wakeBanner ? 'text-teal-800' : 'text-rose-700'
-                }`}
+                className={`inline-flex items-center gap-1.5 ${speaking ? 'text-sky-800' : 'text-rose-700'}`}
               >
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
                 <span className="min-w-0">
                   {speaking ? 'Lola parle… ' : ''}
-                  {hint || (speaking ? '' : wakeBanner ? 'Veille — dis « Lola »' : 'Écoute…')}
+                  {hint || (speaking ? '' : 'Écoute…')}
                 </span>
               </span>
             ) : (
@@ -820,7 +543,7 @@ export function VoiceCommandsFab() {
             className="shrink-0 rounded p-0.5 text-muted hover:bg-mist"
             aria-label="Fermer"
             onClick={() => {
-              hardStop()
+              stop()
               setHint('')
               setShowHelp(false)
             }}
@@ -830,16 +553,13 @@ export function VoiceCommandsFab() {
         </div>
         {showHelp && (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
-            <li>Touche micro → « Je vous écoute » puis donne l’ordre</li>
-            <li>« Dis Lola » en veille pour réactiver sans retoucher</li>
-            <li>Silence ~8 s sans parole → micro coupé tout seul</li>
-            <li>« Quelles interventions m’ont été affectées ? »</li>
+            <li>Touche micro → « Je vous écoute » → donne l’ordre</li>
             <li>« Mets-moi en déplacement vers le site »</li>
-            <li>« Mets-moi en cours d’intervention » / « Je suis arrivé »</li>
-            <li>« Pause » / « Pause repas » — puis « Arrête la pause »</li>
+            <li>« Je suis arrivé » / « en cours »</li>
+            <li>« Pause » / « Arrête la pause »</li>
             <li>« Fin d’intervention » · « Fournisseur » · « Bureau »</li>
-            <li>« Trajet début » · « Trajet fin » · « Fin de journée »</li>
-            <li>« Stop » pour couper</li>
+            <li>« Quelles interventions m’ont été affectées ? »</li>
+            <li>« Stop » ou retouche micro pour couper</li>
           </ul>
         )}
       </div>

@@ -31,19 +31,7 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 export const SPEECH_SILENCE_MS = 4800
 
 /** Silence pour une commande courte (micro en-tête / main libre). */
-export const SPEECH_COMMAND_SILENCE_MS = 1600
-
-/** Silence court quand l’intent est déjà clair (pointage, stop…). */
-export const SPEECH_COMMAND_FAST_MS = 700
-
-/**
- * Délai avant de relancer SpeechRecognition après onend / no-speech.
- * Sans ça, Chrome redémarre en boucle (~2 s) → bip micro à chaque start().
- */
-export const SPEECH_RESTART_DELAY_MS = 1400
-
-/** Pref localStorage : garder la veille « dis Lola » après une 1ʳᵉ activation. */
-export const VOICE_WAKE_AUTO_KEY = 'climazen.voiceWakeAuto'
+export const SPEECH_COMMAND_SILENCE_MS = 2500
 
 export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null
