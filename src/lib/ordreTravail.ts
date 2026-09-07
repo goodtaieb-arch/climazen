@@ -549,8 +549,8 @@ export function inferParcoursStep(ot: OrdreTravail): ParcoursAppelStepId {
   if (!ot.action?.trim()) return 'ot'
   if (!ot.clientId) return 'client'
   if (!ot.chantierId) return 'site'
-  // Équipement optionnel : signalement flou → on passe aux docs / rapport
-  if (otEquipementADeterminer(ot) || ot.parcoursStep === 'docs') return 'docs'
+  // Équipement optionnel à la création : panne floue → étape intervention / docs
+  if (otEquipementADeterminer(ot)) return 'docs'
   if (!otAEquipementRenseigne(ot)) return 'equipement'
   return 'docs'
 }

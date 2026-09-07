@@ -585,7 +585,7 @@ export function AppelOtPage() {
     const siteJustSaved = data.chantiers.find((s) => s.id === chantierId)
     const eqCount = siteJustSaved ? allEquipements(siteJustSaved).length : 0
     setEquipMode(eqCount > 0 ? 'pick' : 'new')
-    setMsg('Site enregistré — équipement si vous le connaissez, sinon « à déterminer ».')
+    setMsg('Site enregistré — choisissez l’équipement ou créez l’intervention sans.')
   }
 
   const saveEquipStep = () => {
@@ -596,7 +596,7 @@ export function AppelOtPage() {
     let equipementIds = [...selectedEquipIds]
     if (equipMode === 'new') {
       if (!equipForm.nom.trim() && !equipForm.type.trim()) {
-        alert('Indiquez au moins un nom ou type d’équipement — ou choisissez « Équipement inconnu / à déterminer ».')
+        alert('Indiquez au moins un nom ou type d’équipement — ou « Créer l’intervention sans équipement ».')
         return
       }
       const nom = equipForm.nom.trim() || equipForm.type.trim()
@@ -684,18 +684,16 @@ export function AppelOtPage() {
     if (role === 'bureau_depanage') {
       persistOt({ ...patch, parcoursStep: 'equipement' }, otId)
       setOtForm((f) => ({ ...f, ...patch, parcoursStep: 'equipement' }))
-      setSelectedEquipIds([])
       setMsg(
-        'INT transmise sans équipement — le tech identifiera la machine sur place.',
+        'Intervention créée sans équipement — le tech identifiera la machine sur place.',
       )
       quitterApresTransmission()
       return
     }
     persistOt({ ...patch, parcoursStep: 'docs' }, otId)
     setOtForm((f) => ({ ...f, ...patch, parcoursStep: 'docs' }))
-    setSelectedEquipIds([])
     setStep('docs')
-    setMsg('INT ouverte — équipement à déterminer sur place.')
+    setMsg('Intervention créée — équipement à préciser sur place.')
   }
 
   const openCerfa = () => {
@@ -2149,13 +2147,13 @@ export function AppelOtPage() {
             </div>
           ) : null}
           <p className="text-sm text-muted">
-            Sur site : cochez le ou les équipements concernés ({site?.nom || '—'}). Si le client
-            signale une panne sans savoir quelle machine, utilisez « Équipement inconnu / à
-            déterminer » — l’INT est créée quand même, le tech précise sur place.
+            Pour créer l’intervention : cochez le ou les équipements ({site?.nom || '—'}) s’ils
+            sont connus. Sinon créez quand même l’intervention — la machine sera précisée sur
+            place.
           </p>
           {otEquipementADeterminer(otForm) ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-              <p className="font-semibold">Équipement à déterminer</p>
+              <p className="font-semibold">Intervention sans équipement</p>
               <p className="mt-0.5 text-xs">
                 Client + site OK. La machine sera identifiée pendant l’intervention.
               </p>
@@ -2426,7 +2424,7 @@ export function AppelOtPage() {
               onClick={skipEquipForNow}
               className="min-h-11 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-950"
             >
-              Équipement inconnu / à déterminer
+              Créer l’intervention sans équipement
             </button>
             <button
               type="button"
@@ -2436,7 +2434,7 @@ export function AppelOtPage() {
               {role === 'bureau_depanage'
                 ? selectedEquipIds.length || equipMode === 'new'
                   ? 'Transmettre au tech'
-                  : 'Transmettre sans équipement'
+                  : 'Créer sans équipement'
                 : role === 'bureau_maintenance'
                   ? 'Cocher les fiches'
                   : 'Continuer'}{' '}
@@ -2462,7 +2460,7 @@ export function AppelOtPage() {
                 site?.nom,
                 selectedEqs.length > 1
                   ? `${selectedEqs.length} équipements`
-                  : selectedEq?.nom || selectedEq?.type || (otEquipementADeterminer(otForm) ? 'Équipement à déterminer' : ''),
+                  : selectedEq?.nom || selectedEq?.type || (otEquipementADeterminer(otForm) ? 'Sans équipement (à préciser)' : ''),
                 otForm.technicien ? `Tech : ${otForm.technicien}` : '',
               ]
                 .filter(Boolean)
