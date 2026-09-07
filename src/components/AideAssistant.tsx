@@ -179,6 +179,25 @@ export function AideAssistant() {
     return () => window.removeEventListener('climazen:aide-voice', onAideVoice)
   }, [])
 
+  /** Toujours relâcher le main libre, même si send() sort tôt (Light / busy). */
+  const releaseHandsFreeVoice = (oral?: string) => {
+    if (!speakNextRef.current) return
+    speakNextRef.current = false
+    const spoken = oral ? textForSpeech(oral) : ''
+    if (spoken) {
+      window.dispatchEvent(
+        new CustomEvent('climazen:voice-spoke', { detail: { text: spoken.slice(0, 80) } }),
+      )
+      speakFr(spoken, {
+        onEnd: () => {
+          window.dispatchEvent(new CustomEvent('climazen:voice-resume'))
+        },
+      })
+      return
+    }
+    window.dispatchEvent(new CustomEvent('climazen:voice-resume'))
+  }
+
   useEffect(() => {
     let cancelled = false
     listTeam()
@@ -348,8 +367,30 @@ export function AideAssistant() {
 
   const send = async (text: string) => {
     const q = text.trim()
-    if (!q || busy) return
-    if (!chatbotOk) return
+    if (!q) {
+      releaseHandsFreeVoice()
+      return
+    }
+    if (busy) {
+      releaseHandsFreeVoice(
+        'Je suis déjà en train de répondre. Attends un instant, ou dis stop.',
+      )
+      return
+    }
+    if (!chatbotOk) {
+      const msg =
+        aiTierUpsellMessage(aiTier, APP_IS_BETA) ||
+        'L’assistant Lola n’est pas activé sur ce compte.'
+      setLines((prev) => [
+        ...prev,
+        { id: newId(), role: 'user', content: q },
+        { id: newId(), role: 'assistant', content: msg },
+      ])
+      releaseHandsFreeVoice(
+        'Lola n’est pas activée sur ce compte. Tu peux quand même pointer à la voix : déplacement, en cours, pause, fin d’intervention. Dis stop pour couper le micro.',
+      )
+      return
+    }
     const rawInput = text
     setInput('')
     const userLine: ChatLine = { id: newId(), role: 'user', content: q }

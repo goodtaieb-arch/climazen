@@ -416,8 +416,8 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
 • Lola répond « Je vous écoute », exécute la commande, puis repasse en veille.
 • « Quelles interventions m’ont été affectées ? »
 • « Mets-moi en déplacement vers le site » / « vers le fournisseur »
-• « Je suis arrivé », « pause repas », « stop » (coupe la veille)
-• Autre question → Lola (intelligence) répond oralement.
+• « Stop » ou touche micro pour couper. Veille auto coupée après ~1 min 30 sans « Lola ».
+• Pointage vocal marche même sans Agent IA. Phrases libres → Lola IA seulement si l’option est activée.
 Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
 Chrome / Android recommandé ; iPhone Safari souvent limité.`,
   },

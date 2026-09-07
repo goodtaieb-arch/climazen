@@ -46,8 +46,18 @@ import {
   type PointageCible,
 } from '../lib/pointage'
 import { resetAlarmePauseRepas } from '../lib/pauseRepasAlarme'
+import { canUseChatbot, resolveAiTier } from '../lib/aiAccess'
+import { APP_IS_BETA } from '../lib/buildStamp'
 
 type VoiceMode = 'off' | 'wake' | 'active'
+
+/** Coupe la veille si aucune activation « Lola » pendant ce délai. */
+const WAKE_IDLE_STOP_MS = 90_000
+/** Si Lola IA ne répond pas, relâche le micro. */
+const AIDE_VOICE_TIMEOUT_MS = 12_000
+
+const LOLA_IA_OFF_ORAL =
+  'Lola n’est pas activée sur ce compte. Tu peux pointer à la voix : déplacement, en cours, pause, fin d’intervention. Dis stop pour couper le micro.'
 
 /**
  * Main libre terrain — micro en-tête.
@@ -56,7 +66,7 @@ type VoiceMode = 'off' | 'wake' | 'active'
  */
 export function VoiceCommandsFab() {
   const navigate = useNavigate()
-  const { data, addPointageEvent, upsertOrdreTravail } = useStore()
+  const { data, addPointageEvent, upsertOrdreTravail, appEdition } = useStore()
   const { user } = useAuth()
   const [listening, setListening] = useState(false)
   const [speaking, setSpeaking] = useState(false)
@@ -70,8 +80,12 @@ export function VoiceCommandsFab() {
   const bufferRef = useRef('')
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wakeIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const aideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
+  const aiTierRef = useRef(resolveAiTier({ appEdition, aiPlan: data.aiPlan, isBeta: APP_IS_BETA }))
+  aiTierRef.current = resolveAiTier({ appEdition, aiPlan: data.aiPlan, isBeta: APP_IS_BETA })
 
   const emitState = (on: boolean) => {
     listeningRef.current = on
@@ -93,6 +107,42 @@ export function VoiceCommandsFab() {
     }
   }
 
+  const clearWakeIdle = () => {
+    if (wakeIdleTimerRef.current) {
+      clearTimeout(wakeIdleTimerRef.current)
+      wakeIdleTimerRef.current = null
+    }
+  }
+
+  const clearAideTimeout = () => {
+    if (aideTimeoutRef.current) {
+      clearTimeout(aideTimeoutRef.current)
+      aideTimeoutRef.current = null
+    }
+  }
+
+  const armWakeIdle = () => {
+    clearWakeIdle()
+    if (modeRef.current !== 'wake') return
+    wakeIdleTimerRef.current = setTimeout(() => {
+      wakeIdleTimerRef.current = null
+      if (modeRef.current !== 'wake') return
+      modeRef.current = 'off'
+      persistWakeAuto(false)
+      clearSilence()
+      clearRestart()
+      try {
+        recRef.current?.abort()
+      } catch {
+        /* ignore */
+      }
+      emitState(false)
+      setHint('Veille coupée — retouche le micro')
+      setSpeaking(false)
+      speakingRef.current = false
+    }, WAKE_IDLE_STOP_MS)
+  }
+
   const persistWakeAuto = (on: boolean) => {
     try {
       if (on) localStorage.setItem(VOICE_WAKE_AUTO_KEY, '1')
@@ -107,6 +157,8 @@ export function VoiceCommandsFab() {
       modeRef.current = 'off'
       clearSilence()
       clearRestart()
+      clearWakeIdle()
+      clearAideTimeout()
       cancelSpeech()
       try {
         recRef.current?.abort()
@@ -160,7 +212,9 @@ export function VoiceCommandsFab() {
     persistWakeAuto(true)
     bufferRef.current = ''
     clearSilence()
+    clearAideTimeout()
     setHint(opts?.hint || 'Veille — dis « Lola »')
+    armWakeIdle()
     scheduleRecStart('resume')
   }
 
@@ -168,6 +222,8 @@ export function VoiceCommandsFab() {
     modeRef.current = 'active'
     persistWakeAuto(true)
     bufferRef.current = ''
+    clearWakeIdle()
+    clearAideTimeout()
     if (opts?.leftover?.trim()) {
       runTranscript(opts.leftover)
       return
@@ -194,6 +250,7 @@ export function VoiceCommandsFab() {
 
   /** Réponse orale puis retour veille (évite écoute active infinie + bips). */
   const replyAndResume = (text: string, alsoHint?: string) => {
+    clearAideTimeout()
     setHint(alsoHint || text.slice(0, 80))
     speakingRef.current = true
     setSpeaking(true)
@@ -379,11 +436,23 @@ export function VoiceCommandsFab() {
       return
     }
 
-    // Phrase libre → Lola (réponse orale)
+    // Phrase libre → Lola IA (si activée), sinon message oral clair
+    if (!canUseChatbot(aiTierRef.current)) {
+      replyAndResume(LOLA_IA_OFF_ORAL)
+      return
+    }
     setHint(`Lola : « ${cleaned.slice(0, 40)}… »`)
     speakingRef.current = true
     setSpeaking(true)
     pauseRec()
+    clearAideTimeout()
+    aideTimeoutRef.current = setTimeout(() => {
+      aideTimeoutRef.current = null
+      if (modeRef.current === 'off' || !speakingRef.current) return
+      replyAndResume(
+        'Pas de réponse de Lola. Dis stop pour couper, ou dis Lola pour réessayer.',
+      )
+    }, AIDE_VOICE_TIMEOUT_MS)
     window.dispatchEvent(
       new CustomEvent('climazen:aide-voice', {
         detail: { text: cleaned, speak: true },
@@ -396,9 +465,16 @@ export function VoiceCommandsFab() {
     persistWakeAuto(false)
     clearSilence()
     clearRestart()
+    clearWakeIdle()
+    clearAideTimeout()
     cancelSpeech()
     speakingRef.current = false
     setSpeaking(false)
+    try {
+      recRef.current?.abort()
+    } catch {
+      /* ignore */
+    }
     try {
       recRef.current?.stop()
     } catch {
@@ -485,6 +561,7 @@ export function VoiceCommandsFab() {
           const preview = applySpeechCorrections(bufferRef.current)
           if (modeRef.current === 'wake') {
             setHint(preview ? `Veille : « ${preview.slice(0, 36)} »` : 'Veille — dis « Lola »')
+            armWakeIdle()
             // Wake court : traiter dès qu’on a « Lola » (sans attendre 2,5 s)
             if (isWakePhrase(preview) && !stripWakePhrase(preview)) {
               clearSilence()
@@ -548,6 +625,7 @@ export function VoiceCommandsFab() {
       emitState(true)
       if (mode === 'wake') {
         setHint('Veille — dis « Lola »')
+        armWakeIdle()
       } else if (opts?.greet !== false) {
         setHint(
           isTtsSupported()
@@ -598,12 +676,14 @@ export function VoiceCommandsFab() {
       setHint('Main libre Lola')
     }
     const onResume = () => {
+      clearAideTimeout()
       speakingRef.current = false
       setSpeaking(false)
       if (modeRef.current === 'off') return
       enterWake({ hint: 'Veille — dis « Lola »' })
     }
     const onSpoke = (e: Event) => {
+      clearAideTimeout()
       const detail = (e as CustomEvent<{ text?: string }>).detail
       if (detail?.text) setHint(detail.text.slice(0, 80))
     }
@@ -695,6 +775,7 @@ export function VoiceCommandsFab() {
         {showHelp && (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>« Dis Lola » pour activer (sans retaper le micro)</li>
+            <li>« Stop » ou touche micro pour couper (veille auto coupée après 1 min 30)</li>
             <li>« Quelles interventions m’ont été affectées ? »</li>
             <li>« Mets-moi en déplacement vers le site »</li>
             <li>« Mets-moi en cours d’intervention » / « Je suis arrivé »</li>
