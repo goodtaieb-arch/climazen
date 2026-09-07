@@ -30,6 +30,7 @@ import { OrdresTravailPage } from './pages/OrdresTravailPage'
 import { AppelOtPage } from './pages/AppelOtPage'
 import { ContratsMaintenancePage } from './pages/ContratsMaintenancePage'
 import { AgendaPage } from './pages/AgendaPage'
+import { AbsencesPage } from './pages/AbsencesPage'
 import { PointagePage } from './pages/PointagePage'
 import { TempsHorsIntPage } from './pages/TempsHorsIntPage'
 import { ContactPage } from './pages/ContactPage'
@@ -150,6 +151,7 @@ export default function App() {
                     </RequireEdition>
                   }
                 />
+                <Route path="absences" element={<AbsencesPage />} />
                 <Route
                   path="pointage"
                   element={

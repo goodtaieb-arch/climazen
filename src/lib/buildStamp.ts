@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v247'
+export const APP_VERSION = 'v248'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-07-v247-stock-fluides-tech-agence'
+export const APP_BUILD = '2026-09-07-v248-demandes-absence-conges'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

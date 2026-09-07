@@ -811,6 +811,8 @@ export interface AppData {
   factures?: import('./chaineCommerciale').Facture[]
   /** Agenda / rappels RDV maintenance */
   agendaEvents?: import('./agenda').AgendaEvent[]
+  /** Demandes d’absence / congés / RTT (tech → validation direction). */
+  demandesAbsence?: import('./demandesAbsence').DemandeAbsence[]
   /** Règles pointeuse (obligatoires avant activation). */
   pointageRegles?: import('./pointage').PointageRegles
   /** Horodatages ponctuels (pas de tracking GPS continu). */

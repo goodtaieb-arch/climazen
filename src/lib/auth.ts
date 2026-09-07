@@ -848,6 +848,16 @@ export function resolveRemoteVsLocal(
   )
   const factures = mergeByIdLatest(remote.factures, local.factures, preferOnTie)
   const agendaEvents = mergeByIdLatest(remote.agendaEvents, local.agendaEvents, preferOnTie)
+  const demandesAbsence = mergeByIdLatest(
+    remote.demandesAbsence,
+    local.demandesAbsence,
+    preferOnTie,
+  )
+  const aiPendingValidations = mergeByIdLatest(
+    remote.aiPendingValidations,
+    local.aiPendingValidations,
+    preferOnTie,
+  )
   const pointageEvents = mergeByIdLatest(
     parsePointageEvents(remote.pointageEvents),
     parsePointageEvents(local.pointageEvents),
@@ -977,6 +987,8 @@ export function resolveRemoteVsLocal(
     piecesMouvements,
     factures,
     agendaEvents,
+    demandesAbsence,
+    aiPendingValidations,
     pointageRegles,
     pointageEvents,
     pointageBureauJours,

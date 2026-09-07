@@ -41,6 +41,7 @@ export function icon3dForRoute(to: string): string | null {
   if (to === '/app/commandes') return ICON3D.commandes
   if (to === '/app/contrats') return ICON3D.maintenance
   if (to === '/app/agenda') return ICON3D.search
+  if (to === '/app/absences') return ICON3D.equipe
   if (to === '/app/pointage') return ICON3D.signaturePad
   if (to === '/app/temps-hors-int') return ICON3D.signaturePad
   if (to === '/app/interventions') return ICON3D.cerfa
