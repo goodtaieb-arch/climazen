@@ -84,25 +84,52 @@ export type AssignOtsFail = {
   message: string
 }
 
+function hasIntOuOrdre(n: string): boolean {
+  return (
+    /\b(int|inter|intervention|interventions|ot|ordre|ordres)\b/.test(n) ||
+    /demande(?:s)?\s+d\s*intervention/.test(n)
+  )
+}
+
+function wantsFillAgenda(n: string): boolean {
+  if (!/\b(agenda|planning|calendrier)\b/.test(n)) return false
+  return /\b(remplis?|remplir|pose|poser|planifie|planifier|mets|mettre|ajoute|ajouter|affecte|reparti|suis|suivre|suit)\b/.test(
+    n,
+  )
+}
+
+function wantsAllOrders(n: string): boolean {
+  if (/\b(toutes?|tous\s+les|le\s+reste|tout\s+l\s+agenda|remplis?|remplir)\b/.test(n)) {
+    return true
+  }
+  if (/\bles\s+ordres\b/.test(n)) return true
+  if (/\bles\s+(?:int|inter|interventions)\b/.test(n) && !/\b\d{1,2}\b/.test(n)) return true
+  return false
+}
+
 /**
  * « Affecte 2 INT à chaque tech », « pose 2 inter par technicien »,
- * « répartis les interventions, sans bouger le tech de son secteur ».
+ * « répartis les interventions, sans bouger le tech de son secteur »,
+ * « remplis l’agenda avec les ordres / INT ».
  */
 export function wantsAssignOts(raw: string): boolean {
   const n = normalize(raw)
   if (!n) return false
-  const ints = /\b(int|inter|intervention|interventions|ot|ordre)\b/.test(n)
-  if (!ints) return false
+  const ints = hasIntOuOrdre(n)
+  if (!ints && !wantsFillAgenda(n)) return false
   const parTech =
     /\b(chaque\s+tech|chaque\s+technicien|par\s+tech|par\s+technicien|tous\s+les\s+techs|a\s+chaque)\b/.test(
       n,
     )
   const verb =
-    /\b(affecte|affecter|attribue|attribuer|reparti|repartir|repartis|repartit|pose|poser|planifie|planifier|donne|donner)\b/.test(
+    /\b(affecte|affecter|attribue|attribuer|reparti|repartir|repartis|repartit|pose|poser|planifie|planifier|donne|donner|mets|mettre|remplis?|remplir|suis|suivre|suit)\b/.test(
       n,
     )
   if (parTech && (verb || /\b\d+\b/.test(n))) return true
   if (verb && /\b(tech|technicien)/.test(n) && ints) return true
+  if (wantsFillAgenda(n) && ints) return true
+  if (wantsFillAgenda(n) && /\b(ordre|ordres|int|interventions)\b/.test(n)) return true
+  if (verb && wantsAllOrders(n) && ints) return true
   return false
 }
 
@@ -112,12 +139,13 @@ export function parseAssignOtsIntent(
 ): AssignOtsIntent | null {
   if (!wantsAssignOts(raw)) return null
   const n = normalize(raw)
-  let perTech = 2
   const m =
     n.match(/\b(\d{1,2})\s*(?:int|inter|intervention)/) ||
     n.match(/\b(\d{1,2})\s*(?:par|a chaque|pour chaque)\s*(?:tech|technicien)/) ||
     n.match(/(?:chaque|par)\s*(?:tech|technicien)\s*(\d{1,2})/)
+  let perTech = 2
   if (m) perTech = Math.min(12, Math.max(1, Number(m[1])))
+  else if (wantsAllOrders(n) || wantsFillAgenda(n)) perTech = 12
   const ignoreSecteur = /\b(n.?importe\s+quel\s+secteur|ignore\s+le\s+secteur|tous\s+secteurs)\b/.test(
     n,
   )
@@ -269,7 +297,9 @@ export function planAssignOts(opts: {
       ) {
         continue
       }
-      const date = (ot.date || '').slice(0, 10) || opts.intent.dateIso
+      // Jour demandé (aujourd’hui / demain / date dite) — pas la date d’ouverture de l’INT,
+      // sinon l’agenda du jour reste vide alors que les ordres sont validés sur Accueil.
+      const date = opts.intent.dateIso
       if (techEstIndispo(opts.data.agendaEvents, tech.id, date)) continue
       const duree = dureeMinutesOt(ot)
       const heure = heureLibrePourTech({
@@ -326,8 +356,8 @@ export function planAssignOts(opts: {
     byTech.set(s.techUserId, list)
   }
   const lines = [
-    `J’ai préparé ${slots.length} INT pour ${byTech.size} tech${byTech.size > 1 ? 's' : ''} (${opts.intent.perTech} par tech, chacun reste dans son secteur).`,
-    `Rien n’est encore écrit sur l’agenda — validez sur Accueil : un bouton par tech et un bouton par INT.`,
+    `J’ai préparé ${slots.length} INT pour ${byTech.size} tech${byTech.size > 1 ? 's' : ''} (${opts.intent.perTech} par tech, le ${opts.intent.dateIso}, chacun reste dans son secteur).`,
+    `Rien n’est encore écrit sur l’agenda — validez sur Accueil : un bouton par tech et un bouton par INT. Après OK, les blocs sont sur l’agenda du ${opts.intent.dateIso}.`,
     '',
   ]
   for (const group of byTech.values()) {
@@ -364,6 +394,7 @@ export function planAssignOts(opts: {
 export function applyAssignOtSlot(
   ot: OrdreTravail,
   slot: AiAssignOtSlot,
+  now = new Date().toISOString(),
 ): OrdreTravail {
   const assigned = techIdsOt(ot)
   if ((ot.heure || '').trim() && assigned.length && !assigned.includes(slot.techUserId)) {
@@ -381,19 +412,21 @@ export function applyAssignOtSlot(
     dureeMinutes: slot.dureeMinutes,
     secteur: slot.secteur || ot.secteur,
     ...synced,
+    updatedAt: now,
   }
 }
 
 export function applyAssignOtSlots(
   ots: OrdreTravail[] | undefined,
   slots: AiAssignOtSlot[],
+  now = new Date().toISOString(),
 ): { ots: OrdreTravail[]; applied: number } {
   const byId = new Map(slots.map((s) => [s.otId, s]))
   let applied = 0
   const next = (ots || []).map((ot) => {
     const slot = byId.get(ot.id)
     if (!slot) return ot
-    const patched = applyAssignOtSlot(ot, slot)
+    const patched = applyAssignOtSlot(ot, slot, now)
     if (patched !== ot && patched.heure === slot.heure && patched.technicienUserId === slot.techUserId) {
       applied += 1
     }

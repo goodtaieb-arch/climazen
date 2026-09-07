@@ -22,6 +22,9 @@ assert.ok(/am[eé]lie/i.test(extractAgendaTechQuery('planifie une visite pour Am
 assert.ok(/am[eé]lie/i.test(extractAgendaTechQuery('RDV tech Amélie Durand le 15/10 à 9h30')))
 assert.ok(!/\sà\s*$/i.test(extractAgendaTechQuery('planifie une visite pour Amélie demain à 9h30')))
 
+assert.equal(parseTerrainIntent('planifie les INT sur l’agenda')?.kind, undefined)
+assert.equal(parseTerrainIntent('remplis l’agenda avec les ordres')?.kind, undefined)
+
 const intent = parseTerrainIntent('planifie une visite pour Amélie demain à 9h30')
 assert.equal(intent?.kind, 'agenda')
 if (intent?.kind === 'agenda') {

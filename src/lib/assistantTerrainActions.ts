@@ -24,6 +24,7 @@ import {
 } from './assistantStockPieces'
 import { matchTechInTeam, techsFromOts } from './assistantOtLookup'
 import { formatOtNumero } from './ordreTravail'
+import { wantsAssignOts } from './lolaAssignOt'
 
 function normalize(s: string): string {
   return (s || '')
@@ -876,11 +877,12 @@ export function parseTerrainIntent(text: string, data?: AppData): PendingTerrain
     }
   }
 
-  // Agenda / RDV / rappel
+  // Agenda / RDV / rappel — ne pas voler un lot « planifie les INT / remplis l’agenda »
   if (
-    /\bagenda\b|\bcalendrier\b|\brdv\b|rendez[\s-]?vous|\bplanifie\b|\bprogramme\b|rappel\s+appel|ajoute\s+(un\s+)?(rdv|rappel|visite)|cree\s+(un\s+)?(rdv|rappel|visite)|cr[eé]e\s+(un\s+)?(rdv|rappel|visite)/.test(
+    !wantsAssignOts(raw) &&
+    (/\bagenda\b|\bcalendrier\b|\brdv\b|rendez[\s-]?vous|\bplanifie\b|\bprogramme\b|rappel\s+appel|ajoute\s+(un\s+)?(rdv|rappel|visite)|cree\s+(un\s+)?(rdv|rappel|visite)|cr[eé]e\s+(un\s+)?(rdv|rappel|visite)/.test(
       n,
-    )
+    ))
   ) {
     const type = detectAgendaType(n)
     const date = parseAgendaDate(raw) || todayIsoLocal()

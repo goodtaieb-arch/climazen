@@ -31,6 +31,12 @@ export function AiValidationInbox() {
     userName: user?.fullName || user?.email,
   }
   const { groups, others } = groupPendingByTech(mine)
+  const agendaDate =
+    groups
+      .flatMap((g) => g.items)
+      .map((x) => (x.proposal?.type === 'assign_ot' ? x.proposal.slot.date : ''))
+      .find((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) || ''
+  const agendaHref = agendaDate ? `/app/agenda?date=${encodeURIComponent(agendaDate)}` : '/app/agenda'
 
   const decideOne = (id: string, decision: 'validee' | 'refusee') => {
     decideAiPendingValidation(id, decision, actor)
@@ -74,7 +80,7 @@ export function AiValidationInbox() {
                 <Check className="h-3.5 w-3.5" /> Valider tout le planning
               </button>
               <Link
-                to="/app/agenda"
+                to={agendaHref}
                 className="inline-flex min-h-9 items-center rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-950"
               >
                 Ouvrir l’agenda
@@ -153,7 +159,7 @@ export function AiValidationInbox() {
                           </button>
                           {slot ? (
                             <Link
-                              to="/app/agenda"
+                              to={`/app/agenda?date=${encodeURIComponent(slot.date)}`}
                               className="inline-flex min-h-8 items-center rounded-lg border border-teal-200 bg-teal-50 px-2.5 text-[11px] font-bold text-teal-950"
                             >
                               Agenda

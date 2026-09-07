@@ -168,9 +168,16 @@ export function AgendaPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const editId = params.get('id') || ''
+  const dateParam = params.get('date') || ''
   const [q, setQ] = useState('')
   const [view, setView] = useState<ViewMode>('jour')
-  const [cursorDate, setCursorDate] = useState(() => todayIsoLocal())
+  const [cursorDate, setCursorDate] = useState(() =>
+    /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayIsoLocal(),
+  )
+
+  useEffect(() => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) setCursorDate(dateParam)
+  }, [dateParam])
   const [formOpen, setFormOpen] = useState(params.get('new') === '1')
   const [syncMsg, setSyncMsg] = useState('')
   const [filterTechId, setFilterTechId] = useState('tous')
