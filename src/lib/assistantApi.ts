@@ -1,5 +1,6 @@
 import { answerAideLocal, AIDE_SYSTEM_PROMPT, buildAideContext } from './assistantKnowledge'
 import { getSupabase, isSupabaseConfigured } from './supabase'
+import type { AppData } from './types'
 
 export type AideMessage = {
   role: 'user' | 'assistant'
@@ -31,6 +32,8 @@ export async function askAideAssistant(opts: {
   voiceMode?: boolean
   /** Utilisateur et appareil courants, sans donnée sensible. */
   userContext?: string
+  /** Données société — lectures locales si le cloud est indisponible. */
+  data?: AppData
 }): Promise<AideReply> {
   const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user')
   const question = lastUser?.content || ''
@@ -53,7 +56,7 @@ export async function askAideAssistant(opts: {
     .join('\n\n')
 
   if (opts.chatbotOnly) {
-    const local = answerAideLocal(question, pathname)
+    const local = answerAideLocal(question, pathname, opts.data)
     return { reply: local, source: 'local' }
   }
 
@@ -106,7 +109,7 @@ export async function askAideAssistant(opts: {
     /* réseau / pas d’API → fallback local */
   }
 
-  const local = answerAideLocal(question, pathname)
+  const local = answerAideLocal(question, pathname, opts.data)
   return {
     reply: fallbackHint ? `${local}\n\n—\n${fallbackHint}` : local,
     source: 'local',

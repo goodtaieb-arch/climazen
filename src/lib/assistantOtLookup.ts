@@ -405,7 +405,7 @@ export function wantsOtLookup(raw: string): boolean {
   if (!n) return false
   if (wantsOtDeplacerOuDecaler(raw)) return true
   const hasOt =
-    /\b(ot|ordre)\b/.test(n) ||
+    /\b(ot|ordre|int|intervention|di)\b/.test(n) ||
     // faute fréquente dictée / frappe : « or » pour « OT »
     /\b(or|ots)\b/.test(n)
   return (

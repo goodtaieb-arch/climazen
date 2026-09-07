@@ -586,8 +586,11 @@ export function parseTerrainIntent(text: string, data?: AppData): PendingTerrain
   const equipsIntent = parseCreateEquipementsIntent(raw, n)
   if (equipsIntent) return equipsIntent
 
-  // Détecteur
-  if (/detecteur|detecteur de fuite|detecteur fuite/.test(n)) {
+  // Détecteur — création seulement (une question « qui a le détecteur » = lecture)
+  if (
+    /detecteur|detecteur de fuite|detecteur fuite/.test(n) &&
+    /(?:ajoute|ajouter|cree|creer|nouveau|nouvelle|enregistre)\b/.test(n)
+  ) {
     const idMatch =
       raw.match(
         /(?:nom|n[°o]|numero|numéro|ref|réf\.?|identification)\s*[:=]?\s*([A-Za-z0-9][A-Za-z0-9\s\-_/]{1,40})/i,

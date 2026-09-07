@@ -21,6 +21,7 @@ import {
   answerAnnulerOtGuide,
   AI_HOW_I_WORK,
 } from '../lib/aiActionCatalog'
+import { answerLolaLookup, answerLolaTrainer } from '../lib/lolaTrainer'
 import { wantsStockPieceQuery, answerStockPieceQuery } from '../lib/assistantStockPieces'
 import {
   wantsOtLookup,
@@ -84,13 +85,13 @@ ${aiTierUpsellMessage('none') ?? ''}
 Pour créer des INT, CERFA, agenda ou stock par la voix, passez à l’${AI_TIER_LABELS.agent}.`
   }
   return (
-    'Intelligence ClimaZEN — je lis toutes vos données (INT, clients, sites, stock, devis, agenda…) et je propose, vous validez.\n\n' +
+    'Lola — formateur ClimaZEN. Je lis vos données (INT, clients, stock, devis…) et je vous guide dans l’app. Je propose, vous validez.\n\n' +
     AI_HOW_I_WORK +
-    '\n\nPosez n’importe quelle question métier — pas besoin d’une formule spéciale.\n' +
-    'Exemples (indicatifs) :\n' +
+    '\n\nPosez n’importe quelle question — pas besoin d’une formule spéciale.\n' +
+    'Exemples :\n' +
     '• « Combien d’INT restent à clôturer ce mois ? »\n' +
-    '• « Analyse le rapport INT — pièces à commander »\n' +
-    '• « Ventilo bruyant à changer — lance la chaîne devis »\n' +
+    '• « Où est le client Dupont ? »\n' +
+    '• « Comment faire un CERFA ? »\n' +
     '• « Combien de filtre M5 en stock ? »\n' +
     '• « Décale l’INT de 7h à 9h » (puis « oui »)\n' +
     '• « Crée une INT pour Mr Martin, site Atelier »\n\n' +
@@ -481,6 +482,16 @@ export function AideAssistant() {
         return
       }
 
+      // Petites lectures (combien / où est / statut) — AVANT le lookup INT par nom
+      const lookup = answerLolaLookup(data, q, team)
+      if (lookup) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(lookup)
+        return
+      }
+
       // Retrouver / décaler OT — si heures fournies → proposition (oui = applique Agenda)
       if (wantsOtLookup(q)) {
         setSource('local')
@@ -552,8 +563,18 @@ export function AideAssistant() {
         setSource('local')
         pushAssistant(
           AI_HOW_I_WORK +
-            '\n\nExemples : « décale l’INT de 7h à 9h » · « INT de Karim Benali aujourd’hui » · « combien de filtre M5 ? »',
+            '\n\nExemples : « combien d’INT ce mois ? » · « où est le client Dupont ? » · « comment faire un CERFA ? » · « décale l’INT de 7h à 9h »',
         )
+        return
+      }
+
+      // Formateur : comment / où cliquer / ouvre la page
+      const trainer = answerLolaTrainer(q, location.pathname)
+      if (trainer) {
+        setSource('local')
+        setPendingCreate(null)
+        setPendingTerrain(null)
+        pushAssistant(trainer)
         return
       }
 
@@ -612,6 +633,7 @@ export function AideAssistant() {
         chatbotOnly: !agentOk,
         organizationId,
         voiceMode: voiceRequest,
+        data,
         userContext: `=== CONTEXTE UTILISATEUR COURANT ===
 Utilisateur : ${user?.fullName || 'nom non renseigné'}
 Rôle : ${user?.role || 'non renseigné'}
@@ -725,6 +747,11 @@ Priorité : répondre selon les données visibles et les droits de cet utilisate
     else if (content.includes('/app/agenda')) navigate('/app/agenda')
     else if (content.includes('/app/devis')) navigate('/app/devis')
     else if (content.includes('/app/commandes')) navigate('/app/commandes')
+    else if (content.includes('/app/absences')) navigate('/app/absences')
+    else if (content.includes('/app/pointage')) navigate('/app/pointage')
+    else if (content.includes('/app/scan-equip')) navigate('/app/scan-equip?camera=1')
+    else if (content.includes('/app/contrats')) navigate('/app/contrats')
+    else if (content.includes('/app/equipe')) navigate('/app/equipe')
     else if (content.includes('/app/carnet')) navigate('/app/carnet')
   }
 
