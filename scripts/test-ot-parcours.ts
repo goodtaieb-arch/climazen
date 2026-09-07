@@ -233,4 +233,36 @@ assert.deepEqual(
   [],
 )
 
+// Équipement optionnel — signalement sans machine connue
+{
+  const base = {
+    ...blankOrdreTravail(),
+    id: 'ot-x',
+    createdAt: '2026-09-07T10:00:00.000Z',
+    updatedAt: '2026-09-07T10:00:00.000Z',
+    action: 'Plus de froid magasin',
+    clientId: 'c1',
+    chantierId: 's1',
+  }
+  assert.equal(inferParcoursStep(base), 'equipement')
+  assert.equal(
+    inferParcoursStep({ ...base, equipementADeterminer: true, parcoursStep: 'docs' }),
+    'docs',
+  )
+  assert.equal(
+    inferParcoursStepPourRole(
+      { ...base, equipementADeterminer: true, parcoursStep: 'docs' },
+      'intervenant',
+    ),
+    'docs',
+  )
+  assert.equal(
+    inferParcoursStepPourRole(
+      { ...base, equipementADeterminer: true },
+      'bureau_depanage',
+    ),
+    'equipement',
+  )
+}
+
 console.log('test-ot-parcours: ok')

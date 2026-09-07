@@ -382,14 +382,17 @@ export function resolveCreateOtCerfa(
 
   let equipId = equip?.id
   let equipLabel = equip ? equip.nom || eqLabel(equip) : ''
-  if (!equip) {
-    const eqNom = (intent.equipQuery || 'Équipement clim').trim()
+  // Pas d’équipement inventé : le client signale souvent sans savoir quelle machine.
+  if (!equip && intent.equipQuery?.trim()) {
+    const eqNom = intent.equipQuery.trim()
     create.equip = { nom: eqNom, type: /clim/i.test(eqNom) ? 'Climatisation' : '' }
     equipLabel = `${eqNom} (nouveau)`
+  } else if (!equip) {
+    equipLabel = 'inconnu / à déterminer (sur place)'
   }
 
-  // CERFA brouillon si demandé — le tech complète fluide / signatures
-  const needsCerfa = intent.createCerfa
+  // CERFA brouillon seulement si un équipement est connu ou créé nommément
+  const needsCerfa = intent.createCerfa && Boolean(equip || create.equip)
 
   const willCreate: string[] = []
   if (create.client) willCreate.push('client')
@@ -471,6 +474,7 @@ export type CreateOtCerfaDeps = {
     clientId?: string
     chantierId?: string
     equipementId?: string
+    equipementADeterminer?: boolean
     technicien?: string
     observations?: string
     statut?: 'en_cours'
@@ -597,6 +601,7 @@ export function executeCreateOtCerfa(
     clientId,
     chantierId: siteId,
     equipementId: equipId,
+    equipementADeterminer: !equipId,
     technicien: deps.technicien || deps.data.operateur?.raisonSociale || '',
     observations: intent.actionText,
     statut: 'en_cours',

@@ -361,7 +361,7 @@ export function OrdresTravailPage() {
         <p className="text-sm text-muted">
           Les INT qui vous sont affectées sont sur l’accueil. Le pointage porte-à-porte n’est pas
           dans le dossier : icône « Temps hors INT ». Ici vous ouvrez seulement une nouvelle
-          intervention : client, site, et un équipement s’il n’est pas déjà sur la liste.
+          intervention : client, site, et un équipement s’il est connu (sinon à déterminer sur place).
         </p>
         <Link
           to="/app/appel"
