@@ -411,13 +411,13 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
       'hands free',
     ],
     paths: ['/app'],
-    answer: `Mode main libre (bouton « Main libre » en haut) :
-• Lola écoute, répond à voix haute, puis réécoute.
+    answer: `Mode main libre (bouton micro en haut) :
+• Une fois la veille activée (ou au prochain ouverture si déjà autorisée) : dis « Dis Lola » — pas besoin de retaper le micro.
+• Lola répond « Je vous écoute », exécute la commande, puis repasse en veille.
 • « Quelles interventions m’ont été affectées ? »
 • « Mets-moi en déplacement vers le site » / « vers le fournisseur »
-• « Je suis arrivé », « pause repas », « stop »
+• « Je suis arrivé », « pause repas », « stop » (coupe la veille)
 • Autre question → Lola (intelligence) répond oralement.
-• Après un pointage : petit rappel sécurité (EPI, conduite, CO, harnais…) — messages qui tournent.
 Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
 Chrome / Android recommandé ; iPhone Safari souvent limité.`,
   },

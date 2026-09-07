@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import { parseVoiceCommand, textForSpeech } from '../src/lib/speech'
 import {
+  isWakePhrase,
   parseHandsFreeIntent,
   parsePointageVoiceIntent,
   parlerMesInterventions,
+  stripWakePhrase,
   wantsMesInterventions,
 } from '../src/lib/voiceHandsFree'
 import type { AppData } from '../src/lib/types'
@@ -40,6 +42,19 @@ assert.equal(wantsMesInterventions('ouvre le stock'), false)
 
 assert.equal(parseHandsFreeIntent('stop').kind, 'stop')
 assert.equal(parseHandsFreeIntent('quelles sont mes interventions ouvertes').kind, 'mes_int')
+
+assert.equal(isWakePhrase('dis Lola'), true)
+assert.equal(isWakePhrase('Dit lola'), true)
+assert.equal(isWakePhrase('hey Lola'), true)
+assert.equal(isWakePhrase('Lola'), true)
+assert.equal(isWakePhrase('ok Lola'), true)
+assert.equal(isWakePhrase('dis Lola mets-moi en pause'), true)
+assert.equal(isWakePhrase('mets-moi en pause'), false)
+assert.equal(isWakePhrase('ouvre le stock'), false)
+assert.equal(stripWakePhrase('dis Lola'), '')
+assert.equal(stripWakePhrase('Dis Lola, mets-moi en pause'), 'mets-moi en pause')
+assert.equal(stripWakePhrase('hey lola ouvre le stock'), 'ouvre le stock')
+assert.equal(stripWakePhrase('mets-moi en pause'), 'mets-moi en pause')
 
 assert.deepEqual(parsePointageVoiceIntent('mets-moi en déplacement vers le site'), {
   action: 'deplacement',

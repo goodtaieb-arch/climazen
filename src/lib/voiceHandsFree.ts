@@ -67,9 +67,40 @@ export function wantsStopListening(raw: string): boolean {
   const t = normalizeSpeechText(raw)
   return (
     (/\b(stop|arrete|arrête|silence|coupe)\b/.test(t) &&
-      /\b(ecoute|écoute|micro|main\s+libre|voix|toi)\b/.test(t)) ||
+      /\b(ecoute|écoute|micro|main\s+libre|voix|toi|lola)\b/.test(t)) ||
     /^(stop|arrete|arrête|silence)$/.test(t)
   )
+}
+
+/**
+ * Mot d’activation main libre — « dis Lola », « hey Lola », « Lola », etc.
+ * Après normalizeSpeechText : accents retirés, ponctuation → espaces.
+ */
+const WAKE_PHRASE_RE =
+  /^(?:(?:dis|dit|dites|hey|ok|okay|allo|eh|euh|bon|salut)\s+)?lola\b/
+
+/** True si la phrase est (ou commence par) le mot d’activation Lola. */
+export function isWakePhrase(raw: string): boolean {
+  const t = normalizeSpeechText(raw)
+  if (!t) return false
+  return WAKE_PHRASE_RE.test(t)
+}
+
+/**
+ * Retire le préfixe d’activation. Ex. « dis Lola mets-moi en pause » → « mets-moi en pause ».
+ * Chaîne vide si c’était seulement le wake.
+ */
+export function stripWakePhrase(raw: string): string {
+  const cleaned = (raw || '').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return ''
+  const t = normalizeSpeechText(cleaned)
+  if (!WAKE_PHRASE_RE.test(t)) return cleaned
+  // Découpe sur le premier « lola » (insensible à la casse / accents déjà dans normalize)
+  const match = cleaned.match(
+    /^(?:(?:dis|dit|dites|hey|ok|okay|allo|eh|euh|bon|salut)\s+)?lola\b[\s,.:;!?-]*/i,
+  )
+  if (!match) return cleaned
+  return cleaned.slice(match[0].length).replace(/\s+/g, ' ').trim()
 }
 
 export function wantsAidePointage(raw: string): boolean {
