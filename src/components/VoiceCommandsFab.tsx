@@ -25,7 +25,6 @@ import {
   parlerPointageConfirme,
   parseHandsFreeIntent,
 } from '../lib/voiceHandsFree'
-import { pickSafetyTip } from '../lib/safetyTips'
 import {
   POINTAGE_ACTION_LABELS,
   actionAutorisee,
@@ -246,15 +245,7 @@ export function VoiceCommandsFab() {
         }
       }
       if (canon === 'intervention_en_cours') resetAlarmePauseRepas()
-      const confirm = parlerPointageConfirme(action, cibleFinal)
-      const tip = pickSafetyTip({
-        lastAction: action,
-        ot: otId ? (d.ordresTravail || []).find((o) => o.id === otId) || null : null,
-        site: chantierId
-          ? d.chantiers.find((c) => c.id === chantierId) || null
-          : null,
-      })
-      replyAndResume(`${confirm} ${tip.speak}`)
+      replyAndResume(parlerPointageConfirme(action, cibleFinal))
     } catch {
       replyAndResume('Pointage impossible pour le moment.')
     }
@@ -417,19 +408,17 @@ export function VoiceCommandsFab() {
       emitState(true)
       setHint(
         isTtsSupported()
-          ? 'Main libre — réponses à voix haute'
-          : 'Main libre — réponses à l’écran (voix orale indisponible)',
+          ? 'Je vous écoute…'
+          : 'Main libre (voix orale indisponible)',
       )
       speakingRef.current = true
       setSpeaking(true)
-      speakFr(
-        'Main libre activée. Demande tes interventions, ou dis mets-moi en déplacement vers le site.',
-        {
+      speakFr('Je vous écoute.', {
           onEnd: () => {
             speakingRef.current = false
             setSpeaking(false)
             if (wantListenRef.current) {
-              setHint('Je t’écoute…')
+              setHint('Je vous écoute…')
               try {
                 rec.start()
               } catch {
@@ -438,8 +427,7 @@ export function VoiceCommandsFab() {
               armSilence()
             }
           },
-        },
-      )
+        })
     } catch {
       setHint('Micro indisponible')
       wantListenRef.current = false
@@ -465,7 +453,7 @@ export function VoiceCommandsFab() {
         try {
           recRef.current?.start()
           emitState(true)
-          setHint('Je t’écoute…')
+          setHint('Je vous écoute…')
           armSilence()
         } catch {
           start()

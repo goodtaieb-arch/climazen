@@ -30,8 +30,8 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 /** Silence avant d’arrêter la dictée (ms) — laisse le temps de reformuler. */
 export const SPEECH_SILENCE_MS = 4800
 
-/** Silence pour une commande courte (micro en-tête). */
-export const SPEECH_COMMAND_SILENCE_MS = 2800
+/** Silence pour une commande courte (micro en-tête / main libre). */
+export const SPEECH_COMMAND_SILENCE_MS = 2500
 
 export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null
