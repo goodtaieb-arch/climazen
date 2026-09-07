@@ -115,7 +115,7 @@ assert.equal(wantsLookup('où en est le devis Martin'), true)
 assert.equal(wantsHowTo('comment faire un CERFA'), true)
 assert.equal(wantsHowTo('ouvre l’agenda'), true)
 assert.equal(wantsLookup('ouvre l’agenda'), false)
-assert.equal(classifyLolaIntent('Crée une INT pour Mr Martin'), 'action')
+assert.equal(classifyLolaIntent('Affecte 2 INT à chaque tech'), 'action')
 assert.equal(wantsLookup('Crée une INT pour Mr Martin'), false)
 assert.equal(wantsHowTo('Crée une INT pour Mr Martin'), false)
 
