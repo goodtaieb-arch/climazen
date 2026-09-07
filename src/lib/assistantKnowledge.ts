@@ -309,7 +309,7 @@ Pour clôturer : signatures tech + client sur l’intervention, puis « Clôture
     answer: `Mon entreprise (/app/operateur) — administration seulement :
 - Raison sociale, SIRET, attestation de capacité.
 - Logo (apparaît sur le rapport INT).
-- Dossier cloud RH : UN lien général (Drive / OneDrive / SharePoint). ClimaZEN classe ClimaZEN → Dossiers techniciens → nom du tech → catégorie.
+- Dossier cloud RH : UN lien général. Light = Google Drive seulement. Pro = Drive / OneDrive / SharePoint. ClimaZEN classe ClimaZEN → Dossiers techniciens → nom du tech → catégorie.
 - Coffre documents : NAS / Nextcloud. Les PDF ne sont pas sur le site. Le bureau ouvre CERFA / rapports depuis l’app. Copie Excel de secours (clients, sites, équipe…).
 Signature personnelle : dossier Équipe. Détecteur / véhicules / outillage : Mon profil.`,
   },

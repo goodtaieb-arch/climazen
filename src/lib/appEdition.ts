@@ -42,9 +42,9 @@ export type { AiPlan, AiTier } from './aiAccess'
 
 export const APP_EDITION_DESCRIPTIONS: Record<AppEdition, string> = {
   light:
-    'INT, agenda, contrats maintenance, stock fluides, CERFA et société — tout le métier, un seul compte utilisateur.',
+    'INT, agenda, contrats maintenance, stock fluides, CERFA, Google Drive et société — tout le métier, un seul compte utilisateur.',
   pro:
-    'Comme Light + équipe multi-techniciens, pointeuse, RH, agences, devis/commandes et pilotage.',
+    'Comme Light + équipe multi-techniciens, pointeuse, RH, agences, devis/commandes, OneDrive / SharePoint et pilotage.',
 }
 
 /** Différence clé affichée aux utilisateurs. */
@@ -70,6 +70,8 @@ export type EditionFeature =
   | 'ot_list'
   /** Stock pièces détachées GMAO */
   | 'stock_pieces'
+  /** OneDrive / SharePoint — Light n’a que Google Drive. */
+  | 'cloud_microsoft'
 
 const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'equipe',
@@ -81,7 +83,12 @@ const PRO_ONLY: ReadonlySet<EditionFeature> = new Set([
   'team_kpi',
   'create_operator',
   'stock_pieces',
+  'cloud_microsoft',
 ])
+
+/** Message unique : Light refuse OneDrive / SharePoint. */
+export const LIGHT_CLOUD_DRIVE_ONLY =
+  'L’édition Light n’autorise que Google Drive. Passez à Pro pour OneDrive / SharePoint.'
 
 /** Routes Pro ou masquées du menu Light (sous /app). */
 export const PRO_ROUTE_PREFIXES = [

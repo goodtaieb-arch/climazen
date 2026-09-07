@@ -3,6 +3,7 @@
  * Heuristique locale + contrôle serveur (/api/check-cloud-link) sans cookies.
  */
 
+import { editionHasFeature, LIGHT_CLOUD_DRIVE_ONLY, type AppEdition } from './appEdition'
 import { normalizeLienCloudRh } from './rhDocuments'
 
 export type CloudLinkVerdict =
@@ -85,8 +86,12 @@ export function orderedCloudSetupSteps(preferred?: CloudKind[]): CloudSetupStep[
 }
 
 /** Consigne affichée sous le champ, selon le cloud collé. */
-export function cloudPasteHint(raw?: string): string {
+export function cloudPasteHint(raw?: string, opts?: { driveOnly?: boolean }): string {
+  const driveOnly = Boolean(opts?.driveOnly)
   const kind = cloudKindFromUrl(raw)
+  if (driveOnly && (kind === 'onedrive' || kind === 'sharepoint')) {
+    return LIGHT_CLOUD_DRIVE_ONLY
+  }
   if (kind === 'drive') {
     return 'Google Drive détecté. Partager → Restreint (pas « Toute personne disposant du lien ») → uniquement les e-mails autorisés. Drive demandera le compte Google.'
   }
@@ -98,9 +103,26 @@ export function cloudPasteHint(raw?: string): string {
   }
   const s = (raw || '').trim()
   if (!s) {
-    return 'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
+    return driveOnly
+      ? 'Collez le lien exact du dossier Google Drive. Le partage doit être privé (compte Google).'
+      : 'Collez le lien exact : Google Drive, OneDrive ou SharePoint. Le partage doit être privé (compte + mot de passe).'
   }
-  return 'Cloud non reconnu. Uniquement Google Drive, OneDrive ou SharePoint, en partage privé.'
+  return driveOnly
+    ? 'Cloud non reconnu. En Light, uniquement un lien Google Drive, en partage privé.'
+    : 'Cloud non reconnu. Uniquement Google Drive, OneDrive ou SharePoint, en partage privé.'
+}
+
+/** OneDrive / SharePoint collé alors que l’édition Light n’accepte que Drive. */
+export function microsoftLinkBlockedInEdition(
+  raw: string | undefined,
+  edition: AppEdition,
+): string | null {
+  if (editionHasFeature(edition, 'cloud_microsoft')) return null
+  const href = (raw || '').trim()
+  if (!href) return null
+  const kind = cloudKindFromUrl(href)
+  if (kind === 'onedrive' || kind === 'sharepoint') return LIGHT_CLOUD_DRIVE_ONLY
+  return null
 }
 
 export function cloudAlertMessage(

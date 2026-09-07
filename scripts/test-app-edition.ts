@@ -23,6 +23,8 @@ assert.equal(editionHasFeature('light', 'pointage'), false)
 assert.equal(editionHasFeature('light', 'agenda'), true)
 assert.equal(editionHasFeature('light', 'ot_list'), true)
 assert.equal(editionHasFeature('light', 'multi_tech_ot'), false)
+assert.equal(editionHasFeature('light', 'cloud_microsoft'), false)
+assert.equal(editionHasFeature('pro', 'cloud_microsoft'), true)
 
 assert.equal(routeAllowedInEdition('/app/clients', 'light'), true)
 assert.equal(routeAllowedInEdition('/app/ot', 'light'), true)
@@ -82,6 +84,7 @@ assert.equal(
 )
 
 assert.ok(APP_EDITION_DESCRIPTIONS.light.includes('agenda'))
+assert.ok(APP_EDITION_DESCRIPTIONS.light.includes('Google Drive'))
 assert.ok(DEFAULT_HOME_SHORTCUT_IDS_LIGHT.includes('ot'))
 assert.ok(DEFAULT_HOME_SHORTCUT_IDS_LIGHT.includes('agenda'))
 assert.ok(DEFAULT_HOME_SHORTCUT_IDS_LIGHT.includes('contrats'))

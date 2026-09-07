@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, CloudOff, Copy, Loader2 } from 'lucide-react'
 import {
+  ALL_CLOUD_PROVIDERS,
   CLOUD_CONNECT_BUTTON_LABELS,
   CLOUD_PROVIDER_LABELS,
   CLOUD_REDIRECT_CONSOLE_HINTS,
@@ -14,9 +15,10 @@ import {
   type CloudConnectionsStatus,
   type CloudProviderId,
 } from '../lib/cloudOauth'
+import { LIGHT_CLOUD_DRIVE_ONLY } from '../lib/appEdition'
 import { cloudKindFromUrl } from '../lib/cloudLinkGuard'
 
-const PROVIDERS: CloudProviderId[] = ['google', 'microsoft']
+const PROVIDERS: CloudProviderId[] = ALL_CLOUD_PROVIDERS
 
 function providerFromManualLink(url: string): CloudProviderId | undefined {
   const kind = cloudKindFromUrl(url)
@@ -32,12 +34,15 @@ function providerFromManualLink(url: string): CloudProviderId | undefined {
 export function CloudWriteTest({
   lienDossier,
   providersConnectes,
+  allowedProviders,
   disabled,
   className = '',
 }: {
   lienDossier?: string
   /** Services déjà connectés : testés quand aucun lien n’est saisi. */
   providersConnectes?: CloudProviderId[]
+  /** Light : `['google']` — refuse OneDrive / SharePoint. */
+  allowedProviders?: CloudProviderId[]
   disabled?: boolean
   className?: string
 }) {
@@ -46,18 +51,32 @@ export function CloudWriteTest({
     Array<{ cle: string; titre: string; ok: boolean; message: string; detail?: string }>
   >([])
 
+  const allowed = allowedProviders?.length ? allowedProviders : PROVIDERS
+  const driveOnly = allowed.length === 1 && allowed[0] === 'google'
   const provider = useMemo(() => providerFromManualLink(lienDossier || ''), [lienDossier])
 
   const run = () => {
     setBusy(true)
     setResultats([])
     const url = (lienDossier || '').trim()
+    if (url && provider && !allowed.includes(provider)) {
+      setBusy(false)
+      setResultats([
+        {
+          cle: 'edition',
+          titre: '',
+          ok: false,
+          message: LIGHT_CLOUD_DRIVE_ONLY,
+        },
+      ])
+      return
+    }
     // Un lien collé désigne le dossier à tester ; sinon on teste ce qui est
     // connecté, sans quoi le serveur n’aurait aucun cloud à viser.
     const cibles: Array<{ cle: string; titre: string; url?: string; provider?: CloudProviderId }> =
       url
         ? [{ cle: 'lien', titre: '', url, provider }]
-        : (providersConnectes || []).map((p) => ({
+        : (providersConnectes || []).filter((p) => allowed.includes(p)).map((p) => ({
             cle: p,
             titre: CLOUD_PROVIDER_LABELS[p],
             provider: p,
@@ -70,7 +89,9 @@ export function CloudWriteTest({
           cle: 'aucun',
           titre: '',
           ok: false,
-          message: 'Connectez d’abord Google Drive ou OneDrive, ou collez un lien de dossier.',
+          message: driveOnly
+            ? 'Connectez d’abord Google Drive, ou collez un lien de dossier Drive.'
+            : 'Connectez d’abord Google Drive ou OneDrive, ou collez un lien de dossier.',
         },
       ])
       return
@@ -157,21 +178,28 @@ function UriACopier({ uri }: { uri: string }) {
 }
 
 /**
- * Réglage d’installation, replié : Google et Microsoft refusent la connexion
+ * Réglage d’installation, replié : le fournisseur refuse la connexion
  * (redirect_uri_mismatch / invalid_request) tant que ces URI ne sont pas
  * déclarées au caractère près. On les affiche telles que le serveur les envoie.
  */
-function CloudDepannage({ redirectUris }: { redirectUris: Record<CloudProviderId, string> }) {
+function CloudDepannage({
+  redirectUris,
+  providers,
+}: {
+  redirectUris: Record<CloudProviderId, string>
+  providers: CloudProviderId[]
+}) {
+  const driveOnly = providers.length === 1 && providers[0] === 'google'
   return (
     <details className="px-1 text-xs text-muted">
       <summary className="cursor-pointer underline decoration-dotted underline-offset-2">
-        Google ou Microsoft refuse la connexion ?
+        {driveOnly ? 'Google refuse la connexion ?' : 'Google ou Microsoft refuse la connexion ?'}
       </summary>
       <p className="mt-2">
         Ces adresses de retour doivent être déclarées à l’identique dans la console du fournisseur,
         sans espace ni barre oblique finale. Comptez quelques minutes avant de réessayer.
       </p>
-      {PROVIDERS.filter((provider) => redirectUris[provider]).map((provider) => (
+      {providers.filter((provider) => redirectUris[provider]).map((provider) => (
         <div key={provider} className="mt-3">
           <p className="font-semibold text-ink">{CLOUD_PROVIDER_LABELS[provider]}</p>
           <UriACopier uri={redirectUris[provider]} />
@@ -186,14 +214,19 @@ function CloudDepannage({ redirectUris }: { redirectUris: Record<CloudProviderId
  * Mon entreprise — vraie connexion OAuth2 aux clouds société.
  * Le bouton ne renvoie plus vers une page externe : il lance le consentement du
  * fournisseur, puis ClimaZEN garde un refresh_token chiffré côté serveur.
+ *
+ * Light : Google Drive seulement. Pro : Drive + OneDrive / SharePoint.
  */
 export function CloudConnectPanel({
   lienDossier,
   redirectPath = '/app/operateur',
+  providers = PROVIDERS,
 }: {
   /** Lien de dossier saisi à la main dans le formulaire (option secours). */
   lienDossier?: string
   redirectPath?: string
+  /** Fournisseurs proposés (Light = `['google']`). */
+  providers?: CloudProviderId[]
 }) {
   const [params, setParams] = useSearchParams()
   const [status, setStatus] = useState<CloudConnectionsStatus | null>(null)
@@ -279,14 +312,22 @@ export function CloudConnectPanel({
 
   const canEdit = status?.canEdit !== false
   const redirectUris = status?.redirectUris || { google: '', microsoft: '' }
-  const connectes = PROVIDERS.filter((p) => status?.connections?.[p]?.connected)
+  const allowed = providers.length ? providers : PROVIDERS
+  const shown = PROVIDERS.filter(
+    (p) =>
+      allowed.includes(p) ||
+      Boolean(status?.connections?.[p]?.connected) ||
+      Boolean(status?.connections?.[p]?.needsReconnect),
+  )
+  const connectes = shown.filter((p) => status?.connections?.[p]?.connected)
 
   return (
     <div className="space-y-3">
-      {PROVIDERS.map((provider) => {
+      {shown.map((provider) => {
         const state = status?.connections?.[provider]
         const available = status?.available?.[provider] !== false
         const connected = Boolean(state?.connected)
+        const canConnect = allowed.includes(provider)
         return (
           <div key={provider} className="rounded-xl border border-line bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -305,26 +346,30 @@ export function CloudConnectPanel({
                 ) : (
                   <p className="mt-1 text-sm text-muted">Pas encore connecté.</p>
                 )}
-                {!available ? (
+                {!canConnect ? (
+                  <p className="mt-1 text-xs font-semibold text-amber-700">{LIGHT_CLOUD_DRIVE_ONLY}</p>
+                ) : !available ? (
                   <p className="mt-1 text-xs font-semibold text-amber-700">
                     Service momentanément indisponible — prévenez le support ClimaZEN.
                   </p>
                 ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={!canEdit || !available || busy === provider}
-                  onClick={() => connect(provider)}
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-50 ${
-                    connected
-                      ? 'border border-line bg-white text-ink'
-                      : 'bg-slate text-white'
-                  }`}
-                >
-                  {busy === provider ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {connected ? 'Reconnecter' : CLOUD_CONNECT_BUTTON_LABELS[provider]}
-                </button>
+                {canConnect ? (
+                  <button
+                    type="button"
+                    disabled={!canEdit || !available || busy === provider}
+                    onClick={() => connect(provider)}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-50 ${
+                      connected
+                        ? 'border border-line bg-white text-ink'
+                        : 'bg-slate text-white'
+                    }`}
+                  >
+                    {busy === provider ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {connected ? 'Reconnecter' : CLOUD_CONNECT_BUTTON_LABELS[provider]}
+                  </button>
+                ) : null}
                 {connected || state?.needsReconnect ? (
                   <button
                     type="button"
@@ -349,11 +394,12 @@ export function CloudConnectPanel({
         <CloudWriteTest
           lienDossier={lienDossier}
           providersConnectes={connectes}
+          allowedProviders={allowed}
           disabled={!canEdit}
         />
       ) : null}
 
-      <CloudDepannage redirectUris={redirectUris} />
+      <CloudDepannage redirectUris={redirectUris} providers={allowed} />
     </div>
   )
 }

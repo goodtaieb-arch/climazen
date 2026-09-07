@@ -14,6 +14,8 @@ import {
   redirectUriFor,
   safeRedirectPath,
   saveCloudConnection,
+  resolveOrgAppEdition,
+  cloudProviderAllowedForEdition,
 } from './cloudOauth.js'
 import { getSupabaseConfig } from './supabaseServer.js'
 
@@ -68,6 +70,11 @@ export async function handleOauthCallback(provider, req, res) {
     const consumed = await consumeOauthState(state, provider)
     if (!consumed.ok) return fail(consumed.error)
     redirectPath = consumed.redirectPath
+
+    const edition = await resolveOrgAppEdition(consumed.orgId)
+    if (!cloudProviderAllowedForEdition(edition, provider)) {
+      return fail('edition_light')
+    }
 
     let tokens
     try {

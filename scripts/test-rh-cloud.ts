@@ -71,6 +71,8 @@ assert.equal(cloudKindFromUrl('https://contoso.sharepoint.com/sites/rh'), 'share
 assert.match(cloudPasteHint('https://drive.google.com/drive/folders/x'), /Google Drive/)
 assert.match(cloudPasteHint('https://onedrive.live.com/redir'), /OneDrive/)
 assert.match(cloudPasteHint('https://contoso.sharepoint.com/sites/x'), /SharePoint/)
+assert.match(cloudPasteHint('', { driveOnly: true }), /Google Drive/)
+assert.match(cloudPasteHint('https://onedrive.live.com/redir', { driveOnly: true }), /Light/)
 assert.match(cloudAlertMessage('drive', 'public'), /Google Drive/)
 assert.match(cloudAlertMessage('onedrive', 'public'), /OneDrive/)
 assert.match(cloudAlertMessage('sharepoint', 'public'), /SharePoint/)
