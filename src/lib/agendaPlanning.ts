@@ -155,6 +155,9 @@ export const HORS_OT_BUREAU: AgendaEventType[] = [
   'conge',
   'rtt',
   'maladie',
+  'paternite',
+  'maternite',
+  'sans_solde',
 ]
 
 export const HORS_OT_ALL: AgendaEventType[] = [...HORS_OT_TECH, ...HORS_OT_BUREAU]
@@ -399,6 +402,33 @@ export const COULEURS_HORS_OT: Record<string, CouleurSecteur> = {
     text: 'text-rose-950',
     row: 'border-rose-300 bg-rose-50',
     dot: 'bg-rose-600',
+  },
+  paternite: {
+    key: 'pat',
+    bg: 'bg-sky-50',
+    border: 'border-sky-400',
+    badge: 'bg-sky-700 text-white',
+    text: 'text-sky-950',
+    row: 'border-sky-300 bg-sky-50',
+    dot: 'bg-sky-600',
+  },
+  maternite: {
+    key: 'mat',
+    bg: 'bg-fuchsia-50',
+    border: 'border-fuchsia-400',
+    badge: 'bg-fuchsia-700 text-white',
+    text: 'text-fuchsia-950',
+    row: 'border-fuchsia-300 bg-fuchsia-50',
+    dot: 'bg-fuchsia-600',
+  },
+  sans_solde: {
+    key: 'ss',
+    bg: 'bg-stone-50',
+    border: 'border-stone-400',
+    badge: 'bg-stone-700 text-white',
+    text: 'text-stone-950',
+    row: 'border-stone-300 bg-stone-50',
+    dot: 'bg-stone-600',
   },
 }
 

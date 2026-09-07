@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import {
+  ABSENCE_MOTIF_OPTIONS,
   ABSENCE_TYPE_LABELS,
   absenceConsommeSolde,
   absenceTypeToAgenda,
@@ -16,10 +17,18 @@ import { parseTerrainIntent } from '../src/lib/assistantTerrainActions'
 assert.equal(parseAbsenceType('rtt'), 'rtt')
 assert.equal(parseAbsenceType('vacances'), 'vacances')
 assert.equal(absenceTypeToAgenda('formation'), 'formation')
-assert.equal(absenceTypeToAgenda('sans_solde'), 'conge')
+assert.equal(absenceTypeToAgenda('sans_solde'), 'sans_solde')
+assert.equal(absenceTypeToAgenda('paternite'), 'paternite')
+assert.equal(parseAbsenceType('paternite'), 'paternite')
+assert.equal(detectAbsenceTypeFromText('congé paternité'), 'paternite')
+assert.equal(detectAbsenceTypeFromText('maternité'), 'maternite')
 assert.equal(absenceConsommeSolde('conge'), 'conges')
 assert.equal(absenceConsommeSolde('rtt'), 'rtt')
 assert.equal(absenceConsommeSolde('maladie'), null)
+assert.equal(ABSENCE_TYPE_LABELS.paternite, 'Paternité')
+assert.ok(ABSENCE_MOTIF_OPTIONS.includes('paternite'))
+assert.ok(ABSENCE_MOTIF_OPTIONS.includes('maladie'))
+assert.ok(ABSENCE_MOTIF_OPTIONS.includes('vacances'))
 
 assert.equal(compterJoursCalendaires('2026-08-10', '2026-08-12'), 3)
 assert.equal(compterJoursOuvres('2026-08-10', '2026-08-14'), 5) // lun–ven

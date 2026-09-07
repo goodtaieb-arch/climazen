@@ -6,6 +6,7 @@ import { useStore } from '../lib/store'
 import { isBureauUi } from '../lib/uiMode'
 import { dossierForUser } from '../lib/rhDocuments'
 import {
+  ABSENCE_MOTIF_OPTIONS,
   ABSENCE_STATUT_LABELS,
   ABSENCE_TYPE_LABELS,
   absenceConsommeSolde,
@@ -250,19 +251,22 @@ export function AbsencesPage() {
             {editId ? 'Modifier la demande' : 'Nouvelle demande d’absence'}
           </h2>
           <label className="block text-sm">
-            <span className="mb-1 block font-semibold">Type *</span>
+            <span className="mb-1 block font-semibold">Motif *</span>
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value as AbsenceType })}
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
               required
             >
-              {(Object.keys(ABSENCE_TYPE_LABELS) as AbsenceType[]).map((t) => (
+              {ABSENCE_MOTIF_OPTIONS.map((t) => (
                 <option key={t} value={t}>
                   {ABSENCE_TYPE_LABELS[t]}
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-[11px] text-muted">
+              Même liste que l’agenda (Absent) : vacances, CP, RTT, maladie, paternité…
+            </span>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-semibold">Jours (ouvrés)</span>
@@ -312,11 +316,11 @@ export function AbsencesPage() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block font-semibold">Motif (optionnel)</span>
+            <span className="mb-1 block font-semibold">Précisions (optionnel)</span>
             <input
               value={form.motif || ''}
               onChange={(e) => setForm({ ...form, motif: e.target.value })}
-              placeholder="Ex. Vacances d’été, RTT pont…"
+              placeholder="Ex. pont du 1er mai, certificat…"
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             />
           </label>

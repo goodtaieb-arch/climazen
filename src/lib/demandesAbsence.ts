@@ -4,6 +4,7 @@
  */
 
 import {
+  AGENDA_INDISPO_TYPES,
   AGENDA_TYPE_LABELS,
   type AgendaEvent,
   type AgendaEventType,
@@ -11,11 +12,14 @@ import {
 } from './agenda'
 import type { PersonnelDossier } from './rhDocuments'
 
+/** Même clés que l’agenda « Absent » + « autre » (demande libre). */
 export type AbsenceType =
   | 'vacances'
   | 'conge'
   | 'rtt'
   | 'maladie'
+  | 'paternite'
+  | 'maternite'
   | 'sans_solde'
   | 'formation'
   | 'autre'
@@ -29,13 +33,21 @@ export type AbsenceStatut =
 
 export type AbsenceSource = 'formulaire' | 'assistant' | 'bureau'
 
+/** Motifs déroulants — alignés agenda (ordre d’affichage). */
+export const ABSENCE_MOTIF_OPTIONS: AbsenceType[] = [
+  ...(AGENDA_INDISPO_TYPES as AbsenceType[]),
+  'autre',
+]
+
 export const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
-  vacances: 'Vacances',
-  conge: 'Congé payé',
-  rtt: 'RTT',
-  maladie: 'Maladie / arrêt',
-  sans_solde: 'Sans solde',
-  formation: 'Formation',
+  vacances: AGENDA_TYPE_LABELS.vacances,
+  conge: AGENDA_TYPE_LABELS.conge,
+  rtt: AGENDA_TYPE_LABELS.rtt,
+  maladie: AGENDA_TYPE_LABELS.maladie,
+  paternite: AGENDA_TYPE_LABELS.paternite,
+  maternite: AGENDA_TYPE_LABELS.maternite,
+  sans_solde: AGENDA_TYPE_LABELS.sans_solde,
+  formation: AGENDA_TYPE_LABELS.formation,
   autre: 'Autre absence',
 }
 
@@ -74,20 +86,29 @@ export interface DemandeAbsence {
 }
 
 export function parseAbsenceType(raw: unknown): AbsenceType {
-  const t = String(raw || '').trim().toLowerCase()
-  if (t === 'vacances' || t === 'conge' || t === 'rtt' || t === 'maladie') return t
-  if (t === 'sans_solde' || t === 'sans-solde') return 'sans_solde'
-  if (t === 'formation') return 'formation'
-  if (t === 'autre') return 'autre'
+  const t = String(raw || '').trim().toLowerCase().replace(/-/g, '_')
+  if (
+    t === 'vacances' ||
+    t === 'conge' ||
+    t === 'rtt' ||
+    t === 'maladie' ||
+    t === 'paternite' ||
+    t === 'maternite' ||
+    t === 'sans_solde' ||
+    t === 'formation' ||
+    t === 'autre'
+  ) {
+    return t
+  }
+  if (t === 'paternité' || t === 'conge_paternite' || t === 'conge_paternité') return 'paternite'
+  if (t === 'maternité' || t === 'conge_maternite' || t === 'conge_maternité') return 'maternite'
   if (isIndispoType(t)) return t as AbsenceType
   return 'conge'
 }
 
 export function absenceTypeToAgenda(type: AbsenceType): AgendaEventType {
-  if (type === 'vacances' || type === 'conge' || type === 'rtt' || type === 'maladie') {
-    return type
-  }
-  if (type === 'formation') return 'formation'
+  if (type === 'autre') return 'conge'
+  if ((AGENDA_INDISPO_TYPES as string[]).includes(type)) return type as AgendaEventType
   return 'conge'
 }
 
@@ -255,7 +276,9 @@ export function detectAbsenceTypeFromText(text: string): AbsenceType {
     .replace(/[\u0300-\u036f]/g, '')
   if (/\brtt\b/.test(n)) return 'rtt'
   if (/\bmaladie\b|\barret\b/.test(n)) return 'maladie'
-  if (/\bsans[\s-]?solde\b/.test(n)) return 'sans_solde'
+  if (/\bpaternite\b/.test(n)) return 'paternite'
+  if (/\bmaternite\b/.test(n)) return 'maternite'
+  if (/\bsans[\s_]?solde\b/.test(n)) return 'sans_solde'
   if (/\bformation\b/.test(n)) return 'formation'
   if (/\bvacances\b/.test(n)) return 'vacances'
   if (/\bconges?\b|\babsent/.test(n)) return 'conge'

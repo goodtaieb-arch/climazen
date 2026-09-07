@@ -22,6 +22,9 @@ export type AgendaEventType =
   | 'conge'
   | 'rtt'
   | 'maladie'
+  | 'paternite'
+  | 'maternite'
+  | 'sans_solde'
 
 export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   maintenance: 'Maintenance',
@@ -37,9 +40,12 @@ export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   rdv_garage: 'RDV garage',
   hors_ot_libre: 'Hors INT (libre)',
   vacances: 'Vacances',
-  conge: 'Congé',
+  conge: 'Congé payé',
   rtt: 'RTT',
   maladie: 'Maladie / arrêt',
+  paternite: 'Paternité',
+  maternite: 'Maternité',
+  sans_solde: 'Sans solde',
 }
 
 export type AgendaStatut = 'a_faire' | 'contacte' | 'rdv_pris' | 'fait' | 'annule'
@@ -87,8 +93,20 @@ export interface AgendaEvent {
   updatedAt: string
 }
 
-/** Types qui bloquent la pose d’OT sur le tech (un bouton « Absent », motifs au choix). */
-export const AGENDA_INDISPO_TYPES: AgendaEventType[] = ['vacances', 'conge', 'rtt', 'maladie']
+/**
+ * Motifs d’absence (agenda « Absent » + demandes congés) — même liste partout.
+ * Bloquent la pose d’OT sur le tech.
+ */
+export const AGENDA_INDISPO_TYPES: AgendaEventType[] = [
+  'vacances',
+  'conge',
+  'rtt',
+  'maladie',
+  'paternite',
+  'maternite',
+  'sans_solde',
+  'formation',
+]
 
 export function isIndispoType(t: string | undefined): boolean {
   return Boolean(t && (AGENDA_INDISPO_TYPES as string[]).includes(t))
