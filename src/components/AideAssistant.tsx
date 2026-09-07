@@ -55,7 +55,7 @@ import {
 } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { learnAiVocabulary, learnAiVocabularyCorrection } from '../lib/aiVocabulary'
-import { applySpeechCorrections } from '../lib/speech'
+import { applySpeechCorrections, speakFr, textForSpeech } from '../lib/speech'
 import { AiLearningInfoNotice } from './AiLearningInfoNotice'
 import { extraAssigneesFromData, mergeTeamMembers } from '../lib/teamMembers'
 import type { UserAccount } from '../lib/auth'
@@ -149,6 +149,8 @@ export function AideAssistant() {
     },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)
+  const speakNextRef = useRef(false)
+  const sendRef = useRef<(text: string) => Promise<void>>(async () => {})
   const suggestions = suggestQuestionsForPath(location.pathname)
   const hasPending = Boolean(pendingCreate || pendingTerrain)
 
@@ -161,6 +163,19 @@ export function AideAssistant() {
     const openFromVoice = () => setOpen(true)
     window.addEventListener('climazen:open-aide', openFromVoice)
     return () => window.removeEventListener('climazen:open-aide', openFromVoice)
+  }, [])
+
+  useEffect(() => {
+    const onAideVoice = (e: Event) => {
+      const detail = (e as CustomEvent<{ text?: string; speak?: boolean }>).detail
+      const text = String(detail?.text || '').trim()
+      if (!text) return
+      speakNextRef.current = detail?.speak !== false
+      setOpen(true)
+      void sendRef.current(text)
+    }
+    window.addEventListener('climazen:aide-voice', onAideVoice)
+    return () => window.removeEventListener('climazen:aide-voice', onAideVoice)
   }, [])
 
   useEffect(() => {
@@ -208,6 +223,18 @@ export function AideAssistant() {
 
   const pushAssistant = (content: string) => {
     setLines((prev) => [...prev, { id: newId(), role: 'assistant', content }])
+    if (speakNextRef.current) {
+      speakNextRef.current = false
+      const oral = textForSpeech(content)
+      window.dispatchEvent(
+        new CustomEvent('climazen:voice-spoke', { detail: { text: oral.slice(0, 80) } }),
+      )
+      speakFr(oral, {
+        onEnd: () => {
+          window.dispatchEvent(new CustomEvent('climazen:voice-resume'))
+        },
+      })
+    }
   }
 
   /** Notifie le responsable du secteur — validation humaine hors chat. */
@@ -606,8 +633,15 @@ export function AideAssistant() {
       pushAssistant('Impossible de répondre pour le moment. Réessayez dans un instant.')
     } finally {
       setBusy(false)
+      // Si aucune réponse n’a parlé (early return sans push) — relancer l’écoute
+      if (speakNextRef.current) {
+        speakNextRef.current = false
+        window.dispatchEvent(new CustomEvent('climazen:voice-resume'))
+      }
     }
   }
+
+  sendRef.current = send
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()

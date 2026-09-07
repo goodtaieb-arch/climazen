@@ -324,3 +324,75 @@ export function formatLastSyncLabel(iso: string | null): string | null {
     return d.toLocaleString('fr-FR')
   }
 }
+
+/** Synthèse vocale navigateur (réponses orales main libre). */
+export function isTtsSupported(): boolean {
+  return typeof window !== 'undefined' && typeof window.speechSynthesis !== 'undefined'
+}
+
+export function cancelSpeech(): void {
+  if (!isTtsSupported()) return
+  try {
+    window.speechSynthesis.cancel()
+  } catch {
+    /* ignore */
+  }
+}
+
+function pickFrenchVoice(): SpeechSynthesisVoice | null {
+  if (!isTtsSupported()) return null
+  const voices = window.speechSynthesis.getVoices()
+  return (
+    voices.find((v) => /^fr[-_]/i.test(v.lang) && /google|thomas|amélie|amelie|denise|hortense/i.test(v.name)) ||
+    voices.find((v) => /^fr[-_]/i.test(v.lang)) ||
+    null
+  )
+}
+
+/** Nettoie un texte assistant pour lecture orale courte. */
+export function textForSpeech(raw: string, maxLen = 420): string {
+  let t = String(raw || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[#*_>~•]/g, ' ')
+    .replace(/^\s*[-–—]\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (t.length > maxLen) t = `${t.slice(0, maxLen - 1).trim()}…`
+  return t
+}
+
+/**
+ * Lit une réponse à voix haute (fr-FR).
+ * onEnd est appelé même si TTS indisponible (pour relancer l’écoute).
+ */
+export function speakFr(
+  text: string,
+  opts?: { onEnd?: () => void; rate?: number },
+): void {
+  const spoken = textForSpeech(text)
+  cancelSpeech()
+  if (!isTtsSupported() || !spoken) {
+    opts?.onEnd?.()
+    return
+  }
+  const u = new SpeechSynthesisUtterance(spoken)
+  u.lang = 'fr-FR'
+  u.rate = opts?.rate ?? 1.05
+  const voice = pickFrenchVoice()
+  if (voice) u.voice = voice
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    opts?.onEnd?.()
+  }
+  u.onend = finish
+  u.onerror = finish
+  try {
+    window.speechSynthesis.speak(u)
+  } catch {
+    finish()
+  }
+}
