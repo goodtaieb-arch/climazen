@@ -298,6 +298,7 @@ export function migrateAppData(data: AppData): AppData {
     piecesMouvements: data.piecesMouvements || [],
     factures: data.factures || [],
     agendaEvents: data.agendaEvents || [],
+    demandesAbsence: data.demandesAbsence || [],
     pointageRegles: data.pointageRegles
       ? parsePointageRegles(data.pointageRegles)
       : undefined,

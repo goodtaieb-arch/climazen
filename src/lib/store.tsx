@@ -23,6 +23,13 @@ import type {
   VoitureEtatLieux,
   Outillage,
 } from './types'
+import {
+  absenceConsommeSolde,
+  buildAgendaFromDemande,
+  compterJoursOuvres,
+  parseAbsenceType,
+  type DemandeAbsence,
+} from './demandesAbsence'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
 import { seedSandboxData, sandboxDataLooksEmpty } from './seedSandboxData'
 import { isSandboxTestEmail } from './sandboxAccount'
@@ -234,6 +241,22 @@ type Store = {
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ) => string
   deleteAgendaEvent: (id: string) => void
+  /** Crée / met à jour une demande d’absence (brouillon). */
+  upsertDemandeAbsence: (
+    d: Omit<import('./demandesAbsence').DemandeAbsence, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
+  ) => string
+  /** Tech envoie la feuille à la direction. */
+  soumettreDemandeAbsence: (id: string) => void
+  /** Direction valide ou refuse ; si validée → pose agenda + décrémente solde. */
+  decideDemandeAbsence: (
+    id: string,
+    decision: 'validee' | 'refusee',
+    opts?: { userId?: string; userName?: string; motifRefus?: string },
+  ) => void
+  /** Tech annule une demande encore en attente / brouillon. */
+  annulerDemandeAbsence: (id: string) => void
   /** Crée / met à jour une validation humaine IA (notif responsable secteur). */
   upsertAiPendingValidation: (
     v: Omit<import('./aiPendingValidation').AiPendingValidation, 'id' | 'createdAt' | 'updatedAt'> & {
@@ -2002,6 +2025,177 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const upsertDemandeAbsence = useCallback(
+    (
+      dem: Omit<DemandeAbsence, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string
+      },
+    ) => {
+      const id = dem.id ?? uuid()
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.demandesAbsence || []
+        const existing = list.find((x) => x.id === id)
+        const dateDebut = String(dem.dateDebut || '').slice(0, 10)
+        const dateFin = String(dem.dateFin || dem.dateDebut || '').slice(0, 10)
+        const jours =
+          Number(dem.joursDemandes) > 0
+            ? Number(dem.joursDemandes)
+            : compterJoursOuvres(dateDebut, dateFin)
+        const next: DemandeAbsence = {
+          ...existing,
+          ...dem,
+          id,
+          type: parseAbsenceType(dem.type || existing?.type),
+          dateDebut,
+          dateFin,
+          joursDemandes: jours,
+          statut: dem.statut || existing?.statut || 'brouillon',
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        return {
+          ...d,
+          demandesAbsence: existing
+            ? list.map((x) => (x.id === id ? next : x))
+            : [next, ...list].slice(0, 500),
+        }
+      })
+      return id
+    },
+    [],
+  )
+
+  const soumettreDemandeAbsence = useCallback((id: string) => {
+    const now = new Date().toISOString()
+    setData((d) => ({
+      ...d,
+      demandesAbsence: (d.demandesAbsence || []).map((x) =>
+        x.id === id && (x.statut === 'brouillon' || x.statut === 'refusee')
+          ? {
+              ...x,
+              statut: 'en_attente' as const,
+              submittedAt: now,
+              updatedAt: now,
+              motifRefus: undefined,
+              decidedAt: undefined,
+              decidedByUserId: undefined,
+              decidedByName: undefined,
+            }
+          : x,
+      ),
+    }))
+  }, [])
+
+  const annulerDemandeAbsence = useCallback((id: string) => {
+    const now = new Date().toISOString()
+    setData((d) => ({
+      ...d,
+      demandesAbsence: (d.demandesAbsence || []).map((x) =>
+        x.id === id && (x.statut === 'brouillon' || x.statut === 'en_attente')
+          ? { ...x, statut: 'annulee' as const, updatedAt: now }
+          : x,
+      ),
+    }))
+  }, [])
+
+  const decideDemandeAbsence = useCallback(
+    (
+      id: string,
+      decision: 'validee' | 'refusee',
+      opts?: { userId?: string; userName?: string; motifRefus?: string },
+    ) => {
+      const now = new Date().toISOString()
+      setData((d) => {
+        const list = d.demandesAbsence || []
+        const dem = list.find((x) => x.id === id)
+        if (!dem || dem.statut !== 'en_attente') return d
+
+        if (decision === 'refusee') {
+          return {
+            ...d,
+            demandesAbsence: list.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    statut: 'refusee' as const,
+                    motifRefus: (opts?.motifRefus || '').trim() || undefined,
+                    decidedAt: now,
+                    decidedByUserId: opts?.userId,
+                    decidedByName: opts?.userName,
+                    updatedAt: now,
+                  }
+                : x,
+            ),
+          }
+        }
+
+        const agendaPayload = buildAgendaFromDemande(dem)
+        const agendaList = d.agendaEvents || []
+        const agendaId = dem.agendaEventId || uuid()
+        const existingAgenda = agendaList.find((e) => e.id === agendaId)
+        const agendaNext: AgendaEvent = {
+          ...agendaPayload,
+          id: agendaId,
+          createdAt: existingAgenda?.createdAt ?? now,
+          updatedAt: now,
+        }
+
+        let dossiers = d.personnelDossiers || []
+        const soldeKind = absenceConsommeSolde(dem.type)
+        if (soldeKind) {
+          dossiers = dossiers.map((dos) => {
+            if (dos.userId !== dem.technicienUserId) return dos
+            if (soldeKind === 'conges' && Number.isFinite(Number(dos.soldeCongesJours))) {
+              return {
+                ...dos,
+                soldeCongesJours: Math.max(
+                  0,
+                  Math.round((Number(dos.soldeCongesJours) - dem.joursDemandes) * 100) / 100,
+                ),
+                updatedAt: now,
+              }
+            }
+            if (soldeKind === 'rtt' && Number.isFinite(Number(dos.soldeRttJours))) {
+              return {
+                ...dos,
+                soldeRttJours: Math.max(
+                  0,
+                  Math.round((Number(dos.soldeRttJours) - dem.joursDemandes) * 100) / 100,
+                ),
+                updatedAt: now,
+              }
+            }
+            return dos
+          })
+        }
+
+        return {
+          ...d,
+          agendaEvents: existingAgenda
+            ? agendaList.map((e) => (e.id === agendaId ? { ...existingAgenda, ...agendaNext } : e))
+            : [...agendaList, agendaNext],
+          personnelDossiers: dossiers,
+          demandesAbsence: list.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  statut: 'validee' as const,
+                  agendaEventId: agendaId,
+                  decidedAt: now,
+                  decidedByUserId: opts?.userId,
+                  decidedByName: opts?.userName,
+                  motifRefus: undefined,
+                  updatedAt: now,
+                }
+              : x,
+          ),
+        }
+      })
+    },
+    [],
+  )
+
   const upsertAiPendingValidation = useCallback(
     (
       v: Omit<import('./aiPendingValidation').AiPendingValidation, 'id' | 'createdAt' | 'updatedAt'> & {
@@ -3292,6 +3486,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           d.telephone !== undefined
             ? d.telephone.trim() || undefined
             : existing?.telephone,
+        soldeCongesJours: Object.prototype.hasOwnProperty.call(d, 'soldeCongesJours')
+          ? d.soldeCongesJours === undefined || d.soldeCongesJours === null || Number.isNaN(Number(d.soldeCongesJours))
+            ? undefined
+            : Number(d.soldeCongesJours)
+          : existing?.soldeCongesJours,
+        soldeRttJours: Object.prototype.hasOwnProperty.call(d, 'soldeRttJours')
+          ? d.soldeRttJours === undefined || d.soldeRttJours === null || Number.isNaN(Number(d.soldeRttJours))
+            ? undefined
+            : Number(d.soldeRttJours)
+          : existing?.soldeRttJours,
         lienCloudDossier:
           d.lienCloudDossier !== undefined
             ? d.lienCloudDossier.trim() || undefined
@@ -3623,6 +3827,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
+      upsertDemandeAbsence,
+      soumettreDemandeAbsence,
+      decideDemandeAbsence,
+      annulerDemandeAbsence,
       upsertAiPendingValidation,
       decideAiPendingValidation,
       upsertPointageRegles,
@@ -3714,6 +3922,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       enregistrerMouvementPiece,
       upsertAgendaEvent,
       deleteAgendaEvent,
+      upsertDemandeAbsence,
+      soumettreDemandeAbsence,
+      decideDemandeAbsence,
+      annulerDemandeAbsence,
       upsertAiPendingValidation,
       decideAiPendingValidation,
       upsertPointageRegles,

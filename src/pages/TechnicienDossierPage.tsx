@@ -124,6 +124,16 @@ export function TechnicienDossierPage() {
   const [conduitVehicule, setConduitVehicule] = useState(dossier.conduitVehicule)
   const [notes, setNotes] = useState(dossier.notes || '')
   const [telephone, setTelephone] = useState(dossier.telephone || '')
+  const [soldeConges, setSoldeConges] = useState(
+    dossier.soldeCongesJours !== undefined && dossier.soldeCongesJours !== null
+      ? String(dossier.soldeCongesJours)
+      : '',
+  )
+  const [soldeRtt, setSoldeRtt] = useState(
+    dossier.soldeRttJours !== undefined && dossier.soldeRttJours !== null
+      ? String(dossier.soldeRttJours)
+      : '',
+  )
   const [poste, setPoste] = useState<PostePersonnelId | ''>(dossier.poste || '')
   const [agenceCode, setAgenceCode] = useState(dossier.agenceCode)
   const [activiteBureau, setActiviteBureau] = useState<ActiviteBureau | undefined>(dossier.activiteBureau)
@@ -138,6 +148,16 @@ export function TechnicienDossierPage() {
     setConduitVehicule(dossier.conduitVehicule)
     setNotes(dossier.notes || '')
     setTelephone(dossier.telephone || '')
+    setSoldeConges(
+      dossier.soldeCongesJours !== undefined && dossier.soldeCongesJours !== null
+        ? String(dossier.soldeCongesJours)
+        : '',
+    )
+    setSoldeRtt(
+      dossier.soldeRttJours !== undefined && dossier.soldeRttJours !== null
+        ? String(dossier.soldeRttJours)
+        : '',
+    )
     setPoste(dossier.poste || '')
     setAgenceCode(dossier.agenceCode)
     setActiviteBureau(dossier.activiteBureau)
@@ -246,6 +266,8 @@ export function TechnicienDossierPage() {
       userId,
       userName: displayName,
       telephone,
+      soldeCongesJours: soldeConges.trim() === '' ? undefined : Number(soldeConges.replace(',', '.')),
+      soldeRttJours: soldeRtt.trim() === '' ? undefined : Number(soldeRtt.replace(',', '.')),
       poste: poste || undefined,
       agenceCode,
       activiteBureau,
@@ -601,6 +623,36 @@ export function TechnicienDossierPage() {
           <p className="mt-1 text-xs text-muted">
             Numéro personnel / RH. Le téléphone de société se donne plus haut, dans « Matériel donné
             par la société ».
+          </p>
+        </div>
+        <div className="mt-3 grid max-w-lg gap-3 sm:grid-cols-2">
+          <Field
+            label="Solde congés (jours)"
+            type="text"
+            inputMode="decimal"
+            value={soldeConges}
+            onChange={(v) => {
+              setSoldeConges(v)
+            }}
+          />
+          <Field
+            label="Solde RTT (jours)"
+            type="text"
+            inputMode="decimal"
+            value={soldeRtt}
+            onChange={(v) => {
+              setSoldeRtt(v)
+            }}
+          />
+          <p className="text-xs text-muted sm:col-span-2">
+            Affiché au tech sur Absences. Décrémenté à la validation d’un congé / RTT.{' '}
+            <button
+              type="button"
+              className="font-semibold text-accent underline"
+              onClick={() => persistDossier()}
+            >
+              Enregistrer soldes
+            </button>
           </p>
         </div>
         <div className="mt-3 grid gap-2 text-sm">

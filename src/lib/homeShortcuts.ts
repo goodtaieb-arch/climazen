@@ -8,6 +8,7 @@ export type HomeShortcutId =
   | 'sites'
   | 'scan_qr'
   | 'agenda'
+  | 'absences'
   | 'cerfa'
   | 'stock'
   | 'clients'
@@ -61,6 +62,12 @@ export const HOME_SHORTCUT_CATALOG: Record<HomeShortcutId, HomeShortcutDef> = {
     title: 'Agenda',
     img: ICON3D.search,
     to: '/app/agenda',
+  },
+  absences: {
+    id: 'absences',
+    title: 'Absences',
+    img: ICON3D.equipe,
+    to: '/app/absences',
   },
   cerfa: {
     id: 'cerfa',
@@ -148,6 +155,7 @@ export const DEFAULT_HOME_SHORTCUT_IDS: HomeShortcutId[] = [
   'sites',
   'scan_qr',
   'agenda',
+  'absences',
   'cerfa',
   'stock',
   'clients',
@@ -177,6 +185,7 @@ export const DEFAULT_HOME_SHORTCUT_IDS_TERRAIN: HomeShortcutId[] = [
   'scan_qr',
   'stock',
   'agenda',
+  'absences',
   'profil',
 ]
 

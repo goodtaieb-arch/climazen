@@ -153,6 +153,7 @@ const baseLinksLightOwner = [
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/absences', label: 'Absences', icon: ClipboardList, tone: 'equipe' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/operateur', label: 'Mon entreprise', icon: Settings, tone: 'societe' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
@@ -178,6 +179,7 @@ const baseLinksOwner = [
   { to: '/app/commandes', label: 'Commandes', icon: Truck, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/absences', label: 'Absences', icon: ClipboardList, tone: 'equipe' },
   { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/equipe', label: 'Équipe', icon: Users, tone: 'equipe' },
@@ -196,6 +198,7 @@ const baseLinksOperator = [
   { to: '/app/commandes', label: 'Commandes', icon: Truck, tone: 'stock' },
   { to: '/app/contrats', label: 'Contrats maintenance', icon: ClipboardList, tone: 'sites' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/absences', label: 'Absences', icon: ClipboardList, tone: 'equipe' },
   { to: '/app/pointage', label: 'Pointeuse', icon: Clock, tone: 'dashboard' },
   { to: '/app/interventions', label: 'CERFA', icon: ClipboardList, tone: 'cerfa' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
@@ -209,6 +212,7 @@ const baseLinksTerrain = [
   { to: '/app/scan-equip', label: 'Scan QR', icon: Search, tone: 'sites' },
   { to: '/app/stock', label: 'Stock fluides', icon: Package, tone: 'stock' },
   { to: '/app/agenda', label: 'Agenda', icon: ClipboardList, tone: 'dashboard' },
+  { to: '/app/absences', label: 'Absences', icon: ClipboardList, tone: 'equipe' },
   { to: '/app/profil', label: 'Mon profil', icon: User, tone: 'equipe' },
 ]
 

@@ -226,6 +226,10 @@ export interface PersonnelDossier {
   agencesCouvertes?: string[]
   /** Portable pro — visible dans Équipe à côté du nom / e-mail */
   telephone?: string
+  /** Solde congés payés restants (jours) — saisie bureau. */
+  soldeCongesJours?: number
+  /** Solde RTT restants (jours) — saisie bureau. */
+  soldeRttJours?: number
   /** Manipulation fluides — aptitude F-Gas obligatoire */
   toucheFroid: boolean
   /** Travail sur parties électriques */
@@ -258,6 +262,8 @@ export function defaultPersonnelDossier(
     agenceCode: undefined,
     agencesCouvertes: undefined,
     telephone: undefined,
+    soldeCongesJours: undefined,
+    soldeRttJours: undefined,
     toucheFroid: true,
     toucheElectricite: true,
     conduitVehicule: true,
@@ -414,6 +420,14 @@ export function migratePersonnelDossiers(list?: PersonnelDossier[]): PersonnelDo
       agenceCode: parseAgenceCode(raw.agenceCode),
       agencesCouvertes: parseAgencesCouvertes(raw.agencesCouvertes),
       telephone: String(raw.telephone || '').trim() || undefined,
+      soldeCongesJours:
+        raw.soldeCongesJours === undefined || raw.soldeCongesJours === null
+          ? undefined
+          : Number(raw.soldeCongesJours),
+      soldeRttJours:
+        raw.soldeRttJours === undefined || raw.soldeRttJours === null
+          ? undefined
+          : Number(raw.soldeRttJours),
       toucheFroid: raw.toucheFroid !== false,
       toucheElectricite: raw.toucheElectricite !== false,
       conduitVehicule: raw.conduitVehicule !== false,

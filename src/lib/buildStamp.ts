@@ -5,7 +5,11 @@
 export const APP_VERSION = 'v248'
 
 /** Stamp technique (cache PWA / debug). */
+<<<<<<< HEAD
 export const APP_BUILD = '2026-09-07-v248-voix-dedupe-repetition'
+=======
+export const APP_BUILD = '2026-09-07-v248-demandes-absence-conges'
+>>>>>>> origin/cursor/demandes-absence-conges-716d
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

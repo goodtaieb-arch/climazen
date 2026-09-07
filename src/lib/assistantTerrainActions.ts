@@ -5,6 +5,12 @@
 
 import type { AgendaEvent, AgendaEventType } from './agenda'
 import { AGENDA_TYPE_LABELS, addDaysToIso, formatHeure, todayIsoLocal } from './agenda'
+import {
+  ABSENCE_TYPE_LABELS,
+  compterJoursOuvres,
+  detectAbsenceTypeFromText,
+  parseAbsenceDateRange,
+} from './demandesAbsence'
 import type { AppData, ContenantType, DetecteurManuel, Equipement, Site, StockItem } from './types'
 import { blankFicheMaintenanceClim } from './ficheMaintenanceClim'
 import { clientDisplayName } from './types'
@@ -194,6 +200,14 @@ export type PendingTerrainAction =
       /** Nom tech dit à Lola (ex. Amélie) — résolu à l’exécution. */
       techQuery?: string
       notes?: string
+      summary: string
+    }
+  | {
+      kind: 'demande_absence'
+      type: import('./demandesAbsence').AbsenceType
+      dateDebut: string
+      dateFin: string
+      motif?: string
       summary: string
     }
   | {
@@ -825,6 +839,40 @@ export function parseTerrainIntent(text: string, data?: AppData): PendingTerrain
     }
   }
 
+  // Demande d’absence / congés / RTT (feuille → validation direction)
+  if (
+    /\b(demande|poser?|pose|prend|prendre|remplir)\b.{0,40}\b(conges?|vacances|rtt|absence|maladie)\b/.test(
+      n,
+    ) ||
+    /\b(conges?|vacances|rtt)\b.{0,30}\b(du\s+\d|demain|aujourd|semaine|mois)\b/.test(n) ||
+    /\bje\s+(suis|serai|pars)\b.{0,20}\b(en\s+)?(conges?|vacances|rtt|maladie|absent)/.test(n)
+  ) {
+    const type = detectAbsenceTypeFromText(raw)
+    const range = parseAbsenceDateRange(raw)
+    const dateDebut = range?.debut || parseAgendaDate(raw) || todayIsoLocal()
+    const dateFin = range?.fin || dateDebut
+    const jours = compterJoursOuvres(dateDebut, dateFin)
+    const motif =
+      raw.match(/(?:motif|pour|parce\s+que)\s*[:=]?\s*(.+)$/i)?.[1]?.trim() || undefined
+    return {
+      kind: 'demande_absence',
+      type,
+      dateDebut,
+      dateFin,
+      motif,
+      summary: [
+        `Je peux préparer votre feuille d’absence :`,
+        `• Type : ${ABSENCE_TYPE_LABELS[type]}`,
+        `• Du ${dateDebut} au ${dateFin} (${jours} j ouvrés)`,
+        motif ? `• Motif : ${motif}` : null,
+        ``,
+        `Répondez « oui » pour créer le brouillon — vous vérifiez puis envoyez à la direction.`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    }
+  }
+
   // Agenda / RDV / rappel
   if (
     /\bagenda\b|\bcalendrier\b|\brdv\b|rendez[\s-]?vous|\bplanifie\b|\bprogramme\b|rappel\s+appel|ajoute\s+(un\s+)?(rdv|rappel|visite)|cree\s+(un\s+)?(rdv|rappel|visite)|cr[eé]e\s+(un\s+)?(rdv|rappel|visite)/.test(
@@ -924,6 +972,11 @@ export type TerrainDeps = {
   ) => string
   upsertAgendaEvent: (
     e: Omit<AgendaEvent, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => string
+  upsertDemandeAbsence?: (
+    d: Omit<import('./demandesAbsence').DemandeAbsence, 'id' | 'createdAt' | 'updatedAt'> & {
+      id?: string
+    },
   ) => string
   upsertDevis?: (
     d: Omit<import('./chaineCommerciale').Devis, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & {
@@ -1080,6 +1133,28 @@ export async function executeTerrainAction(
     return {
       message: `Bouteille ${action.numeroContenant} ajoutée à votre véhicule. Complétez fluide / kg si besoin.`,
       navigateTo: `/app/stock?highlight=${encodeURIComponent(id)}`,
+    }
+  }
+
+  if (action.kind === 'demande_absence') {
+    if (!deps.userId) throw new Error('Connexion requise pour une demande d’absence.')
+    if (!deps.upsertDemandeAbsence) throw new Error('Demandes d’absence indisponibles.')
+    const id = deps.upsertDemandeAbsence({
+      type: action.type,
+      dateDebut: action.dateDebut,
+      dateFin: action.dateFin,
+      joursDemandes: compterJoursOuvres(action.dateDebut, action.dateFin),
+      motif: action.motif,
+      technicienUserId: deps.userId,
+      technicienName: deps.userName,
+      statut: 'brouillon',
+      source: 'assistant',
+      createdByUserId: deps.userId,
+      createdByName: deps.userName,
+    })
+    return {
+      message: `Brouillon d’absence créé (${ABSENCE_TYPE_LABELS[action.type]} du ${action.dateDebut} au ${action.dateFin}). Vérifiez puis envoyez à la direction.`,
+      navigateTo: `/app/absences?id=${encodeURIComponent(id)}`,
     }
   }
 
