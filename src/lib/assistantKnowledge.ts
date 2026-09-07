@@ -412,12 +412,10 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
     ],
     paths: ['/app'],
     answer: `Mode main libre (bouton micro en haut) :
-• Une fois la veille activée (ou au prochain ouverture si déjà autorisée) : dis « Dis Lola » — pas besoin de retaper le micro.
-• Lola répond « Je vous écoute », exécute la commande, puis repasse en veille.
-• « Quelles interventions m’ont été affectées ? »
-• « Mets-moi en déplacement vers le site » / « vers le fournisseur »
-• « Stop » ou touche micro pour couper. Veille auto coupée après ~1 min 30 sans « Lola ».
-• Pointage vocal marche même sans Agent IA. Phrases libres → Lola IA seulement si l’option est activée.
+• Touche micro → « Je vous écoute » → donne l’ordre (pointage, INT…). L’ordre s’exécute après un court silence.
+• En veille : « Dis Lola » (même avec « euh ») réactive. Les ordres terrain connus marchent aussi sans le wake.
+• Silence ~8 s sans parole → micro coupé tout seul. « Stop » ou retouche micro pour couper.
+• Pointage vocal marche même sans Agent IA.
 Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
 Chrome / Android recommandé ; iPhone Safari souvent limité.`,
   },

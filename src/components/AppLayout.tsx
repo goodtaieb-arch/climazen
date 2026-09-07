@@ -510,9 +510,9 @@ export function AppLayout() {
                     ? 'touch-target inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 text-sm font-bold text-white sm:px-3'
                     : 'touch-target inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 text-sm font-bold text-[#0f766e] hover:bg-mist sm:px-3'
                 }
-                aria-label={voiceListening ? 'Arrêter la veille Lola' : 'Veille Lola — puis dis Lola'}
+                aria-label={voiceListening ? 'Arrêter l’écoute' : 'Main libre — écoute Lola'}
                 aria-pressed={voiceListening}
-                title="Main libre — touche pour la veille, puis « dis Lola » (appui long = aide)"
+                title="Main libre — touche = écoute immédiate, puis donne l’ordre (appui long = aide)"
               >
                 <Mic className="h-4 w-4" />
                 <span className="hidden lg:inline">Main libre</span>
@@ -674,7 +674,7 @@ export function AppLayout() {
                   <span className="min-w-0 text-left">
                     <span className="block">Commande vocale</span>
                     <span className="mt-0.5 block text-xs font-normal text-muted">
-                      Veille, puis « dis Lola »
+                      Micro = écoute, puis l’ordre
                     </span>
                   </span>
                 </button>

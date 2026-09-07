@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { parseVoiceCommand, textForSpeech } from '../src/lib/speech'
 import {
+  isDirectHandsFreeCommand,
   isWakePhrase,
   parseHandsFreeIntent,
   parsePointageVoiceIntent,
@@ -48,13 +49,19 @@ assert.equal(isWakePhrase('Dit lola'), true)
 assert.equal(isWakePhrase('hey Lola'), true)
 assert.equal(isWakePhrase('Lola'), true)
 assert.equal(isWakePhrase('ok Lola'), true)
+assert.equal(isWakePhrase('euh dis Lola'), true)
+assert.equal(isWakePhrase('ben dis Lola'), true)
+assert.equal(isWakePhrase('dis moi Lola'), true)
 assert.equal(isWakePhrase('dis Lola mets-moi en pause'), true)
 assert.equal(isWakePhrase('mets-moi en pause'), false)
 assert.equal(isWakePhrase('ouvre le stock'), false)
 assert.equal(stripWakePhrase('dis Lola'), '')
+assert.equal(stripWakePhrase('euh dis Lola'), '')
 assert.equal(stripWakePhrase('Dis Lola, mets-moi en pause'), 'mets-moi en pause')
 assert.equal(stripWakePhrase('hey lola ouvre le stock'), 'ouvre le stock')
 assert.equal(stripWakePhrase('mets-moi en pause'), 'mets-moi en pause')
+assert.equal(isDirectHandsFreeCommand('mets-moi en pause'), true)
+assert.equal(isDirectHandsFreeCommand('bonjour le chat'), false)
 
 assert.deepEqual(parsePointageVoiceIntent('mets-moi en déplacement vers le site'), {
   action: 'deplacement',

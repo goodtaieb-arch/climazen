@@ -31,7 +31,10 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 export const SPEECH_SILENCE_MS = 4800
 
 /** Silence pour une commande courte (micro en-tête / main libre). */
-export const SPEECH_COMMAND_SILENCE_MS = 2500
+export const SPEECH_COMMAND_SILENCE_MS = 1600
+
+/** Silence court quand l’intent est déjà clair (pointage, stop…). */
+export const SPEECH_COMMAND_FAST_MS = 700
 
 /**
  * Délai avant de relancer SpeechRecognition après onend / no-speech.

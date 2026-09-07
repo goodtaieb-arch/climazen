@@ -74,16 +74,22 @@ export function wantsStopListening(raw: string): boolean {
 
 /**
  * Mot d’activation main libre — « dis Lola », « hey Lola », « Lola », etc.
+ * Tolère les tics STT (« euh », « ben ») avant le déclencheur.
  * Après normalizeSpeechText : accents retirés, ponctuation → espaces.
  */
-const WAKE_PHRASE_RE =
-  /^(?:(?:dis|dit|dites|hey|ok|okay|allo|eh|euh|bon|salut)\s+)?lola\b/
+const WAKE_FILLERS = String.raw`(?:(?:euh+|heu+|hum+|bah|ben|bon|alors)\s+)*`
+const WAKE_PREFIX = String.raw`(?:(?:dis|dit|dites|dis\s+moi|dit\s+moi|hey|ok|okay|allo|eh|salut)\s+)?`
+const WAKE_CORE = String.raw`${WAKE_FILLERS}${WAKE_PREFIX}lola\b`
+const WAKE_PHRASE_RE = new RegExp(`^${WAKE_CORE}`)
+const WAKE_ANYWHERE_RE = new RegExp(`(?:^|\\s)${WAKE_CORE}`)
 
-/** True si la phrase est (ou commence par) le mot d’activation Lola. */
+/** True si la phrase est (ou contient) le mot d’activation Lola. */
 export function isWakePhrase(raw: string): boolean {
   const t = normalizeSpeechText(raw)
   if (!t) return false
-  return WAKE_PHRASE_RE.test(t)
+  if (WAKE_PHRASE_RE.test(t)) return true
+  // STT parfois préfixe du bruit (« ouais euh dis lola »)
+  return WAKE_ANYWHERE_RE.test(t) && t.length <= 96
 }
 
 /**
@@ -93,14 +99,38 @@ export function isWakePhrase(raw: string): boolean {
 export function stripWakePhrase(raw: string): string {
   const cleaned = (raw || '').replace(/\s+/g, ' ').trim()
   if (!cleaned) return ''
-  const t = normalizeSpeechText(cleaned)
-  if (!WAKE_PHRASE_RE.test(t)) return cleaned
-  // Découpe sur le premier « lola » (insensible à la casse / accents déjà dans normalize)
+  if (!isWakePhrase(cleaned)) return cleaned
+  // Découpe sur le premier « lola » (éventuellement précédé de dis / hey / euh…)
   const match = cleaned.match(
-    /^(?:(?:dis|dit|dites|hey|ok|okay|allo|eh|euh|bon|salut)\s+)?lola\b[\s,.:;!?-]*/i,
+    /(?:^|[\s,.:;!?]+)(?:(?:euh+|heu+|hum+|bah|ben|bon|alors)\s+)*(?:(?:dis|dit|dites|dis\s+moi|dit\s+moi|hey|ok|okay|allo|eh|salut)\s+)?lola\b[\s,.:;!?-]*/i,
   )
-  if (!match) return cleaned
-  return cleaned.slice(match[0].length).replace(/\s+/g, ' ').trim()
+  if (!match) {
+    // Fallback : tout après le mot Lola
+    const idx = cleaned.toLowerCase().search(/\blola\b/i)
+    if (idx < 0) return cleaned
+    return cleaned
+      .slice(idx)
+      .replace(/^lola\b[\s,.:;!?-]*/i, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+  const end = (match.index || 0) + match[0].length
+  return cleaned.slice(end).replace(/\s+/g, ' ').trim()
+}
+
+/** Commande terrain reconnue sans passer par Lola IA. */
+export function isDirectHandsFreeCommand(raw: string): boolean {
+  const intent = parseHandsFreeIntent(raw)
+  if (intent.kind === 'stop' || intent.kind === 'aide_pointage' || intent.kind === 'mes_int' || intent.kind === 'pointage') {
+    return true
+  }
+  // parseVoiceCommand importé plus bas serait circulaire — test léger ici via intent lola + mots clés
+  const t = normalizeSpeechText(raw)
+  return (
+    /\b(stock|gps|waze|cerfa|pointeuse|pointage|scan|accueil|ordres?\s+de\s+travail|nouvel\s+appel)\b/.test(
+      t,
+    ) || /\b(ouvre|ouvrir)\s+(le\s+|la\s+)?(stock|gps|aide|agenda|sites?)\b/.test(t)
+  )
 }
 
 export function wantsAidePointage(raw: string): boolean {
