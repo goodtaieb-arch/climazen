@@ -18,7 +18,9 @@ import {
   type SpeechRecognitionLike,
 } from '../lib/speech'
 import {
+  AIDE_POINTAGE_VOIX,
   choisirOtPourDeplacement,
+  otIdDepuisDernierPointage,
   parlerMesInterventions,
   parlerPointageConfirme,
   parseHandsFreeIntent,
@@ -27,6 +29,7 @@ import { pickSafetyTip } from '../lib/safetyTips'
 import {
   POINTAGE_ACTION_LABELS,
   actionAutorisee,
+  actionsSuivantes,
   arrondirDate,
   capturerGeoPonctuel,
   datePointageLocale,
@@ -159,26 +162,50 @@ export function VoiceCommandsFab() {
     const events = parsePointageEvents(d.pointageEvents)
     const last = dernierPointage(events, { userId: user.id, date: today })
     if (!actionAutorisee(last, action)) {
+      const next = actionsSuivantes(last)
+        .slice(0, 4)
+        .map((a) => POINTAGE_ACTION_LABELS[a])
+        .join(', ')
+      const lastLabel = last
+        ? POINTAGE_ACTION_LABELS[last.action] || normaliserAction(last.action)
+        : 'rien'
       replyAndResume(
-        `Impossible après ${last ? POINTAGE_ACTION_LABELS[last.action] : 'rien'}.`,
+        `Impossible après ${lastLabel}. Dis plutôt : ${next || 'trajet début ou déplacement'}.`,
       )
       return
     }
 
     let otId: string | undefined
     let chantierId: string | undefined
+    const canonWanted = normaliserAction(action)
     const needsOt =
       (action === 'deplacement' && (cible === 'ot' || !cible)) ||
-      action === 'intervention_en_cours' ||
-      action === 'fin_intervention'
+      canonWanted === 'intervention_en_cours' ||
+      action === 'fin_intervention' ||
+      canonWanted === 'pause' ||
+      canonWanted === 'pause_repas'
     if (needsOt) {
-      const ot = choisirOtPourDeplacement(d, user.id, today)
-      if (!ot) {
+      const fromLast = otIdDepuisDernierPointage(events, { userId: user.id, date: today }, last)
+      const preferLast =
+        fromLast &&
+        (canonWanted === 'intervention_en_cours' ||
+          action === 'fin_intervention' ||
+          canonWanted === 'pause' ||
+          canonWanted === 'pause_repas')
+      const otPrefer = preferLast
+        ? (d.ordresTravail || []).find((o) => o.id === fromLast.otId)
+        : undefined
+      const ot = otPrefer && !isOtCloture(otPrefer.statut)
+        ? otPrefer
+        : choisirOtPourDeplacement(d, user.id, today)
+      if (!ot && (canonWanted === 'intervention_en_cours' || action === 'fin_intervention' || (action === 'deplacement' && (cible === 'ot' || !cible)))) {
         replyAndResume('Aucune intervention ouverte ne t’est affectée.')
         return
       }
-      otId = ot.id
-      chantierId = ot.chantierId
+      if (ot) {
+        otId = ot.id
+        chantierId = ot.chantierId || fromLast?.chantierId
+      }
     }
 
     try {
@@ -208,7 +235,7 @@ export function VoiceCommandsFab() {
         geoRefused: !geoRes.ok && geoRes.refused,
         geoError: geoRes.ok ? undefined : geoRes.message,
         otId: otForEvent,
-        chantierId,
+        chantierId: otForEvent ? chantierId : undefined,
         cible: cibleFinal,
       })
       const nextStatut = statutOtDepuisAction(action, cibleFinal)
@@ -245,6 +272,10 @@ export function VoiceCommandsFab() {
       setHint('Écoute arrêtée')
       stop()
       speakFr('D’accord, j’arrête d’écouter.')
+      return
+    }
+    if (intent.kind === 'aide_pointage') {
+      replyAndResume(AIDE_POINTAGE_VOIX)
       return
     }
     if (intent.kind === 'mes_int') {
@@ -497,11 +528,12 @@ export function VoiceCommandsFab() {
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>« Quelles interventions m’ont été affectées ? »</li>
             <li>« Mets-moi en déplacement vers le site »</li>
-            <li>« Déplacement vers le fournisseur »</li>
-            <li>« Je suis arrivé » / « Pause repas »</li>
-            <li>Autres questions → Lola répond à voix haute</li>
+            <li>« Mets-moi en cours d’intervention » / « Je suis arrivé »</li>
+            <li>« Pause » / « Pause repas » — puis « Arrête la pause »</li>
+            <li>« Fin d’intervention » · « Fournisseur » · « Bureau »</li>
+            <li>« Trajet début » · « Trajet fin » · « Fin de journée »</li>
+            <li>« Que puis-je dire ? » pour la liste vocale</li>
             <li>« Stop » pour couper l’écoute</li>
-            <li>Après un pointage : rappel sécurité lu à voix haute</li>
           </ul>
         )}
       </div>

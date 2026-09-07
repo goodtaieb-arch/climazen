@@ -53,7 +53,27 @@ assert.deepEqual(parsePointageVoiceIntent('je suis arrivé'), {
   action: 'intervention_en_cours',
   cible: 'ot',
 })
+assert.deepEqual(parsePointageVoiceIntent('mets-moi en cours d’intervention'), {
+  action: 'intervention_en_cours',
+  cible: 'ot',
+})
+assert.deepEqual(parsePointageVoiceIntent('déclenche la pause'), {
+  action: 'pause',
+})
+assert.deepEqual(parsePointageVoiceIntent('arrête la pause'), {
+  action: 'intervention_en_cours',
+  cible: 'ot',
+})
+assert.deepEqual(parsePointageVoiceIntent('fin d’intervention'), {
+  action: 'fin_intervention',
+})
+assert.deepEqual(parsePointageVoiceIntent('fournisseur'), {
+  action: 'fournisseur',
+})
 assert.equal(parseHandsFreeIntent('mets moi en deplacement vers le site').kind, 'pointage')
+assert.equal(parseHandsFreeIntent('que puis-je dire').kind, 'aide_pointage')
+assert.equal(parseHandsFreeIntent('mets moi en cours').kind, 'pointage')
+assert.equal(parseHandsFreeIntent('arrete la pause').kind, 'pointage')
 
 const data = {
   clients: [{ id: 'c1', typeClient: 'professionnel', raisonSociale: 'Magasin Test', nom: '', prenom: '' }],
