@@ -48,7 +48,8 @@ import { APP_IS_BETA } from '../lib/buildStamp'
 /**
  * Main libre terrain — micro simple.
  * Appui micro → « Je vous écoute » → ordre → exécution → réécoute.
- * Stop / retouche micro pour couper. Pas de veille « dis Lola ».
+ * 2 s de silence sans parole → coupe (comme un second appui micro).
+ * « Stop » / retouche micro pour couper tout de suite.
  */
 export function VoiceCommandsFab() {
   const navigate = useNavigate()
@@ -344,8 +345,15 @@ export function VoiceCommandsFab() {
     const raw = (bufferRef.current || interimRef.current).trim()
     bufferRef.current = ''
     interimRef.current = ''
-    if (raw) runTranscript(raw)
-    else if (wantListenRef.current && !speakingRef.current) armSilence()
+    if (raw) {
+      runTranscript(raw)
+      return
+    }
+    // 2 s de silence sans ordre → comme un second appui sur le micro
+    if (wantListenRef.current && !speakingRef.current) {
+      stop()
+      setHint('Micro coupé')
+    }
   }
 
   const armSilence = () => {
@@ -554,12 +562,13 @@ export function VoiceCommandsFab() {
         {showHelp && (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>Touche micro → « Je vous écoute » → donne l’ordre</li>
+            <li>Silence 2 s sans parole → micro coupé tout seul</li>
             <li>« Mets-moi en déplacement vers le site »</li>
             <li>« Je suis arrivé » / « en cours »</li>
             <li>« Pause » / « Arrête la pause »</li>
             <li>« Fin d’intervention » · « Fournisseur » · « Bureau »</li>
             <li>« Quelles interventions m’ont été affectées ? »</li>
-            <li>« Stop » ou retouche micro pour couper</li>
+            <li>« Stop » ou retouche micro pour couper tout de suite</li>
           </ul>
         )}
       </div>

@@ -414,7 +414,8 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
     answer: `Mode main libre (bouton micro en haut) — le plus simple :
 • Touche micro → « Je vous écoute » → dis l’ordre (déplacement, en cours, pause…).
 • Lola confirme à voix haute, puis réécoute.
-• « Stop » ou retouche micro pour couper.
+• Silence 2 secondes sans parole → micro coupé (comme un second appui).
+• « Stop » ou retouche micro pour couper tout de suite.
 • Pointage vocal marche sans Agent IA.
 Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
 Chrome / Android recommandé ; iPhone Safari souvent limité.`,
