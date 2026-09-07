@@ -506,12 +506,12 @@ export function AppLayout() {
                     ? 'touch-target inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 text-sm font-bold text-white sm:px-3'
                     : 'touch-target inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 text-sm font-bold text-[#0f766e] hover:bg-mist sm:px-3'
                 }
-                aria-label={voiceListening ? 'Arrêter la commande vocale' : 'Commande vocale'}
+                aria-label={voiceListening ? 'Arrêter le mode main libre' : 'Main libre Lola'}
                 aria-pressed={voiceListening}
-                title="Commande vocale"
+                title="Main libre — Lola répond à voix haute (appui long = aide)"
               >
                 <Mic className="h-4 w-4" />
-                <span className="hidden lg:inline">Micro</span>
+                <span className="hidden lg:inline">Main libre</span>
               </button>
               <button
                 type="button"

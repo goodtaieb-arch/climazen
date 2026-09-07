@@ -398,13 +398,27 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
   },
   {
     id: 'vocal',
-    title: 'Dictée et commandes vocales',
-    keywords: ['vocal', 'voix', 'dicter', 'micro', 'microphone', 'commande vocale', 'parler'],
+    title: 'Main libre Lola (voix)',
+    keywords: [
+      'vocal',
+      'voix',
+      'dicter',
+      'micro',
+      'microphone',
+      'commande vocale',
+      'parler',
+      'main libre',
+      'hands free',
+    ],
     paths: ['/app'],
-    answer: `Sur mobile (Chrome / Android) :
-- Bouton « Dicter » sur panne, observations, rapport d’action, CERFA.
-- Micro en bas à gauche : dites « stock », « appel », « interventions », « INT », « INT », « scan », « GPS », « CERFA », « sites » ou « aide ».
-Sur iPhone, la dictée peut être limitée selon Safari.`,
+    answer: `Mode main libre (bouton « Main libre » en haut) :
+• Lola écoute, répond à voix haute, puis réécoute.
+• « Quelles interventions m’ont été affectées ? »
+• « Mets-moi en déplacement vers le site » / « vers le fournisseur »
+• « Je suis arrivé », « pause repas », « stop »
+• Autre question → Lola (intelligence) répond oralement.
+Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
+Chrome / Android recommandé ; iPhone Safari souvent limité.`,
   },
 ]
 
