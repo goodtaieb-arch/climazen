@@ -4,11 +4,13 @@ import { uninstallAllServiceWorkers } from '../src/lib/serviceWorkers'
 const unregistered: string[] = []
 const deletedCaches: string[] = []
 
-const waiting = { postMessage: (msg: { type: string }) => {
-  assert.equal(msg.type, 'SKIP_WAITING')
-}}
+const waiting = {
+  postMessage: (msg: { type: string }) => {
+    assert.equal(msg.type, 'SKIP_WAITING')
+  },
+}
 
-;(globalThis as unknown as { navigator: unknown }).navigator = {
+const fakeNavigator = {
   serviceWorker: {
     getRegistrations: async () => [
       {
@@ -31,6 +33,10 @@ const waiting = { postMessage: (msg: { type: string }) => {
   },
 }
 
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: fakeNavigator,
+})
 ;(globalThis as unknown as { window: unknown }).window = globalThis
 ;(globalThis as unknown as { caches: unknown }).caches = {
   keys: async () => ['workbox-precache', 'html-pages'],
@@ -45,8 +51,7 @@ assert.equal(had, true)
 assert.deepEqual(unregistered, ['scope-a', 'scope-b'])
 assert.deepEqual(deletedCaches, ['workbox-precache', 'html-pages'])
 
-;(globalThis as unknown as { navigator: { serviceWorker: { getRegistrations: () => Promise<unknown[]> } } }).navigator.serviceWorker.getRegistrations =
-  async () => []
+fakeNavigator.serviceWorker.getRegistrations = async () => []
 deletedCaches.length = 0
 const hadNone = await uninstallAllServiceWorkers()
 assert.equal(hadNone, false)
