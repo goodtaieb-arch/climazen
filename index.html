@@ -38,11 +38,12 @@
       rel="stylesheet"
     />
     <title>ClimaZEN by TAIEB — CERFA F-Gas conforme</title>
-    <meta name="climazen-build" content="v264" />
-    <meta name="climazen-version" content="v264" />
+    <meta name="climazen-build" content="v265" />
+    <meta name="climazen-version" content="v265" />
     <script>
-      /* 1) Désinstalle toujours les service workers (ils servaient une page hors ligne figée).
-         2) Compare version.json vs meta HTML — purge + reload si le HTML est trop vieux.
+      /* À CHAQUE ouverture : vider le cache navigateur (SW + Cache Storage)
+         pour ne plus retomber sur une page figée.
+         Ne JAMAIS effacer localStorage / IndexedDB = saisies hors ligne terrain.
          Timeout 700 ms : sinon le reload ne part jamais (mobile). */
       (function () {
         try {
@@ -78,7 +79,8 @@
             })
           }
 
-          function purge() {
+          /* Cache de l’app seulement — pas les données métier. */
+          function purgeShellCache() {
             var clear = Promise.resolve()
             if (window.caches) {
               clear = caches.keys().then(function (keys) {
@@ -108,7 +110,7 @@
             location.href = u.toString()
           }
 
-          var purged = withTimeout(purge(), 700)
+          var purged = withTimeout(purgeShellCache(), 700)
 
           fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
             .then(function (r) { return r.ok ? r.json() : null })
@@ -142,6 +144,7 @@
               })
             })
             .catch(function () {
+              /* Hors ligne : on vide quand même le cache app, on garde les saisies. */
               purged.then(function (hadSw) {
                 if (hadSw && sessionStorage.getItem(RELOAD) !== '1') {
                   sessionStorage.setItem(RELOAD, '1')
@@ -149,6 +152,10 @@
                 }
               })
             })
+
+          window.addEventListener('pageshow', function (ev) {
+            if (ev.persisted) void purgeShellCache()
+          })
         } catch (e) {}
       })()
     </script>

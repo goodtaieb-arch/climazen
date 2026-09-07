@@ -1,4 +1,7 @@
-/** Désinstalle tous les service workers du domaine et vide les caches PWA. */
+/**
+ * Vide le cache navigateur de l’app (service workers + Cache Storage).
+ * Ne touche JAMAIS localStorage / IndexedDB : les saisies hors ligne restent.
+ */
 export async function uninstallAllServiceWorkers(): Promise<boolean> {
   let hadWorkers = false
 

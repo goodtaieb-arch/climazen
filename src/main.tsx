@@ -40,12 +40,18 @@ async function ensureServerVersion() {
 
 void uninstallAllServiceWorkers().then((hadWorkers) => {
   if (hadWorkers) {
-    console.info('[ClimaZEN] service workers désinstallés')
+    console.info('[ClimaZEN] cache navigateur vidé (saisies hors ligne conservées)')
   }
 })
 void ensureServerVersion()
 window.addEventListener('online', () => void ensureServerVersion())
-window.addEventListener('focus', () => void ensureServerVersion())
+window.addEventListener('focus', () => {
+  void uninstallAllServiceWorkers()
+  void ensureServerVersion()
+})
+window.addEventListener('pageshow', (ev) => {
+  if (ev.persisted) void uninstallAllServiceWorkers()
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

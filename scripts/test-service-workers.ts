@@ -46,10 +46,22 @@ Object.defineProperty(globalThis, 'navigator', {
   },
 }
 
+const localOps: string[] = []
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: {
+    clear: () => localOps.push('clear'),
+    getItem: () => 'keep-me',
+    setItem: () => localOps.push('set'),
+    removeItem: () => localOps.push('remove'),
+  },
+})
+
 const had = await uninstallAllServiceWorkers()
 assert.equal(had, true)
 assert.deepEqual(unregistered, ['scope-a', 'scope-b'])
 assert.deepEqual(deletedCaches, ['workbox-precache', 'html-pages'])
+assert.deepEqual(localOps, [])
 
 fakeNavigator.serviceWorker.getRegistrations = async () => []
 deletedCaches.length = 0
