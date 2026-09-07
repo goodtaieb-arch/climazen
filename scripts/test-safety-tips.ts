@@ -8,7 +8,10 @@ import {
 import type { OrdreTravail } from '../src/lib/ordreTravail'
 import type { Site } from '../src/lib/types'
 
-assert.ok(SAFETY_TIPS.length >= 15)
+assert.ok(SAFETY_TIPS.length >= 20)
+assert.ok(SAFETY_TIPS.some((t) => t.id === 'dep-bouteilles-gaz'))
+assert.ok(SAFETY_TIPS.some((t) => t.id === 'brasage-chalumeau'))
+assert.ok(SAFETY_TIPS.some((t) => t.id === 'gen-eau-ete'))
 assert.ok(SAFETY_TIPS.every((t) => t.text && t.speak && t.contexts.length))
 
 assert.deepEqual(

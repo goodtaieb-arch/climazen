@@ -91,6 +91,38 @@ export const SAFETY_TIPS: SafetyTip[] = [
     text: 'Charge bien arrimée : bouteilles, échelle, outillage.',
     speak: 'Vérifie que bouteilles, échelle et outillage sont bien arrimés.',
   },
+  {
+    id: 'dep-bouteilles-gaz',
+    contexts: ['deplacement', 'arrivee'],
+    text: 'Bouteilles de gaz (clim) : attachées solidement dans le véhicule, valves protégées.',
+    speak: 'Attache bien tes bouteilles de gaz frigorigène dans la voiture, valves protégées — ce sont des gaz dangereux.',
+  },
+  {
+    id: 'dep-bouteilles-manut',
+    contexts: ['deplacement', 'arrivee', 'general'],
+    text: 'Manutention bouteilles : verticales, sanglées, jamais en vrac sur le siège.',
+    speak: 'Pour la manutention : bouteilles verticales et sanglées, jamais en vrac sur le siège.',
+  },
+
+  // —— Brasage / chalumeau ——
+  {
+    id: 'brasage-chalumeau',
+    contexts: ['arrivee', 'general'],
+    text: 'Chalumeau / brasage : zone dégagée, extincteur à portée, lunettes et gants.',
+    speak: 'Au chalumeau ou au brasage : zone dégagée, extincteur à portée, lunettes et gants.',
+  },
+  {
+    id: 'brasage-flammes',
+    contexts: ['arrivee', 'general'],
+    text: 'Brasage : éloigne matières inflammables, surveille la flamme jusqu’à extinction.',
+    speak: 'Pendant le brasage, éloigne tout ce qui peut brûler et surveille la flamme jusqu’à extinction.',
+  },
+  {
+    id: 'brasage-bouteilles',
+    contexts: ['arrivee', 'deplacement'],
+    text: 'Oxygène / acétylène : bouteilles attachées, détendeurs en bon état, pas de graisse.',
+    speak: 'Bouteilles oxygène et acétylène : bien attachées, détendeurs OK, jamais de graisse sur les raccordements.',
+  },
 
   // —— Véhicule hebdo ——
   {
@@ -184,6 +216,18 @@ export const SAFETY_TIPS: SafetyTip[] = [
     contexts: ['general'],
     text: 'Pense à boire, surtout en local technique chaud.',
     speak: 'Pense à t’hydrater, surtout dans les locaux techniques chauds.',
+  },
+  {
+    id: 'gen-eau-ete',
+    contexts: ['general', 'arrivee', 'deplacement'],
+    text: 'Il fait chaud ? Bois de l’eau régulièrement et rafraîchis-toi à l’ombre.',
+    speak: 'N’oublie pas de boire de l’eau, surtout quand il fait chaud l’été, et prends le temps de te rafraîchir.',
+  },
+  {
+    id: 'gen-coup-chaleur',
+    contexts: ['general', 'arrivee'],
+    text: 'Coup de chaleur : vertiges, nausée → stoppe, bois, mets-toi au frais, préviens.',
+    speak: 'Si tu sens un coup de chaleur — vertiges ou nausée — arrête, bois, mets-toi au frais et préviens quelqu’un.',
   },
   {
     id: 'gen-dos',
