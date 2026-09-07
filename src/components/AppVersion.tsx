@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { APP_BUILD, APP_VERSION } from '../lib/buildStamp'
+import { uninstallAllServiceWorkers } from '../lib/serviceWorkers'
 
 const BOOT_KEY = 'climazen_boot_v'
 const RELOAD_KEY = 'climazen_reloading'
@@ -93,37 +94,7 @@ export function versionRank(v: string | null | undefined): number {
 
 /** Purge SW + caches — ne doit jamais bloquer indéfiniment (mobile / iOS). */
 async function purgeCachesAndServiceWorkers() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(
-        regs.map(async (r) => {
-          try {
-            if (r.waiting) r.waiting.postMessage({ type: 'SKIP_WAITING' })
-            if (r.active) r.active.postMessage({ type: 'SKIP_WAITING' })
-          } catch {
-            /* ignore */
-          }
-          try {
-            await r.unregister()
-          } catch {
-            /* ignore */
-          }
-        }),
-      )
-    }
-  } catch {
-    /* ignore */
-  }
-
-  try {
-    if ('caches' in window) {
-      const keys = await caches.keys()
-      await Promise.all(keys.map((k) => caches.delete(k)))
-    }
-  } catch {
-    /* ignore */
-  }
+  await uninstallAllServiceWorkers()
 }
 
 /**

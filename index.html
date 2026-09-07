@@ -18,14 +18,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="fr_FR" />
     <meta property="og:url" content="https://climazen.fr/" />
-    <meta property="og:title" content="ClimaZEN — CERFA F-Gas conforme, hors ligne" />
+    <meta property="og:title" content="ClimaZEN — CERFA F-Gas conforme" />
     <meta
       property="og:description"
       content="100% conforme F-Gas & attestation de capacité. Mode hors ligne pour le chantier. CERFA 15497-04 sur smartphone."
     />
     <meta property="og:image" content="https://climazen.fr/logo-original.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="ClimaZEN — CERFA F-Gas conforme, hors ligne" />
+    <meta name="twitter:title" content="ClimaZEN — CERFA F-Gas conforme" />
     <meta
       name="twitter:description"
       content="100% conforme F-Gas & attestation de capacité. Mode hors ligne pour le chantier."
@@ -37,13 +37,13 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <title>ClimaZEN by TAIEB — CERFA F-Gas conforme, hors ligne</title>
-    <meta name="climazen-build" content="v123" />
-    <meta name="climazen-version" content="v123" />
+    <title>ClimaZEN by TAIEB — CERFA F-Gas conforme</title>
+    <meta name="climazen-build" content="v264" />
+    <meta name="climazen-version" content="v264" />
     <script>
-      /* Anti-ancien-cache : compare version.json (réseau) vs localStorage.
-         Ne jamais écraser la clé boot avec l’ancien JS — seulement avec la version serveur.
-         La purge SW/cache a un timeout : sinon le reload ne part jamais (mobile). */
+      /* 1) Désinstalle toujours les service workers (ils servaient une page hors ligne figée).
+         2) Compare version.json vs meta HTML — purge + reload si le HTML est trop vieux.
+         Timeout 700 ms : sinon le reload ne part jamais (mobile). */
       (function () {
         try {
           var KEY = 'climazen_boot_v'
@@ -92,46 +92,63 @@
                   : Promise.resolve([])
               })
               .then(function (regs) {
-                return Promise.all((regs || []).map(function (r) { return r.unregister() }))
+                var list = regs || []
+                return Promise.all(list.map(function (r) { return r.unregister() })).then(function () {
+                  return list.length > 0
+                })
               })
           }
+
+          function reloadTo(server) {
+            if (server) localStorage.setItem(KEY, server)
+            var u = new URL(location.href)
+            if (server) u.searchParams.set('v', server)
+            u.searchParams.set('_', String(Date.now()))
+            u.searchParams.delete('maj')
+            location.href = u.toString()
+          }
+
+          var purged = withTimeout(purge(), 700)
 
           fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
             .then(function (r) { return r.ok ? r.json() : null })
             .then(function (j) {
-              if (!j || !j.version) return
-              var server = String(j.version)
+              var server = j && j.version ? String(j.version) : ''
               var meta = document.querySelector('meta[name="climazen-version"]')
               var pageV = meta ? String(meta.getAttribute('content') || '') : ''
-              /* Si le HTML servi est déjà à jour, mémoriser et sortir */
-              if (pageV && pageV === server) {
-                localStorage.setItem(KEY, server)
-                sessionStorage.removeItem(RELOAD)
-                if (forcedMaj) {
-                  params.delete('maj')
-                  params.delete('v')
-                  params.delete('_')
-                  var clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash
-                  history.replaceState(null, '', clean)
-                }
-                return
-              }
-              /* Déjà une tentative auto cette session → laisser le bouton MAJ
-                 (sauf si l’utilisateur vient de cliquer MAJ : ?maj=1) */
-              if (sessionStorage.getItem(RELOAD) === '1' && !forcedMaj) return
 
-              sessionStorage.setItem(RELOAD, '1')
-              var done = function () {
-                localStorage.setItem(KEY, server)
-                var u = new URL(location.href)
-                u.searchParams.set('v', server)
-                u.searchParams.set('_', String(Date.now()))
-                u.searchParams.delete('maj')
-                location.href = u.toString()
-              }
-              withTimeout(purge(), 700).then(done)
+              return purged.then(function (hadSw) {
+                if (pageV && server && pageV === server) {
+                  localStorage.setItem(KEY, server)
+                  if (forcedMaj) {
+                    params.delete('maj')
+                    params.delete('v')
+                    params.delete('_')
+                    var clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash
+                    history.replaceState(null, '', clean)
+                  }
+                  /* Un SW contrôlait encore la page : un reload pour le lâcher. */
+                  if (hadSw && sessionStorage.getItem(RELOAD) !== '1') {
+                    sessionStorage.setItem(RELOAD, '1')
+                    reloadTo(server)
+                    return
+                  }
+                  sessionStorage.removeItem(RELOAD)
+                  return
+                }
+                if (sessionStorage.getItem(RELOAD) === '1' && !forcedMaj) return
+                sessionStorage.setItem(RELOAD, '1')
+                reloadTo(server || pageV)
+              })
             })
-            .catch(function () {})
+            .catch(function () {
+              purged.then(function (hadSw) {
+                if (hadSw && sessionStorage.getItem(RELOAD) !== '1') {
+                  sessionStorage.setItem(RELOAD, '1')
+                  location.reload()
+                }
+              })
+            })
         } catch (e) {}
       })()
     </script>

@@ -1,9 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
 import { APP_BUILD, APP_VERSION } from './lib/buildStamp'
+import { uninstallAllServiceWorkers } from './lib/serviceWorkers'
 import { fetchServerVersion, forceLatestAppVersion, versionRank } from './components/AppVersion'
 
 // Visible dans la console / DevTools pour confirmer la version chargée
@@ -38,43 +38,14 @@ async function ensureServerVersion() {
   }
 }
 
+void uninstallAllServiceWorkers().then((hadWorkers) => {
+  if (hadWorkers) {
+    console.info('[ClimaZEN] service workers désinstallés')
+  }
+})
 void ensureServerVersion()
 window.addEventListener('online', () => void ensureServerVersion())
 window.addEventListener('focus', () => void ensureServerVersion())
-
-registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    window.location.reload()
-  },
-  onRegisteredSW(swUrl, registration) {
-    if (!registration) return
-
-    // Empêche le navigateur de garder un vieux sw.js en cache HTTP
-    void navigator.serviceWorker.register(swUrl, {
-      scope: '/',
-      updateViaCache: 'none',
-    })
-
-    const check = () => {
-      void registration.update()
-      void ensureServerVersion()
-    }
-    window.addEventListener('online', check)
-    window.addEventListener('focus', check)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') check()
-    })
-    setInterval(check, 12_000)
-
-    if (registration.waiting) {
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
-      window.location.reload()
-    }
-
-    console.info(`[ClimaZEN] SW ${swUrl}`)
-  },
-})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { APP_VERSION } from './src/lib/buildStamp'
+import { APP_BUILD, APP_VERSION } from './src/lib/buildStamp'
 
 /** Garde public/version.json aligné sur APP_VERSION (évite « MAJ v166 » en v167). */
 function syncVersionJson(): Plugin {
@@ -20,6 +20,17 @@ function syncVersionJson(): Plugin {
     configureServer() {
       write()
     },
+    transformIndexHtml(html) {
+      return html
+        .replace(
+          /<meta name="climazen-build" content="[^"]*"\s*\/?>/,
+          `<meta name="climazen-build" content="${APP_BUILD}" />`,
+        )
+        .replace(
+          /<meta name="climazen-version" content="[^"]*"\s*\/?>/,
+          `<meta name="climazen-version" content="${APP_VERSION}" />`,
+        )
+    },
   }
 }
 
@@ -29,7 +40,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Kill-switch : /sw.js se désinscrit et vide les caches (anciens navigateurs bloqués
+      // sur une page hors ligne / agenda en cache). Ne plus enregistrer de SW dans main.tsx.
+      injectRegister: false,
+      selfDestroying: true,
       includeAssets: [
         'logo.png',
         'logo-original.png',
@@ -63,48 +77,6 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
-          },
-        ],
-      },
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        // Bundle app ~2.1 Mo — au-dessus du défaut 2 MiB sinon le build Vercel échoue
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /version\.json$/],
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp}'],
-        globIgnores: ['**/version.json'],
-        runtimeCaching: [
-          {
-            urlPattern: /\/version\.json$/i,
-            handler: 'NetworkOnly',
-          },
-          {
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'html-pages',
-              networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-css',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
           },
         ],
       },
