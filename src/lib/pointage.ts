@@ -113,6 +113,23 @@ export const POINTAGE_ACTION_HINTS: Record<PointageActionCanon, string> = {
 /** Franchise légale : les 30 premières minutes de trajet domicile ne sont pas retenues. */
 export const ABATTEMENT_TRAJET_DOMICILE_MIN = 30
 
+/**
+ * Plage « heures de nuit » (Code du travail — travail de nuit entre 21 h et 6 h).
+ * Configurable par société : les tech sont rémunérés différemment sur cette tranche.
+ */
+export const DEBUT_NUIT_DEFAUT = '21:00'
+export const FIN_NUIT_DEFAUT = '06:00'
+
+/** Créneaux qui entrent dans le décompte heures de nuit (hors pauses). */
+export function segmentCompteCommeNuit(kind: PointageSegmentKind): boolean {
+  return (
+    kind === 'intervention' ||
+    kind === 'fournisseur' ||
+    kind === 'bureau' ||
+    kind === 'deplacement'
+  )
+}
+
 /** Arrivée qui clôture le 1er trajet (site INT, fournisseur ou bureau). */
 export function estArriveeLieuTravail(action?: PointageAction): boolean {
   if (!action) return false
@@ -229,6 +246,10 @@ export type PointageRegles = {
   cnilAcceptee: boolean
   debutJournee: string
   finJournee: string
+  /** Début plage nuit HH:MM (défaut 21:00) — rémunération différenciée. */
+  debutNuit: string
+  /** Fin plage nuit HH:MM (défaut 06:00). Peut être le lendemain matin. */
+  finNuit: string
   pauseAutoMinutes: number
   notePaie?: string
   configuredAt?: string
@@ -250,6 +271,8 @@ export function blankPointageRegles(): PointageRegles {
     cnilAcceptee: false,
     debutJournee: '08:00',
     finJournee: '17:00',
+    debutNuit: DEBUT_NUIT_DEFAUT,
+    finNuit: FIN_NUIT_DEFAUT,
     pauseAutoMinutes: 0,
   }
 }
@@ -416,6 +439,8 @@ export function parsePointageRegles(raw: unknown): PointageRegles {
     cnilAcceptee: r.cnilAcceptee === true,
     debutJournee: parseHeureHm(r.debutJournee, base.debutJournee),
     finJournee: parseHeureHm(r.finJournee, base.finJournee),
+    debutNuit: parseHeureHm(r.debutNuit, base.debutNuit),
+    finNuit: parseHeureHm(r.finNuit, base.finNuit),
     pauseAutoMinutes: clampInt(r.pauseAutoMinutes, 0, 180, 0),
     notePaie: String(r.notePaie || '').trim() || undefined,
     configuredAt: r.configuredAt,
@@ -742,6 +767,76 @@ export function minutesEntre(fromIso: string, toIso: string): number {
   return Math.round((b - a) / 60_000)
 }
 
+function hmToMinutesOfDay(hm: string): number {
+  const [h, m] = parseHeureHm(hm, '00:00').split(':').map(Number)
+  return h * 60 + m
+}
+
+/**
+ * Minutes d’un créneau [from, to) qui tombent dans la plage nuit (ex. 21:00 → 06:00).
+ * Utilise l’heure locale du runtime (navigateur tech / Europe/Paris en prod).
+ */
+export function minutesNuitEntre(
+  fromIso: string,
+  toIso: string,
+  debutNuit = DEBUT_NUIT_DEFAUT,
+  finNuit = FIN_NUIT_DEFAUT,
+): number {
+  const start = new Date(fromIso).getTime()
+  const end = new Date(toIso).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0
+
+  const debutMin = hmToMinutesOfDay(debutNuit)
+  const finMin = hmToMinutesOfDay(finNuit)
+  const startLocal = new Date(start)
+  const endLocal = new Date(end)
+
+  // Jour calendaire avant le début : pour couvrir la nuit qui a commencé la veille.
+  let day = new Date(
+    startLocal.getFullYear(),
+    startLocal.getMonth(),
+    startLocal.getDate() - 1,
+  )
+  const lastDay = new Date(endLocal.getFullYear(), endLocal.getMonth(), endLocal.getDate())
+  let total = 0
+
+  while (day.getTime() <= lastDay.getTime()) {
+    const y = day.getFullYear()
+    const mo = day.getMonth()
+    const da = day.getDate()
+    const nightStart = new Date(
+      y,
+      mo,
+      da,
+      Math.floor(debutMin / 60),
+      debutMin % 60,
+      0,
+      0,
+    ).getTime()
+    const nightEnd =
+      finMin > debutMin
+        ? new Date(y, mo, da, Math.floor(finMin / 60), finMin % 60, 0, 0).getTime()
+        : new Date(y, mo, da + 1, Math.floor(finMin / 60), finMin % 60, 0, 0).getTime()
+    const a = Math.max(start, nightStart)
+    const b = Math.min(end, nightEnd)
+    if (b > a) total += Math.round((b - a) / 60_000)
+    day = new Date(y, mo, da + 1)
+  }
+  return Math.max(0, total)
+}
+
+/** Total heures de nuit sur les segments payés (INT, fournisseur, bureau, déplacement). */
+export function compterMinutesNuit(
+  segments: PointageSegment[],
+  regles?: PointageRegles | null,
+): number {
+  const r = parsePointageRegles(regles)
+  return segments.reduce((sum, s) => {
+    if (!segmentCompteCommeNuit(s.kind)) return sum
+    return sum + minutesNuitEntre(s.from, s.to, r.debutNuit, r.finNuit)
+  }, 0)
+}
+
 export function formatMinutesHhMm(min: number): string {
   const n = Math.max(0, Math.round(min))
   const h = Math.floor(n / 60)
@@ -797,6 +892,12 @@ export type JourneePointage = {
   payeMin: number
   heuresJour: number
   heuresSupMin: number
+  /**
+   * Minutes travaillées dans la plage nuit (21h–6h par défaut) :
+   * INT + fournisseur + bureau + déplacements. Hors pauses / trajet domicile.
+   * Exposé pour rémunération différenciée (export paie).
+   */
+  nuitMin: number
   ouvert: boolean
   lastAction?: PointageAction
   otIdCourant?: string
@@ -863,6 +964,7 @@ export function blankJourneePointage(opts: {
     payeMin: 0,
     heuresJour: opts.heuresJour ?? 7,
     heuresSupMin: 0,
+    nuitMin: 0,
     ouvert: false,
     segments: [],
   }
@@ -1031,6 +1133,7 @@ export function calculerJournee(opts: {
   const travailNet = Math.max(0, travailMin - pauseAutoMin)
   const payeMin = travailNet + trajetRetenuMin
   const quota = Math.round(r.heuresJour * 60)
+  const nuitMin = compterMinutesNuit(segments, r)
 
   const otIdCourant =
     last?.otId ||
@@ -1056,6 +1159,7 @@ export function calculerJournee(opts: {
     payeMin,
     heuresJour: r.heuresJour,
     heuresSupMin: Math.max(0, travailNet - quota),
+    nuitMin,
     ouvert,
     lastAction: last?.action,
     otIdCourant,
@@ -1089,7 +1193,7 @@ export function calculerSemaine(opts: {
   date: string
   regles?: PointageRegles | null
   now?: string
-}): { jours: JourneePointage[]; payeMin: number; heuresSupMin: number; quotaMin: number } {
+}): { jours: JourneePointage[]; payeMin: number; heuresSupMin: number; nuitMin: number; quotaMin: number } {
   const r = parsePointageRegles(opts.regles)
   const jours = datesSemaine(opts.date).map((day) =>
     calculerJournee({
@@ -1102,12 +1206,14 @@ export function calculerSemaine(opts: {
   )
   const payeMin = jours.reduce((s, j) => s + j.payeMin, 0)
   const travailNetMin = jours.reduce((s, j) => s + Math.max(0, j.payeMin - j.trajetRetenuMin), 0)
+  const nuitMin = jours.reduce((s, j) => s + j.nuitMin, 0)
   const quotaMin = Math.round(r.heuresSemaine * 60)
   return {
     jours,
     payeMin,
     quotaMin,
     heuresSupMin: Math.max(0, travailNetMin - quotaMin),
+    nuitMin,
   }
 }
 
@@ -1140,6 +1246,8 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
     'Pause auto (min)',
     'Temps payé (min)',
     'Temps payé',
+    'Heures de nuit (min)',
+    'Heures de nuit',
     'Heures sup (min)',
     'Journée ouverte',
     'INT en cours',
@@ -1169,6 +1277,8 @@ export function exportJourneesCsv(jours: JourneePointage[]): string {
         j.pauseAutoMin,
         j.payeMin,
         formatMinutesHhMm(j.payeMin),
+        j.nuitMin,
+        formatMinutesHhMm(j.nuitMin),
         j.heuresSupMin,
         j.ouvert ? 'oui' : 'non',
         j.otIdCourant || '',
@@ -1403,7 +1513,32 @@ export function calculerJourneeBureau(
   )
   const quota = Math.round(r.heuresJour * 60)
   const segments: PointageSegment[] = []
-  if (travailMin > 0) {
+  if (j.heurePauseDebut && j.heurePauseFin && pauseMin > 0) {
+    const pauseFrom = hmVersIsoLocal(j.date, j.heurePauseDebut)
+    const pauseTo = hmVersIsoLocal(j.date, j.heurePauseFin)
+    if (minutesEntre(debutIso, pauseFrom) > 0) {
+      segments.push({
+        kind: 'bureau',
+        from: debutIso,
+        to: pauseFrom,
+        minutes: minutesEntre(debutIso, pauseFrom),
+      })
+    }
+    segments.push({
+      kind: 'pause',
+      from: pauseFrom,
+      to: pauseTo,
+      minutes: pauseMin,
+    })
+    if (minutesEntre(pauseTo, finIso) > 0) {
+      segments.push({
+        kind: 'bureau',
+        from: pauseTo,
+        to: finIso,
+        minutes: minutesEntre(pauseTo, finIso),
+      })
+    }
+  } else if (travailMin > 0) {
     segments.push({
       kind: 'bureau',
       from: debutIso,
@@ -1411,6 +1546,7 @@ export function calculerJourneeBureau(
       minutes: travailMin,
     })
   }
+  const nuitMin = compterMinutesNuit(segments, r)
 
   return {
     date: j.date,
@@ -1439,6 +1575,7 @@ export function calculerJourneeBureau(
     payeMin,
     heuresJour: r.heuresJour,
     heuresSupMin: Math.max(0, payeMin - quota),
+    nuitMin,
     ouvert,
     segments,
   }

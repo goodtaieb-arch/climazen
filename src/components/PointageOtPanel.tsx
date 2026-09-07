@@ -302,6 +302,9 @@ export function PointageOtPanel({ otId: otIdProp, chantierId, compact, className
               {maJournee.interventionMin > 0
                 ? ` · INT ${formatMinutesHhMm(maJournee.interventionMin)}`
                 : ''}
+              {maJournee.nuitMin > 0
+                ? ` · nuit ${formatMinutesHhMm(maJournee.nuitMin)}`
+                : ''}
               {maJournee.ouvert ? ' · en cours' : ' · journée close'}
             </p>
           ) : null}

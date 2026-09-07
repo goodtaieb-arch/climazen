@@ -38,7 +38,7 @@ Parcours principaux :
 
 Astreinte : Accueil → Intervenir (nouvelle INT) → cocher « C’est une astreinte ». Le dossier d’une INT déjà ouverte (Rédiger / signer / fin) reste simple — pas d’agent accueil IA (le bouton Aide IA est déjà permanent).
 
-Pointage : le tech ne modifie jamais une heure déjà enregistrée. Oubli « en cours » à l’arrivée → bureau (Pointeuse) ou Aide IA (vérifie le GPS puis corrige).
+Pointage : le tech ne modifie jamais une heure déjà enregistrée. Oubli « en cours » à l’arrivée → bureau (Pointeuse) ou Aide IA (vérifie le GPS puis corrige). Les heures de nuit (21 h–6 h par défaut, réglable) sont décomptées à part pour la paie (INT / fournisseur / bureau / déplacement).
 
 Règles stock / CERFA :
 - Récupération temporaire → bouteilles Transfert / Service.

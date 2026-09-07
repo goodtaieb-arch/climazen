@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import {
   POINTAGE_CNIL_NOTICE,
   POINTAGE_HORS_INT_MENU,
+  DEBUT_NUIT_DEFAUT,
+  FIN_NUIT_DEFAUT,
   actionAutorisee,
   actionsSuivantes,
   arrondirDate,
@@ -16,6 +18,7 @@ import {
   formatMinutesHhMm,
   lundiIso,
   minutesEntre,
+  minutesNuitEntre,
   motifsReglesIncompletes,
   normaliserAction,
   parsePointageRegles,
@@ -522,5 +525,92 @@ assert.equal(
   undefined,
 )
 assert.ok(actionAutorisee(ev({ action: 'pause_repas', at: '2026-09-02T12:00:00.000Z' }), 'intervention_en_cours'))
+
+// --- Heures de nuit (rémunération différenciée) ---
+assert.equal(vide.debutNuit, DEBUT_NUIT_DEFAUT)
+assert.equal(vide.finNuit, FIN_NUIT_DEFAUT)
+assert.equal(parsePointageRegles({}).debutNuit, '21:00')
+assert.equal(parsePointageRegles({ debutNuit: '22:00', finNuit: '05:00' }).debutNuit, '22:00')
+
+const localIso = (y: number, mo: number, d: number, h: number, mi: number) =>
+  new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
+
+assert.equal(
+  minutesNuitEntre(localIso(2026, 9, 2, 20, 0), localIso(2026, 9, 2, 23, 0)),
+  120,
+)
+assert.equal(
+  minutesNuitEntre(localIso(2026, 9, 2, 9, 0), localIso(2026, 9, 2, 17, 0)),
+  0,
+)
+assert.equal(
+  minutesNuitEntre(localIso(2026, 9, 2, 22, 0), localIso(2026, 9, 3, 2, 0)),
+  240,
+)
+assert.equal(
+  minutesNuitEntre(localIso(2026, 9, 3, 4, 0), localIso(2026, 9, 3, 8, 0)),
+  120,
+)
+
+const nuitEvents = [
+  ev({
+    action: 'sortie_domicile',
+    at: localIso(2026, 9, 2, 19, 0),
+    cible: 'domicile',
+  }),
+  ev({
+    action: 'intervention_en_cours',
+    at: localIso(2026, 9, 2, 20, 0),
+    otId: 'otN',
+  }),
+  ev({
+    action: 'fin_intervention',
+    at: localIso(2026, 9, 2, 23, 30),
+    otId: 'otN',
+  }),
+  ev({
+    action: 'retour_domicile',
+    at: localIso(2026, 9, 2, 23, 30),
+    cible: 'domicile',
+  }),
+  ev({ action: 'fin_journee', at: localIso(2026, 9, 2, 23, 50) }),
+]
+const nuitJ = calculerJournee({
+  events: nuitEvents,
+  userId: 't1',
+  date: localIso(2026, 9, 2, 12, 0).slice(0, 10),
+  regles: act.ok ? act.regles : pretes,
+})
+// INT 20:00→23:30 = 210 min travail, dont 21:00→23:30 = 150 min nuit
+assert.equal(nuitJ.interventionMin, 210)
+assert.equal(nuitJ.nuitMin, 150)
+assert.ok(exportJourneesCsv([nuitJ]).includes('Heures de nuit'))
+assert.ok(exportJourneesCsv([nuitJ]).includes('2h30'))
+
+const jourJ = calculerJournee({
+  events: [
+    ev({ action: 'intervention_en_cours', at: localIso(2026, 9, 2, 8, 0), otId: 'ot1' }),
+    ev({ action: 'fin_intervention', at: localIso(2026, 9, 2, 16, 0), otId: 'ot1' }),
+    ev({ action: 'fin_journee', at: localIso(2026, 9, 2, 16, 5) }),
+  ],
+  userId: 't1',
+  date: localIso(2026, 9, 2, 12, 0).slice(0, 10),
+  regles: act.ok ? act.regles : pretes,
+})
+assert.equal(jourJ.nuitMin, 0)
+
+const bureauNuit = calculerJourneeBureau(
+  {
+    id: 'b1',
+    userId: 's1',
+    userName: 'Sec',
+    date: localIso(2026, 9, 2, 12, 0).slice(0, 10),
+    heureDebut: '20:00',
+    heureFin: '23:00',
+    updatedAt: localIso(2026, 9, 2, 23, 0),
+  },
+  act.ok ? act.regles : pretes,
+)
+assert.equal(bureauNuit.nuitMin, 120)
 
 console.log('test-pointage: ok')

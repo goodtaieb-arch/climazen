@@ -109,6 +109,7 @@ export function PointageBureauPanel({ className = '' }: { className?: string }) 
           <p className="text-xs text-muted">
             Payé {formatMinutesHhMm(maJournee.payeMin)}
             {maJournee.pauseMin > 0 ? ` · pause ${formatMinutesHhMm(maJournee.pauseMin)}` : ''}
+            {maJournee.nuitMin > 0 ? ` · nuit ${formatMinutesHhMm(maJournee.nuitMin)}` : ''}
             {maJournee.ouvert ? ' · en cours' : ''}
           </p>
         ) : null}

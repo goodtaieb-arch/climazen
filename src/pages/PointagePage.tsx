@@ -243,6 +243,9 @@ function MaJourneeDetail({
             ? ` · repas ${formatMinutesHhMm(maJournee.pauseRepasMin)}${maJournee.primePanier ? ' · prime panier' : ''}`
             : ''}
           {maJournee.pauseMin > 0 ? ` · pause ${formatMinutesHhMm(maJournee.pauseMin)}` : ''}
+          {maJournee.nuitMin > 0
+            ? ` · nuit ${formatMinutesHhMm(maJournee.nuitMin)} (${regles.debutNuit}–${regles.finNuit})`
+            : ''}
           {maJournee.departDomicileIso
             ? ` · sortie ${formatHeureIso(maJournee.departDomicileIso)}`
             : ''}
@@ -257,6 +260,9 @@ function MaJourneeDetail({
         <p className="text-sm text-muted">
           Début, fin et pause enregistrés — {formatMinutesHhMm(maJournee.payeMin)} payé
           {maJournee.pauseMin > 0 ? ` (${formatMinutesHhMm(maJournee.pauseMin)} de pause)` : ''}
+          {maJournee.nuitMin > 0
+            ? ` · dont ${formatMinutesHhMm(maJournee.nuitMin)} de nuit (${regles.debutNuit}–${regles.finNuit})`
+            : ''}
         </p>
       ) : (
         <ul className="space-y-1.5 text-sm">
@@ -345,7 +351,30 @@ function ReglesBloc({
             className="h-11 w-full rounded-xl border border-line px-3"
           />
         </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-semibold">Début heures de nuit</span>
+          <input
+            type="time"
+            value={form.debutNuit}
+            onChange={(e) => setForm({ ...form, debutNuit: e.target.value })}
+            className="h-11 w-full rounded-xl border border-line px-3"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-semibold">Fin heures de nuit</span>
+          <input
+            type="time"
+            value={form.finNuit}
+            onChange={(e) => setForm({ ...form, finNuit: e.target.value })}
+            className="h-11 w-full rounded-xl border border-line px-3"
+          />
+        </label>
       </div>
+      <p className="text-xs text-muted">
+        Les minutes d’INT / fournisseur / bureau / déplacement entre {form.debutNuit || '21:00'} et{' '}
+        {form.finNuit || '06:00'} sont isolées en « heures de nuit » (export paie) — rémunération
+        différenciée des techs.
+      </p>
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
