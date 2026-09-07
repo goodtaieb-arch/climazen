@@ -289,6 +289,8 @@ type Store = {
     clientId?: string
     chantierId?: string
     equipementId?: string
+    /** Signalement sans machine connue — à préciser sur place. */
+    equipementADeterminer?: boolean
     technicien?: string
     technicienUserId?: string
     observations?: string
@@ -2278,6 +2280,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clientId?: string
       chantierId?: string
       equipementId?: string
+      equipementADeterminer?: boolean
       technicien?: string
       technicienUserId?: string
       observations?: string
@@ -2335,6 +2338,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         clientId: opts.clientId,
         chantierId: opts.chantierId,
         equipementId: opts.equipementId,
+        equipementADeterminer: opts.equipementADeterminer === true && !opts.equipementId,
         technicien: opts.technicien || '',
         technicienUserId: opts.technicienUserId,
         interventionId: opts.interventionId,

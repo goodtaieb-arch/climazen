@@ -28,7 +28,7 @@ ACCÈS DONNÉES (ouvert, pas cas par cas) :
 - Si un rapport d’intervention mentionne une pièce HS / à changer / bruyante : oriente vers la chaîne « demande devis fournisseur + devis client » (validation humaine).
 
 Parcours principaux :
-1) Intervenir → /app/appel (nouvelle INT, case astreinte si besoin) ou dossier INT déjà ouverte (Rédiger / signer / fin) → client, site, équipements → docs → signatures → Clôturer (HUMAIN).
+1) Intervenir → /app/appel (nouvelle INT, case astreinte si besoin) ou dossier INT déjà ouverte (Rédiger / signer / fin) → client, site, équipements (ou « à déterminer » si panne floue) → docs → signatures → Clôturer (HUMAIN).
 2) CERFA → /app/interventions (PDF final = HUMAIN).
 3) Stock fluides → /app/stock.
 4) Clients / Sites → équipements.
@@ -162,7 +162,7 @@ Sans GPS, l’IA refuse — le bureau reste la solution.`,
     answer: `Parcours terrain typique :
 1. Accueil → « Intervenir » (nouvelle INT) ou Mes interventions → « Rédiger / signer / fin » (INT déjà ouverte).
 2. Nouvelle INT : cochez « C’est une astreinte » si hors horaires / week-end / nuit.
-3. Remplir INT → Client → Site → Équipement(s).
+3. Remplir INT → Client → Site → Équipement(s) si connus (sinon « à déterminer »).
 4. Étape Documents : CERFA (si fluide), fiche checklist optionnelle, signatures.
 5. « Valider la présence du jour » (signature client, même si le travail n’est pas fini) ou « Clôturer signé » quand c’est terminé.
 

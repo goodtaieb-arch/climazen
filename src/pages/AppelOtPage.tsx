@@ -56,6 +56,7 @@ import {
   formatOtAvancement,
   techIdsOt,
   otEstAstreinte,
+  otEquipementADeterminer,
   OT_LABEL,
   type TypeOt,
   type StatutOt,
@@ -584,7 +585,7 @@ export function AppelOtPage() {
     const siteJustSaved = data.chantiers.find((s) => s.id === chantierId)
     const eqCount = siteJustSaved ? allEquipements(siteJustSaved).length : 0
     setEquipMode(eqCount > 0 ? 'pick' : 'new')
-    setMsg('Site enregistré — sur place, ajoutez l’équipement.')
+    setMsg('Site enregistré — choisissez l’équipement ou créez l’intervention sans.')
   }
 
   const saveEquipStep = () => {
@@ -595,7 +596,7 @@ export function AppelOtPage() {
     let equipementIds = [...selectedEquipIds]
     if (equipMode === 'new') {
       if (!equipForm.nom.trim() && !equipForm.type.trim()) {
-        alert('Indiquez au moins un nom ou type d’équipement.')
+        alert('Indiquez au moins un nom ou type d’équipement — ou « Créer l’intervention sans équipement ».')
         return
       }
       const nom = equipForm.nom.trim() || equipForm.type.trim()
@@ -625,7 +626,8 @@ export function AppelOtPage() {
       })
       equipementIds = [...equipementIds.filter((id) => id !== eq.id), eq.id]
     } else if (equipementIds.length === 0) {
-      alert('Cochez au moins un équipement (ou créez-en un).')
+      // Pas de machine cochée = même parcours que « à déterminer »
+      skipEquipForNow()
       return
     }
     const pickedEqs = equipementIds
@@ -638,6 +640,7 @@ export function AppelOtPage() {
       {
         equipementIds,
         equipementId: equipementIds[0] || '',
+        equipementADeterminer: false,
         docsRequis,
         parcoursStep: role === 'bureau_depanage' ? 'equipement' : 'docs',
         statut: 'en_cours',
@@ -649,6 +652,7 @@ export function AppelOtPage() {
         {
           equipementIds,
           equipementId: equipementIds[0] || '',
+          equipementADeterminer: false,
           parcoursStep: 'equipement',
           statut: 'en_cours',
         },
@@ -657,7 +661,7 @@ export function AppelOtPage() {
       quitterApresTransmission()
       return
     }
-    setOtForm((f) => ({ ...f, docsRequis }))
+    setOtForm((f) => ({ ...f, docsRequis, equipementADeterminer: false }))
     setStep('docs')
     setMsg(
       role === 'bureau_maintenance'
@@ -671,17 +675,25 @@ export function AppelOtPage() {
   }
 
   const skipEquipForNow = () => {
+    const patch = {
+      equipementId: undefined as string | undefined,
+      equipementIds: [] as string[],
+      equipementADeterminer: true,
+      statut: 'en_cours' as const,
+    }
     if (role === 'bureau_depanage') {
-      persistOt({ parcoursStep: 'equipement', statut: 'en_cours' }, otId)
-      setStep('equipement')
+      persistOt({ ...patch, parcoursStep: 'equipement' }, otId)
+      setOtForm((f) => ({ ...f, ...patch, parcoursStep: 'equipement' }))
       setMsg(
-        'Équipement à compléter plus tard. En dépannage, c’est le tech qui remplit l’intervention.',
+        'Intervention créée sans équipement — le tech identifiera la machine sur place.',
       )
+      quitterApresTransmission()
       return
     }
-    persistOt({ parcoursStep: 'docs' }, otId)
+    persistOt({ ...patch, parcoursStep: 'docs' }, otId)
+    setOtForm((f) => ({ ...f, ...patch, parcoursStep: 'docs' }))
     setStep('docs')
-    setMsg('Équipement à compléter plus tard.')
+    setMsg('Intervention créée — équipement à préciser sur place.')
   }
 
   const openCerfa = () => {
@@ -2038,7 +2050,7 @@ export function AppelOtPage() {
               onClick={saveSiteStep}
               className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
             >
-              Continuer équipement <ArrowRight className="h-4 w-4" />
+              Continuer <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
@@ -2135,8 +2147,18 @@ export function AppelOtPage() {
             </div>
           ) : null}
           <p className="text-sm text-muted">
-            Sur site : cochez un ou plusieurs équipements concernés ({site?.nom || '—'}).
+            Pour créer l’intervention : cochez le ou les équipements ({site?.nom || '—'}) s’ils
+            sont connus. Sinon créez quand même l’intervention — la machine sera précisée sur
+            place.
           </p>
+          {otEquipementADeterminer(otForm) ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              <p className="font-semibold">Intervention sans équipement</p>
+              <p className="mt-0.5 text-xs">
+                Client + site OK. La machine sera identifiée pendant l’intervention.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -2400,9 +2422,9 @@ export function AppelOtPage() {
             <button
               type="button"
               onClick={skipEquipForNow}
-              className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold text-muted"
+              className="min-h-11 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-950"
             >
-              Plus tard
+              Créer l’intervention sans équipement
             </button>
             <button
               type="button"
@@ -2410,7 +2432,9 @@ export function AppelOtPage() {
               className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-sm font-bold text-white sm:flex-none"
             >
               {role === 'bureau_depanage'
-                ? 'Transmettre au tech'
+                ? selectedEquipIds.length || equipMode === 'new'
+                  ? 'Transmettre au tech'
+                  : 'Créer sans équipement'
                 : role === 'bureau_maintenance'
                   ? 'Cocher les fiches'
                   : 'Continuer'}{' '}
@@ -2436,7 +2460,7 @@ export function AppelOtPage() {
                 site?.nom,
                 selectedEqs.length > 1
                   ? `${selectedEqs.length} équipements`
-                  : selectedEq?.nom || selectedEq?.type,
+                  : selectedEq?.nom || selectedEq?.type || (otEquipementADeterminer(otForm) ? 'Sans équipement (à préciser)' : ''),
                 otForm.technicien ? `Tech : ${otForm.technicien}` : '',
               ]
                 .filter(Boolean)

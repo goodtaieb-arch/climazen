@@ -10,6 +10,8 @@
 
 import {
   techIdsOt,
+  otAEquipementRenseigne,
+  otEquipementADeterminer,
   type OrdreTravail,
   type ParcoursAppelStepId,
   type TypeOt,
@@ -202,12 +204,14 @@ export function inferParcoursStepPourRole(
     if (!ot.action?.trim()) return 'ot'
     if (!ot.clientId) return 'client'
     if (!ot.chantierId) return 'site'
+    // Bureau dépannage : étape équipement pour affecter le tech, même sans machine connue.
     return 'equipement'
   }
   if (ot.parcoursStep === 'docs') return 'docs'
   if (!ot.action?.trim()) return 'ot'
   if (!ot.clientId) return 'client'
   if (!ot.chantierId) return 'site'
-  if (!ot.equipementId && !(ot.equipementIds && ot.equipementIds.length > 0)) return 'equipement'
+  if (otEquipementADeterminer(ot)) return 'docs'
+  if (!otAEquipementRenseigne(ot)) return 'equipement'
   return 'docs'
 }

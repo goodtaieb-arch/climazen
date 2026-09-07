@@ -223,7 +223,7 @@ export const PARCOURS_APPEL_STEPS = [
   { id: 'ot', label: 'INT', hint: 'Décrire la demande' },
   { id: 'client', label: 'Client', hint: 'Qui appelle' },
   { id: 'site', label: 'Site', hint: 'Où intervenir' },
-  { id: 'equipement', label: 'Équipement', hint: 'Sur place' },
+  { id: 'equipement', label: 'Équipement', hint: 'Ou à déterminer' },
   { id: 'docs', label: 'Intervention', hint: 'CERFA / fiche' },
 ] as const
 
@@ -276,6 +276,11 @@ export interface OrdreTravail {
   equipementId?: string
   /** Plusieurs équipements traités sur le même OT */
   equipementIds?: string[]
+  /**
+   * true = le signalement ne précise pas la machine (panne floue).
+   * L’INT est créée avec client + site ; l’équipement sera posé sur place.
+   */
+  equipementADeterminer?: boolean
   /** Nom affiché du / des techniciens (ex. « Jean + Marc ») */
   technicien: string
   /** Compte principal (1er de la liste) — rétrocompat */
@@ -416,11 +421,30 @@ export function blankOrdreTravail(): Omit<OrdreTravail, 'id' | 'createdAt' | 'up
     registreSecuriteConfirme: false,
     heure: undefined,
     astreinte: false,
+    equipementADeterminer: false,
   }
 }
 
 export function otEstAstreinte(ot: { astreinte?: boolean } | null | undefined): boolean {
   return Boolean(ot?.astreinte)
+}
+
+/** Au moins un équipement rattaché à l’INT. */
+export function otAEquipementRenseigne(
+  ot: Pick<OrdreTravail, 'equipementId' | 'equipementIds'> | null | undefined,
+): boolean {
+  if (!ot) return false
+  if (ot.equipementId) return true
+  return Boolean(ot.equipementIds && ot.equipementIds.length > 0)
+}
+
+/** Équipement volontairement reporté (signalement sans machine connue). */
+export function otEquipementADeterminer(
+  ot: Pick<OrdreTravail, 'equipementADeterminer' | 'equipementId' | 'equipementIds'> | null | undefined,
+): boolean {
+  if (!ot) return false
+  if (otAEquipementRenseigne(ot)) return false
+  return ot.equipementADeterminer === true
 }
 
 /** Natures CERFA suggérées selon le type d’OT. */
@@ -525,6 +549,8 @@ export function inferParcoursStep(ot: OrdreTravail): ParcoursAppelStepId {
   if (!ot.action?.trim()) return 'ot'
   if (!ot.clientId) return 'client'
   if (!ot.chantierId) return 'site'
-  if (!ot.equipementId && !(ot.equipementIds && ot.equipementIds.length > 0)) return 'equipement'
+  // Équipement optionnel à la création : panne floue → étape intervention / docs
+  if (otEquipementADeterminer(ot)) return 'docs'
+  if (!otAEquipementRenseigne(ot)) return 'equipement'
   return 'docs'
 }
