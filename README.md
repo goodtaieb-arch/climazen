@@ -39,8 +39,9 @@ Au premier login sur l’ordi, si d’anciennes données locales existent, un ba
 
 ## Connecter Google Drive / OneDrive (OAuth2)
 
-Dans **Mon entreprise**, les boutons « Connecter Google Drive » et « Connecter OneDrive »
-lancent un vrai consentement OAuth2 et enregistrent un `refresh_token` chiffré par société.
+Dans **Mon entreprise**, « Connecter Google Drive » (édition Light et Pro) et
+« Connecter OneDrive » (édition Pro) lancent un vrai consentement OAuth2 et
+enregistrent un `refresh_token` chiffré par société. Light n’autorise que Google Drive.
 
 Prérequis : exécuter [`supabase/cloud-oauth.sql`](supabase/cloud-oauth.sql) puis renseigner
 les identifiants OAuth sur Vercel — procédure complète dans [`docs/CLOUD-OAUTH.md`](docs/CLOUD-OAUTH.md).

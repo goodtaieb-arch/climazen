@@ -4,6 +4,9 @@ Avant, les boutons « cloud » de **Mon entreprise** n’étaient que des liens 
 Ils déclenchent désormais un vrai consentement OAuth2 : ClimaZEN obtient un
 `refresh_token` par société, chiffré côté serveur, et peut écrire dans le dossier.
 
+**Édition Light** : Google Drive uniquement. **Édition Pro** : Google Drive +
+OneDrive / SharePoint.
+
 Rien n’est stocké dans le navigateur : le jeton ne quitte jamais Vercel + Supabase.
 
 ## 1. Base de données

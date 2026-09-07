@@ -112,7 +112,7 @@ export interface Operateur {
   /** create_client | create_devis | create_facture */
   facturationActionDefaut?: FacturationAction
   /**
-   * Dossier cloud général de la société (Drive / OneDrive / SharePoint).
+   * Dossier cloud général de la société (Drive, ou OneDrive / SharePoint en Pro).
    * ClimaZEN classe ensuite : ClimaZEN → Dossiers techniciens → Nom du tech → catégorie.
    */
   lienCloudRhRacine?: string

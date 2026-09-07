@@ -4,6 +4,7 @@ import {
   buildAuthorizeUrl,
   callbackErrorMessage,
   cloudProviderLabel,
+  cloudProviderAllowedForEdition,
   createPkcePair,
   GOOGLE_DRIVE_SCOPE,
   MICROSOFT_SCOPES,
@@ -26,7 +27,11 @@ import { decryptSecret, encryptSecret, tokenEncryptionAvailable } from '../serve
 import {
   cloudCallbackErrorText,
   cloudCallbackMessage,
+  cloudProviderAllowedForEdition as clientCloudProviderAllowed,
+  cloudProvidersForEdition,
 } from '../src/lib/cloudOauth'
+import { LIGHT_CLOUD_DRIVE_ONLY } from '../src/lib/appEdition'
+import { cloudPasteHint, microsoftLinkBlockedInEdition } from '../src/lib/cloudLinkGuard'
 
 // --- Fournisseurs -----------------------------------------------------------
 assert.equal(normalizeCloudProvider('Google'), 'google')
@@ -36,6 +41,11 @@ assert.equal(normalizeCloudProvider('sharepoint'), 'microsoft')
 assert.equal(normalizeCloudProvider('dropbox'), '')
 assert.match(cloudProviderLabel('google'), /Google Drive/)
 assert.match(cloudProviderLabel('microsoft'), /OneDrive/)
+assert.equal(cloudProviderAllowedForEdition('light', 'google'), true)
+assert.equal(cloudProviderAllowedForEdition('light', 'microsoft'), false)
+assert.equal(cloudProviderAllowedForEdition('pro', 'microsoft'), true)
+assert.equal(cloudProviderAllowedForEdition('light', 'onedrive'), false)
+assert.equal(cloudProviderAllowedForEdition('', 'microsoft'), true)
 
 // --- Scopes demandés (exigence produit) -------------------------------------
 assert.deepEqual(scopesFor('google'), ['https://www.googleapis.com/auth/drive.file'])
@@ -200,6 +210,8 @@ for (const reason of ['exchange_failed', 'save_failed', 'callback_failed']) {
   assert.notEqual(cloudCallbackErrorText(reason), texteGenerique)
   assert.notEqual(callbackErrorMessage(reason), callbackErrorMessage('inconnu'))
 }
+assert.equal(cloudCallbackErrorText('edition_light').includes('Google Drive'), true)
+assert.match(cloudCallbackErrorText('edition_light'), /Light/)
 assert.match(cloudCallbackErrorText('exchange_failed'), /Client secret/i)
 assert.match(cloudCallbackErrorText('save_failed'), /Supabase/i)
 
@@ -288,5 +300,23 @@ const sansIdentifiants = await callbackRedirect(
 )
 assert.equal(sansIdentifiants.searchParams.get('cloud'), 'microsoft')
 assert.equal(sansIdentifiants.searchParams.get('reason'), 'provider_not_configured')
+
+// --- Light = Google Drive seulement -----------------------------------------
+assert.deepEqual(cloudProvidersForEdition('light'), ['google'])
+assert.deepEqual(cloudProvidersForEdition('pro'), ['google', 'microsoft'])
+assert.equal(clientCloudProviderAllowed('light', 'google'), true)
+assert.equal(clientCloudProviderAllowed('light', 'microsoft'), false)
+assert.equal(clientCloudProviderAllowed('pro', 'microsoft'), true)
+assert.equal(
+  microsoftLinkBlockedInEdition('https://onedrive.live.com/?cid=x', 'light'),
+  LIGHT_CLOUD_DRIVE_ONLY,
+)
+assert.equal(microsoftLinkBlockedInEdition('https://onedrive.live.com/?cid=x', 'pro'), null)
+assert.equal(
+  microsoftLinkBlockedInEdition('https://drive.google.com/drive/folders/abc', 'light'),
+  null,
+)
+assert.match(cloudPasteHint('', { driveOnly: true }), /Google Drive/)
+assert.match(cloudPasteHint('https://onedrive.live.com/redir', { driveOnly: true }), /Light/)
 
 console.log('test-cloud-oauth: ok')

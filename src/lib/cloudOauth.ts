@@ -2,9 +2,29 @@
  * Connexions cloud société — Google Drive (OAuth2) et Microsoft OneDrive /
  * SharePoint (Entra ID). Le navigateur ne voit jamais de refresh_token :
  * il demande une URL d’autorisation au serveur, puis suit la redirection.
+ *
+ * Édition Light : Google Drive uniquement. Pro : Drive + OneDrive / SharePoint.
  */
 
+import { editionHasFeature, type AppEdition } from './appEdition'
+
 export type CloudProviderId = 'google' | 'microsoft'
+
+export const ALL_CLOUD_PROVIDERS: CloudProviderId[] = ['google', 'microsoft']
+
+/** Light = Drive seul ; Pro = Drive + OneDrive / SharePoint. */
+export function cloudProvidersForEdition(edition: AppEdition): CloudProviderId[] {
+  return editionHasFeature(edition, 'cloud_microsoft')
+    ? ['google', 'microsoft']
+    : ['google']
+}
+
+export function cloudProviderAllowedForEdition(
+  edition: AppEdition,
+  provider: CloudProviderId,
+): boolean {
+  return cloudProvidersForEdition(edition).includes(provider)
+}
 
 export const CLOUD_PROVIDER_LABELS: Record<CloudProviderId, string> = {
   google: 'Google Drive',
@@ -135,6 +155,8 @@ export function cloudCallbackErrorText(reason?: string | null): string {
       return 'jetons obtenus mais impossible de les enregistrer dans Supabase. Vérifiez SUPABASE_SERVICE_ROLE_KEY et les tables cloud.'
     case 'callback_failed':
       return 'le retour du fournisseur a échoué côté serveur.'
+    case 'edition_light':
+      return 'l’édition Light n’autorise que Google Drive. Passez à Pro pour OneDrive / SharePoint.'
     default:
       return 'connexion impossible. Réessayez.'
   }

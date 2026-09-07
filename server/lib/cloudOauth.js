@@ -14,6 +14,10 @@ import { decryptSecret, encryptSecret } from './secretBox.js'
 
 export const CLOUD_PROVIDERS = ['google', 'microsoft']
 
+/** Light : Google Drive seulement. Pro : Drive + OneDrive / SharePoint. */
+export const LIGHT_CLOUD_DRIVE_ONLY =
+  'L’édition Light n’autorise que Google Drive. Passez à Pro pour OneDrive / SharePoint.'
+
 /** Scope demandé à Google : création / gestion des seuls fichiers ClimaZEN. */
 export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 
@@ -36,6 +40,26 @@ export function cloudProviderLabel(provider) {
   if (provider === 'google') return 'Google Drive'
   if (provider === 'microsoft') return 'OneDrive / SharePoint'
   return 'Cloud'
+}
+
+/** Light refuse Microsoft ; l’édition inconnue (comptes existants) reste Pro. */
+export function cloudProviderAllowedForEdition(edition, provider) {
+  const p = normalizeCloudProvider(provider)
+  if (!p) return false
+  if (p === 'microsoft' && String(edition || '') === 'light') return false
+  return true
+}
+
+/** Édition lue dans org_data.payload — défaut Pro (rétrocompat). */
+export async function resolveOrgAppEdition(orgId) {
+  try {
+    const rows = await supabaseRest(
+      `org_data?organization_id=eq.${encodeURIComponent(orgId)}&select=payload&limit=1`,
+    )
+    return String(rows?.[0]?.payload?.appEdition || '').trim() === 'light' ? 'light' : 'pro'
+  } catch {
+    return 'pro'
+  }
 }
 
 export function microsoftTenant() {

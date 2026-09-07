@@ -11,6 +11,7 @@ import { normalizeLienCloudRh } from '../lib/rhDocuments'
 import {
   verifyCloudLinkRestricted,
   cloudPasteHint,
+  microsoftLinkBlockedInEdition,
   openExactOperatorCloudLink,
 } from '../lib/cloudLinkGuard'
 import { arborescenceDocumentsEntreprise } from '../lib/docStockage'
@@ -28,6 +29,7 @@ import {
   editionHasFeature,
   type AppEdition,
 } from '../lib/appEdition'
+import { cloudProvidersForEdition } from '../lib/cloudOauth'
 import { resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 import { labelGestionnairePieces, MAGASIN_PIECES_NAV_LABEL } from '../lib/piecesDetachees'
@@ -102,6 +104,8 @@ export function OperateurPage() {
   const [cloudMsg, setCloudMsg] = useState('')
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
+  const cloudProviders = cloudProvidersForEdition(appEdition)
+  const driveOnly = !editionHasFeature(appEdition, 'cloud_microsoft')
 
   const patchForm = (patch: Partial<Operateur> | ((prev: Operateur) => Operateur)) => {
     setDirty(true)
@@ -170,7 +174,16 @@ export function OperateurPage() {
     setFormError('')
     const racine = (next.lienCloudRhRacine || '').trim()
     if (racine && !normalizeLienCloudRh(racine)) {
-      setFormError('Lien cloud RH invalide — collez un lien https (Drive, OneDrive, SharePoint).')
+      setFormError(
+        editionHasFeature(appEdition, 'cloud_microsoft')
+          ? 'Lien cloud RH invalide — collez un lien https (Drive, OneDrive, SharePoint).'
+          : 'Lien cloud invalide — collez un lien https Google Drive.',
+      )
+      return false
+    }
+    const blockedRacine = microsoftLinkBlockedInEdition(racine, appEdition)
+    if (blockedRacine) {
+      setFormError(blockedRacine)
       return false
     }
     if (racine) {
@@ -182,7 +195,16 @@ export function OperateurPage() {
     }
     const docsCloud = (next.lienCloudDocsRacine || '').trim()
     if (docsCloud && !normalizeLienCloudRh(docsCloud)) {
-      setFormError('Lien cloud Documents invalide — https Drive / OneDrive / SharePoint.')
+      setFormError(
+        editionHasFeature(appEdition, 'cloud_microsoft')
+          ? 'Lien cloud Documents invalide — https Drive / OneDrive / SharePoint.'
+          : 'Lien cloud Documents invalide — https Google Drive.',
+      )
+      return false
+    }
+    const blockedDocs = microsoftLinkBlockedInEdition(docsCloud, appEdition)
+    if (blockedDocs) {
+      setFormError(blockedDocs)
       return false
     }
     if (docsCloud) {
@@ -248,8 +270,15 @@ export function OperateurPage() {
     const href = normalizeLienCloudRh(raw)
     if (!href) {
       setFormError(
-        'Collez d’abord le lien du dossier (Google Drive, OneDrive ou SharePoint), puis appuyez sur Activer le lien.',
+        editionHasFeature(appEdition, 'cloud_microsoft')
+          ? 'Collez d’abord le lien du dossier (Google Drive, OneDrive ou SharePoint), puis appuyez sur Activer le lien.'
+          : 'Collez d’abord le lien du dossier Google Drive, puis appuyez sur Activer le lien.',
       )
+      return
+    }
+    const blocked = microsoftLinkBlockedInEdition(href, appEdition)
+    if (blocked) {
+      setFormError(blocked)
       return
     }
     setCloudBusy(which)
@@ -501,7 +530,7 @@ export function OperateurPage() {
         {appEdition === 'light' ? (
           <p className="text-sm text-muted sm:col-span-2">
             Raison sociale, SIRET et n° d’attestation de capacité — requis sur vos CERFA. Complétez
-            aussi les liens cloud ci-dessous pour ranger attestations et PDF générés.
+            aussi Google Drive ci-dessous pour ranger attestations et PDF générés.
           </p>
         ) : null}
         <Field
@@ -544,14 +573,16 @@ export function OperateurPage() {
             {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
           </h2>
           <p className="mb-3 text-sm text-muted">
-            Une seule connexion suffit. ClimaZEN n’enregistre aucun mot de passe, n’accède qu’aux
-            fichiers qu’il dépose dans votre cloud, et l’autorisation reste révocable à tout moment.
-            Aucun scan n’est conservé sur ClimaZEN.
+            {driveOnly
+              ? 'Connectez Google Drive. ClimaZEN n’enregistre aucun mot de passe, n’accède qu’aux fichiers qu’il dépose, et l’autorisation reste révocable. Aucun scan n’est conservé sur ClimaZEN.'
+              : 'Une seule connexion suffit. ClimaZEN n’enregistre aucun mot de passe, n’accède qu’aux fichiers qu’il dépose dans votre cloud, et l’autorisation reste révocable à tout moment. Aucun scan n’est conservé sur ClimaZEN.'}
           </p>
-          <CloudConnectPanel lienDossier={form.lienCloudRhRacine} />
+          <CloudConnectPanel lienDossier={form.lienCloudRhRacine} providers={cloudProviders} />
           <details className="mt-3 rounded-xl border border-line bg-white p-3">
             <summary className="cursor-pointer text-sm font-semibold text-ink">
-              Pas de compte Google ou Microsoft ? Coller un lien de dossier
+              {driveOnly
+                ? 'Pas de compte Google ? Coller un lien de dossier Drive'
+                : 'Pas de compte Google ou Microsoft ? Coller un lien de dossier'}
             </summary>
             <CloudLienActiver
               className="mt-3"
@@ -561,8 +592,10 @@ export function OperateurPage() {
               onActivate={() => void activerLienCloud('rh')}
               busy={cloudBusy === 'rh'}
               hint={
-                cloudPasteHint(form.lienCloudRhRacine) ||
-                'Ouvrez Drive ou OneDrive, copiez le lien du dossier et collez-le ici. Le partage doit rester privé.'
+                cloudPasteHint(form.lienCloudRhRacine, { driveOnly }) ||
+                (driveOnly
+                  ? 'Ouvrez Google Drive, copiez le lien du dossier et collez-le ici. Le partage doit rester privé.'
+                  : 'Ouvrez Drive ou OneDrive, copiez le lien du dossier et collez-le ici. Le partage doit rester privé.')
               }
             />
             {cloudMsg && cloudBusy !== 'docs' ? (
@@ -583,9 +616,14 @@ export function OperateurPage() {
           </h2>
           <p className="mb-3 text-sm text-muted">
             Les PDF (CERFA, rapports, devis…) ne sont <strong>jamais</strong> enregistrés sur
-            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. NAS / Nextcloud ou un
-            dossier Drive / OneDrive. Le bureau n’ouvre pas ce serveur : il sort le document depuis
-            l’app. Seul le gérant (et le personnel coché dans Équipe → Accès coffre) voit l’URL.
+            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage.{' '}
+            {driveOnly
+              ? 'Google Drive, ou un NAS / Nextcloud.'
+              : 'NAS / Nextcloud ou un dossier Drive / OneDrive.'}{' '}
+            Le bureau n’ouvre pas ce serveur : il sort le document depuis l’app.
+            {driveOnly
+              ? ''
+              : ' Seul le gérant (et le personnel coché dans Équipe → Accès coffre) voit l’URL.'}
           </p>
           <label className="mb-3 block text-sm">
             <span className="mb-1 block font-semibold text-ink">Destination</span>
@@ -599,7 +637,11 @@ export function OperateurPage() {
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             >
               <option value="prive">Serveur privé société (NAS / Nextcloud / WebDAV)</option>
-              <option value="cloud">Lien cloud (Google Drive / OneDrive — bouton Activer)</option>
+              <option value="cloud">
+                {driveOnly
+                  ? 'Lien cloud (Google Drive — bouton Activer)'
+                  : 'Lien cloud (Google Drive / OneDrive — bouton Activer)'}
+              </option>
             </select>
           </label>
           {form.docsStockageMode === 'cloud' ? (
@@ -611,8 +653,10 @@ export function OperateurPage() {
                 onActivate={() => void activerLienCloud('docs')}
                 busy={cloudBusy === 'docs'}
                 hint={
-                  cloudPasteHint(form.lienCloudDocsRacine) ||
-                  'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.'
+                  cloudPasteHint(form.lienCloudDocsRacine, { driveOnly }) ||
+                  (driveOnly
+                    ? 'Collez le lien du dossier Google Drive. Le partage doit rester privé.'
+                    : 'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.')
                 }
               />
               {cloudMsg ? (
@@ -665,8 +709,10 @@ export function OperateurPage() {
                   onActivate={() => void activerLienCloud('docs')}
                   busy={cloudBusy === 'docs'}
                   hint={
-                    cloudPasteHint(form.lienCloudDocsRacine) ||
-                    'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.'
+                    cloudPasteHint(form.lienCloudDocsRacine, { driveOnly }) ||
+                    (driveOnly
+                      ? 'Collez le lien du dossier Google Drive. Le partage doit rester privé.'
+                      : 'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.')
                   }
                 />
                 {cloudMsg ? (
@@ -676,7 +722,11 @@ export function OperateurPage() {
             </>
           )}
           {form.lienCloudDocsRacine?.trim() ? (
-            <CloudWriteTest lienDossier={form.lienCloudDocsRacine} className="mt-3" />
+            <CloudWriteTest
+              lienDossier={form.lienCloudDocsRacine}
+              allowedProviders={cloudProviders}
+              className="mt-3"
+            />
           ) : null}
           <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
             <p className="text-xs font-bold uppercase text-muted">

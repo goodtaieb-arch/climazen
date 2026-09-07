@@ -25,6 +25,9 @@ import {
   providerCredentials,
   purgeExpiredOauthStates,
   redirectUriFor,
+  resolveOrgAppEdition,
+  cloudProviderAllowedForEdition,
+  LIGHT_CLOUD_DRIVE_ONLY,
   safeRedirectPath,
   scopesFor,
 } from '../server/lib/cloudOauth.js'
@@ -50,6 +53,11 @@ function normalizeHttpsUrl(raw) {
 async function handleStart(req, res, auth, body) {
   const provider = normalizeCloudProvider(body.provider)
   if (!provider) return res.status(400).json({ error: 'Fournisseur cloud inconnu.' })
+
+  const edition = await resolveOrgAppEdition(auth.orgId)
+  if (!cloudProviderAllowedForEdition(edition, provider)) {
+    return res.status(403).json({ error: LIGHT_CLOUD_DRIVE_ONLY, code: 'edition_light' })
+  }
 
   const creds = providerCredentials(provider)
   if (!creds.ok) return res.status(503).json({ error: creds.error, code: 'not_configured' })
@@ -118,7 +126,12 @@ async function handleTestWrite(res, auth, body) {
     })
   }
 
+  const edition = await resolveOrgAppEdition(auth.orgId)
   const detected = detectCloudProviderFromUrl(folderUrl)
+  if (detected && !cloudProviderAllowedForEdition(edition, detected)) {
+    return res.status(200).json({ ok: false, message: LIGHT_CLOUD_DRIVE_ONLY })
+  }
+
   // Sans lien ni fournisseur explicite, tester le cloud déjà connecté : le
   // gérant qui vient de brancher OneDrive attend un test, pas une question.
   const provider =
@@ -127,8 +140,13 @@ async function handleTestWrite(res, auth, body) {
     return res.status(200).json({
       ok: false,
       message:
-        'Aucun cloud à tester : connectez Google Drive ou OneDrive, ou collez un lien de dossier.',
+        edition === 'light'
+          ? 'Aucun cloud à tester : connectez Google Drive, ou collez un lien de dossier Drive.'
+          : 'Aucun cloud à tester : connectez Google Drive ou OneDrive, ou collez un lien de dossier.',
     })
+  }
+  if (!cloudProviderAllowedForEdition(edition, provider)) {
+    return res.status(200).json({ ok: false, message: LIGHT_CLOUD_DRIVE_ONLY })
   }
   if (folderUrl && detected && detected !== provider) {
     return res.status(200).json({
@@ -190,13 +208,16 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET' || req.method === 'HEAD') {
       const connections = await listCloudConnections(auth.orgId)
+      const edition = await resolveOrgAppEdition(auth.orgId)
       return res.status(200).json({
         ok: true,
         canEdit: auth.isOwner,
         connections,
         available: {
           google: providerCredentials('google').ok,
-          microsoft: providerCredentials('microsoft').ok,
+          microsoft:
+            cloudProviderAllowedForEdition(edition, 'microsoft') &&
+            providerCredentials('microsoft').ok,
         },
         // Valeur exacte attendue par le fournisseur : à déclarer telle quelle,
         // sinon Google répond redirect_uri_mismatch et Microsoft invalid_request.

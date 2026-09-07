@@ -674,7 +674,7 @@ export function Landing() {
                 {[
                   'INT, agenda & contrats maintenance',
                   'CERFA F-Gas & stock fluides (obligatoire)',
-                  'Mon entreprise (SIRET, attestation…)',
+                  'Mon entreprise + stockage cloud Google Drive',
                   'Un seul utilisateur — gratuit pour toujours',
                   APP_IS_BETA
                     ? 'IA : option Agent payante en bêta (chatbot gratuit après bêta)'
@@ -727,6 +727,7 @@ export function Landing() {
                   'Plusieurs techniciens & comptes opérateurs',
                   'Pointeuse, RH & pilotage équipe',
                   'Devis / commandes / magasin pièces',
+                  'OneDrive / SharePoint et NAS en plus de Drive',
                   'Agent IA inclus (INT, CERFA, OpenAI clé société)',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2">

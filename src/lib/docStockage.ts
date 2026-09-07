@@ -1,5 +1,5 @@
 /**
- * Enregistrement des documents générés : cloud (Drive/OneDrive/SharePoint),
+ * Enregistrement des documents générés : cloud (Drive, ou OneDrive/SharePoint en Pro),
  * serveur privé société, ou téléchargement local.
  * Arborescence type : ClimaZEN / Documents / {année} / {type} / {client?} / fichier.pdf
  */

@@ -244,7 +244,7 @@ export function ProfilPage() {
           <div>
             <div className="font-display text-base font-semibold text-ink">Mon entreprise</div>
             <p className="mt-1 text-sm text-muted">
-              Raison sociale, SIRET, n° attestation de capacité, logo et liens cloud pour
+              Raison sociale, SIRET, n° attestation de capacité, logo et Google Drive pour
               sauvegarder vos documents (CERFA, attestations…).
             </p>
             <p className="mt-2 text-sm font-semibold text-accent">Configurer la société →</p>
