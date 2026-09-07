@@ -512,7 +512,7 @@ export function AppLayout() {
                 }
                 aria-label={voiceListening ? 'Arrêter le micro' : 'Main libre — micro'}
                 aria-pressed={voiceListening}
-                title="Main libre — touche pour écouter, retouche pour couper (appui long = aide)"
+                title="Main libre — touche micro, ou dis « Lola » (appui long = aide)"
               >
                 <Mic className="h-4 w-4" />
                 <span className="hidden lg:inline">Main libre</span>
@@ -674,7 +674,7 @@ export function AppLayout() {
                   <span className="min-w-0 text-left">
                     <span className="block">Commande vocale</span>
                     <span className="mt-0.5 block text-xs font-normal text-muted">
-                      Touche micro, puis parle
+                      Micro ou « dis Lola »
                     </span>
                   </span>
                 </button>

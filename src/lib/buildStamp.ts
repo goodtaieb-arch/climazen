@@ -2,10 +2,10 @@
  * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v256'
+export const APP_VERSION = 'v257'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-07-v256-voix-stop-2s'
+export const APP_BUILD = '2026-09-07-v257-dis-lola-appui-micro'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

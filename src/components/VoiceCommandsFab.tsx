@@ -7,6 +7,7 @@ import { openAddressInGps } from '../lib/mapsNav'
 import { isOtCloture } from '../lib/ordreTravail'
 import {
   SPEECH_COMMAND_SILENCE_MS,
+  VOICE_WAKE_AUTO_KEY,
   applySpeechCorrections,
   appendSpeechChunk,
   cancelSpeech,
@@ -20,10 +21,12 @@ import {
 import {
   AIDE_POINTAGE_VOIX,
   choisirOtPourDeplacement,
+  isWakePhrase,
   otIdDepuisDernierPointage,
   parlerMesInterventions,
   parlerPointageConfirme,
   parseHandsFreeIntent,
+  stripWakePhrase,
 } from '../lib/voiceHandsFree'
 import {
   POINTAGE_ACTION_LABELS,
@@ -49,7 +52,7 @@ import { APP_IS_BETA } from '../lib/buildStamp'
  * Main libre terrain — micro simple.
  * Appui micro → « Je vous écoute » → ordre → exécution → réécoute.
  * 2 s de silence sans parole → coupe (comme un second appui micro).
- * « Stop » / retouche micro pour couper tout de suite.
+ * « Dis Lola » (veille) = même effet qu’un appui micro.
  */
 export function VoiceCommandsFab() {
   const navigate = useNavigate()
@@ -57,16 +60,21 @@ export function VoiceCommandsFab() {
   const { user } = useAuth()
   const [listening, setListening] = useState(false)
   const [speaking, setSpeaking] = useState(false)
+  const [wakeHint, setWakeHint] = useState(false)
   const [hint, setHint] = useState('')
   const [showHelp, setShowHelp] = useState(false)
   const [supported] = useState(() => isSpeechSupported())
   const recRef = useRef<SpeechRecognitionLike | null>(null)
+  const wakeRecRef = useRef<SpeechRecognitionLike | null>(null)
   const listeningRef = useRef(false)
   const wantListenRef = useRef(false)
+  const wakeWantRef = useRef(false)
   const speakingRef = useRef(false)
   const bufferRef = useRef('')
   const interimRef = useRef('')
+  const pendingLeftoverRef = useRef('')
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wakeRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
   const aiOkRef = useRef(false)
@@ -87,13 +95,48 @@ export function VoiceCommandsFab() {
     }
   }
 
+  const clearWakeRestart = () => {
+    if (wakeRestartRef.current) {
+      clearTimeout(wakeRestartRef.current)
+      wakeRestartRef.current = null
+    }
+  }
+
+  const persistWake = (on: boolean) => {
+    try {
+      if (on) localStorage.setItem(VOICE_WAKE_AUTO_KEY, '1')
+      else localStorage.removeItem(VOICE_WAKE_AUTO_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const stopWake = () => {
+    wakeWantRef.current = false
+    clearWakeRestart()
+    setWakeHint(false)
+    try {
+      wakeRecRef.current?.abort()
+    } catch {
+      /* ignore */
+    }
+    wakeRecRef.current = null
+  }
+
   useEffect(() => {
     return () => {
       wantListenRef.current = false
+      wakeWantRef.current = false
       clearSilence()
+      clearWakeRestart()
       cancelSpeech()
       try {
         recRef.current?.abort()
+      } catch {
+        /* ignore */
+      }
+      try {
+        wakeRecRef.current?.abort()
       } catch {
         /* ignore */
       }
@@ -274,7 +317,7 @@ export function VoiceCommandsFab() {
     const intent = parseHandsFreeIntent(cleaned)
     if (intent.kind === 'stop') {
       setHint('Écoute arrêtée')
-      stop()
+      stop({ disarmWake: true })
       speakFr('D’accord, j’arrête d’écouter.')
       return
     }
@@ -325,7 +368,7 @@ export function VoiceCommandsFab() {
     )
   }
 
-  const stop = () => {
+  const stop = (opts?: { disarmWake?: boolean }) => {
     wantListenRef.current = false
     clearSilence()
     cancelSpeech()
@@ -333,12 +376,23 @@ export function VoiceCommandsFab() {
     setSpeaking(false)
     bufferRef.current = ''
     interimRef.current = ''
+    pendingLeftoverRef.current = ''
     try {
       recRef.current?.abort()
     } catch {
       /* ignore */
     }
     emitState(false)
+    if (opts?.disarmWake) {
+      persistWake(false)
+      stopWake()
+    } else {
+      // Micro coupé → veille « dis Lola » = prochain appui micro
+      persistWake(true)
+      window.setTimeout(() => {
+        if (!wantListenRef.current) startWake()
+      }, 400)
+    }
   }
 
   const finishBuffer = () => {
@@ -352,7 +406,7 @@ export function VoiceCommandsFab() {
     // 2 s de silence sans ordre → comme un second appui sur le micro
     if (wantListenRef.current && !speakingRef.current) {
       stop()
-      setHint('Micro coupé')
+      setHint('Micro coupé — dis « Lola » ou retouche le micro')
     }
   }
 
@@ -363,13 +417,90 @@ export function VoiceCommandsFab() {
     }, SPEECH_COMMAND_SILENCE_MS)
   }
 
+  /** Veille : n’écoute que « dis Lola » → même effet qu’un appui micro. */
+  const startWake = () => {
+    if (!supported || wantListenRef.current || speakingRef.current) return
+    const Ctor = getSpeechRecognitionCtor()
+    if (!Ctor) return
+    stopWake()
+    const rec = new Ctor()
+    rec.lang = 'fr-FR'
+    rec.continuous = true
+    rec.interimResults = true
+    rec.maxAlternatives = 2
+    wakeWantRef.current = true
+    setWakeHint(true)
+    setHint('Dis « Lola » pour le micro')
+
+    const onHeard = (raw: string) => {
+      if (!wakeWantRef.current || wantListenRef.current) return
+      const text = applySpeechCorrections(raw)
+      if (!isWakePhrase(text)) return
+      const leftover = stripWakePhrase(text)
+      pendingLeftoverRef.current = leftover
+      stopWake()
+      start()
+    }
+
+    rec.onresult = (ev) => {
+      if (!wakeWantRef.current || wantListenRef.current || speakingRef.current) return
+      let interim = ''
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const result = ev.results[i]
+        const piece = result?.[0]?.transcript || ''
+        if (result?.isFinal) {
+          onHeard(piece)
+          return
+        }
+        interim += piece
+      }
+      if (interim.trim() && isWakePhrase(interim)) {
+        onHeard(interim)
+      }
+    }
+    rec.onerror = (ev) => {
+      const code = ev.error || ''
+      if (code === 'not-allowed') {
+        wakeWantRef.current = false
+        setWakeHint(false)
+        persistWake(false)
+        setHint('Autorisez le micro')
+        return
+      }
+      if (code === 'aborted' || code === 'no-speech') return
+    }
+    rec.onend = () => {
+      if (!wakeWantRef.current || wantListenRef.current) return
+      clearWakeRestart()
+      wakeRestartRef.current = setTimeout(() => {
+        wakeRestartRef.current = null
+        if (!wakeWantRef.current || wantListenRef.current) return
+        try {
+          rec.start()
+        } catch {
+          startWake()
+        }
+      }, 2500)
+    }
+    wakeRecRef.current = rec
+    try {
+      rec.start()
+    } catch {
+      wakeWantRef.current = false
+      setWakeHint(false)
+    }
+  }
+
   const start = () => {
     if (!supported) {
       setHint('Vocal indisponible sur ce navigateur')
       return
     }
+    stopWake()
+    persistWake(true)
     setHint('')
     setShowHelp(false)
+    setWakeHint(false)
     bufferRef.current = ''
     interimRef.current = ''
     const Ctor = getSpeechRecognitionCtor()
@@ -412,6 +543,7 @@ export function VoiceCommandsFab() {
         setHint('Autorisez le micro')
         wantListenRef.current = false
         emitState(false)
+        persistWake(false)
         return
       }
       if (code === 'aborted' || code === 'no-speech') return
@@ -427,7 +559,6 @@ export function VoiceCommandsFab() {
         return
       }
       if (speakingRef.current) return
-      // Si du texte est en attente, l’exécuter avant de relancer
       if ((bufferRef.current || interimRef.current).trim()) {
         if (!silenceTimerRef.current) finishBuffer()
         return
@@ -435,7 +566,6 @@ export function VoiceCommandsFab() {
       try {
         rec.start()
       } catch {
-        // Session morte → recreate
         try {
           start()
         } catch {
@@ -457,15 +587,20 @@ export function VoiceCommandsFab() {
         onEnd: () => {
           speakingRef.current = false
           setSpeaking(false)
-          if (wantListenRef.current) {
-            setHint('Je vous écoute…')
-            try {
-              rec.start()
-            } catch {
-              /* déjà en écoute */
-            }
-            armSilence()
+          if (!wantListenRef.current) return
+          const leftover = pendingLeftoverRef.current.trim()
+          pendingLeftoverRef.current = ''
+          if (leftover) {
+            runTranscript(leftover)
+            return
           }
+          setHint('Je vous écoute…')
+          try {
+            rec.start()
+          } catch {
+            /* déjà en écoute */
+          }
+          armSilence()
         },
       })
     } catch {
@@ -481,17 +616,18 @@ export function VoiceCommandsFab() {
         if ((bufferRef.current || interimRef.current).trim() && !speakingRef.current) {
           finishBuffer()
         } else {
-          stop()
-          setHint('')
+          stop({ disarmWake: false })
+          setHint('Micro coupé — dis « Lola » ou retouche le micro')
           setShowHelp(false)
         }
       } else {
+        stopWake()
         start()
       }
     }
     const onHelp = () => {
       setShowHelp(true)
-      setHint('Main libre — touche micro')
+      setHint('Main libre — micro ou « dis Lola »')
     }
     const onResume = () => {
       speakingRef.current = false
@@ -524,8 +660,39 @@ export function VoiceCommandsFab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supported, user?.id])
 
-  if (!supported && !hint && !showHelp) return null
-  if (!listening && !speaking && !hint && !showHelp) return null
+  // Après un 1er usage : veille « dis Lola » au chargement si micro déjà autorisé
+  useEffect(() => {
+    if (!supported || !user?.id) return
+    let cancelled = false
+    const tryWake = async () => {
+      let prefer = false
+      try {
+        prefer = localStorage.getItem(VOICE_WAKE_AUTO_KEY) === '1'
+      } catch {
+        prefer = false
+      }
+      if (!prefer || cancelled) return
+      let granted = false
+      try {
+        const perm = await navigator.permissions?.query({
+          name: 'microphone' as PermissionName,
+        })
+        granted = perm?.state === 'granted'
+      } catch {
+        granted = true
+      }
+      if (!granted || cancelled || wantListenRef.current) return
+      startWake()
+    }
+    void tryWake()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supported, user?.id])
+
+  if (!supported && !hint && !showHelp && !wakeHint) return null
+  if (!listening && !speaking && !hint && !showHelp && !wakeHint) return null
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[3.75rem] z-30 flex justify-center px-3 md:top-16">
@@ -542,6 +709,10 @@ export function VoiceCommandsFab() {
                   {hint || (speaking ? '' : 'Écoute…')}
                 </span>
               </span>
+            ) : wakeHint ? (
+              <span className="inline-flex items-center gap-1.5 text-teal-800">
+                <span className="min-w-0">{hint || 'Dis « Lola » pour le micro'}</span>
+              </span>
             ) : (
               hint || 'Main libre :'
             )}
@@ -551,7 +722,7 @@ export function VoiceCommandsFab() {
             className="shrink-0 rounded p-0.5 text-muted hover:bg-mist"
             aria-label="Fermer"
             onClick={() => {
-              stop()
+              stop({ disarmWake: true })
               setHint('')
               setShowHelp(false)
             }}
@@ -562,13 +733,14 @@ export function VoiceCommandsFab() {
         {showHelp && (
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             <li>Touche micro → « Je vous écoute » → donne l’ordre</li>
+            <li>« Dis Lola » = même effet que toucher le micro</li>
             <li>Silence 2 s sans parole → micro coupé tout seul</li>
             <li>« Mets-moi en déplacement vers le site »</li>
             <li>« Je suis arrivé » / « en cours »</li>
             <li>« Pause » / « Arrête la pause »</li>
             <li>« Fin d’intervention » · « Fournisseur » · « Bureau »</li>
             <li>« Quelles interventions m’ont été affectées ? »</li>
-            <li>« Stop » ou retouche micro pour couper tout de suite</li>
+            <li>« Stop » ou retouche micro pour couper</li>
           </ul>
         )}
       </div>

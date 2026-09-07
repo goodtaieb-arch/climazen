@@ -413,9 +413,9 @@ Hors ligne : les saisies restent sur l’appareil puis partent au retour du rés
     paths: ['/app'],
     answer: `Mode main libre (bouton micro en haut) — le plus simple :
 • Touche micro → « Je vous écoute » → dis l’ordre (déplacement, en cours, pause…).
-• Lola confirme à voix haute, puis réécoute.
-• Silence 2 secondes sans parole → micro coupé (comme un second appui).
-• « Stop » ou retouche micro pour couper tout de suite.
+• « Dis Lola » = même effet que toucher le micro (après un 1er appui / autorisation).
+• Silence 2 secondes sans parole → micro coupé ; la veille « dis Lola » reste active.
+• « Stop » coupe tout (y compris la veille).
 • Pointage vocal marche sans Agent IA.
 Dictée champ par champ : bouton « Dicter » sur panne / rapport / CERFA.
 Chrome / Android recommandé ; iPhone Safari souvent limité.`,
