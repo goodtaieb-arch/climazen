@@ -590,7 +590,7 @@ export function VoiceCommandsFab() {
         }
       } else {
         // Bouton micro → veille (activation ensuite par « dis Lola »)
-        startWake()
+        beginRecognition('wake')
       }
     }
     const onHelp = () => {
