@@ -48,6 +48,8 @@ import { resetAlarmePauseRepas } from '../lib/pauseRepasAlarme'
 import { canUseChatbot, resolveAiTier } from '../lib/aiAccess'
 import { APP_IS_BETA } from '../lib/buildStamp'
 
+const VOICE_ACTIVATION_HINT_MS = 10_000
+
 /**
  * Main libre terrain — micro simple.
  * Appui micro → « Je vous écoute » → ordre → exécution → réécoute.
@@ -63,6 +65,7 @@ export function VoiceCommandsFab() {
   const [wakeHint, setWakeHint] = useState(false)
   const [hint, setHint] = useState('')
   const [showHelp, setShowHelp] = useState(false)
+  const [needsActivation, setNeedsActivation] = useState(false)
   const [supported] = useState(() => isSpeechSupported())
   const recRef = useRef<SpeechRecognitionLike | null>(null)
   const wakeRecRef = useRef<SpeechRecognitionLike | null>(null)
@@ -76,6 +79,7 @@ export function VoiceCommandsFab() {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeActivationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activationHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef = useRef(data)
   dataRef.current = data
   const aiOkRef = useRef(false)
@@ -110,6 +114,13 @@ export function VoiceCommandsFab() {
     }
   }
 
+  const clearActivationHint = () => {
+    if (activationHintTimerRef.current) {
+      clearTimeout(activationHintTimerRef.current)
+      activationHintTimerRef.current = null
+    }
+  }
+
   const persistWake = (on: boolean) => {
     try {
       if (on) localStorage.setItem(VOICE_WAKE_AUTO_KEY, '1')
@@ -139,6 +150,7 @@ export function VoiceCommandsFab() {
       clearSilence()
       clearWakeRestart()
       clearWakeActivation()
+      clearActivationHint()
       cancelSpeech()
       try {
         recRef.current?.abort()
@@ -496,11 +508,19 @@ export function VoiceCommandsFab() {
     }
     rec.onerror = (ev) => {
       const code = ev.error || ''
-      if (code === 'not-allowed') {
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
         wakeWantRef.current = false
         setWakeHint(false)
         persistWake(false)
-        setHint('Autorisez le micro')
+        setNeedsActivation(true)
+        setHint('Micro bloqué — autorisez-le dans les réglages du navigateur')
+        return
+      }
+      if (code === 'audio-capture') {
+        wakeWantRef.current = false
+        setWakeHint(false)
+        setNeedsActivation(true)
+        setHint('Aucun micro détecté — vérifiez le micro du téléphone')
         return
       }
       if (code === 'aborted' || code === 'no-speech') return
@@ -525,9 +545,14 @@ export function VoiceCommandsFab() {
     wakeRecRef.current = rec
     try {
       rec.start()
+      persistWake(true)
+      clearActivationHint()
+      setNeedsActivation(false)
     } catch {
       wakeWantRef.current = false
       setWakeHint(false)
+      setNeedsActivation(true)
+      setHint('Touchez « Activer Dis Lola » pour autoriser le micro')
     }
   }
 
@@ -579,11 +604,12 @@ export function VoiceCommandsFab() {
     }
     rec.onerror = (ev) => {
       const code = ev.error || ''
-      if (code === 'not-allowed') {
-        setHint('Autorisez le micro')
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        setHint('Micro bloqué — autorisez-le dans les réglages du navigateur')
         wantListenRef.current = false
         emitState(false)
         persistWake(false)
+        setNeedsActivation(true)
         return
       }
       if (code === 'aborted' || code === 'no-speech') return
@@ -618,6 +644,8 @@ export function VoiceCommandsFab() {
     try {
       rec.start()
       emitState(true)
+      clearActivationHint()
+      setNeedsActivation(false)
       setHint(
         isTtsSupported() ? 'Je vous écoute…' : 'Main libre (voix orale indisponible)',
       )
@@ -647,6 +675,7 @@ export function VoiceCommandsFab() {
       setHint('Micro indisponible')
       wantListenRef.current = false
       emitState(false)
+      setNeedsActivation(true)
     }
   }
 
@@ -700,10 +729,24 @@ export function VoiceCommandsFab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supported, user?.id])
 
-  // Après un 1er usage : veille « dis Lola » au chargement si micro déjà autorisé
+  // Au chargement : veille automatique si le micro est déjà autorisé.
+  // Sinon le navigateur exige un geste utilisateur : afficher l’activation 10 s.
   useEffect(() => {
     if (!supported || !user?.id) return
     let cancelled = false
+
+    const showActivation = (message: string) => {
+      if (cancelled) return
+      setNeedsActivation(true)
+      setHint(message)
+      clearActivationHint()
+      activationHintTimerRef.current = setTimeout(() => {
+        activationHintTimerRef.current = null
+        setNeedsActivation(false)
+        setHint((current) => (current === message ? '' : current))
+      }, VOICE_ACTIVATION_HINT_MS)
+    }
+
     const tryWake = async () => {
       let prefer = false
       try {
@@ -711,28 +754,40 @@ export function VoiceCommandsFab() {
       } catch {
         prefer = false
       }
-      if (!prefer || cancelled) return
-      let granted = false
-      try {
-        const perm = await navigator.permissions?.query({
-          name: 'microphone' as PermissionName,
-        })
-        granted = perm?.state === 'granted'
-      } catch {
-        granted = true
+
+      let permission: PermissionState | 'unknown' = 'unknown'
+      if (navigator.permissions?.query) {
+        try {
+          const result = await navigator.permissions.query({
+            name: 'microphone' as PermissionName,
+          })
+          permission = result.state
+        } catch {
+          permission = 'unknown'
+        }
       }
-      if (!granted || cancelled || wantListenRef.current) return
-      startWake()
+
+      if (cancelled || wantListenRef.current) return
+      if (permission === 'granted' || (permission === 'unknown' && prefer)) {
+        startWake()
+        return
+      }
+      showActivation(
+        permission === 'denied'
+          ? 'Micro bloqué — autorisez climazen.fr dans les réglages du navigateur'
+          : 'Touchez une fois pour activer « Dis Lola »',
+      )
     }
     void tryWake()
     return () => {
       cancelled = true
+      clearActivationHint()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supported, user?.id])
 
-  if (!supported && !hint && !showHelp && !wakeHint) return null
-  if (!listening && !speaking && !hint && !showHelp && !wakeHint) return null
+  if (!supported && !hint && !showHelp && !wakeHint && !needsActivation) return null
+  if (!listening && !speaking && !hint && !showHelp && !wakeHint && !needsActivation) return null
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[3.75rem] z-30 flex justify-center px-3 md:top-16">
@@ -757,6 +812,19 @@ export function VoiceCommandsFab() {
               hint || 'Main libre :'
             )}
           </p>
+          {needsActivation && !listening && !speaking && !wakeHint ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-lg bg-[#0f766e] px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-[#115e59]"
+              onClick={() => {
+                clearActivationHint()
+                setNeedsActivation(false)
+                startWake()
+              }}
+            >
+              Activer Dis Lola
+            </button>
+          ) : null}
           <button
             type="button"
             className="shrink-0 rounded p-0.5 text-muted hover:bg-mist"
@@ -765,6 +833,8 @@ export function VoiceCommandsFab() {
               stop({ disarmWake: true })
               setHint('')
               setShowHelp(false)
+              setNeedsActivation(false)
+              clearActivationHint()
             }}
           >
             <X className="h-3.5 w-3.5" />
