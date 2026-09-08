@@ -120,10 +120,11 @@ Le PDF final = toujours vous (Lola ne le génère pas).`,
     howTo: `Agenda (/app/agenda) : RDV, maintenances, rappels, absences posées.
 Croix rouge sur un bloc INT = retirer du tech (revient dans « à poser »).
 Recliquer / glisser = changer d’heure ou de tech.
-Lola peut préparer un lot : « Affecte 2 INT à chaque tech » → Accueil (Valider par tech / par INT). Un tech ne change pas de secteur.`,
+Lola peut préparer un lot : « Affecte 2 INT à chaque tech » ou « remplis l’agenda avec les ordres » → Accueil (Valider par tech / par INT). Après OK, les blocs sont sur le jour demandé. Un tech ne change pas de secteur.`,
     sayToLola: [
       'Agenda RDV demain 14h pour Mr Martin site Atelier',
       'Affecte 2 INT à chaque tech, sans changer de secteur',
+      'Remplis l’agenda avec les ordres',
     ],
     canPropose: true,
   },

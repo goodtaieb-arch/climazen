@@ -26,6 +26,20 @@ assert.equal(wantsAssignOts('Pose 2 INT par technicien'), true)
 assert.equal(wantsAssignOts('répartis les interventions à chaque tech'), true)
 assert.equal(wantsAssignOts('Crée une INT pour Mr Martin'), false)
 assert.equal(wantsAssignOts('Combien d’INT ce mois'), false)
+assert.equal(wantsAssignOts('remplis l’agenda avec les ordres'), true)
+assert.equal(wantsAssignOts('planifie les INT sur l’agenda'), true)
+assert.equal(wantsAssignOts('mets les interventions à l’agenda'), true)
+assert.equal(wantsAssignOts('Agenda RDV demain 14h pour Mr Martin'), false)
+
+const fillAgenda = parseAssignOtsIntent('remplis l’agenda avec les ordres', '2026-09-07')
+assert.ok(fillAgenda)
+assert.equal(fillAgenda!.perTech, 12)
+assert.equal(fillAgenda!.dateIso, '2026-09-07')
+
+const demain = parseAssignOtsIntent('planifie les INT demain sur l’agenda', '2026-09-07')
+assert.ok(demain)
+assert.equal(demain!.dateIso, '2026-09-08')
+assert.equal(demain!.perTech, 12)
 
 const intent = parseAssignOtsIntent(
   'affecte a chaque tech 2 inter sans bouger le tech de son secteur',
@@ -163,10 +177,28 @@ const karim = applied.ots.filter((o) => o.technicienUserId === 'tech-cvc-a')
 assert.equal(karim.length, 2)
 assert.ok(karim.every((o) => (o.heure || '').trim()))
 assert.ok(karim.every((o) => o.secteur === 'tech_cvc'))
+assert.ok(karim.every((o) => o.updatedAt))
 
 const lea = applied.ots.filter((o) => o.technicienUserId === 'tech-frigo')
 assert.equal(lea.length, 2)
 assert.ok(lea.every((o) => o.secteur === 'tech_frigoriste'))
+
+// Date d’ouverture ancienne → l’agenda du jour demandé (pas la date d’origine)
+const oldPool = {
+  ...data,
+  ordresTravail: (data.ordresTravail || []).map((o) => ({ ...o, date: '2026-08-01' })),
+}
+const planToday = planAssignOts({
+  data: oldPool,
+  team,
+  intent: { perTech: 2, dateIso: '2026-09-07', keepSecteur: true },
+})
+assert.equal(planToday.ok, true)
+if (planToday.ok) {
+  assert.ok(planToday.slots.every((s) => s.date === '2026-09-07'))
+  const placed = applyAssignOtSlots(oldPool.ordresTravail, planToday.slots)
+  assert.ok(placed.ots.filter((o) => o.heure).every((o) => o.date === '2026-09-07'))
+}
 
 // INT déjà calée sur un autre tech : ne pas voler
 const busy = applyAssignOtSlots(
