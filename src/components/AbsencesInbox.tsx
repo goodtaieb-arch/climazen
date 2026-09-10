@@ -1,4 +1,5 @@
-import { CalendarOff, Check, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CalendarOff, Eye, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
@@ -7,7 +8,10 @@ import {
   ABSENCE_TYPE_LABELS,
   demandesEnAttente,
   titreDemandeAbsence,
+  type DemandeAbsence,
 } from '../lib/demandesAbsence'
+import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
+import { AbsencePdfPreview } from './AbsencePdfPreview'
 
 /** Accueil bureau — demandes d’absence à trancher. */
 export function AbsencesInbox() {
@@ -15,8 +19,31 @@ export function AbsencesInbox() {
   const { user, isOwner } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const pending = demandesEnAttente(data.demandesAbsence)
+  const [preview, setPreview] = useState<{ url: string; id: string } | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (preview?.url) URL.revokeObjectURL(preview.url)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (!bureau || pending.length === 0) return null
+
+  const openValidatePreview = (d: DemandeAbsence) => {
+    const rendered: DemandeAbsence = {
+      ...d,
+      statut: 'validee',
+      decidedByName: user?.fullName || user?.email || 'Responsable',
+      decidedAt: new Date().toISOString(),
+    }
+    const blob = buildAbsencePdf(rendered, companyFromOperateur(data.operateur), {
+      forceStatut: 'validee',
+      signatureDirection: user?.signatureImage,
+    })
+    if (preview?.url) URL.revokeObjectURL(preview.url)
+    setPreview({ url: URL.createObjectURL(blob), id: d.id })
+  }
 
   return (
     <section className="rounded-2xl border border-teal-300 bg-teal-50 p-4 shadow-sm">
@@ -29,7 +56,7 @@ export function AbsencesInbox() {
             Absences à valider ({pending.length})
           </h2>
           <p className="mt-0.5 text-xs text-teal-900/85">
-            Congés / RTT / absences envoyés par l’équipe — validez pour bloquer l’agenda.
+            Ouvrez la feuille PDF, vérifiez le visuel, puis validez pour bloquer l’agenda.
           </p>
         </div>
         <Link
@@ -53,15 +80,10 @@ export function AbsencesInbox() {
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  decideDemandeAbsence(d.id, 'validee', {
-                    userId: user?.id,
-                    userName: user?.fullName || user?.email,
-                  })
-                }
+                onClick={() => openValidatePreview(d)}
                 className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-[#0f766e] px-3 text-xs font-extrabold text-white"
               >
-                <Check className="h-3.5 w-3.5" /> Valider
+                <Eye className="h-3.5 w-3.5" /> Voir et valider
               </button>
               <button
                 type="button"
@@ -81,6 +103,26 @@ export function AbsencesInbox() {
           </li>
         ))}
       </ul>
+      {preview ? (
+        <AbsencePdfPreview
+          url={preview.url}
+          title="Visuel du certificat — confirmez la validation"
+          hint="Vérifiez logo, dates et motif avant de valider."
+          confirmLabel="Valider et enregistrer"
+          onConfirm={() => {
+            decideDemandeAbsence(preview.id, 'validee', {
+              userId: user?.id,
+              userName: user?.fullName || user?.email,
+            })
+            URL.revokeObjectURL(preview.url)
+            setPreview(null)
+          }}
+          onClose={() => {
+            URL.revokeObjectURL(preview.url)
+            setPreview(null)
+          }}
+        />
+      ) : null}
     </section>
   )
 }

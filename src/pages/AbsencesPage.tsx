@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { Check, Plus, Send, X } from 'lucide-react'
+import { Eye, Plus, Send, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
@@ -21,6 +21,8 @@ import {
   type AbsenceType,
   type DemandeAbsence,
 } from '../lib/demandesAbsence'
+import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
+import { AbsencePdfPreview } from '../components/AbsencePdfPreview'
 import { MobileFab } from '../components/MobileFab'
 
 function today() {
@@ -51,6 +53,11 @@ export function AbsencesPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [refusId, setRefusId] = useState<string | null>(null)
   const [refusMotif, setRefusMotif] = useState('')
+  const [preview, setPreview] = useState<{
+    url: string
+    mode: 'voir' | 'envoyer' | 'valider'
+    demandeId?: string
+  } | null>(null)
   const [form, setForm] = useState(() =>
     blankDemandeAbsence({
       technicienUserId: user?.id || '',
@@ -152,8 +159,72 @@ export function AbsencesPage() {
     setEditId(null)
   }
 
-  const envoyer = (id: string) => {
-    soumettreDemandeAbsence(id)
+  const closePreview = () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url)
+    setPreview(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (preview?.url) URL.revokeObjectURL(preview.url)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openSheet = (
+    d: DemandeAbsence,
+    mode: 'voir' | 'envoyer' | 'valider',
+  ) => {
+    const rendered: DemandeAbsence =
+      mode === 'valider'
+        ? {
+            ...d,
+            statut: 'validee',
+            decidedByName: user?.fullName || user?.email || 'Responsable',
+            decidedAt: new Date().toISOString(),
+          }
+        : d
+    const blob = buildAbsencePdf(rendered, companyFromOperateur(data.operateur), {
+      forceStatut: mode === 'valider' ? 'validee' : d.statut,
+      signatureSalarie: user?.id === d.technicienUserId ? user?.signatureImage : undefined,
+      signatureDirection: mode === 'valider' ? user?.signatureImage : undefined,
+    })
+    if (preview?.url) URL.revokeObjectURL(preview.url)
+    setPreview({
+      url: URL.createObjectURL(blob),
+      mode,
+      demandeId: d.id === 'preview' ? undefined : d.id,
+    })
+  }
+
+  const confirmPreview = () => {
+    if (!preview) return
+    if (preview.mode === 'envoyer' && preview.demandeId) {
+      soumettreDemandeAbsence(preview.demandeId)
+    }
+    if (preview.mode === 'valider' && preview.demandeId) {
+      decideDemandeAbsence(preview.demandeId, 'validee', {
+        userId: user?.id,
+        userName: user?.fullName || user?.email,
+      })
+    }
+    closePreview()
+  }
+
+  const previewFormSheet = () => {
+    if (!form.dateDebut || !form.dateFin) {
+      alert('Indiquez les dates de début et de fin.')
+      return
+    }
+    const draft: DemandeAbsence = {
+      ...form,
+      id: editId || 'preview',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      joursDemandes: compterJoursOuvres(form.dateDebut, form.dateFin),
+      statut: form.statut || 'brouillon',
+    }
+    openSheet(draft, 'voir')
   }
 
   const soldeCp = soldeCongesOf(monDossier)
@@ -165,9 +236,9 @@ export function AbsencesPage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Absences & congés</h1>
           <p className="mt-1 text-muted">
-            {bureau
-              ? 'Validez ou refusez les demandes — une validation pose l’absence dans l’agenda.'
-              : 'Remplissez la feuille, vérifiez, puis envoyez à la direction. Plus de papier.'}
+              {bureau
+              ? 'Ouvrez la feuille PDF, vérifiez le visuel, puis validez — ça pose l’absence dans l’agenda.'
+              : 'Remplissez la feuille, voyez le PDF, puis envoyez à la direction.'}
           </p>
         </div>
         <button
@@ -215,15 +286,10 @@ export function AbsencesPage() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      decideDemandeAbsence(d.id, 'validee', {
-                        userId: user?.id,
-                        userName: user?.fullName || user?.email,
-                      })
-                    }
+                    onClick={() => openSheet(d, 'valider')}
                     className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-[#0f766e] px-3 text-xs font-extrabold text-white"
                   >
-                    <Check className="h-3.5 w-3.5" /> Valider
+                    <Eye className="h-3.5 w-3.5" /> Voir et valider
                   </button>
                   <button
                     type="button"
@@ -344,6 +410,13 @@ export function AbsencesPage() {
           ) : null}
           <div className="flex flex-wrap gap-2 sm:col-span-2">
             <button
+              type="button"
+              onClick={previewFormSheet}
+              className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold"
+            >
+              <Eye className="h-4 w-4" /> Voir la feuille PDF
+            </button>
+            <button
               type="submit"
               className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink"
             >
@@ -442,10 +515,10 @@ export function AbsencesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => envoyer(d.id)}
+                        onClick={() => openSheet(d, 'envoyer')}
                         className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white"
                       >
-                        <Send className="h-3 w-3" /> Envoyer à la direction
+                        <Send className="h-3 w-3" /> Voir et envoyer
                       </button>
                     </>
                   ) : null}
@@ -463,15 +536,10 @@ export function AbsencesPage() {
                     <>
                       <button
                         type="button"
-                        onClick={() =>
-                          decideDemandeAbsence(d.id, 'validee', {
-                            userId: user?.id,
-                            userName: user?.fullName || user?.email,
-                          })
-                        }
+                        onClick={() => openSheet(d, 'valider')}
                         className="rounded-full bg-[#0f766e] px-3 py-1.5 text-xs font-bold text-white"
                       >
-                        Valider
+                        Voir et valider
                       </button>
                       <button
                         type="button"
@@ -484,7 +552,15 @@ export function AbsencesPage() {
                         Refuser
                       </button>
                     </>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openSheet(d, 'voir')}
+                      className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold"
+                    >
+                      <Eye className="h-3 w-3" /> Feuille PDF
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
@@ -493,6 +569,29 @@ export function AbsencesPage() {
       </div>
 
       <MobileFab label="Demande" hidden={open} onClick={openCreate} />
+
+      {preview ? (
+        <AbsencePdfPreview
+          url={preview.url}
+          title={
+            preview.mode === 'valider'
+              ? 'Visuel du certificat — confirmez la validation'
+              : preview.mode === 'envoyer'
+                ? 'Visuel de la feuille — confirmez l’envoi'
+                : 'Feuille de demande d’absence'
+          }
+          hint="Vérifiez logo, dates et motif. Rien n’est enregistré tant que vous ne confirmez pas."
+          confirmLabel={
+            preview.mode === 'valider'
+              ? 'Valider et enregistrer'
+              : preview.mode === 'envoyer'
+                ? 'Envoyer à la direction'
+                : 'Fermer'
+          }
+          onConfirm={preview.mode === 'voir' ? closePreview : confirmPreview}
+          onClose={closePreview}
+        />
+      ) : null}
     </div>
   )
 }
