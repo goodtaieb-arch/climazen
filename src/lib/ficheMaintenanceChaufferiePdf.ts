@@ -118,20 +118,22 @@ export async function buildFicheMaintenanceChaufferiePdf(
     await embedImage(doc, company.logoImage, pageW - margin - 28, margin, 26, 14)
   }
 
-  doc.setTextColor(...INK)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text(company?.raisonSociale || 'ClimaZEN', margin, y)
-  y += 5
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(...MUTED)
-  const companyLine = [company?.adresse, company?.telephone, company?.siret]
-    .filter(Boolean)
-    .join(' · ')
-  if (companyLine) {
-    doc.text(companyLine.slice(0, 110), margin, y)
+  if (company?.raisonSociale) {
+    doc.setTextColor(...INK)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text(company.raisonSociale, margin, y)
     y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...MUTED)
+    const companyLine = [company?.adresse, company?.telephone, company?.siret]
+      .filter(Boolean)
+      .join(' · ')
+    if (companyLine) {
+      doc.text(companyLine.slice(0, 110), margin, y)
+      y += 5
+    }
   }
 
   doc.setTextColor(...INK)

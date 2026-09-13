@@ -145,13 +145,15 @@ export async function buildFicheMaintenanceClimPdf(
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.text('Fiche de Maintenance Climatisation / PAC', titleX, 12)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  const companyLine = company?.raisonSociale || 'ClimaZEN'
-  doc.text(companyLine, titleX, 18)
-  if (company?.telephone || company?.email) {
-    doc.setFontSize(7.5)
-    doc.text([company.telephone, company.email].filter(Boolean).join('  ·  '), titleX, 23)
+
+  if (company?.raisonSociale) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.text(company.raisonSociale, titleX, 18)
+    if (company?.telephone || company?.email) {
+      doc.setFontSize(7.5)
+      doc.text([company.telephone, company.email].filter(Boolean).join('  ·  '), titleX, 23)
+    }
   }
 
   y = 34

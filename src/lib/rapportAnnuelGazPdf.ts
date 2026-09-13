@@ -46,24 +46,26 @@ export async function buildRapportAnnuelGazPdf(rapport: RapportAnnuelGaz): Promi
   doc.setTextColor(0)
   y += 10
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text('Opérateur', margin, y)
-  y += 5
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  const opLines = [
-    op.raisonSociale || '—',
-    op.adresse || '',
-    `SIRET : ${op.siret || '—'}`,
-    `Attestation de capacité n° ${op.attestationNumero || '—'}`,
-    op.telephone || op.email ? `${op.telephone || ''}  ${op.email || ''}`.trim() : '',
-  ].filter(Boolean)
-  for (const line of opLines) {
-    doc.text(line, margin, y)
-    y += 4.5
+  if (op.raisonSociale) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('Opérateur', margin, y)
+    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    const opLines = [
+      op.raisonSociale,
+      op.adresse || '',
+      op.siret ? `SIRET : ${op.siret}` : '',
+      op.attestationNumero ? `Attestation de capacité n° ${op.attestationNumero}` : '',
+      op.telephone || op.email ? `${op.telephone || ''}  ${op.email || ''}`.trim() : '',
+    ].filter(Boolean)
+    for (const line of opLines) {
+      doc.text(line, margin, y)
+      y += 4.5
+    }
+    y += 4
   }
-  y += 4
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)

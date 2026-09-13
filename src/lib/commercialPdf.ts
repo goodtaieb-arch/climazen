@@ -80,33 +80,41 @@ function header(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.text(subtitle, 18, 22)
-  if (company.logoImage) {
+  const hasLogo = Boolean(company.logoImage)
+  if (hasLogo) {
     // Logo sur bandeau (fond blanc pour lisibilité)
     doc.setFillColor(255, 255, 255)
     doc.roundedRect(158, 4, 40, 20, 2, 2, 'F')
     embedCompanyLogo(doc, company.logoImage, { x: 160, y: 6, maxW: 36, maxH: 16 })
   }
-  doc.setTextColor(...INK)
-  doc.setFontSize(9)
-  const co = company.raisonSociale || 'ClimaZEN'
-  doc.setFont('helvetica', 'bold')
-  doc.text(co, 18, 38)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...MUTED)
-  let y = 44
-  const bits = [company.adresse, company.telephone, company.email, company.siret]
-    .map((x) => (x || '').trim())
-    .filter(Boolean)
-  if (bits.length) {
-    doc.text(bits.join(' · '), 18, y)
-    y += 8
-  } else {
-    y += 2
+
+  if (company.raisonSociale) {
+    doc.setTextColor(...INK)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(company.raisonSociale, 18, 38)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...MUTED)
+    let y = 44
+    const bits = [company.adresse, company.telephone, company.email, company.siret]
+      .map((x) => (x || '').trim())
+      .filter(Boolean)
+    if (bits.length) {
+      doc.text(bits.join(' · '), 18, y)
+      y += 8
+    } else {
+      y += 2
+    }
+    doc.setDrawColor(...LINE)
+    doc.setLineWidth(0.4)
+    doc.line(18, y, 192, y)
+    return y + 10
   }
+
   doc.setDrawColor(...LINE)
   doc.setLineWidth(0.4)
-  doc.line(18, y, 192, y)
-  return y + 10
+  doc.line(18, 36, 192, 36)
+  return 46
 }
 
 export function fileNameDevis(devis: Pick<Devis, 'numero' | 'id'>) {

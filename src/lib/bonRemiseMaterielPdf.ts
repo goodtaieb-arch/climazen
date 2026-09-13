@@ -314,22 +314,24 @@ export function buildBonRemiseMaterielPdf(opts: {
   )
   y += 12
 
-  doc.setFont('helvetica', 'bold')
-  doc.text('Société', 18, y)
-  doc.setFont('helvetica', 'normal')
-  y += 6
-  doc.text(op.raisonSociale || '—', 18, y)
-  y += 5
-  if (op.adresse) {
-    y = writeWrapped(doc, op.adresse, 18, y, w - 36, 5)
+  if (op.raisonSociale) {
+    doc.setFont('helvetica', 'bold')
+    doc.text('Société', 18, y)
+    doc.setFont('helvetica', 'normal')
+    y += 6
+    doc.text(op.raisonSociale, 18, y)
+    y += 5
+    if (op.adresse) {
+      y = writeWrapped(doc, op.adresse, 18, y, w - 36, 5)
+    }
+    const siret = op.siret ? `SIRET ${op.siret}` : ''
+    const att = op.attestationNumero ? `Attestation ${op.attestationNumero}` : ''
+    if (siret || att) {
+      y = ensureY(doc, y, 6)
+      doc.text([siret, att].filter(Boolean).join('  ·  '), 18, y)
+      y += 8
+    } else y += 3
   }
-  const siret = op.siret ? `SIRET ${op.siret}` : ''
-  const att = op.attestationNumero ? `Attestation ${op.attestationNumero}` : ''
-  if (siret || att) {
-    y = ensureY(doc, y, 6)
-    doc.text([siret, att].filter(Boolean).join('  ·  '), 18, y)
-    y += 8
-  } else y += 3
 
   doc.setFont('helvetica', 'bold')
   doc.text('Opérateur destinataire', 18, y)

@@ -185,24 +185,26 @@ async function buildRapportOtPdf(
     if (ok) titleX = margin + 24
   }
 
-  doc.setTextColor(255, 255, 255)
+doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(15)
-  doc.text('Rapport d’intervention', titleX, 12)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  const companyLine = operateur?.raisonSociale || 'ClimaZEN'
-  doc.text(companyLine, titleX, 19)
-  const companyMeta = [
-    operateur?.telephone,
-    operateur?.email,
-    operateur?.siret ? `SIRET ${operateur.siret}` : '',
-  ]
-    .filter(Boolean)
-    .join('  ·  ')
-  if (companyMeta) {
-    doc.setFontSize(7.5)
-    doc.text(companyMeta, titleX, 25)
+  doc.text('Rapport d\'intervention', titleX, 12)
+
+  if (operateur?.raisonSociale) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(operateur.raisonSociale, titleX, 19)
+    const companyMeta = [
+      operateur?.telephone,
+      operateur?.email,
+      operateur?.siret ? `SIRET ${operateur.siret}` : '',
+    ]
+      .filter(Boolean)
+      .join('  ·  ')
+    if (companyMeta) {
+      doc.setFontSize(7.5)
+      doc.text(companyMeta, titleX, 25)
+    }
   }
 
   y = 37
