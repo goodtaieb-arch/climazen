@@ -1,13 +1,13 @@
 /**
- * Version affichée à l’utilisateur — à incrémenter à CHAQUE mise en ligne.
+ * Version affichée à l'utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v268'
+export const APP_VERSION = 'v269'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-10-v268-absence-feuille-pdf'
+export const APP_BUILD = '2026-09-13-v269-absence-pdf-logo-fix'
 
-/** Pastille / bandeau « Bêta » sur le site et dans l’app. Passer à false à la sortie bêta. */
+/** Pastille / bandeau « Bêta » sur le site et dans l'app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true
 
 export const APP_VERSION_LABEL = `${APP_VERSION} · ${APP_BUILD}`
