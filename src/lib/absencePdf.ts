@@ -77,24 +77,29 @@ export function buildAbsencePdf(
   doc.setFillColor(240, 253, 250)
   doc.rect(0, 32, pageW, 8, 'F')
 
-  if (company?.logoImage) {
+  const hasLogo = Boolean(company?.logoImage)
+  const titleX = hasLogo ? margin + 26 : margin
+
+  if (hasLogo) {
     doc.setFillColor(255, 255, 255)
     doc.roundedRect(margin, 5, 22, 22, 2, 2, 'F')
-    embedCompanyLogo(doc, company.logoImage, { x: margin + 2, y: 7, maxW: 18, maxH: 18 })
+    embedCompanyLogo(doc, company!.logoImage, { x: margin + 2, y: 7, maxW: 18, maxH: 18 })
   }
 
-  const titleX = company?.logoImage ? margin + 26 : margin
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(15)
   doc.text(titleFor(statut), titleX, 13)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.text(company?.raisonSociale || 'ClimaZEN', titleX, 20)
-  const contact = [company?.telephone, company?.email].filter(Boolean).join('  ·  ')
-  if (contact) {
-    doc.setFontSize(7.5)
-    doc.text(contact, titleX, 25)
+
+  if (company?.raisonSociale) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.text(company.raisonSociale, titleX, 20)
+    const contact = [company?.telephone, company?.email].filter(Boolean).join('  ·  ')
+    if (contact) {
+      doc.setFontSize(7.5)
+      doc.text(contact, titleX, 25)
+    }
   }
 
   let y = 38
