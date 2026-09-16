@@ -63,6 +63,7 @@ export function buildAbsencePdf(
     forceStatut?: AbsenceStatut
     signatureSalarie?: string
     signatureDirection?: string
+    requireSignatures?: boolean
   },
 ): Blob {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -71,6 +72,16 @@ export function buildAbsencePdf(
   const margin = 14
   const maxW = pageW - margin * 2
   const statut = extras?.forceStatut || demande.statut
+
+  const salarieSig = extras?.signatureSalarie || demande.signatureSalarie
+  const directionSig = extras?.signatureDirection || demande.signatureDirection
+  const requireSigs = extras?.requireSignatures ?? (statut === 'validee')
+
+  if (requireSigs && (!salarieSig || !directionSig)) {
+    throw new Error(
+      `Signatures manquantes pour générer le PDF validé : ${!salarieSig ? 'salarié' : ''}${!salarieSig && !directionSig ? ' + ' : ''}${!directionSig ? 'direction' : ''}.`
+    )
+  }
 
   doc.setFillColor(26, 168, 150)
   doc.rect(0, 0, pageW, 32, 'F')
@@ -231,16 +242,16 @@ export function buildAbsencePdf(
   doc.setTextColor(100, 116, 139)
   doc.text('Signature salarié', margin + 3, signY + 5)
   doc.text('Signature direction', margin + boxW + 11, signY + 5)
-  if (extras?.signatureSalarie) {
-    embedCompanyLogo(doc, extras.signatureSalarie, {
+  if (salarieSig) {
+    embedCompanyLogo(doc, salarieSig, {
       x: margin + 8,
       y: signY + 8,
       maxW: 42,
       maxH: 16,
     })
   }
-  if (extras?.signatureDirection) {
-    embedCompanyLogo(doc, extras.signatureDirection, {
+  if (directionSig) {
+    embedCompanyLogo(doc, directionSig, {
       x: margin + boxW + 16,
       y: signY + 8,
       maxW: 42,

@@ -250,12 +250,13 @@ type Store = {
   ) => string
   /** Tech envoie la feuille à la direction. */
   soumettreDemandeAbsence: (id: string) => void
-  /** Direction valide ou refuse ; si validée → pose agenda + décrémente solde. */
+  /** Direction valide ou refuse ; si validée → pose agenda + décrémente solde.
+   * Retourne false (sans rien changer) si la validation est demandée sans les deux signatures. */
   decideDemandeAbsence: (
     id: string,
     decision: 'validee' | 'refusee',
-    opts?: { userId?: string; userName?: string; motifRefus?: string },
-  ) => void
+    opts?: { userId?: string; userName?: string; motifRefus?: string; signatureDirection?: string },
+  ) => boolean
   /** Tech annule une demande encore en attente / brouillon. */
   annulerDemandeAbsence: (id: string) => void
   /** Crée / met à jour une validation humaine IA (notif responsable secteur). */
@@ -2118,8 +2119,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (
       id: string,
       decision: 'validee' | 'refusee',
-      opts?: { userId?: string; userName?: string; motifRefus?: string },
+      opts?: { userId?: string; userName?: string; motifRefus?: string; signatureDirection?: string },
     ) => {
+      // Pré-vérification synchrone (setData est asynchrone : on ne peut pas lire son
+      // résultat après coup) — le blocage réel se rejoue ensuite dans l'updater ci-dessous.
+      const demCheck = (data.demandesAbsence || []).find((x) => x.id === id)
+      if (!demCheck || demCheck.statut !== 'en_attente') return false
+      const directionSigCheck = demCheck.signatureDirection || opts?.signatureDirection
+      // Validation bloquée tant que les deux signatures (salarié + direction) ne sont pas réunies —
+      // vérifié ici (et pas seulement dans l'UI) pour que tout appelant soit bloqué, sans exception.
+      if (decision === 'validee' && (!demCheck.signatureSalarie || !directionSigCheck)) return false
+
       const now = new Date().toISOString()
       setData((d) => {
         const list = d.demandesAbsence || []
@@ -2144,6 +2154,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ),
           }
         }
+
+        const directionSig = dem.signatureDirection || opts?.signatureDirection
+        if (!dem.signatureSalarie || !directionSig) return d
 
         const agendaPayload = buildAgendaFromDemande(dem)
         const agendaList = d.agendaEvents || []
@@ -2201,14 +2214,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   decidedByUserId: opts?.userId,
                   decidedByName: opts?.userName,
                   motifRefus: undefined,
+                  signatureDirection: directionSig,
+                  signatureDirectionAt: x.signatureDirectionAt || now,
                   updatedAt: now,
                 }
               : x,
           ),
         }
       })
+      return true
     },
-    [],
+    [data],
   )
 
   const upsertAiPendingValidation = useCallback(

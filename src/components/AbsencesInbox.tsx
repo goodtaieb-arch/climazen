@@ -19,7 +19,7 @@ export function AbsencesInbox() {
   const { user, isOwner } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const pending = demandesEnAttente(data.demandesAbsence)
-  const [preview, setPreview] = useState<{ url: string; id: string } | null>(null)
+  const [preview, setPreview] = useState<{ url: string; id: string; signatureDirection: string } | null>(null)
 
   useEffect(() => {
     return () => {
@@ -31,18 +31,30 @@ export function AbsencesInbox() {
   if (!bureau || pending.length === 0) return null
 
   const openValidatePreview = (d: DemandeAbsence) => {
+    if (!d.signatureSalarie) {
+      alert('Le technicien doit d’abord signer sa demande — ouvrez-la depuis « Tout voir » pour envoyer la feuille.')
+      return
+    }
+    const signatureDirection = d.signatureDirection || user?.signatureImage
+    if (!signatureDirection) {
+      alert('Votre signature n’est pas configurée — ajoutez-la dans votre profil avant de valider.')
+      return
+    }
     const rendered: DemandeAbsence = {
       ...d,
       statut: 'validee',
+      signatureDirection,
       decidedByName: user?.fullName || user?.email || 'Responsable',
       decidedAt: new Date().toISOString(),
     }
     const blob = buildAbsencePdf(rendered, companyFromOperateur(data.operateur), {
       forceStatut: 'validee',
-      signatureDirection: user?.signatureImage,
+      signatureSalarie: d.signatureSalarie,
+      signatureDirection,
+      requireSignatures: true,
     })
     if (preview?.url) URL.revokeObjectURL(preview.url)
-    setPreview({ url: URL.createObjectURL(blob), id: d.id })
+    setPreview({ url: URL.createObjectURL(blob), id: d.id, signatureDirection })
   }
 
   return (
@@ -110,10 +122,15 @@ export function AbsencesInbox() {
           hint="Vérifiez logo, dates et motif avant de valider."
           confirmLabel="Valider et enregistrer"
           onConfirm={() => {
-            decideDemandeAbsence(preview.id, 'validee', {
+            const ok = decideDemandeAbsence(preview.id, 'validee', {
               userId: user?.id,
               userName: user?.fullName || user?.email,
+              signatureDirection: preview.signatureDirection,
             })
+            if (!ok) {
+              alert('Validation impossible : il manque la signature du salarié et/ou de la direction.')
+              return
+            }
             URL.revokeObjectURL(preview.url)
             setPreview(null)
           }}

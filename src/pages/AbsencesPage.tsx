@@ -24,6 +24,7 @@ import {
 import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
 import { AbsencePdfPreview } from '../components/AbsencePdfPreview'
 import { MobileFab } from '../components/MobileFab'
+import { SignaturePad } from '../components/SignaturePad'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -66,6 +67,11 @@ export function AbsencesPage() {
       createdByName: user?.fullName || user?.email,
     }),
   )
+
+  // Signature capture modal
+  const [signingFor, setSigningFor] = useState<'salarie' | 'direction' | null>(null)
+  const [signingDemandeId, setSigningDemandeId] = useState<string | null>(null)
+  const [signingMode, setSigningMode] = useState<'voir' | 'envoyer' | 'valider' | null>(null)
 
   const monDossier = useMemo(
     () => dossierForUser(data.personnelDossiers, user?.id),
@@ -175,6 +181,69 @@ export function AbsencesPage() {
     d: DemandeAbsence,
     mode: 'voir' | 'envoyer' | 'valider',
   ) => {
+    // Pour le mode 'voir' (aperçu brouillon), on génère sans exiger les signatures
+    if (mode === 'voir') {
+      const blob = buildAbsencePdf(d, companyFromOperateur(data.operateur), {
+        forceStatut: d.statut,
+        signatureSalarie: user?.id === d.technicienUserId ? user?.signatureImage : undefined,
+        signatureDirection: undefined,
+      })
+      if (preview?.url) URL.revokeObjectURL(preview.url)
+      setPreview({
+        url: URL.createObjectURL(blob),
+        mode,
+        demandeId: d.id === 'preview' ? undefined : d.id,
+      })
+      return
+    }
+
+    // Pour 'envoyer' : signature salarié auto (depuis le profil) si dispo, sinon on demande de signer
+    if (mode === 'envoyer') {
+      if (!d.signatureSalarie) {
+        if (user?.id === d.technicienUserId && user?.signatureImage) {
+          const now = new Date().toISOString()
+          const signed: DemandeAbsence = {
+            ...d,
+            signatureSalarie: user.signatureImage,
+            signatureSalarieAt: now,
+          }
+          upsertDemandeAbsence(signed)
+          d = signed
+        } else {
+          setSigningFor('salarie')
+          setSigningDemandeId(d.id)
+          setSigningMode('envoyer')
+          return
+        }
+      }
+    }
+
+    // Pour 'valider' : les deux signatures sont obligatoires (auto depuis le profil direction si dispo)
+    if (mode === 'valider') {
+      if (!d.signatureSalarie) {
+        alert('Le technicien doit signer la demande avant que vous puissiez la valider.')
+        return
+      }
+      if (!d.signatureDirection) {
+        if (user?.signatureImage) {
+          const now = new Date().toISOString()
+          const signed: DemandeAbsence = {
+            ...d,
+            signatureDirection: user.signatureImage,
+            signatureDirectionAt: now,
+          }
+          upsertDemandeAbsence(signed)
+          d = signed
+        } else {
+          setSigningFor('direction')
+          setSigningDemandeId(d.id)
+          setSigningMode('valider')
+          return
+        }
+      }
+    }
+
+    // Les signatures sont présentes, générer le PDF
     const rendered: DemandeAbsence =
       mode === 'valider'
         ? {
@@ -186,8 +255,9 @@ export function AbsencesPage() {
         : d
     const blob = buildAbsencePdf(rendered, companyFromOperateur(data.operateur), {
       forceStatut: mode === 'valider' ? 'validee' : d.statut,
-      signatureSalarie: user?.id === d.technicienUserId ? user?.signatureImage : undefined,
-      signatureDirection: mode === 'valider' ? user?.signatureImage : undefined,
+      signatureSalarie: d.signatureSalarie,
+      signatureDirection: mode === 'valider' ? d.signatureDirection : undefined,
+      requireSignatures: mode === 'valider',
     })
     if (preview?.url) URL.revokeObjectURL(preview.url)
     setPreview({
@@ -197,16 +267,59 @@ export function AbsencesPage() {
     })
   }
 
+  const saveSignature = async (signatureImage: string) => {
+    if (!signingFor || !signingDemandeId || !signingMode) return
+
+    const existing = (data.demandesAbsence || []).find((x: DemandeAbsence) => x.id === signingDemandeId)
+    if (!existing) return
+
+    const now = new Date().toISOString()
+
+    if (signingFor === 'salarie') {
+      upsertDemandeAbsence({
+        ...existing,
+        signatureSalarie: signatureImage,
+        signatureSalarieAt: now,
+      })
+    } else if (signingFor === 'direction') {
+      upsertDemandeAbsence({
+        ...existing,
+        signatureDirection: signatureImage,
+        signatureDirectionAt: now,
+      })
+    }
+
+    // Fermer le modal de signature
+    setSigningFor(null)
+    setSigningDemandeId(null)
+    const mode = signingMode
+    setSigningMode(null)
+
+    // Rouvrir le PDF avec la signature
+    const d = (data.demandesAbsence || []).find((x: DemandeAbsence) => x.id === signingDemandeId)
+    if (d) openSheet(d, mode)
+  }
+
+  const closeSignatureModal = () => {
+    setSigningFor(null)
+    setSigningDemandeId(null)
+    setSigningMode(null)
+  }
+
   const confirmPreview = () => {
     if (!preview) return
     if (preview.mode === 'envoyer' && preview.demandeId) {
       soumettreDemandeAbsence(preview.demandeId)
     }
     if (preview.mode === 'valider' && preview.demandeId) {
-      decideDemandeAbsence(preview.demandeId, 'validee', {
+      const ok = decideDemandeAbsence(preview.demandeId, 'validee', {
         userId: user?.id,
         userName: user?.fullName || user?.email,
       })
+      if (!ok) {
+        alert('Validation impossible : il manque la signature du salarié et/ou de la direction.')
+        return
+      }
     }
     closePreview()
   }
@@ -569,6 +682,40 @@ export function AbsencesPage() {
       </div>
 
       <MobileFab label="Demande" hidden={open} onClick={openCreate} />
+
+      {signingFor && signingDemandeId && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-ink/70 p-3 sm:p-6" role="dialog" aria-modal>
+          <div className="mx-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-line px-4 py-3">
+              <h2 className="font-display text-base font-semibold">
+                {signingFor === 'salarie' ? 'Signature du salarié' : 'Signature du responsable'}
+              </h2>
+              <p className="mt-1 text-xs text-muted">
+                {signingFor === 'salarie'
+                  ? 'Signez pour confirmer votre demande d\'absence avant envoi.'
+                  : 'Signez pour valider cette demande d\'absence.'}
+              </p>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <SignaturePad
+                label={signingFor === 'salarie' ? 'Votre signature' : 'Signature direction'}
+                onChange={saveSignature}
+                height={180}
+                hint="Signez avec le doigt ou un stylet"
+              />
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-line p-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeSignatureModal}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line px-4 text-sm font-semibold"
+              >
+                <X className="h-4 w-4" /> Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {preview ? (
         <AbsencePdfPreview

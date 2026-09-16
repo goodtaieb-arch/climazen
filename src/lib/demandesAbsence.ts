@@ -81,6 +81,14 @@ export interface DemandeAbsence {
   motifRefus?: string
   /** Événement agenda créé à la validation. */
   agendaEventId?: string
+  /** Signature du salarié (technicien) — data URL PNG. */
+  signatureSalarie?: string
+  /** Date de la signature salarié. */
+  signatureSalarieAt?: string
+  /** Signature du responsable (direction) — data URL PNG. */
+  signatureDirection?: string
+  /** Date de la signature direction. */
+  signatureDirectionAt?: string
   createdAt: string
   updatedAt: string
 }
