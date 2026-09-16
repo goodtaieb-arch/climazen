@@ -13,7 +13,7 @@ import type { PersonnelDossier } from './rhDocuments'
 import { matchAgenceFilter, agencesDuMembre } from './agences'
 import type { AiAssignOtSlot } from './lolaAssignOt'
 
-export type AiPendingSource = 'assistant' | 'phone' | 'voice' | 'system'
+export type AiPendingSource = 'assistant' | 'phone' | 'voice' | 'email' | 'system'
 
 export type AiPendingKind =
   | 'ot'
@@ -295,6 +295,8 @@ export function labelAiPendingSource(source: AiPendingSource): string {
   switch (source) {
     case 'phone':
       return 'Lola téléphone'
+    case 'email':
+      return 'Lola e-mail'
     case 'assistant':
       return 'Assistant site'
     case 'voice':
