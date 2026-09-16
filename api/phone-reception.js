@@ -9,12 +9,25 @@
  */
 
 import { verifySupabaseUser, userOrgProfile } from '../server/lib/supabaseServer.js'
+import handleEmailInbound from '../server/lib/emailInboundHandler.js'
 import {
   fetchVocabularyContext,
   learnFromText,
   normalizeTechnicalText,
   extractTechnicalMentions,
 } from '../server/lib/aiVocabularyCore.js'
+
+/** Hobby Vercel : 12 fonctions max — /api/email-inbound est un rewrite vers ici. */
+function isEmailInbound(req) {
+  const q = req.query && typeof req.query === 'object' ? req.query : {}
+  if (String(q.lolaEmail || '') === '1') return true
+  try {
+    const u = new URL(req.url || '', 'http://localhost')
+    return u.searchParams.get('lolaEmail') === '1'
+  } catch {
+    return String(req.url || '').includes('lolaEmail=1')
+  }
+}
 
 const SYSTEM_BASE = `Tu es Lola / l’intelligence ClimaZEN UNIQUE (téléphone ET site) pour une société de froid / climatisation.
 Tu comprends le jargon terrain (PAC, R-32, CERFA, contrôle d’étanchéité, dépannage, monobloc, chambre froide…).
@@ -47,6 +60,7 @@ Réponds en JSON strict :
 }`
 
 export default async function handler(req, res) {
+  if (isEmailInbound(req)) return handleEmailInbound(req, res)
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS')
