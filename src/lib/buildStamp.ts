@@ -2,10 +2,10 @@
  * Version affichée à l'utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v272'
+export const APP_VERSION = 'v273'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-16-v272-fix-blocage-signatures-absence'
+export const APP_BUILD = '2026-09-17-v273-email-auto-decision-absence'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l'app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true
