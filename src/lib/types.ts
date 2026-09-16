@@ -148,6 +148,12 @@ export interface Operateur {
   magasinierUserId?: string
   /** E-mail alertes tickets portail client (sinon e-mail société + gérant). */
   ticketNotificationEmail?: string
+  /**
+   * Adresse e-mail dédiée à Lola (saisie manuellement par la société — pas de
+   * provisioning auto). Lola l'utilisera pour envoyer aux clients/à l'équipe
+   * et pour recevoir puis analyser les e-mails entrants.
+   */
+  lolaEmail?: string
 }
 
 /** Plateformes de facturation les plus utilisées (via Make). */

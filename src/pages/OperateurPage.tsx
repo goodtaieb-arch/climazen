@@ -538,6 +538,17 @@ export function OperateurPage() {
           Portail GMAO : à chaque signalement client, une INT est créée et un e-mail part ici (ou
           l’e-mail société + gérant).
         </p>
+        <Field
+          label="E-mail dédié à Lola (optionnel)"
+          type="email"
+          value={form.lolaEmail || ''}
+          onChange={(v) => patchForm({ lolaEmail: v || undefined })}
+        />
+        <p className="-mt-2 text-xs text-muted">
+          Créez d’abord cette adresse chez votre hébergeur mail habituel, puis collez-la ici. Lola
+          pourra l’utiliser pour envoyer et recevoir des e-mails (clients, équipe) — connexion à
+          venir.
+        </p>
 
         <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
           <h2 className="font-display mb-1 text-base font-semibold">

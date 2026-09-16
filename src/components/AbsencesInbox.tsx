@@ -11,15 +11,23 @@ import {
   type DemandeAbsence,
 } from '../lib/demandesAbsence'
 import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
+import { sendAbsenceDecisionEmailViaClimazen } from '../lib/absenceDecisionEmail'
 import { AbsencePdfPreview } from './AbsencePdfPreview'
+import type { UserAccount } from '../lib/auth'
 
 /** Accueil bureau — demandes d’absence à trancher. */
 export function AbsencesInbox() {
   const { data, decideDemandeAbsence, peutVoirIdentitesRh } = useStore()
-  const { user, isOwner } = useAuth()
+  const { user, isOwner, listTeam } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const pending = demandesEnAttente(data.demandesAbsence)
-  const [preview, setPreview] = useState<{ url: string; id: string; signatureDirection: string } | null>(null)
+  const [preview, setPreview] = useState<{
+    url: string
+    id: string
+    signatureDirection: string
+    demande: DemandeAbsence
+  } | null>(null)
+  const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
 
   useEffect(() => {
     return () => {
@@ -28,7 +36,38 @@ export function AbsencesInbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (!bureau) return
+    let cancelled = false
+    void listTeam()
+      .then((members) => {
+        if (!cancelled) setRemoteTeam(members)
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteTeam([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [bureau, listTeam])
+
   if (!bureau || pending.length === 0) return null
+
+  const notifyDecisionByEmail = (demande: DemandeAbsence, pdf: Blob) => {
+    const to = remoteTeam.find((m) => m.id === demande.technicienUserId)?.email
+    if (!to) {
+      console.warn('E-mail salarié introuvable — notification de décision non envoyée.')
+      return
+    }
+    void sendAbsenceDecisionEmailViaClimazen({
+      to,
+      demande,
+      pdf,
+      decidedByName: user?.fullName || user?.email,
+    }).then((res) => {
+      if (!res.ok) console.error('Envoi notification absence échoué :', res.error)
+    })
+  }
 
   const openValidatePreview = (d: DemandeAbsence) => {
     if (!d.signatureSalarie) {
@@ -54,7 +93,7 @@ export function AbsencesInbox() {
       requireSignatures: true,
     })
     if (preview?.url) URL.revokeObjectURL(preview.url)
-    setPreview({ url: URL.createObjectURL(blob), id: d.id, signatureDirection })
+    setPreview({ url: URL.createObjectURL(blob), id: d.id, signatureDirection, demande: rendered })
   }
 
   return (
@@ -101,11 +140,25 @@ export function AbsencesInbox() {
                 type="button"
                 onClick={() => {
                   const motif = window.prompt('Motif du refus (optionnel) :') || ''
-                  decideDemandeAbsence(d.id, 'refusee', {
+                  const ok = decideDemandeAbsence(d.id, 'refusee', {
                     userId: user?.id,
                     userName: user?.fullName || user?.email,
                     motifRefus: motif,
                   })
+                  if (ok) {
+                    const rendered: DemandeAbsence = {
+                      ...d,
+                      statut: 'refusee',
+                      motifRefus: motif.trim() || undefined,
+                      decidedByName: user?.fullName || user?.email || 'Responsable',
+                      decidedAt: new Date().toISOString(),
+                    }
+                    const blob = buildAbsencePdf(rendered, companyFromOperateur(data.operateur), {
+                      forceStatut: 'refusee',
+                      signatureSalarie: d.signatureSalarie,
+                    })
+                    notifyDecisionByEmail(rendered, blob)
+                  }
                 }}
                 className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-rose-300 bg-rose-50 px-3 text-xs font-extrabold text-rose-900"
               >
@@ -131,7 +184,12 @@ export function AbsencesInbox() {
               alert('Validation impossible : il manque la signature du salarié et/ou de la direction.')
               return
             }
-            URL.revokeObjectURL(preview.url)
+            void fetch(preview.url)
+              .then((r) => r.blob())
+              .then((blob) => {
+                notifyDecisionByEmail(preview.demande, blob)
+                URL.revokeObjectURL(preview.url)
+              })
             setPreview(null)
           }}
           onClose={() => {

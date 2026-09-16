@@ -22,9 +22,11 @@ import {
   type DemandeAbsence,
 } from '../lib/demandesAbsence'
 import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
+import { sendAbsenceDecisionEmailViaClimazen } from '../lib/absenceDecisionEmail'
 import { AbsencePdfPreview } from '../components/AbsencePdfPreview'
 import { MobileFab } from '../components/MobileFab'
 import { SignaturePad } from '../components/SignaturePad'
+import type { UserAccount } from '../lib/auth'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -47,8 +49,9 @@ export function AbsencesPage() {
     annulerDemandeAbsence,
     peutVoirIdentitesRh,
   } = useStore()
-  const { user, isOwner } = useAuth()
+  const { user, isOwner, listTeam } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
+  const [remoteTeam, setRemoteTeam] = useState<UserAccount[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
@@ -77,6 +80,24 @@ export function AbsencesPage() {
     () => dossierForUser(data.personnelDossiers, user?.id),
     [data.personnelDossiers, user?.id],
   )
+
+  useEffect(() => {
+    if (!bureau) return
+    let cancelled = false
+    void listTeam()
+      .then((members) => {
+        if (!cancelled) setRemoteTeam(members)
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteTeam([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [bureau, listTeam])
+
+  const technicienEmailFor = (userId: string): string | undefined =>
+    remoteTeam.find((m) => m.id === userId)?.email
 
   const liste = useMemo(() => {
     if (bureau) {
@@ -306,18 +327,53 @@ export function AbsencesPage() {
     setSigningMode(null)
   }
 
+  /** Envoi auto (best-effort) du PDF de décision au salarié — n'empêche jamais la décision elle-même. */
+  const notifyDecisionByEmail = (demande: DemandeAbsence, pdf: Blob) => {
+    const to = technicienEmailFor(demande.technicienUserId)
+    if (!to) {
+      console.warn('E-mail salarié introuvable — notification de décision non envoyée.')
+      return
+    }
+    void sendAbsenceDecisionEmailViaClimazen({
+      to,
+      demande,
+      pdf,
+      decidedByName: user?.fullName || user?.email,
+    }).then((res) => {
+      if (!res.ok) console.error('Envoi notification absence échoué :', res.error)
+    })
+  }
+
   const confirmPreview = () => {
     if (!preview) return
     if (preview.mode === 'envoyer' && preview.demandeId) {
       soumettreDemandeAbsence(preview.demandeId)
     }
     if (preview.mode === 'valider' && preview.demandeId) {
+      const dem = (data.demandesAbsence || []).find((x) => x.id === preview.demandeId)
       const ok = decideDemandeAbsence(preview.demandeId, 'validee', {
         userId: user?.id,
         userName: user?.fullName || user?.email,
       })
       if (!ok) {
         alert('Validation impossible : il manque la signature du salarié et/ou de la direction.')
+        return
+      }
+      if (dem) {
+        const rendered: DemandeAbsence = {
+          ...dem,
+          statut: 'validee',
+          decidedByName: user?.fullName || user?.email || 'Responsable',
+          decidedAt: new Date().toISOString(),
+        }
+        const url = preview.url
+        setPreview(null)
+        void fetch(url)
+          .then((r) => r.blob())
+          .then((blob) => {
+            notifyDecisionByEmail(rendered, blob)
+            URL.revokeObjectURL(url)
+          })
         return
       }
     }
@@ -553,11 +609,26 @@ export function AbsencesPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            decideDemandeAbsence(refusId, 'refusee', {
+            const dem = (data.demandesAbsence || []).find((x) => x.id === refusId)
+            const ok = decideDemandeAbsence(refusId, 'refusee', {
               userId: user?.id,
               userName: user?.fullName || user?.email,
               motifRefus: refusMotif,
             })
+            if (ok && dem) {
+              const rendered: DemandeAbsence = {
+                ...dem,
+                statut: 'refusee',
+                motifRefus: refusMotif.trim() || undefined,
+                decidedByName: user?.fullName || user?.email || 'Responsable',
+                decidedAt: new Date().toISOString(),
+              }
+              const blob = buildAbsencePdf(rendered, companyFromOperateur(data.operateur), {
+                forceStatut: 'refusee',
+                signatureSalarie: dem.signatureSalarie,
+              })
+              notifyDecisionByEmail(rendered, blob)
+            }
             setRefusId(null)
           }}
           className="rounded-2xl border border-rose-200 bg-rose-50 p-4"
