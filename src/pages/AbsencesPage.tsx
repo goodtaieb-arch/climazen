@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { Eye, Plus, Send, X } from 'lucide-react'
+import { Check, Eye, Plus, Send, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useStore } from '../lib/store'
@@ -75,6 +75,7 @@ export function AbsencesPage() {
   const [signingFor, setSigningFor] = useState<'salarie' | 'direction' | null>(null)
   const [signingDemandeId, setSigningDemandeId] = useState<string | null>(null)
   const [signingMode, setSigningMode] = useState<'voir' | 'envoyer' | 'valider' | null>(null)
+  const [pendingSignature, setPendingSignature] = useState('')
 
   const monDossier = useMemo(
     () => dossierForUser(data.personnelDossiers, user?.id),
@@ -288,43 +289,38 @@ export function AbsencesPage() {
     })
   }
 
-  const saveSignature = async (signatureImage: string) => {
-    if (!signingFor || !signingDemandeId || !signingMode) return
+  const saveSignature = async () => {
+    if (!signingFor || !signingDemandeId || !signingMode || !pendingSignature) return
 
     const existing = (data.demandesAbsence || []).find((x: DemandeAbsence) => x.id === signingDemandeId)
     if (!existing) return
 
     const now = new Date().toISOString()
+    const updated: DemandeAbsence =
+      signingFor === 'salarie'
+        ? { ...existing, signatureSalarie: pendingSignature, signatureSalarieAt: now }
+        : { ...existing, signatureDirection: pendingSignature, signatureDirectionAt: now }
 
-    if (signingFor === 'salarie') {
-      upsertDemandeAbsence({
-        ...existing,
-        signatureSalarie: signatureImage,
-        signatureSalarieAt: now,
-      })
-    } else if (signingFor === 'direction') {
-      upsertDemandeAbsence({
-        ...existing,
-        signatureDirection: signatureImage,
-        signatureDirectionAt: now,
-      })
-    }
+    upsertDemandeAbsence(updated)
 
     // Fermer le modal de signature
     setSigningFor(null)
     setSigningDemandeId(null)
     const mode = signingMode
     setSigningMode(null)
+    setPendingSignature('')
 
-    // Rouvrir le PDF avec la signature
-    const d = (data.demandesAbsence || []).find((x: DemandeAbsence) => x.id === signingDemandeId)
-    if (d) openSheet(d, mode)
+    // Rouvrir le PDF avec la signature — on réutilise l'objet fraîchement mis à
+    // jour (pas `data`, dont la mise à jour via setState n'est pas encore
+    // reflétée à ce stade de l'exécution).
+    openSheet(updated, mode)
   }
 
   const closeSignatureModal = () => {
     setSigningFor(null)
     setSigningDemandeId(null)
     setSigningMode(null)
+    setPendingSignature('')
   }
 
   /** Envoi auto (best-effort) du PDF de décision au salarié — n'empêche jamais la décision elle-même. */
@@ -770,7 +766,7 @@ export function AbsencesPage() {
             <div className="flex-1 overflow-auto p-4">
               <SignaturePad
                 label={signingFor === 'salarie' ? 'Votre signature' : 'Signature direction'}
-                onChange={saveSignature}
+                onChange={setPendingSignature}
                 height={180}
                 hint="Signez avec le doigt ou un stylet"
               />
@@ -782,6 +778,14 @@ export function AbsencesPage() {
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line px-4 text-sm font-semibold"
               >
                 <X className="h-4 w-4" /> Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveSignature()}
+                disabled={!pendingSignature}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" /> Valider
               </button>
             </div>
           </div>
