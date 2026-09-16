@@ -1,5 +1,7 @@
 /**
- * Vercel Serverless — /api/email-inbound
+ * Handler e-mail Lola — PAS un fichier api/ (Hobby Vercel = 12 fonctions max).
+ * Exposé via rewrite /api/email-inbound → /api/phone-reception?lolaEmail=1
+ *
  * Webhook réception e-mail pour Lola : un e-mail arrive sur l'adresse dédiée
  * (Mon entreprise → « E-mail dédié à Lola »), Lola l'analyse et crée une
  * proposition dans la file de validation humaine (jamais d'action directe).
@@ -18,7 +20,7 @@
  * ajuster une fois le fournisseur choisi et le webhook réellement branché.
  */
 
-import { supabaseRest } from '../server/lib/supabaseServer.js'
+import { supabaseRest } from './supabaseServer.js'
 
 const DEFAULT_FROM = 'ClimaZEN <contact@climazen.fr>'
 
@@ -151,10 +153,10 @@ export default async function handler(req, res) {
 
     let aiResult = null
     try {
-      const { fetchOrgAiCredentials } = await import('../server/lib/orgOpenaiKey.js')
+      const { fetchOrgAiCredentials } = await import('./orgOpenaiKey.js')
       const creds = await fetchOrgAiCredentials(orgId)
       if (creds.apiKey) {
-        const { orgChatCompletions } = await import('../server/lib/aiProviders.js')
+        const { orgChatCompletions } = await import('./aiProviders.js')
         const system = `Tu es Lola / l'intelligence ClimaZEN (e-mail). Société de froid / climatisation.
 VALIDATION HUMAINE OBLIGATOIRE : tu proposes uniquement, tu ne crées jamais rien directement.
 Analyse cet e-mail client et réponds en JSON strict :

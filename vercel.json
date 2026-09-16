@@ -33,6 +33,10 @@
       "destination": "/api/cloud-oauth?callback=microsoft"
     },
     {
+      "source": "/api/email-inbound",
+      "destination": "/api/phone-reception?lolaEmail=1"
+    },
+    {
       "source": "/((?!api/|assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|version\\.json|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
