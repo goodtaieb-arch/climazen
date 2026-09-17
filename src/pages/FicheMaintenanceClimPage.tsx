@@ -12,6 +12,7 @@ import {
   type FicheMaintenanceClim,
 } from '../lib/ficheMaintenanceClim'
 import { buildFicheMaintenanceClimPdf } from '../lib/ficheMaintenanceClimPdf'
+import { saveGeneratedDocument } from '../lib/docStockage'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { otBaseNumero, sameOtNumero, formatOtNumero } from '../lib/ordreTravail'
 import { DecimalField } from '../components/DecimalField'
@@ -111,7 +112,7 @@ function buildPrefill(opts: {
 }
 
 export function FicheMaintenanceClimPage() {
-  const { data, upsertFicheMaintenanceClim } = useStore()
+  const { data, upsertFicheMaintenanceClim, upsertDocumentArchive } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -448,18 +449,33 @@ export function FicheMaintenanceClimPage() {
           logoImage: op.logoImage,
         },
       )
+      const fileName = `fiche-maint-clim-${form.date || today()}-${id.slice(0, 8)}.pdf`
+      const archived = await saveGeneratedDocument({
+        blob,
+        fileName,
+        kind: 'fiche',
+        clientNom: withSig.clientNom || client?.raisonSociale,
+        docId: `fiche-clim-${id}`,
+        organizationId: user?.organizationId,
+        operateur: data.operateur,
+        onArchived: upsertDocumentArchive,
+      })
+      if (!archived.ok) {
+        throw new Error(archived.message || 'Envoi de la fiche impossible.')
+      }
+
       const url = URL.createObjectURL(blob)
       setPdfUrl(url)
       upsertFicheMaintenanceClim({
         ...withSig,
         id,
         hasPdf: true,
-        pdfFileName: `fiche-maint-clim-${form.date || today()}.pdf`,
+        pdfFileName: fileName,
       })
       if (id) {
         setMarkedOk((prev) => (prev.includes(id) ? prev : [...prev, id]))
       }
-      setSavedMsg('PDF généré pour cette fiche.')
+      setSavedMsg('PDF généré et envoyé sur le cloud pour cette fiche.')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'PDF impossible')
     } finally {
@@ -529,13 +545,25 @@ export function FicheMaintenanceClimPage() {
           siret: op.siret,
           logoImage: op.logoImage,
         })
-        // blob used to validate generation; PDF is client-side only for fiche
-        void blob
+        const fileName = `fiche-maint-clim-${withSig.date || today()}-${withSig.id.slice(0, 8)}.pdf`
+        const archived = await saveGeneratedDocument({
+          blob,
+          fileName,
+          kind: 'fiche',
+          clientNom: withSig.clientNom || client?.raisonSociale,
+          docId: `fiche-clim-${withSig.id}`,
+          organizationId: user?.organizationId,
+          operateur: data.operateur,
+          onArchived: upsertDocumentArchive,
+        })
+        if (!archived.ok) {
+          throw new Error(`« ${item.label} » : ${archived.message || 'envoi de la fiche impossible.'}`)
+        }
         upsertFicheMaintenanceClim({
           ...withSig,
           id: withSig.id,
           hasPdf: true,
-          pdfFileName: `fiche-maint-clim-${withSig.date || today()}-${withSig.id.slice(0, 8)}.pdf`,
+          pdfFileName: fileName,
         })
         done += 1
       }

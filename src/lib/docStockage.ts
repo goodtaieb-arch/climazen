@@ -155,6 +155,8 @@ export async function saveGeneratedDocument(opts: {
   devisId?: string
   commandeId?: string
   absenceId?: string
+  otId?: string
+  interventionId?: string
   onArchived?: (meta: import('./documentArchive').DocumentArchive) => void
 }): Promise<SaveGeneratedDocResult> {
   const relPath = cheminRelatifDocument({
@@ -183,6 +185,8 @@ export async function saveGeneratedDocument(opts: {
       devisId: opts.devisId,
       commandeId: opts.commandeId,
       absenceId: opts.absenceId,
+      otId: opts.otId,
+      interventionId: opts.interventionId,
       createdAt: new Date().toISOString(),
       archivedAt: new Date().toISOString(),
     })

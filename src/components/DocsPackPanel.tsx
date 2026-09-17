@@ -24,6 +24,7 @@ import {
   type PackDoc,
 } from '../lib/docsPack'
 import { createPdfObjectUrl } from '../lib/cerfaPdf'
+import { saveGeneratedDocument } from '../lib/docStockage'
 import { PdfViewerModal } from './PdfViewerModal'
 
 type Props = {
@@ -53,7 +54,7 @@ export function DocsPackPanel({
   onClose,
   className = '',
 }: Props) {
-  const { data, deleteIntervention, deleteFicheMaintenanceClim } = useStore()
+  const { data, deleteIntervention, deleteFicheMaintenanceClim, upsertDocumentArchive } = useStore()
   const { user } = useAuth()
   const client = data.clients.find((c) => c.id === ot.clientId)
   const [docs, setDocs] = useState<PackDoc[]>([])
@@ -176,6 +177,36 @@ export function DocsPackPanel({
     }
   }
 
+  /**
+   * Le rapport INT n'est jamais archivé ailleurs (contrairement au CERFA / aux
+   * fiches, sauvegardés depuis leur propre page) — on l'envoie au cloud société
+   * ici, dès qu'il est effectivement enregistré ou envoyé. Best-effort : n'empêche
+   * jamais l'enregistrement local déjà en place.
+   */
+  const archiveRapportDocs = async (list: PackDoc[]) => {
+    const rapports = list.filter((d) => d.kind === 'rapport_ot')
+    for (const d of rapports) {
+      const res = await saveGeneratedDocument({
+        blob: d.blob,
+        fileName: d.fileName,
+        kind: 'rapport',
+        clientNom: client?.raisonSociale,
+        docId: `rapport-${ot.id}`,
+        otId: ot.id,
+        organizationId: user?.organizationId,
+        operateur: data.operateur,
+        onArchived: upsertDocumentArchive,
+      })
+      if (!res.ok) {
+        setError(
+          res.blocked
+            ? 'Rapport non archivé sur le cloud société : configurez un dossier cloud (Mon entreprise).'
+            : `Archivage cloud du rapport échoué : ${res.message}`,
+        )
+      }
+    }
+  }
+
   const onSave = async () => {
     if (chosen.length === 0) return
     setBusy('save')
@@ -183,6 +214,7 @@ export function DocsPackPanel({
     setHint('')
     try {
       await downloadDocsPack(chosen, zipName)
+      await archiveRapportDocs(chosen)
       setHint(
         chosen.length === 1
           ? 'PDF enregistré sur l’appareil.'
@@ -202,6 +234,7 @@ export function DocsPackPanel({
     setError('')
     setHint('')
     try {
+      await archiveRapportDocs(chosen)
       const title = `Docs ${formatOtNumero(ot.numero) || 'INT'}`
       const text = `Documents ClimaZEN — intervention ${formatOtNumero(ot.numero) || ot.numero}`
       const shareResult = await shareDocsPack({

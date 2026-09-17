@@ -15,6 +15,7 @@ import {
   type PeriodeChaufferie,
 } from '../lib/ficheMaintenanceChaufferie'
 import { buildFicheMaintenanceChaufferiePdf } from '../lib/ficheMaintenanceChaufferiePdf'
+import { saveGeneratedDocument } from '../lib/docStockage'
 import { nextNumeroIntervention } from '../lib/numeroIntervention'
 import { formatOtNumero } from '../lib/ordreTravail'
 import { DecimalField } from '../components/DecimalField'
@@ -41,7 +42,7 @@ function setMesure(
 }
 
 export function FicheMaintenanceChaufferiePage() {
-  const { data, upsertFicheMaintenanceChaufferie } = useStore()
+  const { data, upsertFicheMaintenanceChaufferie, upsertDocumentArchive } = useStore()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -218,6 +219,19 @@ export function FicheMaintenanceChaufferiePage() {
         logoImage: op?.logoImage,
       })
       const fileName = `fiche-maint-chaufferie-${fiche.date || today()}-${id.slice(0, 8)}.pdf`
+      const archived = await saveGeneratedDocument({
+        blob,
+        fileName,
+        kind: 'fiche',
+        clientNom: fiche.clientNom || client?.raisonSociale,
+        docId: `fiche-chaufferie-${id}`,
+        organizationId: user?.organizationId,
+        operateur: data.operateur,
+        onArchived: upsertDocumentArchive,
+      })
+      if (!archived.ok) {
+        throw new Error(archived.message || 'Envoi de la fiche impossible.')
+      }
       upsertFicheMaintenanceChaufferie({
         ...fiche,
         id,
@@ -226,7 +240,7 @@ export function FicheMaintenanceChaufferiePage() {
       })
       if (pdfUrl) URL.revokeObjectURL(pdfUrl)
       setPdfUrl(URL.createObjectURL(blob))
-      setSavedMsg('PDF généré.')
+      setSavedMsg('PDF généré et envoyé sur le cloud.')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'PDF impossible')
     } finally {
