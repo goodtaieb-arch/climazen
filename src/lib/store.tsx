@@ -31,6 +31,7 @@ import {
   type DemandeAbsence,
 } from './demandesAbsence'
 import { emptyData, loadData, saveData, seedDemoData } from './storage'
+import { logAudit } from './auditLog'
 import { seedSandboxData, sandboxDataLooksEmpty } from './seedSandboxData'
 import { isSandboxTestEmail } from './sandboxAccount'
 import {
@@ -1347,6 +1348,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ) => {
       const id = o.id ?? uuid()
       const now = new Date().toISOString()
+      // Snapshot pris avant setData (async) — sert uniquement à détecter un vrai
+      // changement de statut pour le journal d'audit, pas à la mutation elle-même.
+      const before = (data.ordresTravail || []).find((x) => x.id === id)
       setData((d) => {
         const list = d.ordresTravail || []
         const existing = list.find((x) => x.id === id)
@@ -1368,9 +1372,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             : [...list, next],
         }
       })
+      if (before && before.statut !== o.statut) {
+        logAudit({
+          organizationId: orgId,
+          actorUserId: user?.id,
+          actorName: user?.fullName || user?.email,
+          action: 'ot.statut',
+          entityType: 'ordre_travail',
+          entityId: id,
+          summary: `OT ${before.numero || id.slice(0, 8)} : ${before.statut} → ${o.statut}`,
+          metadata: { from: before.statut, to: o.statut },
+        })
+      }
       return id
     },
-    [],
+    [data, orgId, user],
   )
 
   const deleteOrdreTravail = useCallback((id: string) => {
@@ -2222,9 +2238,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         }
       })
+      logAudit({
+        organizationId: orgId,
+        actorUserId: opts?.userId,
+        actorName: opts?.userName,
+        action: 'absence.decision',
+        entityType: 'demande_absence',
+        entityId: id,
+        summary: `Absence de ${demCheck.technicienName || 'salarié'} (${demCheck.dateDebut} → ${demCheck.dateFin}) — ${decision === 'validee' ? 'validée' : 'refusée'} par ${opts?.userName || 'responsable'}`,
+        metadata: { decision, motifRefus: opts?.motifRefus },
+      })
       return true
     },
-    [data],
+    [data, orgId],
   )
 
   const upsertAiPendingValidation = useCallback(
