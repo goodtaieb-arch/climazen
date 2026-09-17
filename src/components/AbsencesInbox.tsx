@@ -10,14 +10,15 @@ import {
   titreDemandeAbsence,
   type DemandeAbsence,
 } from '../lib/demandesAbsence'
-import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
+import { absencePdfFileName, buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
 import { sendAbsenceDecisionEmailViaClimazen } from '../lib/absenceDecisionEmail'
+import { saveGeneratedDocument } from '../lib/docStockage'
 import { AbsencePdfPreview } from './AbsencePdfPreview'
 import type { UserAccount } from '../lib/auth'
 
 /** Accueil bureau — demandes d’absence à trancher. */
 export function AbsencesInbox() {
-  const { data, decideDemandeAbsence, peutVoirIdentitesRh } = useStore()
+  const { data, decideDemandeAbsence, upsertDocumentArchive, peutVoirIdentitesRh } = useStore()
   const { user, isOwner, listTeam } = useAuth()
   const bureau = isBureauUi({ isOwner: Boolean(isOwner), peutVoirIdentitesRh })
   const pending = demandesEnAttente(data.demandesAbsence)
@@ -66,6 +67,28 @@ export function AbsencesInbox() {
       decidedByName: user?.fullName || user?.email,
     }).then((res) => {
       if (!res.ok) console.error('Envoi notification absence échoué :', res.error)
+    })
+  }
+
+  /** Archive le certificat final (validé/refusé) sur le cloud société — jamais gardé qu'en mémoire. */
+  const archiveDecisionPdf = (demande: DemandeAbsence, pdf: Blob) => {
+    void saveGeneratedDocument({
+      blob: pdf,
+      fileName: absencePdfFileName(demande),
+      kind: 'absence',
+      docId: `absence-${demande.id}`,
+      organizationId: user?.organizationId,
+      operateur: data.operateur,
+      absenceId: demande.id,
+      onArchived: upsertDocumentArchive,
+    }).then((res) => {
+      if (!res.ok) {
+        alert(
+          res.blocked
+            ? 'Certificat d’absence non archivé : configurez un dossier cloud société (Mon entreprise).'
+            : `Archivage du certificat d’absence échoué : ${res.message}`,
+        )
+      }
     })
   }
 
@@ -158,6 +181,7 @@ export function AbsencesInbox() {
                       signatureSalarie: d.signatureSalarie,
                     })
                     notifyDecisionByEmail(rendered, blob)
+                    archiveDecisionPdf(rendered, blob)
                   }
                 }}
                 className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-rose-300 bg-rose-50 px-3 text-xs font-extrabold text-rose-900"
@@ -188,6 +212,7 @@ export function AbsencesInbox() {
               .then((r) => r.blob())
               .then((blob) => {
                 notifyDecisionByEmail(preview.demande, blob)
+                archiveDecisionPdf(preview.demande, blob)
                 URL.revokeObjectURL(preview.url)
               })
             setPreview(null)

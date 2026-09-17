@@ -21,8 +21,9 @@ import {
   type AbsenceType,
   type DemandeAbsence,
 } from '../lib/demandesAbsence'
-import { buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
+import { absencePdfFileName, buildAbsencePdf, companyFromOperateur } from '../lib/absencePdf'
 import { sendAbsenceDecisionEmailViaClimazen } from '../lib/absenceDecisionEmail'
+import { saveGeneratedDocument } from '../lib/docStockage'
 import { AbsencePdfPreview } from '../components/AbsencePdfPreview'
 import { MobileFab } from '../components/MobileFab'
 import { SignaturePad } from '../components/SignaturePad'
@@ -47,6 +48,7 @@ export function AbsencesPage() {
     soumettreDemandeAbsence,
     decideDemandeAbsence,
     annulerDemandeAbsence,
+    upsertDocumentArchive,
     peutVoirIdentitesRh,
   } = useStore()
   const { user, isOwner, listTeam } = useAuth()
@@ -340,6 +342,28 @@ export function AbsencesPage() {
     })
   }
 
+  /** Archive le certificat final (validé/refusé) sur le cloud société — jamais gardé qu'en mémoire. */
+  const archiveDecisionPdf = (demande: DemandeAbsence, pdf: Blob) => {
+    void saveGeneratedDocument({
+      blob: pdf,
+      fileName: absencePdfFileName(demande),
+      kind: 'absence',
+      docId: `absence-${demande.id}`,
+      organizationId: user?.organizationId,
+      operateur: data.operateur,
+      absenceId: demande.id,
+      onArchived: upsertDocumentArchive,
+    }).then((res) => {
+      if (!res.ok) {
+        alert(
+          res.blocked
+            ? 'Certificat d’absence non archivé : configurez un dossier cloud société (Mon entreprise) — le document n’est pour l’instant nulle part sauf à l’écran.'
+            : `Archivage du certificat d’absence échoué : ${res.message}`,
+        )
+      }
+    })
+  }
+
   const confirmPreview = () => {
     if (!preview) return
     if (preview.mode === 'envoyer' && preview.demandeId) {
@@ -368,6 +392,7 @@ export function AbsencesPage() {
           .then((r) => r.blob())
           .then((blob) => {
             notifyDecisionByEmail(rendered, blob)
+            archiveDecisionPdf(rendered, blob)
             URL.revokeObjectURL(url)
           })
         return
@@ -624,6 +649,7 @@ export function AbsencesPage() {
                 signatureSalarie: dem.signatureSalarie,
               })
               notifyDecisionByEmail(rendered, blob)
+              archiveDecisionPdf(rendered, blob)
             }
             setRefusId(null)
           }}

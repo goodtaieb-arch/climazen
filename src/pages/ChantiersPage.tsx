@@ -633,10 +633,13 @@ export function ChantiersPage() {
         for (const draft of drafts) {
           const blob = await buildCerfaPdf({ draft, client, chantier: s })
           const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
-          await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
+          const archived = await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
             ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
             onArchived: upsertDocumentArchive,
           })
+          if (!archived.ok) {
+            throw new Error(archived.message || 'Envoi du CERFA impossible.')
+          }
           upsertIntervention({
             ...draft,
             hasCerfaPdf: true,
@@ -682,10 +685,13 @@ export function ChantiersPage() {
       for (const draft of drafts) {
         const blob = await buildCerfaPdf({ draft, client, chantier: s })
         const fileName = `CERFA-15497-04-${draft.dateIntervention}-${draft.id.slice(0, 8)}.pdf`
-        await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
+        const archived = await saveCerfaPdf(draft.id, blob, fileName, user.organizationId, {
           ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
           onArchived: upsertDocumentArchive,
         })
+        if (!archived.ok) {
+          throw new Error(archived.message || 'Envoi du CERFA impossible.')
+        }
         upsertIntervention({
           ...draft,
           hasCerfaPdf: true,

@@ -4,18 +4,31 @@
  * Le site ne garde que le chemin + métadonnées. Le bureau télécharge via l’app.
  */
 
-import type { DocKind } from './docStockage'
-import { cheminRelatifDocument, resolveServeurPriveBase, type OperateurDocsStockage } from './docStockage'
+import type { DocKind, DocsStockageMode } from './docStockage'
+import {
+  cheminRelatifDocument,
+  resolveDocsStockageMode,
+  resolveServeurPriveBase,
+  type OperateurDocsStockage,
+} from './docStockage'
+
+/** Provider réel ayant reçu le fichier — 'nas' pour le serveur privé société. */
+export type DocumentProvider = 'nas' | 'google' | 'microsoft'
 
 export type DocumentArchive = {
   id: string
   kind: DocKind
   fileName: string
+  /** Chemin relatif — sens NAS uniquement ; conservé pour compat/affichage. */
   relPath: string
+  /** URL réelle du document sur le cloud (Drive/OneDrive) — absente en mode NAS. */
+  url?: string
+  provider?: DocumentProvider
   interventionId?: string
   otId?: string
   devisId?: string
   commandeId?: string
+  absenceId?: string
   clientId?: string
   createdAt: string
   createdByUserId?: string
@@ -56,6 +69,7 @@ export function findArchive(opts: {
   interventionId?: string
   devisId?: string
   commandeId?: string
+  absenceId?: string
   relPath?: string
   kind?: DocKind
 }): DocumentArchive | undefined {
@@ -70,6 +84,10 @@ export function findArchive(opts: {
   }
   if (opts.commandeId) {
     const hit = list.find((a) => a.commandeId === opts.commandeId)
+    if (hit) return hit
+  }
+  if (opts.absenceId) {
+    const hit = list.find((a) => a.absenceId === opts.absenceId)
     if (hit) return hit
   }
   if (opts.relPath) return list.find((a) => a.relPath === opts.relPath)
@@ -96,6 +114,9 @@ export function mergeArchive(
     if (meta.commandeId && a.commandeId === meta.commandeId && a.kind === meta.kind) {
       return false
     }
+    if (meta.absenceId && a.absenceId === meta.absenceId && a.kind === meta.kind) {
+      return false
+    }
     return true
   })
   return [...next, { ...meta, archivedAt: meta.archivedAt || new Date().toISOString() }]
@@ -119,6 +140,7 @@ export function buildArchiveMeta(opts: {
   otId?: string
   devisId?: string
   commandeId?: string
+  absenceId?: string
   clientId?: string
   createdByUserId?: string
 }): DocumentArchive {
@@ -136,6 +158,7 @@ export function buildArchiveMeta(opts: {
     otId: opts.otId,
     devisId: opts.devisId,
     commandeId: opts.commandeId,
+    absenceId: opts.absenceId,
     clientId: opts.clientId,
     createdAt: new Date().toISOString(),
     createdByUserId: opts.createdByUserId,
@@ -153,7 +176,7 @@ function assertSafeRelPath(relPath: string): string {
   return p
 }
 
-async function blobToBase64(blob: Blob): Promise<string> {
+export async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer()
   const bytes = new Uint8Array(buf)
   let bin = ''
@@ -226,6 +249,84 @@ export async function putDocumentExterne(opts: {
   return {
     ok: res.ok,
     message: res.message || (res.ok ? `Archivé : ${relPath}` : 'Archive impossible.'),
+  }
+}
+
+/** Segments de dossier (sans le nom de fichier) — pour l'upload cloud Drive/Graph. */
+function segmentsFromRelPath(relPath: string): string[] {
+  const parts = relPath.split('/').filter(Boolean)
+  return parts.slice(0, -1)
+}
+
+export async function putDocumentCloudOauth(opts: {
+  operateur?: OperateurDocsStockage | null
+  relPath: string
+  blob: Blob
+}): Promise<{ ok: boolean; message: string; url?: string; provider?: DocumentProvider }> {
+  const relPath = assertSafeRelPath(opts.relPath)
+  const segments = segmentsFromRelPath(relPath)
+  const fileName = relPath.split('/').pop() || 'document.pdf'
+  const contentBase64 = await blobToBase64(opts.blob)
+  const folderUrl = opts.operateur?.lienCloudDocsRacine || opts.operateur?.lienCloudRhRacine || ''
+
+  const { getSupabase } = await import('./supabase')
+  const sb = getSupabase()
+  const { data: sessionData } = await sb.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) {
+    return { ok: false, message: 'Session expirée — reconnectez-vous.' }
+  }
+
+  const res = await fetch('/api/cloud-oauth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      action: 'upload',
+      folderUrl,
+      segments,
+      fileName,
+      contentType: opts.blob.type || 'application/pdf',
+      contentBase64,
+    }),
+  })
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean
+    message?: string
+    url?: string
+    provider?: DocumentProvider
+  }
+  if (!res.ok || !data.ok) {
+    return { ok: false, message: data.message || `Envoi cloud impossible (${res.status}).` }
+  }
+  return { ok: true, message: data.message || 'Document envoyé sur le cloud.', url: data.url, provider: data.provider }
+}
+
+/**
+ * Point d'entrée unique : route vers le NAS ou le cloud OAuth selon la config
+ * société, ou bloque proprement si rien n'est configuré (jamais de document
+ * qui ne part nulle part).
+ */
+export async function putDocumentAuto(opts: {
+  operateur?: OperateurDocsStockage | null
+  relPath: string
+  blob: Blob
+}): Promise<{ ok: boolean; blocked?: boolean; message: string; url?: string; provider?: DocumentProvider }> {
+  const mode: DocsStockageMode = resolveDocsStockageMode(opts.operateur)
+
+  if (mode === 'prive') {
+    const res = await putDocumentExterne(opts)
+    return { ...res, provider: res.ok ? 'nas' : undefined }
+  }
+
+  if (mode === 'cloud') {
+    return putDocumentCloudOauth(opts)
+  }
+
+  return {
+    ok: false,
+    blocked: true,
+    message:
+      'Aucun stockage cloud configuré (Mon entreprise → Dossier cloud société). Configurez-le avant de générer ce document.',
   }
 }
 

@@ -1166,10 +1166,13 @@ export function InterventionFormPage() {
       client,
       chantier,
     })
-    await saveCerfaPdf(savedId, blob, fileName, user?.organizationId, {
+    const archived = await saveCerfaPdf(savedId, blob, fileName, user?.organizationId, {
       ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
       onArchived: upsertDocumentArchive,
     })
+    if (!archived.ok) {
+      throw new Error(archived.message || 'Envoi du CERFA impossible.')
+    }
 
     if (pdfUrl) URL.revokeObjectURL(pdfUrl)
     const url = URL.createObjectURL(blob)
@@ -1330,10 +1333,13 @@ export function InterventionFormPage() {
         }
         upsertIntervention(fullDraft)
         const blob = await buildCerfaPdf({ draft: fullDraft, client, chantier })
-        await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId, {
+        const archived = await saveCerfaPdf(draft.id, blob, fileName, user?.organizationId, {
           ...pdfCtxFromData(data, { clientNom: client?.raisonSociale }),
           onArchived: upsertDocumentArchive,
         })
+        if (!archived.ok) {
+          throw new Error(`« ${item.label} » : ${archived.message || 'envoi du CERFA impossible.'}`)
+        }
         done += 1
       }
 

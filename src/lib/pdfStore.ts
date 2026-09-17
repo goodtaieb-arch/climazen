@@ -8,7 +8,7 @@ import {
 import {
   findArchive,
   getDocumentExterne,
-  putDocumentExterne,
+  putDocumentAuto,
   type DocumentArchive,
 } from './documentArchive'
 
@@ -37,14 +37,14 @@ export async function saveCerfaPdf(
   fileName: string,
   _organizationId?: string | null,
   opts?: PdfStoreCtx & { onArchived?: (meta: DocumentArchive) => void },
-): Promise<{ ok: boolean; message: string; relPath?: string }> {
+): Promise<{ ok: boolean; blocked?: boolean; message: string; relPath?: string; url?: string }> {
   const kind = opts?.kind || 'cerfa'
   const relPath = cheminRelatifDocument({
     kind,
     fileName,
     clientNom: opts?.clientNom,
   })
-  const put = await putDocumentExterne({
+  const put = await putDocumentAuto({
     operateur: opts?.operateur,
     relPath,
     blob,
@@ -55,6 +55,8 @@ export async function saveCerfaPdf(
       kind,
       fileName,
       relPath,
+      url: put.url,
+      provider: put.provider,
       interventionId,
       createdAt: new Date().toISOString(),
       archivedAt: new Date().toISOString(),

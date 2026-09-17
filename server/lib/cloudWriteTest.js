@@ -58,7 +58,7 @@ export function detectCloudProviderFromUrl(href) {
   return ''
 }
 
-async function readError(res) {
+export async function readError(res) {
   const text = await res.text().catch(() => '')
   try {
     const json = JSON.parse(text)
@@ -158,7 +158,7 @@ async function deleteGoogleFile(accessToken, fileId) {
 // ---------------------------------------------------------------------------
 
 /** Résout le dossier ciblé par un lien de partage → { driveId, itemId }. */
-async function resolveGraphFolder(accessToken, shareUrl) {
+export async function resolveGraphFolder(accessToken, shareUrl) {
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/shares/${graphShareId(shareUrl)}/driveItem?$select=id,name,folder,parentReference`,
     { headers: { Authorization: `Bearer ${accessToken}` } },

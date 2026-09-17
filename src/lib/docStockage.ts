@@ -16,6 +16,7 @@ export type DocKind =
   | 'fiche'
   | 'rapport'
   | 'bon'
+  | 'absence'
   | 'autre'
 
 export const CLOUD_DOCS_ROOT = 'ClimaZEN'
@@ -28,6 +29,7 @@ export const DOC_KIND_FOLDER: Record<DocKind, string> = {
   fiche: 'Fiches',
   rapport: 'Rapports',
   bon: 'Bons',
+  absence: 'Absences',
   autre: 'Autres',
 }
 
@@ -123,17 +125,22 @@ export function resolveServeurPriveBase(op?: OperateurDocsStockage | null): stri
 }
 
 export type SaveGeneratedDocResult = {
+  ok: boolean
   mode: DocsStockageMode
   relPath: string
   supabaseOk: boolean
   priveOk?: boolean
+  /** Configuration absente : rien n'a été envoyé nulle part, à traiter comme un échec bloquant. */
+  blocked?: boolean
+  url?: string
   message: string
   openedCloud?: boolean
 }
 
 /**
- * Enregistre un PDF généré : uniquement hors site (NAS / serveur privé).
- * Pas d’IndexedDB, pas de bucket ClimaZEN — le bureau récupère le fichier via l’app.
+ * Enregistre un PDF généré : NAS (serveur privé) ou cloud société (Drive/OneDrive)
+ * selon la configuration — jamais gardé uniquement en mémoire navigateur.
+ * Bloque proprement (aucun téléchargement de repli) si rien n'est configuré.
  */
 export async function saveGeneratedDocument(opts: {
   blob: Blob
@@ -147,6 +154,7 @@ export async function saveGeneratedDocument(opts: {
   alsoDownload?: boolean
   devisId?: string
   commandeId?: string
+  absenceId?: string
   onArchived?: (meta: import('./documentArchive').DocumentArchive) => void
 }): Promise<SaveGeneratedDocResult> {
   const relPath = cheminRelatifDocument({
@@ -155,9 +163,10 @@ export async function saveGeneratedDocument(opts: {
     year: opts.year,
     clientNom: opts.clientNom,
   })
+  const mode = resolveDocsStockageMode(opts.operateur)
 
-  const { putDocumentExterne } = await import('./documentArchive')
-  const put = await putDocumentExterne({
+  const { putDocumentAuto } = await import('./documentArchive')
+  const put = await putDocumentAuto({
     operateur: opts.operateur,
     relPath,
     blob: opts.blob,
@@ -169,25 +178,31 @@ export async function saveGeneratedDocument(opts: {
       kind: opts.kind,
       fileName: opts.fileName,
       relPath,
+      url: put.url,
+      provider: put.provider,
       devisId: opts.devisId,
       commandeId: opts.commandeId,
+      absenceId: opts.absenceId,
       createdAt: new Date().toISOString(),
       archivedAt: new Date().toISOString(),
     })
   }
 
-  if (opts.alsoDownload || !put.ok) {
+  // Un échec bloquant (rien configuré) ne déclenche jamais de repli local — le
+  // document ne doit pas « exister quand même » en dehors de tout suivi.
+  if (!put.blocked && (opts.alsoDownload || !put.ok)) {
     downloadBlob(opts.blob, opts.fileName)
   }
 
   return {
-    mode: 'prive',
+    ok: put.ok,
+    mode,
     relPath,
     supabaseOk: false,
     priveOk: put.ok,
-    message: put.ok
-      ? `Document archivé hors site (${relPath}). Ouvert depuis l’app, pas depuis le NAS.`
-      : put.message,
+    blocked: put.blocked,
+    url: put.url,
+    message: put.ok ? `Document envoyé (${put.provider === 'nas' ? relPath : put.url || relPath}).` : put.message,
   }
 }
 

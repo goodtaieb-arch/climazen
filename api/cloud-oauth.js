@@ -5,6 +5,7 @@
  *   POST { action: 'start' }   → URL d’autorisation OAuth2 (Google / Microsoft)
  *   POST { action: 'disconnect' }
  *   POST { action: 'test-write' } → crée test-climazen.txt puis le supprime
+ *   POST { action: 'upload' }     → envoie un vrai document (dossier créé si besoin)
  *
  * Les callbacks /api/auth/google/callback et /api/auth/microsoft/callback sont
  * servis par cette même fonction (rewrites vercel.json → ?callback=…) : le plan
@@ -16,6 +17,7 @@ import { handleOauthCallback } from '../server/lib/cloudOauthCallback.js'
 import { getSupabaseConfig } from '../server/lib/supabaseServer.js'
 import {
   buildAuthorizeUrl,
+  cloudProviderLabel,
   createOauthState,
   deleteCloudConnection,
   getAccessToken,
@@ -35,6 +37,25 @@ import {
   runMicrosoftWriteTest,
   TEST_FILE_NAME,
 } from '../server/lib/cloudWriteTest.js'
+import {
+  ensureGoogleFolderPath,
+  ensureGraphFolderPath,
+  resolveGraphFolder,
+  uploadGoogleFile,
+  uploadMicrosoftFile,
+} from '../server/lib/cloudUpload.js'
+
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+
+function normalizeSegments(raw) {
+  if (!Array.isArray(raw)) return null
+  const segs = raw.map((s) => String(s || '').trim()).filter(Boolean)
+  if (segs.length === 0 || segs.length > 10) return null
+  for (const s of segs) {
+    if (s.length > 100 || /[\\/]|\.\./.test(s)) return null
+  }
+  return segs
+}
 
 function normalizeHttpsUrl(raw) {
   const s = String(raw || '').trim()
@@ -159,6 +180,101 @@ async function handleTestWrite(res, auth, body) {
   }
 }
 
+/**
+ * Upload réel d'un document généré (PDF…) vers le cloud connecté, avec création
+ * de l'arborescence de dossiers si besoin. Ouvert à tout membre authentifié de
+ * la société (pas réservé au gérant) : n'importe qui génère des documents.
+ */
+async function handleUpload(res, auth, body) {
+  const segments = normalizeSegments(body.segments)
+  const fileName = String(body.fileName || '').trim()
+  const contentType = String(body.contentType || 'application/octet-stream').trim()
+  const contentBase64 = String(body.contentBase64 || '')
+
+  if (!segments) {
+    return res.status(400).json({ ok: false, error: 'invalid_segments', message: 'Chemin de dossier invalide.' })
+  }
+  if (!fileName || fileName.length > 200) {
+    return res.status(400).json({ ok: false, error: 'invalid_filename', message: 'Nom de fichier invalide.' })
+  }
+  if (!contentBase64) {
+    return res.status(400).json({ ok: false, error: 'missing_content', message: 'Fichier vide.' })
+  }
+  if (contentBase64.length * 0.75 > MAX_UPLOAD_BYTES) {
+    return res.status(400).json({ ok: false, error: 'too_large', message: 'Fichier trop volumineux.' })
+  }
+
+  const folderUrl = normalizeHttpsUrl(body.folderUrl)
+  const detected = detectCloudProviderFromUrl(folderUrl)
+  const provider =
+    normalizeCloudProvider(body.provider) || detected || (await seulCloudConnecte(auth.orgId))
+  if (!provider) {
+    return res.status(200).json({
+      ok: false,
+      message: 'Aucun cloud configuré — connectez Google Drive ou OneDrive dans Mon entreprise.',
+    })
+  }
+  if (!(await hasCloudConnection(auth.orgId, provider))) {
+    return res.status(200).json({
+      ok: false,
+      provider,
+      message: `${cloudProviderLabel(provider)} n’est pas connecté — connectez-le dans Mon entreprise.`,
+    })
+  }
+
+  let buffer
+  try {
+    buffer = Buffer.from(contentBase64, 'base64')
+  } catch {
+    return res.status(400).json({ ok: false, error: 'invalid_content', message: 'Contenu du fichier invalide.' })
+  }
+
+  try {
+    const token = await getAccessToken(auth.orgId, provider)
+
+    if (provider === 'google') {
+      const rootFolderId = extractGoogleDriveFolderId(folderUrl) || undefined
+      const folderId = await ensureGoogleFolderPath(token, segments, rootFolderId)
+      const result = await uploadGoogleFile(token, { folderId, fileName, contentType, buffer })
+      return res.status(200).json({
+        ok: Boolean(result.ok),
+        provider,
+        url: result.url,
+        fileId: result.fileId,
+        message: result.message,
+        detail: result.detail,
+      })
+    }
+
+    let rootLoc = {}
+    if (folderUrl) {
+      const folder = await resolveGraphFolder(token, folderUrl)
+      if (!folder.ok) {
+        return res.status(200).json({
+          ok: false,
+          provider,
+          message: 'OneDrive / SharePoint : dossier introuvable depuis ce lien.',
+          detail: folder.detail,
+        })
+      }
+      rootLoc = { driveId: folder.driveId, itemId: folder.itemId }
+    }
+    const folderLoc = await ensureGraphFolderPath(token, segments, rootLoc)
+    const result = await uploadMicrosoftFile(token, { folderLoc, fileName, contentType, buffer })
+    return res.status(200).json({
+      ok: Boolean(result.ok),
+      provider,
+      url: result.url,
+      fileId: result.fileId,
+      message: result.message,
+      detail: result.detail,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Envoi impossible.'
+    return res.status(200).json({ ok: false, provider, message: msg })
+  }
+}
+
 /** Provider du callback OAuth, injecté par les rewrites /api/auth/:provider/callback. */
 function callbackProviderOf(req) {
   try {
@@ -208,12 +324,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-    if (!auth.isOwner) {
-      return res.status(403).json({ error: 'Réservé au gérant.', code: 'owner_only' })
-    }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {}
     const action = String(body.action || 'start')
+
+    // Upload de document : tout membre authentifié de la société (génère des
+    // documents au quotidien) — pas réservé au gérant, contrairement au reste.
+    if (action === 'upload') return handleUpload(res, auth, body)
+
+    if (!auth.isOwner) {
+      return res.status(403).json({ error: 'Réservé au gérant.', code: 'owner_only' })
+    }
 
     if (action === 'start') return handleStart(req, res, auth, body)
 
