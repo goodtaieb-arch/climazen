@@ -1,6 +1,15 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronDown, ChevronRight, FileCheck2, Pencil, Plus, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  FileCheck2,
+  FileText,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
 import type { UserAccount } from '../lib/auth'
@@ -87,6 +96,9 @@ import { A2lConformiteLigne } from '../components/A2lRecupAlert'
 import { RecupJaugeBanner } from '../components/RecupJaugeBanner'
 import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
+import { buildBilanDatafluides } from '../lib/bilanDatafluides'
+import { bilanDatafluidesFilename, buildBilanDatafluidesPdf } from '../lib/bilanDatafluidesPdf'
+import { downloadBlob } from '../lib/cerfaPdf'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -362,6 +374,11 @@ export function StockPage() {
   })
   const [q, setQ] = useState('')
   const [scanHint, setScanHint] = useState('')
+  const currentYear = new Date().getFullYear()
+  const [bilanOpen, setBilanOpen] = useState(false)
+  const [bilanYear, setBilanYear] = useState(currentYear)
+  const [bilanBusy, setBilanBusy] = useState(false)
+  const [bilanError, setBilanError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -1001,6 +1018,32 @@ export function StockPage() {
   const trfBottle = trfId ? data.stock.find((s) => s.id === trfId) : null
   const perteBottle = perteId ? data.stock.find((s) => s.id === perteId) : null
 
+  const bilanYearOptions = useMemo(() => {
+    const years = new Set<number>()
+    for (const m of data.stockMouvements || []) {
+      const yy = Number((m.date || '').slice(0, 4))
+      if (yy >= 2000 && yy <= 2100) years.add(yy)
+    }
+    years.add(currentYear)
+    return [...years].sort((a, b) => b - a)
+  }, [data.stockMouvements, currentYear])
+
+  const genererBilanDatafluides = async () => {
+    setBilanBusy(true)
+    setBilanError('')
+    try {
+      const bilan = buildBilanDatafluides(data, bilanYear)
+      const blob = await buildBilanDatafluidesPdf(bilan)
+      downloadBlob(blob, bilanDatafluidesFilename(bilanYear))
+      setBilanOpen(false)
+    } catch (err) {
+      console.error(err)
+      setBilanError(err instanceof Error ? err.message : 'Impossible de générer le bilan.')
+    } finally {
+      setBilanBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -1016,6 +1059,19 @@ export function StockPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {bureau ? (
+            <button
+              type="button"
+              onClick={() => {
+                setBilanYear(currentYear)
+                setBilanError('')
+                setBilanOpen((v) => !v)
+              }}
+              className="inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink hover:bg-mist/60 md:h-11 md:min-h-0"
+            >
+              <FileText className="h-4 w-4" /> Bilan annuel fluides
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -1044,6 +1100,56 @@ export function StockPage() {
           </button>
         </div>
       </div>
+
+      {bilanOpen ? (
+        <div className="rounded-2xl border border-line bg-white p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-bold text-ink">Bilan annuel fluides</h2>
+              <p className="mt-1 max-w-2xl text-xs text-muted">
+                Récapitulatif par fluide (acheté, chargé, récupéré, transféré vers traitement, stock
+                restant, équivalent CO2) prêt à recopier sur{' '}
+                <strong className="text-ink">datafluides.fr</strong> avant le 31 janvier. Aucune API
+                publique n’existe : ce document n’est pas soumis automatiquement, il sert de brouillon /
+                justificatif — vous pouvez aussi le transmettre tel quel à votre organisme de contrôle.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBilanOpen(false)}
+              className="shrink-0 text-xs font-semibold text-muted hover:text-ink"
+            >
+              Fermer
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-semibold text-muted">Année</span>
+              <select
+                value={bilanYear}
+                onChange={(e) => setBilanYear(Number(e.target.value))}
+                className="h-11 min-w-[10rem] rounded-xl border border-line bg-white px-3 text-sm"
+              >
+                {bilanYearOptions.map((yy) => (
+                  <option key={yy} value={yy}>
+                    Année {yy}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={bilanBusy}
+              onClick={() => void genererBilanDatafluides()}
+              className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
+            >
+              <FileText className="h-4 w-4" />
+              {bilanBusy ? 'Génération…' : 'Télécharger le PDF'}
+            </button>
+          </div>
+          {bilanError ? <p className="mt-3 text-xs font-semibold text-danger">{bilanError}</p> : null}
+        </div>
+      ) : null}
 
       <SearchField
         value={q}
