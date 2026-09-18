@@ -186,13 +186,18 @@ export function OperateurPage() {
     })
   const expandAll = () => setOpenSections(new Set(SECTION_IDS))
   const collapseAll = () => setOpenSections(new Set())
-  const isOpen = (id: SectionId) =>
-    openSections.has(id) || (id === 'trackdechets' && trackdechetsIncomplete)
+  const isOpen = (id: SectionId) => openSections.has(id)
 
   useEffect(() => {
     let cancelled = false
     void fetchTrackdechetsStatus().then((res) => {
-      if (!cancelled && res?.ok) setTrackdechetsIncomplete(!res.hasToken)
+      if (cancelled || !res?.ok) return
+      const incomplete = !res.hasToken
+      setTrackdechetsIncomplete(incomplete)
+      // Ouvre la section une seule fois par défaut si incomplète — l'utilisateur
+      // reste ensuite libre de la refermer (la case "warn" continue de signaler
+      // l'état incomplet même fermée).
+      if (incomplete) setOpenSections((prev) => new Set(prev).add('trackdechets'))
     })
     return () => {
       cancelled = true
