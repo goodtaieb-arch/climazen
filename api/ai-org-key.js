@@ -15,8 +15,22 @@ import {
   clearOrgOpenaiKey,
 } from '../server/lib/orgOpenaiKey.js'
 import { normalizeAiProvider } from '../server/lib/aiProviders.js'
+import handleTrackdechetsRequest from '../server/lib/trackdechetsHandler.js'
+
+/** Hobby Vercel : 12 fonctions max — /api/trackdechets-* sont des rewrites vers ici. */
+function isTrackdechets(req) {
+  const q = req.query && typeof req.query === 'object' ? req.query : {}
+  if (String(q.service || '') === 'trackdechets') return true
+  try {
+    const u = new URL(req.url || '', 'http://localhost')
+    return u.searchParams.get('service') === 'trackdechets'
+  } catch {
+    return String(req.url || '').includes('service=trackdechets')
+  }
+}
 
 export default async function handler(req, res) {
+  if (isTrackdechets(req)) return handleTrackdechetsRequest(req, res)
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS')

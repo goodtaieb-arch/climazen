@@ -335,6 +335,16 @@ export function isFluideAdrInflammable(fluideCode: string, codeUn?: string): boo
   return false
 }
 
+/**
+ * Code déchet nomenclature déchets (annexe II C. env.) pour un fluide
+ * frigorigène usagé — même règle inflammable/non-inflammable que
+ * `isFluideAdrInflammable` (CERFA [12]). Préremplissage BSFF, toujours
+ * modifiable par l'utilisateur.
+ */
+export function defaultCodeDechet(fluideCode: string, codeUn?: string): string {
+  return isFluideAdrInflammable(fluideCode, codeUn) ? '16 05 04*' : '14 06 01*'
+}
+
 export function messageBouteilleRecupA2L(code: string): string | null {
   if (!isFluideInflammableA2LOrA3(code)) return null
   const classe = classeSecuriteFluide(code) || 'A2L'

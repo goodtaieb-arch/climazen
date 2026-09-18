@@ -57,6 +57,7 @@ import {
 } from '../lib/stockVisibilite'
 import {
   adrInfoForFluide,
+  defaultCodeDechet,
   findFluide,
   formatGwp,
   isFluideInflammableA2LOrA3,
@@ -99,6 +100,14 @@ import { StockBottleIcon } from '../components/StockBottleIcon'
 import { buildBilanDatafluides } from '../lib/bilanDatafluides'
 import { bilanDatafluidesFilename, buildBilanDatafluidesPdf } from '../lib/bilanDatafluidesPdf'
 import { downloadBlob } from '../lib/cerfaPdf'
+import {
+  createBsffOnTrackdechets,
+  fetchTrackdechetsStatus,
+  labelBsffStatus,
+  refreshBsffStatus,
+  validateBsffPayload,
+  type BsffDestinataireInfo,
+} from '../lib/trackdechets'
 
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000
@@ -287,7 +296,14 @@ function applyFluideAdr(
     }
   }
   const adr = adrInfoForFluide(fluide)
-  const withDefaults = applyBouteilleDefaults(form, fluide, force)
+  const prevCodeDechet = defaultCodeDechet(form.fluide, form.codeUn)
+  const codeDechetWasAuto = !form.codeDechet || form.codeDechet === prevCodeDechet
+  const nextCodeDechet =
+    force || codeDechetWasAuto ? defaultCodeDechet(fluide, adr?.codeUn) : form.codeDechet
+  const withDefaults = {
+    ...applyBouteilleDefaults(form, fluide, force),
+    codeDechet: nextCodeDechet,
+  }
   if (!adr) return withDefaults
   const prevAdr = adrInfoForFluide(form.fluide)
   const unWasAuto = !form.codeUn || (prevAdr && form.codeUn === prevAdr.codeUn)
@@ -355,7 +371,16 @@ export function StockPage() {
     centreDestruction: '',
     documentReference: '',
     notes: '',
+    partenaireTraitementId: undefined as string | undefined,
+    transporteurMode: 'auto' as 'auto' | 'annuaire' | 'ponctuel',
+    transporteurId: undefined as string | undefined,
+    transporteurSiretPonctuel: '',
+    transporteurNomPonctuel: '',
+    codeDechet: '',
   })
+  const [bsffBusy, setBsffBusy] = useState(false)
+  const [bsffError, setBsffError] = useState('')
+  const [bsffRefreshingId, setBsffRefreshingId] = useState<string | null>(null)
   const [trfId, setTrfId] = useState<string | null>(null)
   const [trfForm, setTrfForm] = useState({
     versEmplacement: 'vehicule' as 'atelier' | 'vehicule',
@@ -379,6 +404,17 @@ export function StockPage() {
   const [bilanYear, setBilanYear] = useState(currentYear)
   const [bilanBusy, setBilanBusy] = useState(false)
   const [bilanError, setBilanError] = useState('')
+  const [trackdechetsEnabled, setTrackdechetsEnabled] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchTrackdechetsStatus().then((res) => {
+      if (!cancelled && res?.ok) setTrackdechetsEnabled(Boolean(res.enabled))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -921,14 +957,23 @@ export function StockPage() {
 
   const openDestruction = (s: StockItem) => {
     setDestrId(s.id)
+    setBsffError('')
     setDestrForm({
       quantiteKg: Number(s.quantiteKg) || 0,
       date: today(),
       centreDestruction: '',
       documentReference: s.bsffReference || '',
       notes: '',
+      partenaireTraitementId: s.partenaireTraitementId,
+      transporteurMode: s.transporteurMode || 'auto',
+      transporteurId: s.transporteurId,
+      transporteurSiretPonctuel: s.transporteurSiretPonctuel || '',
+      transporteurNomPonctuel: s.transporteurNomPonctuel || '',
+      codeDechet: s.codeDechet || defaultCodeDechet(s.fluide, s.codeUn),
     })
   }
+
+  const destrBottle = destrId ? data.stock.find((s) => s.id === destrId) : null
 
   const submitDestruction = (e: FormEvent) => {
     e.preventDefault()
@@ -936,13 +981,130 @@ export function StockPage() {
     try {
       enregistrerDestructionBouteille({
         stockItemId: destrId,
-        ...destrForm,
+        quantiteKg: destrForm.quantiteKg,
+        date: destrForm.date,
+        centreDestruction: destrForm.centreDestruction,
+        documentReference: destrForm.documentReference,
+        notes: destrForm.notes,
         createdByName: user?.fullName || user?.email || user?.username,
       })
+      // Mémorise les valeurs par défaut Trackdéchets sur la bouteille pour la prochaine évacuation.
+      const bottle = data.stock.find((s) => s.id === destrId)
+      if (bottle) {
+        upsertStock({
+          ...bottle,
+          partenaireTraitementId: destrForm.partenaireTraitementId,
+          transporteurMode: destrForm.transporteurMode,
+          transporteurId: destrForm.transporteurId,
+          transporteurSiretPonctuel: destrForm.transporteurSiretPonctuel,
+          transporteurNomPonctuel: destrForm.transporteurNomPonctuel,
+          codeDechet: destrForm.codeDechet,
+        })
+      }
       setDestrId(null)
       setExpandedId(destrId)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erreur destruction / BSFF')
+    }
+  }
+
+  const resolveTransporteurSiret = (): string | undefined => {
+    if (destrForm.transporteurMode === 'auto') return data.operateur.siret || undefined
+    if (destrForm.transporteurMode === 'annuaire') {
+      return data.transporteurs?.find((t) => t.id === destrForm.transporteurId)?.siret
+    }
+    return destrForm.transporteurSiretPonctuel.trim() || undefined
+  }
+
+  const resolveTransporteurNom = (): string | undefined => {
+    if (destrForm.transporteurMode === 'auto') return data.operateur.raisonSociale || undefined
+    if (destrForm.transporteurMode === 'annuaire') {
+      return data.transporteurs?.find((t) => t.id === destrForm.transporteurId)?.nom
+    }
+    return destrForm.transporteurNomPonctuel.trim() || undefined
+  }
+
+  const resolveDestinataire = (): BsffDestinataireInfo | null => {
+    const p = data.partenairesTraitement?.find((x) => x.id === destrForm.partenaireTraitementId)
+    if (!p) return null
+    return {
+      nom: p.nom,
+      siret: p.siret,
+      adresse: p.adresse,
+      codeCap: p.codeCap,
+      codeOperation: p.codeOperation === 'autre' ? p.codeOperationAutre || 'autre' : p.codeOperation,
+    }
+  }
+
+  const bsffMissingFields = destrBottle
+    ? validateBsffPayload({
+        trackdechetsEnabled,
+        operateur: data.operateur,
+        numeroContenant: destrBottle.numeroContenant,
+        codeUn: destrBottle.codeUn,
+        denominationAdr: destrBottle.denominationAdr,
+        codeDechet: destrForm.codeDechet,
+        quantiteKg: destrForm.quantiteKg,
+        destinataire: resolveDestinataire(),
+        transporteurSiret: resolveTransporteurSiret(),
+      })
+    : []
+
+  const handleCreateBsff = async () => {
+    if (!destrId || !destrBottle) return
+    const destinataire = resolveDestinataire()
+    if (!destinataire || bsffMissingFields.length > 0) return
+    setBsffBusy(true)
+    setBsffError('')
+    try {
+      const res = await createBsffOnTrackdechets({
+        numeroContenant: destrBottle.numeroContenant,
+        codeDechet: destrForm.codeDechet,
+        denominationAdr: destrBottle.denominationAdr,
+        quantiteKg: destrForm.quantiteKg,
+        emitter: {
+          nom: data.operateur.raisonSociale,
+          siret: data.operateur.siret,
+          adresse: data.operateur.adresse,
+          telephone: data.operateur.telephone || undefined,
+          email: data.operateur.email || undefined,
+        },
+        destinataire,
+        transporteur: {
+          nom: resolveTransporteurNom(),
+          siret: resolveTransporteurSiret() || '',
+        },
+      })
+      if (!res.ok || !res.id) {
+        setBsffError(res.error || 'Création du BSFF impossible.')
+        return
+      }
+      setDestrForm({ ...destrForm, documentReference: res.id })
+      upsertStock({
+        ...destrBottle,
+        bsffTrackdechetsId: res.id,
+        bsffStatut: res.status,
+        bsffLastSyncAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      setBsffError(err instanceof Error ? err.message : 'Erreur Trackdéchets.')
+    } finally {
+      setBsffBusy(false)
+    }
+  }
+
+  const handleRefreshBsffStatus = async (s: StockItem) => {
+    if (!s.bsffTrackdechetsId) return
+    setBsffRefreshingId(s.id)
+    try {
+      const res = await refreshBsffStatus(s.bsffTrackdechetsId)
+      if (res.ok && res.status) {
+        upsertStock({ ...s, bsffStatut: res.status, bsffLastSyncAt: new Date().toISOString() })
+      } else if (res.error) {
+        alert(res.error)
+      }
+    } finally {
+      setBsffRefreshingId(null)
     }
   }
 
@@ -1014,7 +1176,6 @@ export function StockPage() {
   }
 
   const retourBottle = retourId ? data.stock.find((s) => s.id === retourId) : null
-  const destrBottle = destrId ? data.stock.find((s) => s.id === destrId) : null
   const trfBottle = trfId ? data.stock.find((s) => s.id === trfId) : null
   const perteBottle = perteId ? data.stock.find((s) => s.id === perteId) : null
 
@@ -1482,6 +1643,138 @@ export function StockPage() {
                   exclusivement réservé aux interventions sur le <strong>même site</strong> ou
                   le <strong>même détenteur</strong>.
                 </p>
+
+                {trackdechetsEnabled && (
+                  <div className="space-y-2 rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                    <p className="text-xs font-semibold text-teal-950">
+                      Trackdéchets (BSFF) — valeurs par défaut pour cette bouteille, modifiables au
+                      moment de l’évacuation.
+                    </p>
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-semibold text-ink">Partenaire destinataire</span>
+                      <select
+                        value={form.partenaireTraitementId || ''}
+                        onChange={(e) =>
+                          setForm({ ...form, partenaireTraitementId: e.target.value || undefined })
+                        }
+                        className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                      >
+                        <option value="">— Choisir —</option>
+                        {[...(data.partenairesTraitement || [])]
+                          .sort(
+                            (a, b) =>
+                              Number(Boolean(b.favori)) - Number(Boolean(a.favori)) ||
+                              a.nom.localeCompare(b.nom, 'fr'),
+                          )
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.favori ? '★ ' : ''}
+                              {p.nom} —{' '}
+                              {p.codeOperation === 'autre'
+                                ? p.codeOperationAutre || 'Autre'
+                                : p.codeOperation}
+                            </option>
+                          ))}
+                      </select>
+                      {(data.partenairesTraitement || []).length === 0 ? (
+                        <p className="mt-1 text-[11px] text-muted">
+                          Aucun partenaire enregistré — Mon entreprise → Partenaires de traitement.
+                        </p>
+                      ) : null}
+                    </label>
+
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-semibold text-ink">Code déchet</span>
+                      <input
+                        value={form.codeDechet || ''}
+                        onChange={(e) => setForm({ ...form, codeDechet: e.target.value })}
+                        className="h-11 w-full rounded-xl border border-line bg-white px-3 font-mono text-sm"
+                      />
+                    </label>
+
+                    <div className="space-y-1.5">
+                      <span className="mb-1 block text-sm font-semibold text-ink">Transporteur</span>
+                      <div className="flex flex-wrap gap-3 text-sm">
+                        <label className="inline-flex items-center gap-1.5">
+                          <input
+                            type="radio"
+                            name="transporteurMode"
+                            checked={(form.transporteurMode || 'auto') === 'auto'}
+                            onChange={() => setForm({ ...form, transporteurMode: 'auto' })}
+                          />
+                          Auto-transport (l’entreprise)
+                        </label>
+                        <label className="inline-flex items-center gap-1.5">
+                          <input
+                            type="radio"
+                            name="transporteurMode"
+                            checked={form.transporteurMode === 'annuaire'}
+                            onChange={() => setForm({ ...form, transporteurMode: 'annuaire' })}
+                          />
+                          Transporteur enregistré
+                        </label>
+                        <label className="inline-flex items-center gap-1.5">
+                          <input
+                            type="radio"
+                            name="transporteurMode"
+                            checked={form.transporteurMode === 'ponctuel'}
+                            onChange={() => setForm({ ...form, transporteurMode: 'ponctuel' })}
+                          />
+                          Saisie ponctuelle
+                        </label>
+                      </div>
+                      {(form.transporteurMode || 'auto') === 'auto' ? (
+                        <p className="rounded-lg bg-white px-3 py-2 text-xs text-muted">
+                          SIRET société :{' '}
+                          <strong>
+                            {data.operateur.siret || '— à renseigner dans Mon entreprise'}
+                          </strong>
+                        </p>
+                      ) : form.transporteurMode === 'annuaire' ? (
+                        <select
+                          value={form.transporteurId || ''}
+                          onChange={(e) =>
+                            setForm({ ...form, transporteurId: e.target.value || undefined })
+                          }
+                          className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                        >
+                          <option value="">— Choisir —</option>
+                          {[...(data.transporteurs || [])]
+                            .sort(
+                              (a, b) =>
+                                Number(Boolean(b.favori)) - Number(Boolean(a.favori)) ||
+                                a.nom.localeCompare(b.nom, 'fr'),
+                            )
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.favori ? '★ ' : ''}
+                                {t.nom} — {t.siret}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <input
+                            value={form.transporteurNomPonctuel || ''}
+                            onChange={(e) =>
+                              setForm({ ...form, transporteurNomPonctuel: e.target.value })
+                            }
+                            placeholder="Nom transporteur"
+                            className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                          />
+                          <input
+                            value={form.transporteurSiretPonctuel || ''}
+                            onChange={(e) =>
+                              setForm({ ...form, transporteurSiretPonctuel: e.target.value })
+                            }
+                            placeholder="SIRET *"
+                            className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -2111,6 +2404,151 @@ export function StockPage() {
               className="h-11 w-full rounded-xl border border-line bg-white px-3"
             />
           </label>
+          {trackdechetsEnabled && (
+            <div className="space-y-2 rounded-xl border border-teal-200 bg-teal-50/60 p-3 sm:col-span-2">
+              <p className="text-xs font-semibold text-teal-950">
+                Trackdéchets (BSFF) — modifiable pour cette évacuation précise.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Partenaire destinataire</span>
+                  <select
+                    value={destrForm.partenaireTraitementId || ''}
+                    onChange={(e) =>
+                      setDestrForm({
+                        ...destrForm,
+                        partenaireTraitementId: e.target.value || undefined,
+                      })
+                    }
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  >
+                    <option value="">— Choisir —</option>
+                    {[...(data.partenairesTraitement || [])]
+                      .sort(
+                        (a, b) =>
+                          Number(Boolean(b.favori)) - Number(Boolean(a.favori)) ||
+                          a.nom.localeCompare(b.nom, 'fr'),
+                      )
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.favori ? '★ ' : ''}
+                          {p.nom}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-semibold text-ink">Code déchet</span>
+                  <input
+                    value={destrForm.codeDechet}
+                    onChange={(e) => setDestrForm({ ...destrForm, codeDechet: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3 font-mono text-sm"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="mb-1 block text-sm font-semibold text-ink">Transporteur</span>
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <label className="inline-flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="destrTransporteurMode"
+                      checked={destrForm.transporteurMode === 'auto'}
+                      onChange={() => setDestrForm({ ...destrForm, transporteurMode: 'auto' })}
+                    />
+                    Auto-transport
+                  </label>
+                  <label className="inline-flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="destrTransporteurMode"
+                      checked={destrForm.transporteurMode === 'annuaire'}
+                      onChange={() => setDestrForm({ ...destrForm, transporteurMode: 'annuaire' })}
+                    />
+                    Transporteur enregistré
+                  </label>
+                  <label className="inline-flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="destrTransporteurMode"
+                      checked={destrForm.transporteurMode === 'ponctuel'}
+                      onChange={() => setDestrForm({ ...destrForm, transporteurMode: 'ponctuel' })}
+                    />
+                    Saisie ponctuelle
+                  </label>
+                </div>
+                {destrForm.transporteurMode === 'auto' ? (
+                  <p className="rounded-lg bg-white px-3 py-2 text-xs text-muted">
+                    SIRET société :{' '}
+                    <strong>{data.operateur.siret || '— à renseigner dans Mon entreprise'}</strong>
+                  </p>
+                ) : destrForm.transporteurMode === 'annuaire' ? (
+                  <select
+                    value={destrForm.transporteurId || ''}
+                    onChange={(e) =>
+                      setDestrForm({ ...destrForm, transporteurId: e.target.value || undefined })
+                    }
+                    className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                  >
+                    <option value="">— Choisir —</option>
+                    {[...(data.transporteurs || [])]
+                      .sort(
+                        (a, b) =>
+                          Number(Boolean(b.favori)) - Number(Boolean(a.favori)) ||
+                          a.nom.localeCompare(b.nom, 'fr'),
+                      )
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.favori ? '★ ' : ''}
+                          {t.nom} — {t.siret}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      value={destrForm.transporteurNomPonctuel}
+                      onChange={(e) =>
+                        setDestrForm({ ...destrForm, transporteurNomPonctuel: e.target.value })
+                      }
+                      placeholder="Nom transporteur"
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                    />
+                    <input
+                      value={destrForm.transporteurSiretPonctuel}
+                      onChange={(e) =>
+                        setDestrForm({ ...destrForm, transporteurSiretPonctuel: e.target.value })
+                      }
+                      placeholder="SIRET *"
+                      className="h-11 w-full rounded-xl border border-line bg-white px-3"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={bsffBusy || bsffMissingFields.length > 0}
+                onClick={() => void handleCreateBsff()}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {bsffBusy ? 'Création…' : 'Créer le BSFF sur Trackdéchets'}
+              </button>
+              {bsffMissingFields.length > 0 ? (
+                <p className="text-xs text-muted">
+                  Champs manquants : {bsffMissingFields.join(', ')}.
+                </p>
+              ) : null}
+              {bsffError ? <p className="text-xs font-semibold text-rose-700">{bsffError}</p> : null}
+              {destrBottle.bsffTrackdechetsId ? (
+                <p className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-teal-800">
+                  {labelBsffStatus(destrBottle.bsffStatut)}
+                </p>
+              ) : null}
+            </div>
+          )}
+
           <div className="flex gap-2 sm:col-span-2">
             <button
               type="submit"
@@ -2479,6 +2917,23 @@ export function StockPage() {
                                   </span>
                                 )
                               })()}
+                              {s.bsffTrackdechetsId && (
+                                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-teal-950">
+                                  {labelBsffStatus(s.bsffStatut)}
+                                  <button
+                                    type="button"
+                                    disabled={bsffRefreshingId === s.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      void handleRefreshBsffStatus(s)
+                                    }}
+                                    className="font-bold underline disabled:opacity-50"
+                                    title="Actualiser le statut Trackdéchets"
+                                  >
+                                    {bsffRefreshingId === s.id ? '…' : '↻'}
+                                  </button>
+                                </span>
+                              )}
                               {isFluideNonAssigne(s.fluide) && s.contenantType === 'recuperation' && (
                                 <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-800">
                                   Non assigné

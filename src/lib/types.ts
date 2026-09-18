@@ -485,6 +485,25 @@ export interface StockItem {
   bonRetourNotes?: string
   /** Date d’enregistrement du retour (ISO) */
   retourneAt?: string
+  /**
+   * Trackdéchets — valeurs par défaut pour le BSFF de cette bouteille de
+   * récupération (pré-remplissage, toujours modifiables au moment de
+   * l’évacuation). Aucune n’est requise tant que l’automatisation n’est pas
+   * activée (Mon entreprise).
+   */
+  partenaireTraitementId?: string
+  transporteurMode?: TransporteurMode
+  transporteurId?: string
+  /** SIRET saisi ponctuellement (mode « ponctuel », ou pré-rempli en mode « auto »). */
+  transporteurSiretPonctuel?: string
+  transporteurNomPonctuel?: string
+  /** Code déchet (ex. 14 06 01* ou 16 05 04*) — pré-rempli selon le fluide, éditable. */
+  codeDechet?: string
+  /** N° de bordereau retourné par Trackdéchets après création du BSFF. */
+  bsffTrackdechetsId?: string
+  /** Dernier statut connu du bordereau (brut API — INITIAL, SIGNED_BY_PRODUCER…). */
+  bsffStatut?: string
+  bsffLastSyncAt?: string
   updatedAt: string
 }
 
@@ -640,6 +659,75 @@ export interface DetecteurManuel {
   updatedAt: string
 }
 
+/**
+ * Code opération déchet — valeurs de l'enum BsffOperationCode de l'API
+ * Trackdéchets (developers.trackdechets.beta.gouv.fr), pour rester compatible
+ * avec la création automatique de BSFF.
+ */
+export type CodeOperationTraitement =
+  | 'R1'
+  | 'R2'
+  | 'R3'
+  | 'R5'
+  | 'R12'
+  | 'R13'
+  | 'D10'
+  | 'D13'
+  | 'D14'
+  | 'D15'
+  | 'autre'
+
+export const CODE_OPERATION_LABELS: Record<CodeOperationTraitement, string> = {
+  R1: 'R1 — Utilisation comme combustible',
+  R2: 'R2 — Récupération / régénération des solvants',
+  R3: 'R3 — Recyclage / régénération des matières organiques',
+  R5: 'R5 — Recyclage / régénération d’autres matières inorganiques',
+  R12: 'R12 — Échange de déchets en vue R1 à R11',
+  R13: 'R13 — Stockage préalable (valorisation)',
+  D10: 'D10 — Incinération à terre',
+  D13: 'D13 — Regroupement préalable',
+  D14: 'D14 — Reconditionnement préalable',
+  D15: 'D15 — Stockage préalable (élimination)',
+  autre: 'Autre (précisez)',
+}
+
+/**
+ * Partenaire de traitement des fluides récupérés (régénérateur, recycleur,
+ * destructeur) — annuaire société, saisi une fois et réutilisé sur chaque BSFF.
+ */
+export interface PartenaireTraitement {
+  id: string
+  nom: string
+  siret: string
+  adresse: string
+  /** Code CAP (certificat d’acceptation préalable) délivré par ce partenaire */
+  codeCap: string
+  codeOperation: CodeOperationTraitement
+  /** Précision libre si codeOperation === 'autre' */
+  codeOperationAutre?: string
+  /** Favori — pré-rempli en premier, n’empêche pas d’en choisir un autre */
+  favori?: boolean
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** Transporteur externe (annuaire société) — réutilisable sur chaque BSFF. */
+export interface TransporteurExterne {
+  id: string
+  nom: string
+  siret: string
+  adresse?: string
+  telephone?: string
+  email?: string
+  favori?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Mode de transport choisi pour l’évacuation d’une bouteille récupérée. */
+export type TransporteurMode = 'auto' | 'annuaire' | 'ponctuel'
+
 /** Véhicule de la flotte société — attribué à un technicien */
 export type VoitureDocumentId =
   | 'carte_grise'
@@ -789,6 +877,10 @@ export interface AppData {
   interventions: CerfaDraft[]
   /** Parc détecteurs manuels — un par technicien si plusieurs */
   detecteurs?: DetecteurManuel[]
+  /** Annuaire partenaires de traitement des fluides récupérés (Trackdéchets) */
+  partenairesTraitement?: PartenaireTraitement[]
+  /** Annuaire transporteurs externes (Trackdéchets) */
+  transporteurs?: TransporteurExterne[]
   /** Flotte véhicules société — un par technicien si plusieurs */
   voitures?: Voiture[]
   /** Parc outillage terrain — attribution par technicien */

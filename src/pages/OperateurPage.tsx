@@ -35,6 +35,9 @@ import { mergeTeamMembers, extraAssigneesFromData } from '../lib/teamMembers'
 import { CloudConnectPanel, CloudWriteTest } from '../components/CloudConnectPanel'
 import { TelephonyLolaPanel } from '../components/TelephonyLolaPanel'
 import { OpenaiOrgKeyPanel } from '../components/OpenaiOrgKeyPanel'
+import { TrackdechetsPanel } from '../components/TrackdechetsPanel'
+import { PartenairesTraitementPanel } from '../components/PartenairesTraitementPanel'
+import { TransporteursPanel } from '../components/TransporteursPanel'
 import { GmaoImportPanel } from '../components/GmaoImportPanel'
 
 function withOrgDefaults(operateur: Operateur, orgName?: string | null): Operateur {
@@ -431,6 +434,9 @@ export function OperateurPage() {
         </p>
       ) : null}
       {isOwner ? <OpenaiOrgKeyPanel /> : null}
+      {isOwner ? <TrackdechetsPanel /> : null}
+      {isOwner ? <PartenairesTraitementPanel /> : null}
+      {isOwner ? <TransporteursPanel /> : null}
       {isOwner ? <TelephonyLolaPanel /> : null}
       {isOwner ? <GmaoImportPanel /> : null}
 

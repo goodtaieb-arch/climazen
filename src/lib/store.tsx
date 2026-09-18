@@ -17,8 +17,10 @@ import type {
   DetecteurManuel,
   Equipement,
   Operateur,
+  PartenaireTraitement,
   Site,
   StockItem,
+  TransporteurExterne,
   Voiture,
   VoitureEtatLieux,
   Outillage,
@@ -425,6 +427,14 @@ type Store = {
     d: Omit<DetecteurManuel, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
   deleteDetecteur: (id: string) => Promise<void>
+  upsertPartenaireTraitement: (
+    p: Omit<PartenaireTraitement, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => Promise<string>
+  deletePartenaireTraitement: (id: string) => Promise<void>
+  upsertTransporteur: (
+    t: Omit<TransporteurExterne, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => Promise<string>
+  deleteTransporteur: (id: string) => Promise<void>
   upsertVoiture: (
     v: Omit<Voiture, 'id' | 'updatedAt'> & { id?: string },
   ) => Promise<string>
@@ -3206,6 +3216,80 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [persistNow],
   )
 
+  const upsertPartenaireTraitement = useCallback(
+    async (p: Omit<PartenaireTraitement, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+      const id = p.id ?? uuid()
+      const now = new Date().toISOString()
+      const prev = dataRef.current
+      const list = prev.partenairesTraitement || []
+      const existing = list.find((x) => x.id === id)
+      const next: PartenaireTraitement = {
+        id,
+        nom: p.nom.trim(),
+        siret: p.siret.trim(),
+        adresse: p.adresse.trim(),
+        codeCap: p.codeCap.trim(),
+        codeOperation: p.codeOperation,
+        codeOperationAutre: p.codeOperationAutre?.trim() || undefined,
+        favori: Boolean(p.favori),
+        notes: p.notes?.trim() || undefined,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      }
+      const nextList = existing
+        ? list.map((x) => (x.id === id ? next : x))
+        : [...list, next]
+      await persistNow({ ...prev, partenairesTraitement: nextList })
+      return id
+    },
+    [persistNow],
+  )
+
+  const deletePartenaireTraitement = useCallback(
+    async (id: string) => {
+      const prev = dataRef.current
+      const nextList = (prev.partenairesTraitement || []).filter((x) => x.id !== id)
+      await persistNow({ ...prev, partenairesTraitement: nextList })
+    },
+    [persistNow],
+  )
+
+  const upsertTransporteur = useCallback(
+    async (t: Omit<TransporteurExterne, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+      const id = t.id ?? uuid()
+      const now = new Date().toISOString()
+      const prev = dataRef.current
+      const list = prev.transporteurs || []
+      const existing = list.find((x) => x.id === id)
+      const next: TransporteurExterne = {
+        id,
+        nom: t.nom.trim(),
+        siret: t.siret.trim(),
+        adresse: t.adresse?.trim() || undefined,
+        telephone: t.telephone?.trim() || undefined,
+        email: t.email?.trim() || undefined,
+        favori: Boolean(t.favori),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      }
+      const nextList = existing
+        ? list.map((x) => (x.id === id ? next : x))
+        : [...list, next]
+      await persistNow({ ...prev, transporteurs: nextList })
+      return id
+    },
+    [persistNow],
+  )
+
+  const deleteTransporteur = useCallback(
+    async (id: string) => {
+      const prev = dataRef.current
+      const nextList = (prev.transporteurs || []).filter((x) => x.id !== id)
+      await persistNow({ ...prev, transporteurs: nextList })
+    },
+    [persistNow],
+  )
+
   const upsertVoiture = useCallback(
     async (v: Omit<Voiture, 'id' | 'updatedAt'> & { id?: string }) => {
       const id = v.id ?? uuid()
@@ -3982,6 +4066,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteIntervention,
       upsertDetecteur,
       deleteDetecteur,
+      upsertPartenaireTraitement,
+      deletePartenaireTraitement,
+      upsertTransporteur,
+      deleteTransporteur,
       upsertVoiture,
       deleteVoiture,
       upsertOutillage,
@@ -4079,6 +4167,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteIntervention,
       upsertDetecteur,
       deleteDetecteur,
+      upsertPartenaireTraitement,
+      deletePartenaireTraitement,
+      upsertTransporteur,
+      deleteTransporteur,
       upsertVoiture,
       deleteVoiture,
       upsertOutillage,

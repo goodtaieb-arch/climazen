@@ -37,6 +37,14 @@
       "destination": "/api/phone-reception?lolaEmail=1"
     },
     {
+      "source": "/api/trackdechets-token",
+      "destination": "/api/ai-org-key?service=trackdechets&scope=token"
+    },
+    {
+      "source": "/api/trackdechets-bsff",
+      "destination": "/api/ai-org-key?service=trackdechets&scope=bsff"
+    },
+    {
       "source": "/((?!api/|assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|version\\.json|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
