@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { ChevronDown, ExternalLink, Loader2 } from 'lucide-react'
 import { fetchTrackdechetsStatus } from '../lib/trackdechets'
@@ -85,22 +85,27 @@ function CloudLienActiver({
   )
 }
 
+/**
+ * Ordre d'affichage — regroupé par thème (identité société, IA/Lola,
+ * facturation, Trackdéchets/BSFF, logistique interne), pas par ordre
+ * d'ajout historique. Actions dangereuses (réinitialiser) toujours en bas.
+ */
 const SECTION_IDS = [
   'edition',
+  'societe',
+  'logo',
+  'cloud-rh',
   'ia',
-  'trackdechets',
+  'telephonie',
   'facturation-elec',
+  'facturation',
+  'trackdechets',
   'partenaires',
   'transporteurs',
-  'telephonie',
-  'gmao',
-  'pieces',
-  'societe',
-  'cloud-rh',
-  'coffre',
   'destinations',
-  'logo',
-  'facturation',
+  'pieces',
+  'gmao',
+  'coffre',
 ] as const
 
 type SectionId = (typeof SECTION_IDS)[number]
@@ -354,8 +359,7 @@ export function OperateurPage() {
     }
   }
 
-  const onSubmitCompany = async (e: FormEvent) => {
-    e.preventDefault()
+  const onSubmitCompany = async () => {
     await persistOperateur()
   }
 
@@ -433,6 +437,13 @@ export function OperateurPage() {
         </button>
       </div>
 
+      {loading && (
+        <p className="rounded-xl border border-line bg-mist px-4 py-3 text-sm text-muted">
+          Chargement des données société…
+        </p>
+      )}
+
+      {/* 1. Mon abonnement */}
       <CollapsibleSection
         title="Mon abonnement (Light / Pro)"
         description={APP_EDITION_TAGLINES[appEdition]}
@@ -505,6 +516,175 @@ export function OperateurPage() {
       </section>
       </CollapsibleSection>
 
+      {/* 2. Ma société */}
+      <CollapsibleSection
+        title="Ma société"
+        description="Raison sociale, SIRET, attestation de capacité, contacts."
+        open={isOpen('societe')}
+        onToggle={() => toggleSection('societe')}
+      >
+      <div className="grid gap-3 sm:grid-cols-2">
+      {appEdition === 'light' ? (
+        <p className="text-sm text-muted sm:col-span-2">
+          Raison sociale, SIRET et n° d’attestation de capacité — requis sur vos CERFA. Complétez
+          aussi les liens cloud ci-dessous pour ranger attestations et PDF générés.
+        </p>
+      ) : null}
+      <Field
+        label="Raison sociale *"
+        value={form.raisonSociale}
+        onChange={(v) => patchForm({ raisonSociale: v })}
+        required
+        className="sm:col-span-2"
+      />
+      <Field
+        label="Adresse"
+        value={form.adresse}
+        onChange={(v) => patchForm({ adresse: v })}
+        className="sm:col-span-2"
+      />
+      <Field label="SIRET" value={form.siret} onChange={(v) => patchForm({ siret: v })} />
+      <Field
+        label="N° attestation capacité"
+        value={form.attestationNumero}
+        onChange={(v) => patchForm({ attestationNumero: v })}
+      />
+      <Field
+        label="Téléphone"
+        value={form.telephone}
+        onChange={(v) => patchForm({ telephone: v })}
+      />
+      <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
+      <Field
+        label="E-mail alertes tickets client (optionnel)"
+        value={form.ticketNotificationEmail || ''}
+        onChange={(v) => patchForm({ ticketNotificationEmail: v || undefined })}
+      />
+      <p className="-mt-2 text-xs text-muted">
+        Portail GMAO : à chaque signalement client, une INT est créée et un e-mail part ici (ou
+        l’e-mail société + gérant).
+      </p>
+      <Field
+        label="E-mail dédié à Lola (optionnel)"
+        type="email"
+        value={form.lolaEmail || ''}
+        onChange={(v) => patchForm({ lolaEmail: v || undefined })}
+      />
+      <p className="-mt-2 text-xs text-muted">
+        Créez d’abord cette adresse chez votre hébergeur mail habituel, puis collez-la ici. Lola
+        pourra l’utiliser pour envoyer et recevoir des e-mails (clients, équipe) — connexion à
+        venir.
+      </p>
+      </div>
+      </CollapsibleSection>
+
+      {/* 3. Logo de mon entreprise */}
+      <CollapsibleSection
+        title="Logo de mon entreprise"
+        open={isOpen('logo')}
+        onToggle={() => toggleSection('logo')}
+      >
+      <div className="mt-2">
+        <h2 className="font-display mb-1 text-base font-semibold">Logo de la société</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          {form.logoImage ? (
+            <img
+              src={form.logoImage}
+              alt="Logo société"
+              className="h-14 max-w-[10rem] rounded-lg border border-line bg-white object-contain p-1"
+            />
+          ) : (
+            <div className="flex h-14 w-28 items-center justify-center rounded-lg border border-dashed border-line text-xs text-muted">
+              Aucun logo
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <label
+              className={[
+                'cursor-pointer rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover',
+                logoBusy ? 'opacity-60' : '',
+              ].join(' ')}
+            >
+              {logoBusy ? 'Enregistrement…' : form.logoImage ? 'Changer le logo' : 'Ajouter un logo'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                disabled={logoBusy}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  void fileToCompanyLogoDataUrl(file)
+                    .then((logoImage) => persistLogo(logoImage))
+                    .catch((err) =>
+                      setFormError(err instanceof Error ? err.message : 'Import impossible'),
+                    )
+                }}
+              />
+            </label>
+            {form.logoImage && (
+              <button
+                type="button"
+                disabled={logoBusy}
+                onClick={() => void persistLogo(undefined)}
+                className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist disabled:opacity-60"
+              >
+                Retirer
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      </CollapsibleSection>
+
+      {/* 4. Documents d'identité de l'équipe */}
+      <CollapsibleSection
+        title="Documents d'identité de l'équipe"
+        description="Dossier cloud (Google Drive / OneDrive) pour les pièces d'identité."
+        open={isOpen('cloud-rh')}
+        onToggle={() => toggleSection('cloud-rh')}
+      >
+      <div className="mt-2">
+        <h2 className="font-display mb-1 text-base font-semibold">
+          {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
+        </h2>
+        <p className="mb-3 text-sm text-muted">
+          Une seule connexion suffit. ClimaZEN n’enregistre aucun mot de passe, n’accède qu’aux
+          fichiers qu’il dépose dans votre cloud, et l’autorisation reste révocable à tout moment.
+          Aucun scan n’est conservé sur ClimaZEN.
+        </p>
+        <CloudConnectPanel lienDossier={form.lienCloudRhRacine} />
+        <details className="mt-3 rounded-xl border border-line bg-white p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-ink">
+            Pas de compte Google ou Microsoft ? Coller un lien de dossier
+          </summary>
+          <CloudLienActiver
+            className="mt-3"
+            label="Lien du dossier général"
+            value={form.lienCloudRhRacine || ''}
+            onChange={(v) => patchForm({ lienCloudRhRacine: v })}
+            onActivate={() => void activerLienCloud('rh')}
+            busy={cloudBusy === 'rh'}
+            hint={
+              cloudPasteHint(form.lienCloudRhRacine) ||
+              'Ouvrez Drive ou OneDrive, copiez le lien du dossier et collez-le ici. Le partage doit rester privé.'
+            }
+          />
+          {cloudMsg && cloudBusy !== 'docs' ? (
+            <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
+          ) : null}
+          {appEdition !== 'light' ? (
+            <p className="mt-2 text-xs text-muted">
+              Le bouton <strong>Photos pièces</strong> n’ouvre que le lien exact de chaque
+              opérateur (collé dans Équipe), et seulement s’il n’est pas public.
+            </p>
+          ) : null}
+        </details>
+      </div>
+      </CollapsibleSection>
+
+      {/* 5. Assistant IA (Lola) */}
       <CollapsibleSection
         title="Assistant IA"
         description="Clé OpenAI / Claude et niveau d'accès à l'assistant."
@@ -571,6 +751,126 @@ export function OperateurPage() {
       {isOwner ? <OpenaiOrgKeyPanel /> : null}
       </CollapsibleSection>
 
+      {/* 6. Téléphone Twilio (lié à Lola) */}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Téléphone (numéro Twilio)"
+          description="Numéro pour recevoir les appels traités par Lola."
+          open={isOpen('telephonie')}
+          onToggle={() => toggleSection('telephonie')}
+        >
+          <TelephonyLolaPanel />
+        </CollapsibleSection>
+      ) : null}
+
+      {/* 7. Facturation électronique (Factur-X) */}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Facturation électronique (Factur-X)"
+          description="Choisissez votre prestataire (FactPulse…) + identifiants personnels."
+          open={isOpen('facturation-elec')}
+          onToggle={() => toggleSection('facturation-elec')}
+        >
+          <InvoicingPanel />
+        </CollapsibleSection>
+      ) : null}
+
+      {/* 8. Facturation (export Tiime / Pennylane / Make.com) */}
+      {editionHasFeature(appEdition, 'chaine_commerciale') ? (
+      <CollapsibleSection
+        title="Facturation"
+        description="Copier vers Tiime / Pennylane, ou automatiser avec Make.com."
+        open={isOpen('facturation')}
+        onToggle={() => toggleSection('facturation')}
+      >
+      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <h2 className="font-display mb-1 text-base font-semibold">Facturation (simple)</h2>
+        <p className="mb-3 text-sm text-muted">
+          Pour l’utilisateur standard : sur un client, <strong>copier les infos</strong> puis{' '}
+          <strong>ouvrir Tiime</strong> (ou Pennylane…) — sans configurer Make.
+        </p>
+      </div>
+      <label className="block text-sm sm:col-span-2">
+        <span className="mb-1 block font-semibold text-ink">Logiciel de facturation (défaut : Tiime)</span>
+        <select
+          value={form.facturationPlateforme || 'tiime'}
+          onChange={(e) =>
+            patchForm({
+              facturationPlateforme: e.target.value as typeof form.facturationPlateforme,
+            })
+          }
+          className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
+        >
+          {FACTURATION_PLATEFORMES.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="sm:col-span-2 rounded-xl border border-line bg-foam/60 p-4">
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={expertMake}
+            onChange={(e) => {
+              setDirty(true)
+              setExpertMake(e.target.checked)
+            }}
+          />
+          <span>
+            <span className="font-semibold text-ink">Mode expert — Make.com</span>
+            <span className="mt-0.5 block text-muted">
+              Automatiser la création devis/facture (webhook). Réservé aux utilisateurs à l’aise
+              avec Make.
+            </span>
+          </span>
+        </label>
+
+        {expertMake && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <p className="text-xs text-muted sm:col-span-2">
+              Scénario Make : Custom webhook → module {form.facturationPlateforme || 'tiime'} →
+              créer client / devis / facture.
+            </p>
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block font-semibold text-ink">URL webhook Make (https://…)</span>
+              <input
+                type="url"
+                placeholder="https://hook.eu1.make.com/…"
+                value={form.facturationWebhookUrl || ''}
+                onChange={(e) => patchForm({ facturationWebhookUrl: e.target.value })}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block font-semibold text-ink">Action Make par défaut</span>
+              <select
+                value={form.facturationActionDefaut || 'create_devis'}
+                onChange={(e) =>
+                  patchForm({
+                    facturationActionDefaut: e.target
+                      .value as typeof form.facturationActionDefaut,
+                  })
+                }
+                className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
+              >
+                <option value="create_client">Créer / mettre à jour le client</option>
+                <option value="create_devis">Créer un devis</option>
+                <option value="create_facture">Créer une facture</option>
+              </select>
+            </label>
+          </div>
+        )}
+      </div>
+      </div>
+      </CollapsibleSection>
+      ) : null}
+
+      {/* 9. Trackdéchets (BSFF automatique) */}
       {isOwner ? (
         <CollapsibleSection
           title="Trackdéchets (BSFF automatique)"
@@ -582,16 +882,8 @@ export function OperateurPage() {
           <TrackdechetsPanel />
         </CollapsibleSection>
       ) : null}
-      {isOwner ? (
-        <CollapsibleSection
-          title="Facturation électronique (Factur-X)"
-          description="Choisissez votre prestataire (FactPulse…) + identifiants personnels."
-          open={isOpen('facturation-elec')}
-          onToggle={() => toggleSection('facturation-elec')}
-        >
-          <InvoicingPanel />
-        </CollapsibleSection>
-      ) : null}
+
+      {/* 10. Partenaires de traitement (BSFF) */}
       {isOwner ? (
         <CollapsibleSection
           title="Partenaires de traitement (BSFF)"
@@ -602,6 +894,8 @@ export function OperateurPage() {
           <PartenairesTraitementPanel />
         </CollapsibleSection>
       ) : null}
+
+      {/* 11. Transporteurs (BSFF) */}
       {isOwner ? (
         <CollapsibleSection
           title="Transporteurs (BSFF)"
@@ -612,27 +906,45 @@ export function OperateurPage() {
           <TransporteursPanel />
         </CollapsibleSection>
       ) : null}
-      {isOwner ? (
-        <CollapsibleSection
-          title="Téléphone (numéro Twilio)"
-          description="Numéro pour recevoir les appels traités par Lola."
-          open={isOpen('telephonie')}
-          onToggle={() => toggleSection('telephonie')}
-        >
-          <TelephonyLolaPanel />
-        </CollapsibleSection>
-      ) : null}
-      {isOwner ? (
-        <CollapsibleSection
-          title="Import depuis une autre GMAO"
-          description="Fichier Excel / CSV — clients, sites et équipements créés automatiquement."
-          open={isOpen('gmao')}
-          onToggle={() => toggleSection('gmao')}
-        >
-          <GmaoImportPanel />
-        </CollapsibleSection>
-      ) : null}
 
+      {/* 12. Mes distributeurs et centres de traitement */}
+      <CollapsibleSection
+        title="Mes distributeurs et centres de traitement"
+        description="Liste proposée dans le menu « Installation de destination » du CERFA."
+        open={isOpen('destinations')}
+        onToggle={() => toggleSection('destinations')}
+      >
+      <div className="mt-2">
+        <h2 className="font-display mb-1 text-base font-semibold">
+          Destinations CERFA [13]
+        </h2>
+        <p className="mb-3 text-sm text-muted">
+          Distributeurs / dépôts proposés dans le menu « Installation de destination » (Climalife,
+          Gazechim, Dépôt…). Une ligne = une destination. Les saisies libres sur une fiche sont
+          aussi mémorisées automatiquement.
+        </p>
+        <textarea
+          rows={4}
+          value={(form.destinationsInstallation || []).join('\n')}
+          onChange={(e) =>
+            patchForm({
+              destinationsInstallation: e.target.value
+                .split('\n')
+                .map((l) => l.trim())
+                .filter(Boolean),
+            })
+          }
+          placeholder={'Climalife\nGazechim\nWestfalen\nDépôt atelier'}
+          className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+        />
+        <p className="mt-1.5 text-xs text-muted">
+          Les destinations par défaut (Climalife, Gazechim, Westfalen, Dépôt, Destruction / BSFF)
+          restent toujours proposées, même si cette liste est vide.
+        </p>
+      </div>
+      </CollapsibleSection>
+
+      {/* 13. Magasin pièces détachées */}
       {editionHasFeature(appEdition, 'stock_pieces') ? (
         <CollapsibleSection
           title="Magasin pièces détachées"
@@ -678,6 +990,7 @@ export function OperateurPage() {
         </CollapsibleSection>
       ) : null}
 
+      {/* 14. Pointeuse / temps de travail */}
       {editionHasFeature(appEdition, 'pointage') ? (
         <Link
           to="/app/pointage"
@@ -691,162 +1004,110 @@ export function OperateurPage() {
         </Link>
       ) : null}
 
-      {loading && (
-        <p className="rounded-xl border border-line bg-mist px-4 py-3 text-sm text-muted">
-          Chargement des données société…
-        </p>
-      )}
-
-      <form
-        onSubmit={(e) => void onSubmitCompany(e)}
-        className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
-      >
+      {/* 15. Import depuis une autre GMAO */}
+      {isOwner ? (
         <CollapsibleSection
-          title="Ma société"
-          description="Raison sociale, SIRET, attestation de capacité, contacts."
-          open={isOpen('societe')}
-          onToggle={() => toggleSection('societe')}
-          className="sm:col-span-2"
+          title="Import depuis une autre GMAO"
+          description="Fichier Excel / CSV — clients, sites et équipements créés automatiquement."
+          open={isOpen('gmao')}
+          onToggle={() => toggleSection('gmao')}
         >
-        <div className="grid gap-3 sm:grid-cols-2">
-        {appEdition === 'light' ? (
-          <p className="text-sm text-muted sm:col-span-2">
-            Raison sociale, SIRET et n° d’attestation de capacité — requis sur vos CERFA. Complétez
-            aussi les liens cloud ci-dessous pour ranger attestations et PDF générés.
-          </p>
-        ) : null}
-        <Field
-          label="Raison sociale *"
-          value={form.raisonSociale}
-          onChange={(v) => patchForm({ raisonSociale: v })}
-          required
-          className="sm:col-span-2"
-        />
-        <Field
-          label="Adresse"
-          value={form.adresse}
-          onChange={(v) => patchForm({ adresse: v })}
-          className="sm:col-span-2"
-        />
-        <Field label="SIRET" value={form.siret} onChange={(v) => patchForm({ siret: v })} />
-        <Field
-          label="N° attestation capacité"
-          value={form.attestationNumero}
-          onChange={(v) => patchForm({ attestationNumero: v })}
-        />
-        <Field
-          label="Téléphone"
-          value={form.telephone}
-          onChange={(v) => patchForm({ telephone: v })}
-        />
-        <Field label="Email" value={form.email} onChange={(v) => patchForm({ email: v })} />
-        <Field
-          label="E-mail alertes tickets client (optionnel)"
-          value={form.ticketNotificationEmail || ''}
-          onChange={(v) => patchForm({ ticketNotificationEmail: v || undefined })}
-        />
-        <p className="-mt-2 text-xs text-muted">
-          Portail GMAO : à chaque signalement client, une INT est créée et un e-mail part ici (ou
-          l’e-mail société + gérant).
-        </p>
-        <Field
-          label="E-mail dédié à Lola (optionnel)"
-          type="email"
-          value={form.lolaEmail || ''}
-          onChange={(v) => patchForm({ lolaEmail: v || undefined })}
-        />
-        <p className="-mt-2 text-xs text-muted">
-          Créez d’abord cette adresse chez votre hébergeur mail habituel, puis collez-la ici. Lola
-          pourra l’utiliser pour envoyer et recevoir des e-mails (clients, équipe) — connexion à
-          venir.
-        </p>
-        </div>
+          <GmaoImportPanel />
         </CollapsibleSection>
+      ) : null}
 
-        <CollapsibleSection
-          title="Documents d'identité de l'équipe"
-          description="Dossier cloud (Google Drive / OneDrive) pour les pièces d'identité."
-          open={isOpen('cloud-rh')}
-          onToggle={() => toggleSection('cloud-rh')}
-          className="sm:col-span-2"
-        >
-        <div className="mt-2">
-          <h2 className="font-display mb-1 text-base font-semibold">
-            {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
-          </h2>
-          <p className="mb-3 text-sm text-muted">
-            Une seule connexion suffit. ClimaZEN n’enregistre aucun mot de passe, n’accède qu’aux
-            fichiers qu’il dépose dans votre cloud, et l’autorisation reste révocable à tout moment.
-            Aucun scan n’est conservé sur ClimaZEN.
-          </p>
-          <CloudConnectPanel lienDossier={form.lienCloudRhRacine} />
-          <details className="mt-3 rounded-xl border border-line bg-white p-3">
-            <summary className="cursor-pointer text-sm font-semibold text-ink">
-              Pas de compte Google ou Microsoft ? Coller un lien de dossier
-            </summary>
+      {/* 16. Sauvegarde de mes documents */}
+      <CollapsibleSection
+        title="Sauvegarde de mes documents"
+        description="PDF (CERFA, rapports, devis) — jamais stockés sur ClimaZEN."
+        open={isOpen('coffre')}
+        onToggle={() => toggleSection('coffre')}
+      >
+      <div className="mt-2">
+        <h2 className="font-display mb-1 text-base font-semibold">
+          Coffre documents (hors site)
+        </h2>
+        <p className="mb-3 text-sm text-muted">
+          Les PDF (CERFA, rapports, devis…) ne sont <strong>jamais</strong> enregistrés sur
+          ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. NAS / Nextcloud ou un
+          dossier Drive / OneDrive. Le bureau n’ouvre pas ce serveur : il sort le document depuis
+          l’app. Seul le gérant (et le personnel coché dans Équipe → Accès coffre) voit l’URL.
+        </p>
+        <label className="mb-3 block text-sm">
+          <span className="mb-1 block font-semibold text-ink">Destination</span>
+          <select
+            value={form.docsStockageMode === 'cloud' ? 'cloud' : 'prive'}
+            onChange={(e) =>
+              patchForm({
+                docsStockageMode: e.target.value as Operateur['docsStockageMode'],
+              })
+            }
+            className="h-11 w-full rounded-xl border border-line bg-white px-3"
+          >
+            <option value="prive">Serveur privé société (NAS / Nextcloud / WebDAV)</option>
+            <option value="cloud">Lien cloud (Google Drive / OneDrive — bouton Activer)</option>
+          </select>
+        </label>
+        {form.docsStockageMode === 'cloud' ? (
+          <>
             <CloudLienActiver
-              className="mt-3"
-              label="Lien du dossier général"
-              value={form.lienCloudRhRacine || ''}
-              onChange={(v) => patchForm({ lienCloudRhRacine: v })}
-              onActivate={() => void activerLienCloud('rh')}
-              busy={cloudBusy === 'rh'}
+              label="Lien dossier cloud"
+              value={form.lienCloudDocsRacine || ''}
+              onChange={(v) => patchForm({ lienCloudDocsRacine: v, docsStockageMode: 'cloud' })}
+              onActivate={() => void activerLienCloud('docs')}
+              busy={cloudBusy === 'docs'}
               hint={
-                cloudPasteHint(form.lienCloudRhRacine) ||
-                'Ouvrez Drive ou OneDrive, copiez le lien du dossier et collez-le ici. Le partage doit rester privé.'
+                cloudPasteHint(form.lienCloudDocsRacine) ||
+                'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.'
               }
             />
-            {cloudMsg && cloudBusy !== 'docs' ? (
+            {cloudMsg ? (
               <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
             ) : null}
-            {appEdition !== 'light' ? (
-              <p className="mt-2 text-xs text-muted">
-                Le bouton <strong>Photos pièces</strong> n’ouvre que le lien exact de chaque
-                opérateur (collé dans Équipe), et seulement s’il n’est pas public.
-              </p>
-            ) : null}
-          </details>
-        </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Sauvegarde de mes documents"
-          description="PDF (CERFA, rapports, devis) — jamais stockés sur ClimaZEN."
-          open={isOpen('coffre')}
-          onToggle={() => toggleSection('coffre')}
-          className="sm:col-span-2"
-        >
-        <div className="mt-2">
-          <h2 className="font-display mb-1 text-base font-semibold">
-            Coffre documents (hors site)
-          </h2>
-          <p className="mb-3 text-sm text-muted">
-            Les PDF (CERFA, rapports, devis…) ne sont <strong>jamais</strong> enregistrés sur
-            ClimaZEN — ni en cas d’attaque, ni pour l’espace de stockage. NAS / Nextcloud ou un
-            dossier Drive / OneDrive. Le bureau n’ouvre pas ce serveur : il sort le document depuis
-            l’app. Seul le gérant (et le personnel coché dans Équipe → Accès coffre) voit l’URL.
-          </p>
-          <label className="mb-3 block text-sm">
-            <span className="mb-1 block font-semibold text-ink">Destination</span>
-            <select
-              value={form.docsStockageMode === 'cloud' ? 'cloud' : 'prive'}
-              onChange={(e) =>
-                patchForm({
-                  docsStockageMode: e.target.value as Operateur['docsStockageMode'],
-                })
-              }
-              className="h-11 w-full rounded-xl border border-line bg-white px-3"
-            >
-              <option value="prive">Serveur privé société (NAS / Nextcloud / WebDAV)</option>
-              <option value="cloud">Lien cloud (Google Drive / OneDrive — bouton Activer)</option>
-            </select>
-          </label>
-          {form.docsStockageMode === 'cloud' ? (
-            <>
+            <details className="mt-3 rounded-xl border border-line bg-white p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-ink">
+                NAS / Nextcloud en plus (optionnel)
+              </summary>
+              <Field
+                label="URL base serveur privé"
+                value={form.serveurPriveDocsUrl || ''}
+                onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
+                className="mt-3"
+              />
+              <Field
+                label="Jeton serveur privé (optionnel)"
+                value={form.serveurPriveDocsToken || ''}
+                onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
+                className="mt-3"
+              />
+            </details>
+          </>
+        ) : (
+          <>
+            <Field
+              label="URL base serveur privé (obligatoire pour l’archive auto)"
+              value={form.serveurPriveDocsUrl || ''}
+              onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
+            />
+            <p className="mt-1.5 text-xs text-muted">
+              Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — l’app crée
+              ClimaZEN/Documents/… toute seule. Le bureau n’a pas besoin d’y aller.
+            </p>
+            <Field
+              label="Jeton serveur privé (optionnel, gérant seulement)"
+              value={form.serveurPriveDocsToken || ''}
+              onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
+              className="mt-3"
+            />
+            <details className="mt-3 rounded-xl border border-line bg-white p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-ink">
+                Dossier cloud en plus (personnel désigné — pas le bureau)
+              </summary>
               <CloudLienActiver
+                className="mt-3"
                 label="Lien dossier cloud"
                 value={form.lienCloudDocsRacine || ''}
-                onChange={(v) => patchForm({ lienCloudDocsRacine: v, docsStockageMode: 'cloud' })}
+                onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
                 onActivate={() => void activerLienCloud('docs')}
                 busy={cloudBusy === 'docs'}
                 hint={
@@ -857,314 +1118,70 @@ export function OperateurPage() {
               {cloudMsg ? (
                 <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
               ) : null}
-              <details className="mt-3 rounded-xl border border-line bg-white p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-ink">
-                  NAS / Nextcloud en plus (optionnel)
-                </summary>
-                <Field
-                  label="URL base serveur privé"
-                  value={form.serveurPriveDocsUrl || ''}
-                  onChange={(v) => patchForm({ serveurPriveDocsUrl: v })}
-                  className="mt-3"
-                />
-                <Field
-                  label="Jeton serveur privé (optionnel)"
-                  value={form.serveurPriveDocsToken || ''}
-                  onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
-                  className="mt-3"
-                />
-              </details>
-            </>
-          ) : (
-            <>
-              <Field
-                label="URL base serveur privé (obligatoire pour l’archive auto)"
-                value={form.serveurPriveDocsUrl || ''}
-                onChange={(v) => patchForm({ serveurPriveDocsUrl: v, docsStockageMode: 'prive' })}
-              />
-              <p className="mt-1.5 text-xs text-muted">
-                Ex. https://nas.votre-societe.fr/remote.php/dav/files/user — l’app crée
-                ClimaZEN/Documents/… toute seule. Le bureau n’a pas besoin d’y aller.
-              </p>
-              <Field
-                label="Jeton serveur privé (optionnel, gérant seulement)"
-                value={form.serveurPriveDocsToken || ''}
-                onChange={(v) => patchForm({ serveurPriveDocsToken: v || undefined })}
-                className="mt-3"
-              />
-              <details className="mt-3 rounded-xl border border-line bg-white p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-ink">
-                  Dossier cloud en plus (personnel désigné — pas le bureau)
-                </summary>
-                <CloudLienActiver
-                  className="mt-3"
-                  label="Lien dossier cloud"
-                  value={form.lienCloudDocsRacine || ''}
-                  onChange={(v) => patchForm({ lienCloudDocsRacine: v })}
-                  onActivate={() => void activerLienCloud('docs')}
-                  busy={cloudBusy === 'docs'}
-                  hint={
-                    cloudPasteHint(form.lienCloudDocsRacine) ||
-                    'Collez le lien du dossier : Google Drive, OneDrive ou SharePoint. Le partage doit rester privé.'
-                  }
-                />
-                {cloudMsg ? (
-                  <p className="mt-2 text-sm font-medium text-emerald-800">{cloudMsg}</p>
-                ) : null}
-              </details>
-            </>
-          )}
-          {form.lienCloudDocsRacine?.trim() ? (
-            <CloudWriteTest lienDossier={form.lienCloudDocsRacine} className="mt-3" />
-          ) : null}
-          <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
-            <p className="text-xs font-bold uppercase text-muted">
-              Arborescence créée sur le coffre
-            </p>
-            <pre className="mt-2 overflow-x-auto whitespace-pre text-[11px] leading-relaxed text-ink">
-              {arborescenceDocumentsEntreprise().join('\n')}
-            </pre>
-            <p className="mt-2 text-xs text-muted">
-              {archivePriveConfigure(form)
-                ? 'Coffre joignable depuis l’app — le bureau télécharge via ClimaZEN.'
-                : 'Sans URL NAS, un PDF généré ne peut pas être archivé (téléchargement local de secours seulement).'}
-            </p>
-          </div>
-          <div className="mt-3 rounded-xl border border-line bg-white p-3">
-            <p className="text-sm font-semibold text-ink">Copie Excel de secours</p>
-            <p className="mt-1 text-xs text-muted">
-              Clients, sites, équipements, équipe (sans CNI), INT, stock, pièces, contrats,
-              devis… Si on perd tout, on reconstitue une société. Fichier :{' '}
-              <span className="font-mono">ClimaZEN/Documents/Secours/climazen-donnees.xlsx</span>
-              . Mise à jour auto ~1 min 30 après une sauvegarde, ou maintenant :
-            </p>
-            <button
-              type="button"
-              disabled={excelBusy}
-              onClick={() => {
-                setExcelBusy(true)
-                setExcelMsg('')
-                void exporterCopieSecoursExcel({ alsoDownload: true })
-                  .then((r) => {
-                    setExcelMsg(r.message)
-                    setTimeout(() => setExcelMsg(''), 6000)
-                  })
-                  .catch((err) => {
-                    setExcelMsg(err instanceof Error ? err.message : 'Copie Excel impossible')
-                  })
-                  .finally(() => setExcelBusy(false))
-              }}
-              className="mt-2 h-10 rounded-xl bg-slate px-4 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {excelBusy ? 'Mise à jour…' : 'Mettre à jour la copie Excel'}
-            </button>
-            {excelMsg ? <p className="mt-2 text-xs text-muted">{excelMsg}</p> : null}
-          </div>
-        </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Mes distributeurs et centres de traitement"
-          description="Liste proposée dans le menu « Installation de destination » du CERFA."
-          open={isOpen('destinations')}
-          onToggle={() => toggleSection('destinations')}
-          className="sm:col-span-2"
-        >
-        <div className="mt-2">
-          <h2 className="font-display mb-1 text-base font-semibold">
-            Destinations CERFA [13]
-          </h2>
-          <p className="mb-3 text-sm text-muted">
-            Distributeurs / dépôts proposés dans le menu « Installation de destination » (Climalife,
-            Gazechim, Dépôt…). Une ligne = une destination. Les saisies libres sur une fiche sont
-            aussi mémorisées automatiquement.
-          </p>
-          <textarea
-            rows={4}
-            value={(form.destinationsInstallation || []).join('\n')}
-            onChange={(e) =>
-              patchForm({
-                destinationsInstallation: e.target.value
-                  .split('\n')
-                  .map((l) => l.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder={'Climalife\nGazechim\nWestfalen\nDépôt atelier'}
-            className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-          <p className="mt-1.5 text-xs text-muted">
-            Les destinations par défaut (Climalife, Gazechim, Westfalen, Dépôt, Destruction / BSFF)
-            restent toujours proposées, même si cette liste est vide.
-          </p>
-        </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Logo de mon entreprise"
-          open={isOpen('logo')}
-          onToggle={() => toggleSection('logo')}
-          className="sm:col-span-2"
-        >
-        <div className="mt-2">
-          <h2 className="font-display mb-1 text-base font-semibold">Logo de la société</h2>
-          <div className="mt-3 flex flex-wrap items-center gap-4">
-            {form.logoImage ? (
-              <img
-                src={form.logoImage}
-                alt="Logo société"
-                className="h-14 max-w-[10rem] rounded-lg border border-line bg-white object-contain p-1"
-              />
-            ) : (
-              <div className="flex h-14 w-28 items-center justify-center rounded-lg border border-dashed border-line text-xs text-muted">
-                Aucun logo
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <label
-                className={[
-                  'cursor-pointer rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink hover:bg-accent-hover',
-                  logoBusy ? 'opacity-60' : '',
-                ].join(' ')}
-              >
-                {logoBusy ? 'Enregistrement…' : form.logoImage ? 'Changer le logo' : 'Ajouter un logo'}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  disabled={logoBusy}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    e.target.value = ''
-                    if (!file) return
-                    void fileToCompanyLogoDataUrl(file)
-                      .then((logoImage) => persistLogo(logoImage))
-                      .catch((err) =>
-                        setFormError(err instanceof Error ? err.message : 'Import impossible'),
-                      )
-                  }}
-                />
-              </label>
-              {form.logoImage && (
-                <button
-                  type="button"
-                  disabled={logoBusy}
-                  onClick={() => void persistLogo(undefined)}
-                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted hover:bg-mist disabled:opacity-60"
-                >
-                  Retirer
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        </CollapsibleSection>
-
-        {editionHasFeature(appEdition, 'chaine_commerciale') ? (
-        <CollapsibleSection
-          title="Facturation"
-          description="Copier vers Tiime / Pennylane, ou automatiser avec Make.com."
-          open={isOpen('facturation')}
-          onToggle={() => toggleSection('facturation')}
-          className="sm:col-span-2"
-        >
-        <div className="grid gap-3 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <h2 className="font-display mb-1 text-base font-semibold">Facturation (simple)</h2>
-          <p className="mb-3 text-sm text-muted">
-            Pour l’utilisateur standard : sur un client, <strong>copier les infos</strong> puis{' '}
-            <strong>ouvrir Tiime</strong> (ou Pennylane…) — sans configurer Make.
-          </p>
-        </div>
-        <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block font-semibold text-ink">Logiciel de facturation (défaut : Tiime)</span>
-          <select
-            value={form.facturationPlateforme || 'tiime'}
-            onChange={(e) =>
-              patchForm({
-                facturationPlateforme: e.target.value as typeof form.facturationPlateforme,
-              })
-            }
-            className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
-          >
-            {FACTURATION_PLATEFORMES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="sm:col-span-2 rounded-xl border border-line bg-foam/60 p-4">
-          <label className="flex cursor-pointer items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={expertMake}
-              onChange={(e) => {
-                setDirty(true)
-                setExpertMake(e.target.checked)
-              }}
-            />
-            <span>
-              <span className="font-semibold text-ink">Mode expert — Make.com</span>
-              <span className="mt-0.5 block text-muted">
-                Automatiser la création devis/facture (webhook). Réservé aux utilisateurs à l’aise
-                avec Make.
-              </span>
-            </span>
-          </label>
-
-          {expertMake && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <p className="text-xs text-muted sm:col-span-2">
-                Scénario Make : Custom webhook → module {form.facturationPlateforme || 'tiime'} →
-                créer client / devis / facture.
-              </p>
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold text-ink">URL webhook Make (https://…)</span>
-                <input
-                  type="url"
-                  placeholder="https://hook.eu1.make.com/…"
-                  value={form.facturationWebhookUrl || ''}
-                  onChange={(e) => patchForm({ facturationWebhookUrl: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
-                />
-              </label>
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-semibold text-ink">Action Make par défaut</span>
-                <select
-                  value={form.facturationActionDefaut || 'create_devis'}
-                  onChange={(e) =>
-                    patchForm({
-                      facturationActionDefaut: e.target
-                        .value as typeof form.facturationActionDefaut,
-                    })
-                  }
-                  className="h-11 w-full rounded-xl border border-line bg-white px-3 outline-none focus:border-accent"
-                >
-                  <option value="create_client">Créer / mettre à jour le client</option>
-                  <option value="create_devis">Créer un devis</option>
-                  <option value="create_facture">Créer une facture</option>
-                </select>
-              </label>
-            </div>
-          )}
-        </div>
-        </div>
-        </CollapsibleSection>
+            </details>
+          </>
+        )}
+        {form.lienCloudDocsRacine?.trim() ? (
+          <CloudWriteTest lienDossier={form.lienCloudDocsRacine} className="mt-3" />
         ) : null}
+        <div className="mt-3 rounded-xl border border-dashed border-line bg-mist/40 p-3">
+          <p className="text-xs font-bold uppercase text-muted">
+            Arborescence créée sur le coffre
+          </p>
+          <pre className="mt-2 overflow-x-auto whitespace-pre text-[11px] leading-relaxed text-ink">
+            {arborescenceDocumentsEntreprise().join('\n')}
+          </pre>
+          <p className="mt-2 text-xs text-muted">
+            {archivePriveConfigure(form)
+              ? 'Coffre joignable depuis l’app — le bureau télécharge via ClimaZEN.'
+              : 'Sans URL NAS, un PDF généré ne peut pas être archivé (téléchargement local de secours seulement).'}
+          </p>
+        </div>
+        <div className="mt-3 rounded-xl border border-line bg-white p-3">
+          <p className="text-sm font-semibold text-ink">Copie Excel de secours</p>
+          <p className="mt-1 text-xs text-muted">
+            Clients, sites, équipements, équipe (sans CNI), INT, stock, pièces, contrats,
+            devis… Si on perd tout, on reconstitue une société. Fichier :{' '}
+            <span className="font-mono">ClimaZEN/Documents/Secours/climazen-donnees.xlsx</span>
+            . Mise à jour auto ~1 min 30 après une sauvegarde, ou maintenant :
+          </p>
+          <button
+            type="button"
+            disabled={excelBusy}
+            onClick={() => {
+              setExcelBusy(true)
+              setExcelMsg('')
+              void exporterCopieSecoursExcel({ alsoDownload: true })
+                .then((r) => {
+                  setExcelMsg(r.message)
+                  setTimeout(() => setExcelMsg(''), 6000)
+                })
+                .catch((err) => {
+                  setExcelMsg(err instanceof Error ? err.message : 'Copie Excel impossible')
+                })
+                .finally(() => setExcelBusy(false))
+            }}
+            className="mt-2 h-10 rounded-xl bg-slate px-4 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {excelBusy ? 'Mise à jour…' : 'Mettre à jour la copie Excel'}
+          </button>
+          {excelMsg ? <p className="mt-2 text-xs text-muted">{excelMsg}</p> : null}
+        </div>
+      </div>
+      </CollapsibleSection>
 
+      {/* Enregistrement des champs société (sections 2, 3, 4, 8, 12, 16 ci-dessus) */}
+      <div className="rounded-2xl border border-line bg-white p-5">
         {formError && (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger sm:col-span-2">
+          <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger">
             {formError}
           </p>
         )}
-
-        <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+        <div className="flex flex-wrap items-center gap-3">
           <button
-            type="submit"
+            type="button"
             disabled={saving || loading}
+            onClick={() => void onSubmitCompany()}
             className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink hover:bg-accent-hover disabled:opacity-60"
           >
             {saving ? 'Enregistrement…' : 'Enregistrer la société'}
@@ -1178,8 +1195,9 @@ export function OperateurPage() {
             <span className="text-sm text-amber-700">Pensez à enregistrer la société</span>
           )}
         </div>
-      </form>
+      </div>
 
+      {/* 17. Réinitialiser les données de démonstration — toujours en dernier */}
       <button
         type="button"
         onClick={() => {
