@@ -1,6 +1,7 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { ChevronDown, ExternalLink, Loader2 } from 'lucide-react'
+import { fetchTrackdechetsStatus } from '../lib/trackdechets'
 import { useStore } from '../lib/store'
 import { Field } from './ClientsPage'
 import { useAuth } from '../lib/AuthContext'
@@ -83,6 +84,74 @@ function CloudLienActiver({
   )
 }
 
+const SECTION_IDS = [
+  'edition',
+  'ia',
+  'trackdechets',
+  'partenaires',
+  'transporteurs',
+  'telephonie',
+  'gmao',
+  'pieces',
+  'societe',
+  'cloud-rh',
+  'coffre',
+  'destinations',
+  'logo',
+  'facturation',
+] as const
+
+type SectionId = (typeof SECTION_IDS)[number]
+
+/** Section repliable — un titre en langage simple, fermée par défaut. */
+function CollapsibleSection({
+  title,
+  description,
+  open,
+  onToggle,
+  warn,
+  className = '',
+  children,
+}: {
+  title: string
+  description?: string
+  open: boolean
+  onToggle: () => void
+  warn?: boolean
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={[
+          'flex w-full items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 text-left transition',
+          warn ? 'border-amber-300 bg-amber-50/70' : 'border-line hover:bg-mist/40',
+          open ? 'rounded-b-none border-b-0 pb-3' : '',
+        ].join(' ')}
+      >
+        <span className="min-w-0">
+          <span className="font-display block text-base font-semibold text-ink">{title}</span>
+          {description ? (
+            <span className="mt-0.5 block text-xs text-muted">{description}</span>
+          ) : null}
+        </span>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open ? (
+        <div className="space-y-4 rounded-b-2xl border border-t-0 border-line bg-white p-5">
+          {children}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 /** Réglages société — réservé à l’administrateur (pas d’accès employé). */
 export function OperateurPage() {
   const { data, setOperateur, setCompanyLogo, resetDemo, loading, appEdition, setAppEdition, exporterCopieSecoursExcel } =
@@ -103,6 +172,43 @@ export function OperateurPage() {
   const [excelMsg, setExcelMsg] = useState('')
   const [cloudBusy, setCloudBusy] = useState<'docs' | 'rh' | null>(null)
   const [cloudMsg, setCloudMsg] = useState('')
+
+  const [openSections, setOpenSections] = useState<Set<SectionId>>(new Set())
+  const [trackdechetsIncomplete, setTrackdechetsIncomplete] = useState(false)
+  const toggleSection = (id: SectionId) =>
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const expandAll = () => setOpenSections(new Set(SECTION_IDS))
+  const collapseAll = () => setOpenSections(new Set())
+  const isOpen = (id: SectionId) =>
+    openSections.has(id) || (id === 'trackdechets' && trackdechetsIncomplete)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchTrackdechetsStatus().then((res) => {
+      if (!cancelled && res?.ok) setTrackdechetsIncomplete(!res.hasToken)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Erreur de saisie sur le grand formulaire société : ouvre toutes ses sections
+  // pour que le champ en cause soit visible, quelle que soit celle qui le contient.
+  useEffect(() => {
+    if (!formError) return
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      for (const id of ['societe', 'cloud-rh', 'coffre', 'destinations', 'logo', 'facturation'] as const) {
+        next.add(id)
+      }
+      return next
+    })
+  }, [formError])
 
   const aiTier = resolveAiTier({ appEdition, aiPlan: data.aiPlan })
 
@@ -311,6 +417,21 @@ export function OperateurPage() {
         </div>
       </div>
 
+      <div className="flex justify-end gap-3 text-xs font-semibold">
+        <button type="button" onClick={expandAll} className="text-accent underline">
+          Tout déplier
+        </button>
+        <button type="button" onClick={collapseAll} className="text-muted underline">
+          Tout replier
+        </button>
+      </div>
+
+      <CollapsibleSection
+        title="Mon abonnement (Light / Pro)"
+        description={APP_EDITION_TAGLINES[appEdition]}
+        open={isOpen('edition')}
+        onToggle={() => toggleSection('edition')}
+      >
       <section className="rounded-2xl border border-line bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -375,7 +496,14 @@ export function OperateurPage() {
           </p>
         ) : null}
       </section>
+      </CollapsibleSection>
 
+      <CollapsibleSection
+        title="Assistant IA"
+        description="Clé OpenAI / Claude et niveau d'accès à l'assistant."
+        open={isOpen('ia')}
+        onToggle={() => toggleSection('ia')}
+      >
       {appEdition === 'light' ? (
         <section className="rounded-2xl border border-line bg-white p-5">
           <h2 className="font-display text-lg font-semibold">Assistant IA</h2>
@@ -434,13 +562,67 @@ export function OperateurPage() {
         </p>
       ) : null}
       {isOwner ? <OpenaiOrgKeyPanel /> : null}
-      {isOwner ? <TrackdechetsPanel /> : null}
-      {isOwner ? <PartenairesTraitementPanel /> : null}
-      {isOwner ? <TransporteursPanel /> : null}
-      {isOwner ? <TelephonyLolaPanel /> : null}
-      {isOwner ? <GmaoImportPanel /> : null}
+      </CollapsibleSection>
+
+      {isOwner ? (
+        <CollapsibleSection
+          title="Trackdéchets (BSFF automatique)"
+          description="Jeton API personnel + création automatique des bordereaux."
+          open={isOpen('trackdechets')}
+          onToggle={() => toggleSection('trackdechets')}
+          warn={trackdechetsIncomplete}
+        >
+          <TrackdechetsPanel />
+        </CollapsibleSection>
+      ) : null}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Partenaires de traitement (BSFF)"
+          description="Régénérateurs, recycleurs, destructeurs — annuaire réutilisable."
+          open={isOpen('partenaires')}
+          onToggle={() => toggleSection('partenaires')}
+        >
+          <PartenairesTraitementPanel />
+        </CollapsibleSection>
+      ) : null}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Transporteurs (BSFF)"
+          description="Annuaire des transporteurs pour l'évacuation des bouteilles récupérées."
+          open={isOpen('transporteurs')}
+          onToggle={() => toggleSection('transporteurs')}
+        >
+          <TransporteursPanel />
+        </CollapsibleSection>
+      ) : null}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Téléphone (numéro Twilio)"
+          description="Numéro pour recevoir les appels traités par Lola."
+          open={isOpen('telephonie')}
+          onToggle={() => toggleSection('telephonie')}
+        >
+          <TelephonyLolaPanel />
+        </CollapsibleSection>
+      ) : null}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Import depuis une autre GMAO"
+          description="Fichier Excel / CSV — clients, sites et équipements créés automatiquement."
+          open={isOpen('gmao')}
+          onToggle={() => toggleSection('gmao')}
+        >
+          <GmaoImportPanel />
+        </CollapsibleSection>
+      ) : null}
 
       {editionHasFeature(appEdition, 'stock_pieces') ? (
+        <CollapsibleSection
+          title="Magasin pièces détachées"
+          description="Qui gère le stock de pièces."
+          open={isOpen('pieces')}
+          onToggle={() => toggleSection('pieces')}
+        >
         <section className="rounded-2xl border border-line bg-white p-5">
           <h2 className="font-display text-lg font-semibold">Magasin pièces détachées</h2>
           <p className="mt-1 text-sm text-muted">
@@ -476,6 +658,7 @@ export function OperateurPage() {
             </Link>
           </p>
         </section>
+        </CollapsibleSection>
       ) : null}
 
       {editionHasFeature(appEdition, 'pointage') ? (
@@ -501,9 +684,14 @@ export function OperateurPage() {
         onSubmit={(e) => void onSubmitCompany(e)}
         className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
       >
-        <h2 className="font-display text-lg font-semibold sm:col-span-2">
-          {appEdition === 'light' ? 'Identification société (cadre CERFA [1])' : 'Cadre [1] — Opérateur (société)'}
-        </h2>
+        <CollapsibleSection
+          title="Ma société"
+          description="Raison sociale, SIRET, attestation de capacité, contacts."
+          open={isOpen('societe')}
+          onToggle={() => toggleSection('societe')}
+          className="sm:col-span-2"
+        >
+        <div className="grid gap-3 sm:grid-cols-2">
         {appEdition === 'light' ? (
           <p className="text-sm text-muted sm:col-span-2">
             Raison sociale, SIRET et n° d’attestation de capacité — requis sur vos CERFA. Complétez
@@ -555,8 +743,17 @@ export function OperateurPage() {
           pourra l’utiliser pour envoyer et recevoir des e-mails (clients, équipe) — connexion à
           venir.
         </p>
+        </div>
+        </CollapsibleSection>
 
-        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+        <CollapsibleSection
+          title="Documents d'identité de l'équipe"
+          description="Dossier cloud (Google Drive / OneDrive) pour les pièces d'identité."
+          open={isOpen('cloud-rh')}
+          onToggle={() => toggleSection('cloud-rh')}
+          className="sm:col-span-2"
+        >
+        <div className="mt-2">
           <h2 className="font-display mb-1 text-base font-semibold">
             {appEdition === 'light' ? 'Dossier cloud société' : 'Dossier cloud RH'}
           </h2>
@@ -593,8 +790,16 @@ export function OperateurPage() {
             ) : null}
           </details>
         </div>
+        </CollapsibleSection>
 
-        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+        <CollapsibleSection
+          title="Sauvegarde de mes documents"
+          description="PDF (CERFA, rapports, devis) — jamais stockés sur ClimaZEN."
+          open={isOpen('coffre')}
+          onToggle={() => toggleSection('coffre')}
+          className="sm:col-span-2"
+        >
+        <div className="mt-2">
           <h2 className="font-display mb-1 text-base font-semibold">
             Coffre documents (hors site)
           </h2>
@@ -739,8 +944,16 @@ export function OperateurPage() {
             {excelMsg ? <p className="mt-2 text-xs text-muted">{excelMsg}</p> : null}
           </div>
         </div>
+        </CollapsibleSection>
 
-        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+        <CollapsibleSection
+          title="Mes distributeurs et centres de traitement"
+          description="Liste proposée dans le menu « Installation de destination » du CERFA."
+          open={isOpen('destinations')}
+          onToggle={() => toggleSection('destinations')}
+          className="sm:col-span-2"
+        >
+        <div className="mt-2">
           <h2 className="font-display mb-1 text-base font-semibold">
             Destinations CERFA [13]
           </h2>
@@ -768,8 +981,15 @@ export function OperateurPage() {
             restent toujours proposées, même si cette liste est vide.
           </p>
         </div>
+        </CollapsibleSection>
 
-        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+        <CollapsibleSection
+          title="Logo de mon entreprise"
+          open={isOpen('logo')}
+          onToggle={() => toggleSection('logo')}
+          className="sm:col-span-2"
+        >
+        <div className="mt-2">
           <h2 className="font-display mb-1 text-base font-semibold">Logo de la société</h2>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             {form.logoImage ? (
@@ -821,10 +1041,18 @@ export function OperateurPage() {
             </div>
           </div>
         </div>
+        </CollapsibleSection>
 
         {editionHasFeature(appEdition, 'chaine_commerciale') ? (
-        <>
-        <div className="sm:col-span-2 mt-2 border-t border-line pt-4">
+        <CollapsibleSection
+          title="Facturation"
+          description="Copier vers Tiime / Pennylane, ou automatiser avec Make.com."
+          open={isOpen('facturation')}
+          onToggle={() => toggleSection('facturation')}
+          className="sm:col-span-2"
+        >
+        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
           <h2 className="font-display mb-1 text-base font-semibold">Facturation (simple)</h2>
           <p className="mb-3 text-sm text-muted">
             Pour l’utilisateur standard : sur un client, <strong>copier les infos</strong> puis{' '}
@@ -906,7 +1134,8 @@ export function OperateurPage() {
             </div>
           )}
         </div>
-        </>
+        </div>
+        </CollapsibleSection>
         ) : null}
 
         {formError && (
