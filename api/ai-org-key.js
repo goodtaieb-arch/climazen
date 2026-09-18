@@ -16,21 +16,25 @@ import {
 } from '../server/lib/orgOpenaiKey.js'
 import { normalizeAiProvider } from '../server/lib/aiProviders.js'
 import handleTrackdechetsRequest from '../server/lib/trackdechetsHandler.js'
+import handleInvoicingRequest from '../server/lib/invoicingHandler.js'
 
-/** Hobby Vercel : 12 fonctions max — /api/trackdechets-* sont des rewrites vers ici. */
-function isTrackdechets(req) {
+/** Hobby Vercel : 12 fonctions max — /api/trackdechets-* et /api/invoicing-* sont des rewrites vers ici. */
+function serviceOf(req) {
   const q = req.query && typeof req.query === 'object' ? req.query : {}
-  if (String(q.service || '') === 'trackdechets') return true
+  if (q.service) return String(q.service)
   try {
     const u = new URL(req.url || '', 'http://localhost')
-    return u.searchParams.get('service') === 'trackdechets'
+    return u.searchParams.get('service') || ''
   } catch {
-    return String(req.url || '').includes('service=trackdechets')
+    const m = String(req.url || '').match(/[?&]service=([^&]+)/)
+    return m ? decodeURIComponent(m[1]) : ''
   }
 }
 
 export default async function handler(req, res) {
-  if (isTrackdechets(req)) return handleTrackdechetsRequest(req, res)
+  const service = serviceOf(req)
+  if (service === 'trackdechets') return handleTrackdechetsRequest(req, res)
+  if (service === 'invoicing') return handleInvoicingRequest(req, res)
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS')

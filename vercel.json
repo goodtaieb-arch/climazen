@@ -45,6 +45,10 @@
       "destination": "/api/ai-org-key?service=trackdechets&scope=bsff"
     },
     {
+      "source": "/api/invoicing-config",
+      "destination": "/api/ai-org-key?service=invoicing&scope=config"
+    },
+    {
       "source": "/((?!api/|assets/|icons/|cerfa/|logo\\.png|logo-original\\.png|favicon\\.svg|icons\\.svg|manifest\\.webmanifest|sw\\.js|workbox|version\\.json|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }

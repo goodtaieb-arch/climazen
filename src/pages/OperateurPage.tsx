@@ -37,6 +37,7 @@ import { CloudConnectPanel, CloudWriteTest } from '../components/CloudConnectPan
 import { TelephonyLolaPanel } from '../components/TelephonyLolaPanel'
 import { OpenaiOrgKeyPanel } from '../components/OpenaiOrgKeyPanel'
 import { TrackdechetsPanel } from '../components/TrackdechetsPanel'
+import { InvoicingPanel } from '../components/InvoicingPanel'
 import { PartenairesTraitementPanel } from '../components/PartenairesTraitementPanel'
 import { TransporteursPanel } from '../components/TransporteursPanel'
 import { GmaoImportPanel } from '../components/GmaoImportPanel'
@@ -88,6 +89,7 @@ const SECTION_IDS = [
   'edition',
   'ia',
   'trackdechets',
+  'facturation-elec',
   'partenaires',
   'transporteurs',
   'telephonie',
@@ -573,6 +575,16 @@ export function OperateurPage() {
           warn={trackdechetsIncomplete}
         >
           <TrackdechetsPanel />
+        </CollapsibleSection>
+      ) : null}
+      {isOwner ? (
+        <CollapsibleSection
+          title="Facturation électronique (Factur-X)"
+          description="Choisissez votre prestataire (FactPulse…) + identifiants personnels."
+          open={isOpen('facturation-elec')}
+          onToggle={() => toggleSection('facturation-elec')}
+        >
+          <InvoicingPanel />
         </CollapsibleSection>
       ) : null}
       {isOwner ? (
