@@ -113,6 +113,8 @@ function kindLabel(m: StockMouvement): string {
       return 'Transfert interne'
     case 'perte_emission':
       return 'Perte / émission accidentelle'
+    case 'ajustement_manuel':
+      return m.sens === 'entree' ? 'Ajout manuel (récup./recyclé)' : 'Ajustement manuel'
     case 'cerfa':
       return m.sens === 'entree' ? 'Récupération (CERFA)' : 'Charge / sortie (CERFA)'
     default:

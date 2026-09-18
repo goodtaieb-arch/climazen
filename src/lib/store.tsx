@@ -20,6 +20,7 @@ import type {
   PartenaireTraitement,
   Site,
   StockItem,
+  StockMouvement,
   TransporteurExterne,
   Voiture,
   VoitureEtatLieux,
@@ -379,6 +380,16 @@ type Store = {
   }) => number
   upsertStock: (s: Omit<StockItem, 'id' | 'updatedAt'> & { id?: string }) => string
   deleteStock: (id: string) => void
+  enregistrerEntreeStockManuelle: (opts: {
+    stockItemId: string
+    quantiteKg: number
+    quantiteAvantKg: number
+    date: string
+    kind: 'achat' | 'ajustement_manuel'
+    fournisseur?: string
+    documentReference?: string
+    createdByName?: string
+  }) => void
   enregistrerRetourConsigneBouteille: (opts: {
     stockItemId: string
     bonRetourConsigne: string
@@ -2866,6 +2877,57 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  /**
+   * Trace une entrée de stock saisie hors fiche CERFA (achat neuf/régénéré ou
+   * ajout manuel sur une bouteille de récupération/recyclé) — sinon ce kg
+   * n'apparaît jamais dans les mouvements ni le bilan annuel fluides.
+   */
+  const enregistrerEntreeStockManuelle = useCallback(
+    (opts: {
+      stockItemId: string
+      quantiteKg: number
+      quantiteAvantKg: number
+      date: string
+      kind: 'achat' | 'ajustement_manuel'
+      fournisseur?: string
+      documentReference?: string
+      createdByName?: string
+    }) => {
+      const qty = Math.round(opts.quantiteKg * 1000) / 1000
+      if (qty <= 0) return
+      setData((d) => {
+        const item = d.stock.find((s) => s.id === opts.stockItemId)
+        if (!item) return d
+        const avant = Math.round(opts.quantiteAvantKg * 1000) / 1000
+        const apres = Math.round((avant + qty) * 1000) / 1000
+        const ref = opts.documentReference?.trim()
+        const mouvement: StockMouvement = {
+          id: uuid(),
+          stockItemId: item.id,
+          numeroContenant: item.numeroContenant,
+          fluide: item.fluide,
+          sens: 'entree',
+          quantiteKg: qty,
+          quantiteAvantKg: avant,
+          quantiteApresKg: apres,
+          date: opts.date,
+          cerfaLabel:
+            opts.kind === 'achat'
+              ? ref
+                ? `ACHAT-${ref}`
+                : `ACHAT-${opts.date}-${item.numeroContenant}`
+              : `AJUST-${opts.date}-${item.numeroContenant}`,
+          kind: opts.kind,
+          createdByName: opts.createdByName,
+          tiersNom: opts.fournisseur,
+          documentReference: ref,
+        }
+        return { ...d, stockMouvements: [...(d.stockMouvements || []), mouvement] }
+      })
+    },
+    [],
+  )
+
   const enregistrerRetourConsigneBouteille = useCallback(
     (opts: {
       stockItemId: string
@@ -4057,6 +4119,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       applySiteClientSignature,
       upsertStock,
       deleteStock,
+      enregistrerEntreeStockManuelle,
       enregistrerRetourConsigneBouteille,
       enregistrerDestructionBouteille,
       enregistrerTransfertInterneBouteille,
@@ -4158,6 +4221,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       applySiteClientSignature,
       upsertStock,
       deleteStock,
+      enregistrerEntreeStockManuelle,
       enregistrerRetourConsigneBouteille,
       enregistrerDestructionBouteille,
       enregistrerTransfertInterneBouteille,

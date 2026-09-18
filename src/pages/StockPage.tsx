@@ -338,6 +338,7 @@ export function StockPage() {
     data,
     upsertStock,
     deleteStock,
+    enregistrerEntreeStockManuelle,
     enregistrerRetourConsigneBouteille,
     enregistrerDestructionBouteille,
     enregistrerTransfertInterneBouteille,
@@ -860,7 +861,11 @@ export function StockPage() {
       }
     }
 
-    upsertStock({
+    const avantQty = editId
+      ? Number(data.stock.find((s) => s.id === editId)?.quantiteKg) || 0
+      : 0
+
+    const stockItemId = upsertStock({
       ...form,
       fluide,
       contenantType,
@@ -902,6 +907,32 @@ export function StockPage() {
         : form.quantiteInitialeKg || qty,
       id: editId ?? undefined,
     })
+
+    // Trace l'entrée (achat neuf/régénéré, ou ajout manuel récup/recyclé)
+    // sinon ce kg n'apparaît jamais dans les mouvements ni le bilan annuel.
+    const deltaQty = roundKg(qty - avantQty)
+    if (deltaQty > 0) {
+      if (contenantType === 'vierge' || contenantType === 'regenere') {
+        enregistrerEntreeStockManuelle({
+          stockItemId,
+          quantiteKg: deltaQty,
+          quantiteAvantKg: avantQty,
+          date: today(),
+          kind: 'achat',
+          createdByName: user?.fullName || user?.email || user?.username,
+        })
+      } else if (contenantType === 'recuperation' || contenantType === 'recycle') {
+        enregistrerEntreeStockManuelle({
+          stockItemId,
+          quantiteKg: deltaQty,
+          quantiteAvantKg: avantQty,
+          date: today(),
+          kind: 'ajustement_manuel',
+          createdByName: user?.fullName || user?.email || user?.username,
+        })
+      }
+    }
+
     setOpen(false)
     setEditId(null)
     setRegsOpen(false)
@@ -3145,6 +3176,14 @@ export function StockPage() {
                                         ) : m.kind === 'destruction' ? (
                                           <span className="font-semibold text-orange-800">
                                             Évacuation BSFF −{m.quantiteKg} kg
+                                          </span>
+                                        ) : m.kind === 'achat' ? (
+                                          <span className="font-semibold text-emerald-700">
+                                            Achat +{m.quantiteKg} kg
+                                          </span>
+                                        ) : m.kind === 'ajustement_manuel' ? (
+                                          <span className="font-semibold text-emerald-700">
+                                            Ajout manuel +{m.quantiteKg} kg
                                           </span>
                                         ) : (
                                           <span

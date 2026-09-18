@@ -521,6 +521,11 @@ export type StockMouvementKind =
   | 'transfert_interne'
   /** Perte / fuite / dégazage accidentel (bilan F-Gas annuel) */
   | 'perte_emission'
+  /**
+   * Quantité ajoutée à une bouteille récupération/recyclé hors fiche CERFA
+   * (saisie manuelle d’un stock déjà en possession, migration papier…).
+   */
+  | 'ajustement_manuel'
 
 export interface StockMouvement {
   id: string
