@@ -2,10 +2,10 @@
  * Version affichée à l'utilisateur — à incrémenter à CHAQUE mise en ligne.
  * Si tu ne vois pas ce numéro (login + en-tête app), tu es sur un ancien cache → bouton MAJ.
  */
-export const APP_VERSION = 'v287'
+export const APP_VERSION = 'v288'
 
 /** Stamp technique (cache PWA / debug). */
-export const APP_BUILD = '2026-09-19-v287-registre-equipements-iso14001'
+export const APP_BUILD = '2026-09-19-v288-fix-co2-registre-equipements'
 
 /** Pastille / bandeau « Bêta » sur le site et dans l'app. Passer à false à la sortie bêta. */
 export const APP_IS_BETA = true

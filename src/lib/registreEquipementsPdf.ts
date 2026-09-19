@@ -114,7 +114,16 @@ export async function buildRegistreEquipementsPdf(registre: RegistreEquipements)
         : [['Aucun équipement fluide actif enregistré', '', '', '', '', '', '', '', '', '']],
     styles: { fontSize: 7.2, cellPadding: 1.6, halign: 'center' },
     headStyles: { fillColor: [26, 168, 150], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 6.8 },
-    columnStyles: { 0: { halign: 'left' }, 1: { halign: 'left' } },
+    columnStyles: {
+      0: { halign: 'left' },
+      1: { halign: 'left' },
+      // Colonnes numériques courtes forcées sur une ligne — sinon un GWP à 4
+      // chiffres ("1 387") passe à la ligne et ressemble visuellement à une
+      // fraction ("1" / "387" empilés avec la bordure de cellule entre les deux).
+      5: { cellWidth: 16, minCellWidth: 16 },
+      6: { cellWidth: 14, minCellWidth: 14 },
+      7: { cellWidth: 16, minCellWidth: 16 },
+    },
   })
 
   y = lastY(doc) + 6

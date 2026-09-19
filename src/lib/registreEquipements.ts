@@ -72,7 +72,10 @@ export function buildRegistreEquipements(data: AppData): RegistreEquipements {
     for (const eq of equipements) {
       const ref = findFluide(eq.fluideType)
       const gwp = ref ? ref.gwp : null
-      const teqCO2 = eq.teqCO2 ?? calcTeqCO2FromFluide(eq.chargeNominaleKg, eq.fluideType) ?? 0
+      // Toujours recalculé depuis charge × GWP ÷ 1000 (même formule que le CERFA) —
+      // jamais depuis eq.teqCO2, un champ mis en cache qui peut être obsolète si le
+      // fluide/la charge a été modifié depuis sans que ce champ soit recalculé.
+      const teqCO2 = calcTeqCO2FromFluide(eq.chargeNominaleKg, eq.fluideType) ?? 0
       const controle = controlesPeriodiquesInfo({
         fluideCode: eq.fluideType,
         chargeKg: eq.chargeNominaleKg,
