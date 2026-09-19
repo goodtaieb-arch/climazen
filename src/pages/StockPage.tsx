@@ -99,6 +99,8 @@ import { MobileFab } from '../components/MobileFab'
 import { StockBottleIcon } from '../components/StockBottleIcon'
 import { buildBilanDatafluides } from '../lib/bilanDatafluides'
 import { bilanDatafluidesFilename, buildBilanDatafluidesPdf } from '../lib/bilanDatafluidesPdf'
+import { buildRegistreEquipements } from '../lib/registreEquipements'
+import { registreEquipementsFilename, buildRegistreEquipementsPdf } from '../lib/registreEquipementsPdf'
 import { downloadBlob } from '../lib/cerfaPdf'
 import {
   createBsffOnTrackdechets,
@@ -405,6 +407,8 @@ export function StockPage() {
   const [bilanYear, setBilanYear] = useState(currentYear)
   const [bilanBusy, setBilanBusy] = useState(false)
   const [bilanError, setBilanError] = useState('')
+  const [registreBusy, setRegistreBusy] = useState(false)
+  const [registreError, setRegistreError] = useState('')
   const [trackdechetsEnabled, setTrackdechetsEnabled] = useState(false)
 
   useEffect(() => {
@@ -1236,6 +1240,21 @@ export function StockPage() {
     }
   }
 
+  const genererRegistreEquipements = async () => {
+    setRegistreBusy(true)
+    setRegistreError('')
+    try {
+      const registre = buildRegistreEquipements(data)
+      const blob = await buildRegistreEquipementsPdf(registre)
+      downloadBlob(blob, registreEquipementsFilename())
+    } catch (err) {
+      console.error(err)
+      setRegistreError(err instanceof Error ? err.message : 'Impossible de générer le registre.')
+    } finally {
+      setRegistreBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -1262,6 +1281,17 @@ export function StockPage() {
               className="inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink hover:bg-mist/60 md:h-11 md:min-h-0"
             >
               <FileText className="h-4 w-4" /> Bilan annuel fluides
+            </button>
+          ) : null}
+          {bureau ? (
+            <button
+              type="button"
+              disabled={registreBusy}
+              onClick={() => void genererRegistreEquipements()}
+              className="inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink hover:bg-mist/60 disabled:opacity-60 md:h-11 md:min-h-0"
+            >
+              <FileText className="h-4 w-4" />
+              {registreBusy ? 'Génération…' : 'Registre équipements'}
             </button>
           ) : null}
           <button
@@ -1292,6 +1322,8 @@ export function StockPage() {
           </button>
         </div>
       </div>
+
+      {registreError ? <p className="text-xs font-semibold text-danger">{registreError}</p> : null}
 
       {bilanOpen ? (
         <div className="rounded-2xl border border-line bg-white p-5">
