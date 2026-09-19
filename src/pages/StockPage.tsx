@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  X,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/AuthContext'
@@ -57,6 +58,7 @@ import {
 } from '../lib/stockVisibilite'
 import {
   adrInfoForFluide,
+  calcTeqCO2FromFluide,
   defaultCodeDechet,
   findFluide,
   formatGwp,
@@ -1543,9 +1545,32 @@ export function StockPage() {
       </div>
 
       {open && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-white"
+          role="dialog"
+          aria-modal
+          aria-label={editId ? 'Modifier la bouteille' : 'Ajouter une bouteille'}
+        >
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-white px-5 py-4">
+            <h2 className="font-display text-lg font-bold text-ink">
+              {editId ? 'Modifier la bouteille' : 'Ajouter une bouteille'}
+            </h2>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setRegsOpen(false)
+                setTechOpen(false)
+              }}
+              aria-label="Fermer"
+              className="rounded-full p-2 text-muted hover:bg-mist hover:text-ink"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         <form
           onSubmit={onSubmit}
-          className="grid gap-3 rounded-2xl border border-line bg-white p-5 sm:grid-cols-2"
+          className="mx-auto grid max-w-3xl gap-3 p-5 sm:grid-cols-2"
         >
           <p className="rounded-xl bg-mist/50 px-3 py-2 text-xs text-muted sm:col-span-2">
             Saisie rapide : <strong className="text-ink">photo étiquette</strong> ou{' '}
@@ -1968,6 +1993,17 @@ export function StockPage() {
             }
             disabled={!editId && contenantDemarreVide(form.contenantType)}
           />
+          {!isFluideNonAssigne(form.fluide) && (Number(form.quantiteKg) || 0) > 0 ? (
+            (() => {
+              const teq = calcTeqCO2FromFluide(Number(form.quantiteKg) || 0, form.fluide)
+              return teq != null ? (
+                <p className="-mt-1 text-xs text-muted sm:col-span-2">
+                  ≈ <strong className="text-ink">{teq.toLocaleString('fr-FR', { maximumFractionDigits: 3 })} t eq. CO2</strong>{' '}
+                  ({form.quantiteKg} kg × GWP {findFluide(form.fluide) ? formatGwp(findFluide(form.fluide)!) : '—'} ÷ 1000)
+                </p>
+              ) : null
+            })()
+          ) : null}
           {editId ? (
             <DecimalField
               label="Quantité d’entrée (kg)"
@@ -2344,6 +2380,7 @@ export function StockPage() {
             </button>
           </div>
         </form>
+        </div>
       )}
 
       {retourBottle && (

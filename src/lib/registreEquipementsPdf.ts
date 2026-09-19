@@ -12,7 +12,11 @@ function fmtDate(iso: string) {
 
 /** jsPDF/helvetica n’a pas le glyphe espace fine insécable (U+202F) du séparateur fr-FR. */
 function fixNbsp(s: string) {
-  return s.replace(/[  ]/g, ' ')
+  // Espace fine insécable (U+202F) et espace insécable (U+00A0) — séparateur
+  // de milliers de toLocaleString('fr-FR'), absent de la police Helvetica de
+  // base dans jsPDF (rendu comme un glyphe de substitution). Remplacé par un
+  // espace normal.
+  return s.replace(/[  ]/g, ' ')
 }
 
 function fmtNumber(n: number, maximumFractionDigits: number) {
